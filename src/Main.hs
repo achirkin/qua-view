@@ -5,6 +5,7 @@ module Main (
 
 import GHCJS.WebGL
 import Control.Monad
+import Control.Concurrent (threadDelay)
 --import Control.Applicative ((<*>))
 --import Control.Monad.Trans (liftIO)
 import Control.Monad.Reader
@@ -20,7 +21,7 @@ import GHCJS.DOM.Element (IsElement,elementOnmousemove,elementOnwheel, elementOn
                          ,elementOntouchstart,elementOntouchmove,elementOntouchend,elementOntouchcancel) -- ,elementOnclick
 --import GHCJS.DOM.HTMLParagraphElement (castToHTMLParagraphElement)
 --import GHCJS.DOM.Node (nodeAppendChild)
-import GHCJS.DOM.EventM (EventM,mouseClientXY, mouseButton,event,returnValue
+import GHCJS.DOM.EventM (EventM,Signal,mouseClientXY, mouseButton,event,returnValue
                         ,stopPropagation, stopImmediatePropagation,preventDefault)
 import GHCJS.DOM.Types (MouseEvent,IsEvent, UIEvent, unElement,unUIEvent)
 
@@ -38,15 +39,15 @@ import Geometry.Structure
 import Drawable.OCCamera
 import Drawable.World
 
+--import Data.List (intercalate)
 import Data.IORef
 import Data.Bits (shift)
 import Data.Maybe (fromMaybe)
---import qualified Data.Map as Map
---import Data.Time.Clock.POSIX
 
 import Model.City
 import Model.CityObject
 import Model.Grid
+
 
 --import System.Random
 -- closure-compiler all.js --compilation_level=ADVANCED_OPTIMIZATIONS > all.min.js
@@ -77,21 +78,37 @@ main = runWebGUI $ \ webView -> do
 --                              then (vpWidth' `div` 2, vpHeight' `div` 2)
 --                              else (vpWidth', vpHeight')
 
-    htmlElementSetInnerHTML body $ "<canvas id=\"glcanvas\" "
+    htmlElementSetInnerHTML body $
+        "<div id=\"divview\" "
+        ++ "style=\"position: fixed; right: 0; top: 0; padding: 0; margin: 0; width: "
+        ++ show (100::Int) ++ "px; height: "
+        ++ show (500::Int) ++ "px; z-index = 1; overflow: hidden;\" width=\""
+        ++ show (100::Int) ++ "px;\" height=\""
+        ++ show (500::Int) ++ "px;\"></div>"
+
+        ++ "<canvas id=\"glcanvas\" "
         ++ "style=\"position: fixed; left: 0; top: 0; padding: 0; margin: 0; width: "
         ++ show vpWidth ++ "px; height: "
-        ++ show vpHeight ++ "px; overflow: hidden;\" width=\""
+        ++ show vpHeight ++ "px; z-index = 2; overflow: hidden;\" width=\""
         ++ show vpWidth ++ "px;\" height=\""
         ++ show vpHeight ++ "px;\"></canvas>"
     Just canvas <- documentGetElementById doc "glcanvas"
---    canvas <- elemById . toJSString $ "glcanvas"
-    ctx <- getCtx . unElement $ canvas
+--    Just divview <- documentGetElementById doc "divview"
+    let canv = unElement $ canvas
+    ctx <- getCtx canv
 
 
     clearColor ctx 0 0 0 0
     enable ctx gl_DEPTH_TEST
+    blendFunc ctx gl_SRC_ALPHA gl_ONE_MINUS_SRC_ALPHA
     depthFunc ctx gl_LEQUAL
     viewport ctx 0 0 vpWidth vpHeight
+
+
+    img <- loadImage "ia512tex.png"
+--    printRef img
+    tex <- initTexture ctx img
+--    printRef tex
 
     -- Setup world
     camera <- newIORef $ initOCCamera (fromIntegral vpWidth) (fromIntegral vpHeight)
@@ -108,10 +125,11 @@ main = runWebGUI $ \ webView -> do
 --        :: IO (QTransform GLfloat Grid)
     grid <- createGrid iworld 500 100 (Vector4 0.6 0.6 0.8 1)
     let numb2 = 8
-    cityRef <- buildCity iworld (building1: building2 : building3 : repeat building4)
-            (Vector3 8 0 0 : Vector3 (-8) 0 0 : Vector3 (-8) 0 (-6) :
-            [Vector3 (-i*4 - 12) 0 (j*4) | i <- [1..numb2], j <- [1..numb2]])
-            (pi/3 : 0 : 0 : map ((pi/100)*) [1..])
+    cityRef <- buildCity iworld [building1,building2,building3,building4]
+            [[Vector3 8 0 0],[Vector3 (-8) 0 0],[Vector3 (-8) 0 (-6)],
+            [Vector3 (-i*4 - 12) 0 (j*4) | i <- [1..numb2], j <- [1..numb2]]]
+            [[pi/3],[0],[0],map ((pi/100)*) [1..]]
+            [[Nothing],[Nothing],[Nothing],repeat (Just tex)]
         >>= newIORef
 --    cityRef <- buildCity iworld (repeat building4)
 --            [Vector3 (-i*4 - 12) 0 (j*4) | i <- [1..numb2], j <- [1..numb2]]
@@ -139,41 +157,43 @@ main = runWebGUI $ \ webView -> do
             , iContext = Idle
             }
 
-    --drawCallback <- syncCallback AlwaysRetain False $ displayWhileActive posStateRef worldRef drawSequence
+    let selectNow = selectOnce worldRef [cityRef]
+    displayOnTime <- liftM animate
+        . syncCallback NeverRetain False $ displayOnce ltimeRef worldRef drawSequence
+    dispAndSelectOnTime <- liftM animate
+        . syncCallback NeverRetain False $ displayOnce ltimeRef worldRef drawSequence >> selectNow
+
     -- Remember state to start moving
-    _ <- elementOnmousedown canvas $ rememberState posStateRef iworld camera
-        -- >> liftIO (keepAnimate drawCallback)
-    _ <- elementOntouchstart canvas $ rememberStateT posStateRef iworld camera
-        -- >> liftIO (keepAnimate drawCallback)
+    _ <- elementOnmousedown canvas $ rememberState posStateRef worldRef camera
+    _ <- elementOntouchstart canvas $ rememberStateT posStateRef worldRef camera
 
     -- mouse scrolling
     _ <- elementOnwheel canvas $ do
         ev <- event
         liftIO $ toJSRef ev >>= mouseWheelChange
                 >>= modifyIORef' camera . scroll
-                >> displayOnce ltimeRef worldRef drawSequence
-                >> selectOnce worldRef [cityRef]
+                >> dispAndSelectOnTime
 
     -- moving
-    _ <- elementOnmousemove canvas $ mouseMove posStateRef camera cityRef -- >>= return . const ()
-        >>= flip when (liftIO $ displayOnce ltimeRef worldRef drawSequence)
-    _ <- elementOntouchmove canvas $ touchMove posStateRef camera cityRef -- >>= return . const ()
-        >>= flip when (liftIO $ displayOnce ltimeRef worldRef drawSequence)
+    _ <- elementOnmousemove canvas $ mouseMove posStateRef camera cityRef
+        >>= flip when (liftIO $ displayOnTime)
+    _ <- elementOntouchmove canvas $ touchMove posStateRef camera cityRef
+        >>= flip when (liftIO $ displayOnTime)
 
     -- Selecting
     _ <- elementOnmouseup canvas $ -- elementOnclick
-        selectObject posStateRef iworld cityRef
-        >>= flip when (liftIO $ displayOnce ltimeRef worldRef drawSequence)
-        >> forgetState posStateRef >> liftIO (selectOnce worldRef [cityRef])
+        selectObject posStateRef worldRef cityRef
+        >>= flip when (liftIO $ displayOnTime)
+        >> forgetState posStateRef >> liftIO selectNow
     _ <- elementOntouchend canvas $
-        selectObjectT posStateRef iworld cityRef
-        >>= flip when (liftIO $ displayOnce ltimeRef worldRef drawSequence)
-        >> forgetState posStateRef >> liftIO (selectOnce worldRef [cityRef])
+        selectObjectT posStateRef worldRef cityRef
+        >>= flip when (liftIO $ displayOnTime)
+        >> forgetState posStateRef >> liftIO selectNow
 
     -- Forget state by hard!
     let drawAndForget :: (IsElement self, IsEvent e) => EventM e self ()
         drawAndForget = forgetState posStateRef
-            >> liftIO (displayOnce ltimeRef worldRef drawSequence >> selectOnce worldRef [cityRef])
+            >> liftIO dispAndSelectOnTime
     _ <- elementOnmouseleave canvas drawAndForget
     _ <- elementOnmouseout canvas drawAndForget
     _ <- elementOntouchcancel canvas drawAndForget
@@ -181,10 +201,25 @@ main = runWebGUI $ \ webView -> do
     -- Do not react on right mouse click
     _ <- elementOncontextmenu canvas preventOthers
 
+    -- Resize body
+    _ <- elementOnResize body $ \_ -> do
+            w <- liftM (round . max 100) $ elementGetClientWidth body
+            h <- liftM (round . max 100) $ elementGetClientHeight body
+            elementSetSize canv w h
+            elementSetStyleSize canv w h
+            viewport ctx 0 0 w h
+            modifyIORef' camera $ \OCCamera{newState = ns} -> initOCCamera (fromIntegral w) (fromIntegral h) ns
+            fb <- initSelectorFramebuffer ctx $ Vector2 w h
+            modifyIORef' worldRef $ \wrld@World{selector = SelectorObject _ pickedColorArr} -> wrld{selector = SelectorObject fb pickedColorArr}
+            dispAndSelectOnTime
+
+
     -- Draw world
-    delay 1000
-    displayOnce ltimeRef worldRef drawSequence
-    selectOnce worldRef [cityRef]
+    threadDelay 1000000
+    dispAndSelectOnTime
+--    displayOnTime
+    --displayOnce ltimeRef worldRef drawSequence
+--    selectOnce worldRef [cityRef]
 
 
 
@@ -198,13 +233,11 @@ displayOnce luref wref drawCall = do
     ctime <- getTime
     when (lastUpdate + 0.005 < ctime) $ do
         writeIORef luref (lastUpdate+10)
-        oldworld@World{ currentTime = t } <- readIORef wref
-        world <- prepareWorldRender oldworld t
---        world <- getTime >>= prepareWorldRender oldworld
+        oldworld <- readIORef wref
+        world <- prepareWorldRender oldworld ctime
         drawCall world
         writeIORef wref world
         getTime >>= writeIORef luref
---        delay 10
 
 
 selectOnce :: (F.Foldable s, T.Traversable s, Selectable a)
@@ -219,42 +252,38 @@ selectOnce wref selectables = do
 -- Interaction  ------------------------------------------------------------------------------
 ----------------------------------------------------------------------------------------------
 
---data AnimationId_
---type AnimationId = JSRef AnimationId_
 
---foreign import javascript interruptible "window.requestAnimationFrame($1);"
---   animate' :: JSFun (IO ()) -> IO ()
---
---animate :: IO () -> IO ()
---animate f = syncCallback NeverRetain False f >>= animate'
+foreign import javascript interruptible "var img = new Image();img.crossOrigin='anonymous';img.onload=function(){$c(img);};img.src = $1;"
+    loadImage' :: JSString -> IO TexImageSource
 
---foreign import javascript safe "var g = $1; var f = function() {var b = g();window.requestAnimationFrame(f);};window.requestAnimationFrame(f);"
---   keepAnimate :: JSFun (IO JSBool) -> IO ()
+loadImage :: String -> IO TexImageSource
+loadImage = loadImage' . toJSString
 
---foreign import javascript safe "window.cancelAnimationFrame($1);"
---   stopAnimate :: AnimationId -> IO ()
+foreign import javascript safe "document.getElementById('divview').innerHTML = $1;"
+    printToDiv' :: JSString -> IO ()
 
---toCallback :: IO a -> IO (JSFun (IO a))
---toCallback f = asyncCallback AlwaysRetain f
+printToDiv :: (Show a) => a -> IO ()
+printToDiv = printToDiv' . toJSString . show
 
---foreign import javascript interruptible "window.requestAnimationFrame($c);"
---   keepAnimate :: IO ()
+foreign import javascript unsafe "window.requestAnimationFrame($1);"
+   animate :: JSFun (IO ()) -> IO ()
 
---displayWhileActive :: IORef InteractionState
---                   -> IORef World
---                   -> (World -> IO ())
---                   -> IO JSBool
---displayWhileActive posStateRef wref drawCall = do
---    oldworld <- readIORef wref
---    world <- getTime >>= prepareWorldRender oldworld
---    drawCall world
---    writeIORef wref world
---    readIORef posStateRef >>= return . toJSBool . (NoInteraction /=) . iType
---    readIORef posStateRef >>= flip when keepAnimate . (NoInteraction ==) . iType
+foreign import javascript unsafe "addResizeListener($1, $2);"
+   elementOnResize' :: JSRef elem -> JSFun (IO ()) -> IO ()
+
+elementOnResize :: IsElement self => Signal self (self -> IO ())
+elementOnResize self func = do
+    el <- toJSRef self
+    syncCallback AlwaysRetain False (func self) >>= elementOnResize' el >> return (return ())
 
 
-foreign import javascript interruptible "setTimeout($c, $1);"
-    delay :: Int -> IO ()
+foreign import javascript unsafe "$1.setAttribute(\"width\", $2 + \"px\");$1.setAttribute(\"height\", $3 + \"px\");"
+    elementSetSize :: JSRef a -> GLsizei -> GLsizei -> IO ()
+
+
+foreign import javascript unsafe "$1.style.width=$2 + \"px\";$1.style.height=$3 + \"px\";"
+    elementSetStyleSize :: JSRef a -> GLsizei -> GLsizei -> IO ()
+
 
 foreign import javascript safe "$r = new Date().getTime()/1000"
     getTime :: IO (GLfloat)
@@ -299,48 +328,56 @@ instance Enum InteractionType where
     toEnum 99 = Touches
     toEnum _ = NoInteraction
 
-data InteractionContext = Idle | CameraMotion | CityChange Int deriving (Eq)
+data InteractionContext = Idle | CameraMotion | CityChange (Int,Int) deriving (Eq)
 
 
 rememberState :: (IsElement self)
               => IORef InteractionState
-              -> World
+              -> IORef World
               -> IORef OCCamera
               -> EventM MouseEvent self ()
-rememberState posStateRef world camRef = do
+rememberState posStateRef worldref camRef = do
     preventOthers
     (x, y) <- mouseClientXY
     but <- mouseButton
     liftIO $ do
+--        printToDiv (x,y)
         t <- getTime
-        i' <- getSelection world (x,y)
+        i' <- readIORef worldref >>= getSelection (x,y)
         writeIORef posStateRef InterState
             { lastPos  = [fmap fromIntegral $ Vector2 x y]
             , lastTime = t
             , iType    = toEnum $ fromIntegral but
-            , iContext = if i' == 0 then CameraMotion else CityChange i'
+            , iContext = case i' of
+                (0,_) -> CameraMotion
+                (_,0) -> CameraMotion
+                i     -> CityChange i
             }
         modifyIORef' camRef (\camera@OCCamera{newState = nstate} -> camera{oldState = nstate})
 
 rememberStateT :: (IsElement self)
               => IORef InteractionState
-              -> World
+              -> IORef World
               -> IORef OCCamera
               -> EventM UIEvent self ()
-rememberStateT posStateRef world camRef = do
+rememberStateT posStateRef worldref camRef = do
     preventOthers
     e <- event
     liftIO $ do
         ts <- getTouches e
+--        printToDiv . intercalate "<br/>" $ map (\(Vector2 x y) -> show (x,y)) ts
         t <- getTime
         i' <- case ts of
-            [] -> return 0
-            Vector2 x y:_ -> getSelection world (round x, round y)
+            [] -> return (0,0)
+            Vector2 x y:_ -> readIORef worldref >>= getSelection (round x, round y)
         writeIORef posStateRef InterState
             { lastPos  = ts
             , lastTime = t
             , iType    = Touches
-            , iContext = if i' == 0 then CameraMotion else CityChange i'
+            , iContext = case i' of
+                (0,_) -> CameraMotion
+                (_,0) -> CameraMotion
+                i     -> CityChange i
             }
         modifyIORef' camRef (\camera@OCCamera{newState = nstate} -> camera{oldState = nstate})
 
@@ -444,10 +481,10 @@ touchMove posStateRef camRef cityRef = do
 
 selectObject :: (IsElement self)
            => IORef InteractionState
-           -> World
+           -> IORef World
            -> IORef City
            -> EventM MouseEvent self Bool
-selectObject posStateRef world cityRef = do
+selectObject posStateRef worldref cityRef = do
     preventOthers
     pos <- mouseClientXY
     but <- mouseButton
@@ -457,17 +494,18 @@ selectObject posStateRef world cityRef = do
             t <- getTime
             if t - otime > mouseClickTime then return False
             else do
-              i <- getSelection world pos
+              i <- readIORef worldref >>= getSelection pos
               modifyIORef' cityRef $ \city -> city{activeObj = i}
+              printToDiv (i, pos)
               return True
         _ -> return False
 
 selectObjectT :: (IsElement self)
            => IORef InteractionState
-           -> World
+           -> IORef World
            -> IORef City
            -> EventM UIEvent self Bool
-selectObjectT posStateRef world cityRef = do
+selectObjectT posStateRef worldref cityRef = do
     preventOthers
     e <- event
     liftIO $ do
@@ -478,7 +516,7 @@ selectObjectT posStateRef world cityRef = do
                 t <- getTime
                 if t - otime > mouseClickTime then return False
                 else do
-                    i <- getSelection world (round x, round y)
+                    i <- readIORef worldref >>= getSelection (round x, round y)
                     modifyIORef' cityRef $ \city -> city{activeObj = i}
                     return True
             _ -> return False
@@ -490,24 +528,30 @@ preventOthers = do
     stopImmediatePropagation
     returnValue False
 
-getSelection :: World -> (Int,Int) -> IO Int
-getSelection World
+getSelection :: (Int,Int) -> World -> IO (Int,Int)
+getSelection  (x,y) World
     { glctx     = gl
     , cameraRef = camRef
     , selector  = SelectorObject
         { sbuffer   = sbuf
         , pixProber = pcarr
         }
-    } (x,y) = do
-    Vector2 _ h <- liftM viewSize $ readIORef camRef
+    } = do
+    Vector2 w h <- liftM viewSize $ readIORef camRef
     bindFramebuffer gl gl_FRAMEBUFFER sbuf
+    viewport gl 0 0 w h
     readPixels gl (fromIntegral x) (fromIntegral h - fromIntegral y) 1 1 gl_RGBA gl_UNSIGNED_BYTE pcarr
+--    print (x,y)
+--    printRef pcarr
     r <- liftM fromIntegral $ getIdx pcarr 0
     g <- liftM fromIntegral $ getIdx pcarr 1
     b <- liftM fromIntegral $ getIdx pcarr 2
-    let i = r + shift g 8 + shift b 16 :: Int
+    a <- liftM fromIntegral $ getIdx pcarr 3
+    let i = r + shift g 8
+        j = b + shift a 8
     bindFramebuffer gl gl_FRAMEBUFFER jsNull
-    return i
+    viewport gl 0 0 w h
+    return (i,j)
 
 ----------------------------------------------------------------------------------------------
 -- Next goes our test data  ------------------------------------------------------------------
