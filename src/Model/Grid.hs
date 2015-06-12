@@ -91,6 +91,7 @@ vertStaticMesh = unlines [
   "uniform mat4 uProjM;",
   "varying vec3 vDist;",
   "void main(void) {",
-  "  gl_Position = uProjM * uModelViewM * vec4(aVertexPosition, 1.0);",
-  "  vDist = gl_Position.xyz/300.0;",
+  "  vec4 globalPos = uModelViewM * vec4(aVertexPosition, 1.0);",
+  "  gl_Position = uProjM * globalPos;",
+  "  vDist = globalPos.xyz/globalPos.w/200.0;",
   "}"]

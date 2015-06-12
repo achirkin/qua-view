@@ -115,7 +115,7 @@ initWorld gl c t = do
     -- create selector
     s <- M.liftM viewSize $ readIORef c
     selB <- initSelectorFramebuffer gl s
-    pickedColorArr <- mallocArrayBuffer 4 >>= typedArrayView
+    pickedColorArr <- newTypedArray 4 --mallocArrayBuffer 4 >>= typedArrayView
     return World {
         glctx        = gl,
         cameraRef    = c,
@@ -127,6 +127,8 @@ initWorld gl c t = do
                                       --(unifLoc p "uModelViewM") -- (unifLoc p "uSelector")
                                       pickedColorArr
     }
+
+
 
 -- | This function is called every frame to set up correct matrices and time
 prepareWorldRender :: World -> GLfloat -> IO World
@@ -142,11 +144,14 @@ prepareWorldRender w@(World{cameraRef = cRef, glctx = gl}) t = do
     }
 
 applySelector :: (F.Foldable s, Selectable a)=> World -> s a -> IO ()
-applySelector w@(World{glctx = gl}) xs = do
-    bindFramebuffer gl gl_FRAMEBUFFER (sbuffer $ selector w)
+applySelector wrld@(World{glctx = gl, cameraRef = camr}) xs = do
+    Vector2 w h <- M.liftM viewSize . readIORef $ camr
+    bindFramebuffer gl gl_FRAMEBUFFER (sbuffer $ selector wrld)
+    viewport gl 0 0 w h
     clear gl (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
-    F.mapM_ (selectArea w) xs
+    F.mapM_ (selectArea wrld) xs
     bindFramebuffer gl gl_FRAMEBUFFER jsNull
+    viewport gl 0 0 w h
 
 
 -- | Apply current transform of an object (including perspective) and save shader uniforms
@@ -176,3 +181,18 @@ initSelectorFramebuffer gl (Vector2 width height) = do
     framebufferRenderbuffer gl gl_FRAMEBUFFER gl_DEPTH_ATTACHMENT gl_RENDERBUFFER rbd
     bindFramebuffer gl gl_FRAMEBUFFER jsNull
     return fb
+
+
+
+initTexture :: Ctx -> TexImageSource -> IO Texture
+initTexture gl img = do
+    tex <- createTexture gl
+    bindTexture gl gl_TEXTURE_2D tex
+    pixelStorei gl gl_UNPACK_FLIP_Y_WEBGL 1
+    texImage2DImg gl gl_TEXTURE_2D 0 gl_RGBA gl_RGBA gl_UNSIGNED_BYTE img
+    texParameteri gl gl_TEXTURE_2D gl_TEXTURE_MAG_FILTER $ fromIntegral gl_NEAREST
+    texParameteri gl gl_TEXTURE_2D gl_TEXTURE_MIN_FILTER $ fromIntegral gl_NEAREST
+    bindTexture gl gl_TEXTURE_2D jsNull
+    return tex
+
+

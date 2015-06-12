@@ -17,6 +17,7 @@
 module Model.CityObject where
 
 import qualified Control.Monad as M
+--import qualified Data.IntMap.Strict as IM
 import Data.List (zip4)
 import Data.Primitive.ByteArray (writeByteArray)
 
@@ -215,10 +216,10 @@ buildWall :: Vector3 GLfloat -- first point
           -> Vector3 GLfloat -- arbitrary inside point
           -> [(Vector3 GLfloat, Vector3 GLbyte, Vector2 GLushort)]
 buildWall p1@(Vector3 x1 y1 z1) p2@(Vector3 x2 y2 z2) c =
-    [ (p1,norm,Vector2 0 h1)
-    , (p2,norm,Vector2 m h2)
-    , (Vector3 x2 0 z2,norm, Vector2 m 0)
-    , (Vector3 x1 0 z1,norm, Vector2 0 0)]
+    [ (p1,norm,Vector2 m h1)
+    , (p2,norm,Vector2 0 h2)
+    , (Vector3 x2 0 z2,norm, Vector2 0 0)
+    , (Vector3 x1 0 z1,norm, Vector2 m 0)]
     where (h1,h2) = if y1 > y2 then (m, round $ y2/y1 * fromIntegral m)
                                else (round $ y1/y2 * fromIntegral m, m)
           m = 65535

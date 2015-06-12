@@ -60,10 +60,11 @@ initOCCamera :: GLfloat -- ^ width of the viewport
              -> OCCamera
 initOCCamera width height state = OCCamera {
         viewportSize = Vector2 width height,
-        projMatrix   = perspective 0.1 1000 (pi/4) ratio,
+        projMatrix   = perspective 0.1 1000 fovy ratio,
         oldState     = state,
         newState     = state
     } where ratio = width / height
+            fovy = (1*) . atan2 height . sqrt $ height*height + width*width
 
 -- | Create view matrix out of camera state
 stateToView :: OCCState -> Matrix4x4 GLfloat

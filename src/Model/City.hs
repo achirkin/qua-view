@@ -46,10 +46,16 @@ import Model.CityObject
 -- | Map of all city object (buildings, roads, etc).
 --   Values: object, location (transformed mesh)
 data City = City
-    { activeObj    :: !Int
+    { activeObj    :: !(Int, Int)
     , buildShader  :: !ShaderProgram
     , selectShader :: !ShaderProgram
-    , objectsIn    :: !(IM.IntMap (CityObject, QTransform GLfloat CityObjectMesh))
+    , objectsIn    :: !(IM.IntMap CityObjRep)
+    }
+
+data CityObjRep = CityObjRep
+    { orObj  :: !CityObject
+    , orMesh :: !CityObjectMesh
+    , orLocs :: !(IM.IntMap (QTransform GLfloat (Maybe Texture)))
     }
 
 -- | Add a city object on a pointed place in the city.
@@ -62,7 +68,11 @@ addCityObject :: World
               -> IO (City)
 addCityObject w o p r c@City{objectsIn = m} =
     createObjectMesh w o >>= \om ->
-    return $ c{objectsIn = IM.insert i (o, translate p om >>= rotateY r) m}
+    return $ c{objectsIn = IM.insert i CityObjRep
+            { orObj = o
+            , orMesh = om
+            , orLocs = IM.fromAscList [(1,translate p Nothing >>= rotateY r)]
+            } m }
     where i = fst (IM.findMax m) + 1
 
 -- | The same as `addCityObject`, but modifies a city inplace by its reference
@@ -75,16 +85,25 @@ addCityObject' :: World
 addCityObject' w o p r cref = do
     om <- createObjectMesh w o
     modifyIORef' cref $ \c@City{objectsIn = m} ->
-        c{objectsIn = IM.insert (fst (IM.findMax m) + 1) (o, translate p om >>= rotateY r) m}
+        c{objectsIn = IM.insert (fst (IM.findMax m) + 1) CityObjRep
+            { orObj = o
+            , orMesh = om
+            , orLocs = IM.fromAscList [(1,translate p Nothing >>= rotateY r)]
+            } m}
 
+--addObjectTexture :: World
+--                 -> Int
+--                 -> Int
+--
 
 -- | Helper for creation of the city from the list of city objects
 buildCity :: World
           -> [CityObject]
-          -> [Vector3 GLfloat] -- ^ positions
-          -> [GLfloat] -- ^ rotations (w.r.t. Y axis)
+          -> [[Vector3 GLfloat]] -- ^ positions
+          -> [[GLfloat]] -- ^ rotations (w.r.t. Y axis)
+          -> [[Maybe Texture]]
           -> IO (City)
-buildCity w@World{glctx = gl} bs ps rs = do
+buildCity w@World{glctx = gl} bs ps rs texs = do
     enableVertexAttribArray gl 0
     enableVertexAttribArray gl 1
     enableVertexAttribArray gl 2
@@ -100,16 +119,16 @@ buildCity w@World{glctx = gl} bs ps rs = do
     useProgram gl (programId seProgram)
     bindAttribLocation gl (programId seProgram) 0 (toJSString "aVertexPosition")
 
-    c <- M.liftM (City 0 buProgram seProgram . IM.fromAscList . zip [1..] . zipWith f bs)
-        . sequence -- apply all building mesh creations
-        . zipWith3 trans ps rs -- create transforms
-        $ map (createObjectMesh w) bs
+    createdObjects <- mapM (\(olocs, oobj, omaction) -> do
+        omesh <- omaction
+        return $ CityObjRep oobj omesh olocs) . zip3 locs bs $ map (createObjectMesh w) bs :: IO [CityObjRep]
+
     disableVertexAttribArray gl 0
     disableVertexAttribArray gl 1
     disableVertexAttribArray gl 2
-    return c
-    where trans p r m = liftTransform $ translate p m >>= rotateY r
-          f b m = (b,m)
+    return $ City (0,0) buProgram seProgram . IM.fromAscList . zip [1..] $ createdObjects
+    where trans p r t = translate p t >>= rotateY r
+          locs = zipWith3 (\pp rr -> IM.fromAscList . zip [1..] . zipWith3 trans pp rr) ps rs texs
 
 
 
@@ -119,31 +138,50 @@ buildCity w@World{glctx = gl} bs ps rs = do
 
 -- Drawing a city means drawing all its objects
 instance Drawable City where
-    draw w@World{glctx = gl} (City j bProg _ buildings) = do
+    draw w@World{glctx = gl} (City (j,k) bProg _ buildings) = do
         enableVertexAttribArray gl 0
         enableVertexAttribArray gl 1
         enableVertexAttribArray gl 2
         useProgram gl . programId $ bProg
+        activeTexture gl gl_TEXTURE0
+        uniform1i gl (unifLoc bProg "uSampler") 0
         uniformMatrix4fv gl (unifLoc bProg "uProjM") False (projectLoc w)
-        uniform4f gl colLoc 0.75 0.75 0.7 1
         uniform3f gl (unifLoc bProg "uSunDir") sx sy sz
-        IM.foldMapWithKey f buildings
         uniform4f gl colLoc 0.7 0.7 0.7 1
         IM.foldMapWithKey g buildings
+        uniform4f gl colLoc 0.75 0.75 0.7 1
+        IM.foldMapWithKey f buildings
         disableVertexAttribArray gl 0
         disableVertexAttribArray gl 1
         disableVertexAttribArray gl 2
-        where f i (o,b) | behavior o == Static = return ()
-                        | i /= j = applyTransform' w viewLoc b >>= drawSurface gl
-                        | otherwise = do
+        where f i (CityObjRep o m locs) | behavior o == Static = return ()
+                                        | i /= j = IM.foldMapWithKey
+                    (\_ t -> applyTransform' w viewLoc t >>= maybeWithTexture m 0.6) locs
+                                        | otherwise = IM.foldMapWithKey
+                    (\l t -> if l /= k then applyTransform' w viewLoc t >>= maybeWithTexture m 0.6
+                                       else do
                             uniform4f gl colLoc 1 0.65 0.65 1
-                            applyTransform' w viewLoc b >>= drawSurface gl
-                            uniform4f gl colLoc 0.75 0.75 0.7 1
-              g _ (o,b) | behavior o == Dynamic = return ()
-                        | otherwise = applyTransform' w viewLoc b >>= drawSurface gl
+                            applyTransform' w viewLoc t >>= maybeWithTexture m 0.2
+                            uniform4f gl colLoc 0.75 0.75 0.7 1) locs
+              g _ (CityObjRep o m locs) | behavior o == Dynamic = return ()
+                                        | otherwise = IM.foldMapWithKey
+                    (\_ t -> applyTransform' w viewLoc t >>= maybeWithTexture m 0.6) locs
               viewLoc = unifLoc bProg "uModelViewM"
               colLoc = unifLoc bProg "uVertexColor"
-              Vector4 sx sy sz _ = currentView w `prod` Vector4 (-0.5) (-1) 0.3 0
+              userLoc = unifLoc bProg "uTexUser"
+              Vector4 sx sy sz _ = currentView w `prod` Vector4 (-0.5) (-1) 0.6 0
+              maybeWithTexture m _ Nothing   = drawSurface gl m
+              maybeWithTexture m l (Just tex) = do
+                uniform1f gl userLoc l
+                enable gl gl_BLEND
+                depthMask gl False
+                --disable gl gl_DEPTH_TEST
+                bindTexture gl gl_TEXTURE_2D tex
+                drawSurface gl m
+                uniform1f gl userLoc 0
+                disable gl gl_BLEND
+                depthMask gl True
+                --enable gl gl_DEPTH_TEST
 
 
 -- | Apply current transform of an object (including perspective) and save shader uniforms
@@ -163,12 +201,15 @@ instance Selectable City where
         uniformMatrix4fv gl (unifLoc sProg "uProjM") False (projectLoc w)
         IM.foldMapWithKey f buildings
         disableVertexAttribArray gl 0
-        where f i (o,b) = M.when (behavior o == Dynamic) $ do
-                uniform3f gl selValLoc
-                            (fromIntegral i / 256)
-                            ((fromIntegral $ shift i (-8))/256)
-                            ((fromIntegral $ shift i (-16))/256)
-                applyTransform' w viewLoc b >>= drawSurface gl
+        where f i (CityObjRep o m locs) = M.when (behavior o == Dynamic) $
+                IM.foldMapWithKey (f' m i) locs
+              f' m i j loc = do
+                uniform4f gl selValLoc
+                            (fromIntegral (i .&. 0xFF) / 255)
+                            ((fromIntegral (shift i (-8) .&. 0x000000FF))/255)
+                            (fromIntegral (j .&. 0xFF) / 255)
+                            ((fromIntegral (shift j (-8) .&. 0x000000FF))/255)
+                applyTransform' w viewLoc loc >> drawSurface gl m
               viewLoc = unifLoc sProg "uModelViewM"
               selValLoc = unifLoc sProg "uSelector"
 
@@ -185,7 +226,7 @@ dragBuilding :: (Camera c)
              -> City -- ^ Modify the city state
              -> City
 dragBuilding (Vector2 ox oy) (Vector2 x y) camera city@City
-    { activeObj = i
+    { activeObj = (i,j)
     , objectsIn = m
     } = city {
         objectsIn = IM.adjust f i m
@@ -201,7 +242,8 @@ dragBuilding (Vector2 ox oy) (Vector2 x y) camera city@City
             oldPoint = findPos campos (oldpos .- campos) 0
             newPoint = findPos campos (newpos .- campos) 0
             dv = newPoint .- oldPoint
-            f (b,bm) = (b, translate dv id <*> bm)
+            f cor@CityObjRep{orLocs = locs} = cor {orLocs = IM.adjust f' j locs}
+            f' t = translate dv id <*> t
 
 
 -- | Dragging - pan building on xz plane (e.g. using left mouse button)
@@ -212,7 +254,7 @@ rotateBuilding :: (Camera c)
                -> City -- ^ Modify the city state
                -> City
 rotateBuilding (Vector2 ox oy) (Vector2 x y) camera city@City
-    { activeObj = i
+    { activeObj = (i,j)
     , objectsIn = m
     } = city {
         objectsIn = IM.adjust f i m
@@ -227,7 +269,8 @@ rotateBuilding (Vector2 ox oy) (Vector2 x y) camera city@City
                 (1 - 2 * y / height) 1 1
             oldPoint = findPos campos (oldpos .- campos) 0
             newPoint = findPos campos (newpos .- campos) 0
-            f (b, bm@(QTransform _ p _)) = (b, bm >>= rotateY a)
+            f cor@CityObjRep{orLocs = locs} = cor {orLocs = IM.adjust f' j locs}
+            f' t@(QTransform _ p _) = t >>= rotateY a
                 where dv1 = unit $ newPoint .- p
                       dv0 = unit $ oldPoint .- p
                       Vector3 _ sina _ = cross dv0 dv1
@@ -244,7 +287,7 @@ twoFingerBuilding :: (Camera c)
 twoFingerBuilding (Vector2 ox1 oy1, Vector2 ox2 oy2)
                  (Vector2 x1 y1, Vector2 x2 y2)
                  camera city@City
-    { activeObj = i
+    { activeObj = (i,j)
     , objectsIn = m
     } = city {
         objectsIn = IM.adjust f i m
@@ -269,7 +312,9 @@ twoFingerBuilding (Vector2 ox1 oy1, Vector2 ox2 oy2)
             oldPoint = findPos campos (oldpos .- campos) 0
             newPoint = findPos campos (newpos .- campos) 0
             dv = newPoint .- oldPoint
-            f (b, bm) = (b, translate dv id <*> (bm >>= rotateY dφ))
+            f cor@CityObjRep{orLocs = locs} = cor {orLocs = IM.adjust f' j locs}
+            f' t = translate dv id <*> (t >>= rotateY dφ)
+--            f (b, bm) = (b, translate dv id <*> (bm >>= rotateY dφ))
 
 ----------------------------------------------------------------------------------------------------
 -- Helpers
@@ -299,8 +344,11 @@ fragBuilding :: String
 fragBuilding = unlines [
   "precision lowp float;",
   "varying vec4 vColor;",
+  "varying vec2 vTextureCoord;",
+  "uniform sampler2D uSampler;",
+  "uniform float uTexUser;",
   "void main(void) {",
-  "    gl_FragColor = vColor;",
+  "    gl_FragColor = uTexUser * texture2D(uSampler, vec2(vTextureCoord.s, vTextureCoord.t)) + (1.0-uTexUser)*vColor;",
   "}"]
 
 vertBuilding :: String
@@ -308,17 +356,21 @@ vertBuilding = unlines [
 --  "precision lowp float;",
   "attribute vec3 aVertexPosition;",
   "attribute vec3 aVertexNormal;",
+  "attribute vec2 aTextureCoord;",
   "uniform mat4 uModelViewM;",
   "uniform mat4 uProjM;",
   "uniform vec3 uSunDir;",
   "uniform vec4 uVertexColor;",
   "varying vec4 vColor;",
+  "varying vec2 vTextureCoord;",
   "void main(void) {",
-  "  gl_Position = uProjM * uModelViewM * vec4(aVertexPosition, 1.0);",
-  "  vec3 vDist = gl_Position.xyz/300.0;",
+  "  vec4 globalPos = uModelViewM * vec4(aVertexPosition, 1.0);",
+  "  gl_Position = uProjM * globalPos;",
+  "  vec3 vDist = globalPos.xyz/globalPos.w/200.0;",
   "  float z = clamp(dot(vDist,vDist), 0.0, 3.0);",
   "  vColor = clamp(uVertexColor * (1.0 + 0.3*max(0.0, dot(-vec4(uSunDir, 0.0), uModelViewM * vec4(aVertexNormal, 0.0)))), vec4(z-0.0,z-0.0,z-0.0,0.0), vec4(1.0,1.0,1.0,min(3.0-z, 1.0)));",
 --  "  vColor = vec4(aVertexNormal,1) + 0.00001*vColor;",
+  "  vTextureCoord = aTextureCoord;",
   "}"]
 
 
@@ -326,10 +378,10 @@ vertBuilding = unlines [
 
 fragSelector :: String
 fragSelector = unlines [
-  "precision lowp float;",
-  "uniform vec3 uSelector;",
+  "precision highp float;",
+  "uniform vec4 uSelector;",
   "void main(void) {",
-  "    gl_FragColor = vec4(uSelector,1);",
+  "    gl_FragColor = uSelector;",
   "}"]
 
 vertSelector :: String
