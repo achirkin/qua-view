@@ -60,17 +60,25 @@ createGrid World{glctx = gl} size cells color = do
 
 
 instance Drawable Grid where
-    draw w@World{glctx = gl} (Grid (Vector4 r g b a) size _ buf prog) = do
+    drawInCurrContext w@World{glctx = gl, curContext = cc}
+                      (Grid (Vector4 r g b a) size _ buf prog) = do
         enableVertexAttribArray gl 0
         useProgram gl . programId $ prog
         bindBuffer gl gl_ARRAY_BUFFER buf
-        uniformMatrix4fv gl (unifLoc prog "uProjM") False (projectLoc w)
-        fillTypedArray (modelViewLoc w) (currentView w)
-        uniformMatrix4fv gl (unifLoc prog "uModelViewM") False (modelViewLoc $ w)
+        uniformMatrix4fv gl (wProjLoc cc) False (projectLoc w)
+        fillTypedArray (modelViewLoc w) (wView cc)
+        uniformMatrix4fv gl (wViewLoc cc) False (modelViewLoc w)
         uniform4f gl (unifLoc prog "uColor") r g b a
         vertexAttribPointer gl 0 3 gl_FLOAT False 12 0
         drawArrays gl gl_LINES 0 size
         disableVertexAttribArray gl 0
+    updateDrawContext (Grid _ _ _ _ prog)
+                      w@World{curContext = cc} = w
+        { curContext = cc
+            { wProjLoc = unifLoc prog "uProjM"
+            , wViewLoc = unifLoc prog "uModelViewM"
+            }
+        }
 
 
 fragStaticMesh :: String
