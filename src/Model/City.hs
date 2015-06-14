@@ -25,7 +25,7 @@ import qualified Data.IntMap.Strict as IM
 import Data.Bits
 import Data.Monoid
 
-import GHCJS.Foreign (toJSString)
+--import GHCJS.Foreign (toJSString)
 import GHCJS.WebGL
 
 import Geometry.Space
@@ -104,28 +104,15 @@ buildCity :: World
           -> [[Maybe Texture]]
           -> IO (City)
 buildCity w@World{glctx = gl} bs ps rs texs = do
-    enableVertexAttribArray gl 0
-    enableVertexAttribArray gl 1
-    enableVertexAttribArray gl 2
     buProgram <- initShaders gl [(gl_FRAGMENT_SHADER, fragBuilding)
                                 ,(gl_VERTEX_SHADER, vertBuilding)]
-    useProgram gl (programId buProgram)
-    bindAttribLocation gl (programId buProgram) 0 (toJSString "aVertexPosition")
-    bindAttribLocation gl (programId buProgram) 1 (toJSString "aVertexNormal")
-    bindAttribLocation gl (programId buProgram) 2 (toJSString "aTextureCoord")
-
+--    useProgram gl (programId buProgram)
     seProgram <- initShaders gl [(gl_FRAGMENT_SHADER, fragSelector)
                                 ,(gl_VERTEX_SHADER, vertSelector)]
-    useProgram gl (programId seProgram)
-    bindAttribLocation gl (programId seProgram) 0 (toJSString "aVertexPosition")
-
+--    useProgram gl (programId seProgram)
     createdObjects <- mapM (\(olocs, oobj, omaction) -> do
         omesh <- omaction
         return $ CityObjRep oobj omesh olocs) . zip3 locs bs $ map (createObjectMesh w) bs :: IO [CityObjRep]
-
-    disableVertexAttribArray gl 0
-    disableVertexAttribArray gl 1
-    disableVertexAttribArray gl 2
     return $ City (0,0) buProgram seProgram . IM.fromAscList . zip [1..] $ createdObjects
     where trans p r t = translate p t >>= rotateY r
           locs = zipWith3 (\pp rr -> IM.fromAscList . zip [1..] . zipWith3 trans pp rr) ps rs texs
@@ -154,9 +141,9 @@ drawCity w@World
     { glctx = gl
     , curContext = WorldContext{wSunDir = Vector3 sx sy sz, wProjLoc = projLoc}
     } (City (j,k) bProg _ buildings) = do
-    enableVertexAttribArray gl 0
-    enableVertexAttribArray gl 1
-    enableVertexAttribArray gl 2
+    enableVertexAttribArray gl ploc
+    enableVertexAttribArray gl nloc
+    enableVertexAttribArray gl tloc
     useProgram gl . programId $ bProg
     activeTexture gl gl_TEXTURE0
     uniform1i gl (unifLoc bProg "uSampler") 0
@@ -166,28 +153,32 @@ drawCity w@World
     IM.foldMapWithKey g buildings
     uniform4f gl colLoc 0.75 0.75 0.7 1
     IM.foldMapWithKey f buildings
-    disableVertexAttribArray gl 0
-    disableVertexAttribArray gl 1
-    disableVertexAttribArray gl 2
+    disableVertexAttribArray gl tloc
+    disableVertexAttribArray gl nloc
+    disableVertexAttribArray gl ploc
     where f i (CityObjRep o m locs) | behavior o == Static = return ()
                                     | i /= j = IM.foldMapWithKey
-                (\_ t -> applyTransform w t >>= maybeWithTexture m 0.6) locs
+                (\_ t -> applyTransform w t >>= maybeWithTexture m 0.9) locs
                                     | otherwise = IM.foldMapWithKey
-                (\l t -> if l /= k then applyTransform w t >>= maybeWithTexture m 0.6
+                (\l t -> if l /= k then applyTransform w t >>= maybeWithTexture m 0.9
                                    else do
                         uniform4f gl colLoc 1 0.65 0.65 1
-                        applyTransform w t >>= maybeWithTexture m 0.2
+                        applyTransform w t >>= maybeWithTexture m 0.6
                         uniform4f gl colLoc 0.75 0.75 0.7 1) locs
           g _ (CityObjRep o m locs) | behavior o == Dynamic = return ()
                                     | otherwise = IM.foldMapWithKey
-                (\_ t -> applyTransform w t >>= maybeWithTexture m 0.6) locs
+                (\_ t -> applyTransform w t >>= maybeWithTexture m 0.9) locs
           colLoc = unifLoc bProg "uVertexColor"
           userLoc = unifLoc bProg "uTexUser"
-          maybeWithTexture m _ Nothing   = drawSurface gl m
+          alocs@(ploc,Just (nloc,tloc)) =
+                  ( attrLoc bProg "aVertexPosition"
+                  , Just ( attrLoc bProg "aVertexNormal"
+                         , attrLoc bProg "aTextureCoord"))
+          maybeWithTexture m _ Nothing   = drawSurface gl alocs m
           maybeWithTexture m l (Just tex) = do
             uniform1f gl userLoc l
             bindTexture gl gl_TEXTURE_2D tex
-            drawSurface gl m
+            drawSurface gl alocs m
             uniform1f gl userLoc 0
 
 
@@ -203,12 +194,13 @@ instance Selectable City where
         }
 
 selectCityArea :: World -> City -> IO ()
-selectCityArea w@World{glctx = gl} (City _ _ sProg buildings) = do
-    enableVertexAttribArray gl 0
+selectCityArea w@World{glctx = gl, curContext = WorldContext{wProjLoc = projLoc}}
+               (City _ _ sProg buildings) = do
+    enableVertexAttribArray gl ploc
     useProgram gl . programId $ sProg
-    uniformMatrix4fv gl (unifLoc sProg "uProjM") False (projectLoc w)
+    uniformMatrix4fv gl projLoc False (projectLoc w)
     IM.foldMapWithKey f buildings
-    disableVertexAttribArray gl 0
+    disableVertexAttribArray gl ploc
     where f i (CityObjRep o m locs) = M.when (behavior o == Dynamic) $
             IM.foldMapWithKey (f' m i) locs
           f' m i j loc = do
@@ -217,8 +209,10 @@ selectCityArea w@World{glctx = gl} (City _ _ sProg buildings) = do
                         (fromIntegral (i .&. 0x0000FF00)/65280)
                         (fromIntegral (j .&. 0x000000FF) / 255)
                         (fromIntegral (j .&. 0x0000FF00)/65280)
-            applyTransform w loc >> drawSurface gl m
+            applyTransform w loc >> drawSurface gl alocs m
           selValLoc = unifLoc sProg "uSelector"
+          alocs@(ploc, _) = ( attrLoc sProg "aVertexPosition"
+                  , Nothing)
 
 ----------------------------------------------------------------------------------------------------
 -- Functions for interacting with the city objects

@@ -79,14 +79,13 @@ main = runWebGUI $ \ webView -> do
 --                              else (vpWidth', vpHeight')
 
     htmlElementSetInnerHTML body $
-        "<div id=\"divview\" "
-        ++ "style=\"position: fixed; right: 0; top: 0; padding: 0; margin: 0; width: "
-        ++ show (30::Int) ++ "%; height: "
-        ++ show (100::Int) ++ "%; z-index = 1; overflow: hidden;\" width=\""
-        ++ show (30::Int) ++ "%;\" height=\""
-        ++ show (100::Int) ++ "%;\"></div>"
-
-        ++ "<canvas id=\"glcanvas\" "
+--        "<div id=\"divview\" "
+--        ++ "style=\"position: fixed; right: 0; top: 0; padding: 0; margin: 0; width: "
+--        ++ show (30::Int) ++ "%; height: "
+--        ++ show (100::Int) ++ "%; z-index = 1; overflow: hidden;\" width=\""
+--        ++ show (30::Int) ++ "%;\" height=\""
+--        ++ show (100::Int) ++ "%;\"></div>"
+        "<canvas id=\"glcanvas\" "
         ++ "style=\"position: fixed; left: 0; top: 0; padding: 0; margin: 0; width: "
         ++ show vpWidth ++ "px; height: "
         ++ show vpHeight ++ "px; z-index = 2; overflow: hidden;\" width=\""
@@ -104,6 +103,8 @@ main = runWebGUI $ \ webView -> do
     depthFunc ctx gl_LEQUAL
     viewport ctx 0 0 vpWidth vpHeight
 
+    atlaspic <- loadImage "atlaspic.png"
+    atex <- initTexture ctx atlaspic
 
     img <- loadImage "ia512tex.png"
 --    printRef img
@@ -125,11 +126,12 @@ main = runWebGUI $ \ webView -> do
 --        :: IO (QTransform GLfloat Grid)
     grid <- createGrid iworld 500 100 (Vector4 0.6 0.6 0.8 1)
     let numb2 = 8
-    cityRef <- buildCity iworld [building1,building2,building3,building4]
-            [[Vector3 8 0 0],[Vector3 (-8) 0 0],[Vector3 (-8) 0 (-6)],
-            [Vector3 (-i*4 - 12) 0 (j*4) | i <- [1..numb2], j <- [1..numb2]]]
-            [[pi/3],[0],[0],map ((pi/100)*) [1..]]
-            [[Nothing],[Nothing],[Nothing],repeat (Just tex)]
+    cityRef <- buildCity iworld [building1,building2,building3,building4,hut1]
+            [ [Vector3 8 0 0],[Vector3 (-8) 0 0],[Vector3 (-8) 0 (-6)]
+            , [Vector3 (-i*4 - 12) 0 (j*4) | i <- [1..numb2], j <- [1..numb2]]
+            , [Vector3 0 0 4]]
+            [[pi/3],[0],[0],map ((pi/100)*) [1..], [1]]
+            [[Nothing],[Nothing],[Nothing],repeat (Just tex), [Just atex]]
         >>= newIORef
 --    cityRef <- buildCity iworld (repeat building4)
 --            [Vector3 (-i*4 - 12) 0 (j*4) | i <- [1..numb2], j <- [1..numb2]]
@@ -274,12 +276,36 @@ loadImage = loadImage' . toJSString
 --  \ $r = WebGLDebugUtils.makeDebugContext($1, throwOnGLError, validateNoneOfTheArgsAreUndefined);"
 --    makeDebugCtx :: Ctx -> IO Ctx
 
+--foreign import javascript unsafe "if (!document.fullscreenElement && \
+--    \  !document.mozFullScreenElement && \
+--    \  !document.webkitFullscreenElement && !document.msFullscreenElement ) { \
+--    \    if (document.documentElement.requestFullscreen) { \
+--    \      document.documentElement.requestFullscreen(); \
+--    \    } else if (document.documentElement.msRequestFullscreen) { \
+--    \      document.documentElement.msRequestFullscreen(); \
+--    \    } else if (document.documentElement.mozRequestFullScreen) { \
+--    \      document.documentElement.mozRequestFullScreen(); \
+--    \    } else if (document.documentElement.webkitRequestFullscreen) { \
+--    \      document.documentElement.webkitRequestFullscreen(Element.ALLOW_KEYBOARD_INPUT); \
+--    \    } \
+--    \  } else { \
+--    \    if (document.exitFullscreen) { \
+--    \      document.exitFullscreen(); \
+--    \    } else if (document.msExitFullscreen) { \
+--    \      document.msExitFullscreen(); \
+--    \    } else if (document.mozCancelFullScreen) { \
+--    \      document.mozCancelFullScreen(); \
+--    \    } else if (document.webkitExitFullscreen) { \
+--    \      document.webkitExitFullscreen(); \
+--    \    } \
+--    \  }"
+--    toggleFullScreen :: IO ()
 
-foreign import javascript safe "document.getElementById('divview').innerHTML = $1;"
-    printToDiv' :: JSString -> IO ()
-
-printToDiv :: (Show a) => a -> IO ()
-printToDiv = printToDiv' . toJSString . show
+--foreign import javascript safe "document.getElementById('divview').innerHTML = $1;"
+--    printToDiv' :: JSString -> IO ()
+--
+--printToDiv :: (Show a) => a -> IO ()
+--printToDiv = printToDiv' . toJSString . show
 
 foreign import javascript unsafe "window.requestAnimationFrame($1);"
    animate :: JSFun (IO ()) -> IO ()
@@ -360,7 +386,7 @@ rememberState posStateRef worldref camRef = do
 --        printToDiv (x,y)
         t <- getTime
         i' <- readIORef worldref >>= getSelection (x,y)
-        printToDiv (i', (x,y))
+--        printToDiv (i', (x,y))
         writeIORef posStateRef InterState
             { lastPos  = [fmap fromIntegral $ Vector2 x y]
             , lastTime = t
@@ -387,7 +413,7 @@ rememberStateT posStateRef worldref camRef = do
         i' <- case ts of
             [] -> return (0,0)
             Vector2 x y:_ -> readIORef worldref >>= getSelection (round x, round y)
-        printToDiv (i', ts)
+--        printToDiv (i', ts)
         writeIORef posStateRef InterState
             { lastPos  = ts
             , lastTime = t
@@ -514,48 +540,6 @@ selectObject posStateRef cityRef = do
                   >> return True
         _ -> return False
 
---selectObject :: (IsElement self)
---           => IORef InteractionState
---           -> IORef World
---           -> IORef City
---           -> EventM MouseEvent self Bool
---selectObject posStateRef worldref cityRef = do
---    preventOthers
---    pos <- mouseClientXY
---    but <- mouseButton
---    case but of
---        0 -> liftIO $ do
---            InterState{lastTime = otime} <- readIORef posStateRef
---            t <- getTime
---            if t - otime > mouseClickTime then return False
---            else do
---              i <- readIORef worldref >>= getSelection pos
---              modifyIORef' cityRef $ \city -> city{activeObj = i}
---              printToDiv (i, pos)
---              return True
---        _ -> return False
---
---selectObjectT :: (IsElement self)
---           => IORef InteractionState
---           -> IORef World
---           -> IORef City
---           -> EventM UIEvent self Bool
---selectObjectT posStateRef worldref cityRef = do
---    preventOthers
---    e <- event
---    liftIO $ do
---        ts <- getTouches e
---        InterState{lastTime = otime, lastPos = opos} <- readIORef posStateRef
---        case (ts, opos) of
---            ([], Vector2 x y:_) -> do
---                t <- getTime
---                if t - otime > mouseClickTime then return False
---                else do
---                    i <- readIORef worldref >>= getSelection (round x, round y)
---                    modifyIORef' cityRef $ \city -> city{activeObj = i}
---                    return True
---            _ -> return False
-
 preventOthers :: (IsEvent e) => EventM e self ()
 preventOthers = do
     preventDefault
@@ -564,7 +548,7 @@ preventOthers = do
     returnValue False
 
 getSelection :: (Int,Int) -> World -> IO (Int,Int)
-getSelection  (x,y) World
+getSelection (x,y) World
     { glctx     = gl
     , cameraRef = camRef
     , selector  = SelectorObject
@@ -575,6 +559,11 @@ getSelection  (x,y) World
     Vector2 w h <- liftM viewSize $ readIORef camRef
     bindFramebuffer gl gl_FRAMEBUFFER sbuf
     viewport gl 0 0 w h
+--    clear gl (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
+--    readIORef city >>= selectArea world
+--    checkFramebufferStatus gl gl_FRAMEBUFFER >>= \r ->
+--        if r == gl_FRAMEBUFFER_COMPLETE then print "ok"
+--        else print "this combination of attachments does not work"
     readPixels gl (fromIntegral x) (fromIntegral h - fromIntegral y) 1 1 gl_RGBA gl_UNSIGNED_BYTE pcarr
 --    print (x,y)
 --    printRef pcarr
@@ -585,6 +574,7 @@ getSelection  (x,y) World
     a <- liftM fromIntegral $ getIdx pcarr 3
     let i = r + shift g 8
         j = b + shift a 8
+--    print (i,j)
     bindFramebuffer gl gl_FRAMEBUFFER jsNull
     viewport gl 0 0 w h
     return (i,j)
@@ -592,6 +582,9 @@ getSelection  (x,y) World
 ----------------------------------------------------------------------------------------------
 -- Next goes our test data  ------------------------------------------------------------------
 ----------------------------------------------------------------------------------------------
+
+hut1 :: CityObject
+hut1 = BoxHut Dynamic $ Vector3 2 3 5
 
 building1 :: CityObject
 building1 = Building Dynamic $ SimpleConvexPolygon

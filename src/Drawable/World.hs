@@ -204,18 +204,24 @@ initSelectorFramebuffer :: Ctx -> Vector2 GLsizei -> IO FrameBuffer
 initSelectorFramebuffer gl (Vector2 width height) = do
     fb <- createFramebuffer gl
     bindFramebuffer gl gl_FRAMEBUFFER fb
-    rbc <- createRenderbuffer gl
-    bindRenderbuffer gl gl_RENDERBUFFER rbc
-    renderbufferStorage gl gl_RENDERBUFFER gl_RGBA4 width height
+    tex <- createTexture gl
+    bindTexture gl gl_TEXTURE_2D tex
+    texImage2D gl gl_TEXTURE_2D 0 gl_RGBA width height 0 gl_RGBA gl_UNSIGNED_BYTE jsNull
+    texParameteri gl gl_TEXTURE_2D gl_TEXTURE_WRAP_S $ fromIntegral gl_CLAMP_TO_EDGE
+    texParameteri gl gl_TEXTURE_2D gl_TEXTURE_WRAP_T $ fromIntegral gl_CLAMP_TO_EDGE
+    texParameteri gl gl_TEXTURE_2D gl_TEXTURE_MAG_FILTER $ fromIntegral gl_NEAREST
+    texParameteri gl gl_TEXTURE_2D gl_TEXTURE_MIN_FILTER $ fromIntegral gl_NEAREST
+    framebufferTexture2D gl gl_FRAMEBUFFER gl_COLOR_ATTACHMENT0 gl_TEXTURE_2D tex 0
+    bindTexture gl gl_TEXTURE_2D jsNull
+--    rbc <- createRenderbuffer gl
+--    bindRenderbuffer gl gl_RENDERBUFFER rbc
+--    renderbufferStorage gl gl_RENDERBUFFER gl_RGBA4 width height
+--    framebufferRenderbuffer gl gl_FRAMEBUFFER gl_COLOR_ATTACHMENT0 gl_RENDERBUFFER rbc
     rbd <- createRenderbuffer gl
     bindRenderbuffer gl gl_RENDERBUFFER rbd
     renderbufferStorage gl gl_RENDERBUFFER gl_DEPTH_COMPONENT16 width height
-    bindRenderbuffer gl gl_RENDERBUFFER jsNull
-    framebufferRenderbuffer gl gl_FRAMEBUFFER gl_COLOR_ATTACHMENT0 gl_RENDERBUFFER rbc
     framebufferRenderbuffer gl gl_FRAMEBUFFER gl_DEPTH_ATTACHMENT gl_RENDERBUFFER rbd
-    checkFramebufferStatus gl gl_FRAMEBUFFER >>= \r ->
-        if r == gl_FRAMEBUFFER_COMPLETE then return ()
-        else print "this combination of attachments does not work"
+    bindRenderbuffer gl gl_RENDERBUFFER jsNull
     bindFramebuffer gl gl_FRAMEBUFFER jsNull
     return fb
 
@@ -227,6 +233,9 @@ initTexture gl img = do
     bindTexture gl gl_TEXTURE_2D tex
     pixelStorei gl gl_UNPACK_FLIP_Y_WEBGL 1
     texImage2DImg gl gl_TEXTURE_2D 0 gl_RGBA gl_RGBA gl_UNSIGNED_BYTE img
+--    texParameteri gl gl_TEXTURE_2D gl_TEXTURE_MIN_FILTER $ fromIntegral gl_LINEAR
+    texParameteri gl gl_TEXTURE_2D gl_TEXTURE_WRAP_S $ fromIntegral gl_CLAMP_TO_EDGE
+    texParameteri gl gl_TEXTURE_2D gl_TEXTURE_WRAP_T $ fromIntegral gl_CLAMP_TO_EDGE
     texParameteri gl gl_TEXTURE_2D gl_TEXTURE_MAG_FILTER $ fromIntegral gl_NEAREST
     texParameteri gl gl_TEXTURE_2D gl_TEXTURE_MIN_FILTER $ fromIntegral gl_NEAREST
     bindTexture gl gl_TEXTURE_2D jsNull
