@@ -136,83 +136,89 @@ buildCity w@World{glctx = gl} bs ps rs texs = do
 -- Embedding city into the program engine
 ----------------------------------------------------------------------------------------------------
 
+
 -- Drawing a city means drawing all its objects
 instance Drawable City where
-    draw w@World{glctx = gl} (City (j,k) bProg _ buildings) = do
-        enableVertexAttribArray gl 0
-        enableVertexAttribArray gl 1
-        enableVertexAttribArray gl 2
-        useProgram gl . programId $ bProg
-        activeTexture gl gl_TEXTURE0
-        uniform1i gl (unifLoc bProg "uSampler") 0
-        uniformMatrix4fv gl (unifLoc bProg "uProjM") False (projectLoc w)
-        uniform3f gl (unifLoc bProg "uSunDir") sx sy sz
-        uniform4f gl colLoc 0.7 0.7 0.7 1
-        IM.foldMapWithKey g buildings
-        uniform4f gl colLoc 0.75 0.75 0.7 1
-        IM.foldMapWithKey f buildings
-        disableVertexAttribArray gl 0
-        disableVertexAttribArray gl 1
-        disableVertexAttribArray gl 2
-        where f i (CityObjRep o m locs) | behavior o == Static = return ()
-                                        | i /= j = IM.foldMapWithKey
-                    (\_ t -> applyTransform' w viewLoc t >>= maybeWithTexture m 0.6) locs
-                                        | otherwise = IM.foldMapWithKey
-                    (\l t -> if l /= k then applyTransform' w viewLoc t >>= maybeWithTexture m 0.6
-                                       else do
-                            uniform4f gl colLoc 1 0.65 0.65 1
-                            applyTransform' w viewLoc t >>= maybeWithTexture m 0.2
-                            uniform4f gl colLoc 0.75 0.75 0.7 1) locs
-              g _ (CityObjRep o m locs) | behavior o == Dynamic = return ()
-                                        | otherwise = IM.foldMapWithKey
-                    (\_ t -> applyTransform' w viewLoc t >>= maybeWithTexture m 0.6) locs
-              viewLoc = unifLoc bProg "uModelViewM"
-              colLoc = unifLoc bProg "uVertexColor"
-              userLoc = unifLoc bProg "uTexUser"
-              Vector4 sx sy sz _ = currentView w `prod` Vector4 (-0.5) (-1) 0.6 0
-              maybeWithTexture m _ Nothing   = drawSurface gl m
-              maybeWithTexture m l (Just tex) = do
-                uniform1f gl userLoc l
-                enable gl gl_BLEND
-                depthMask gl False
-                --disable gl gl_DEPTH_TEST
-                bindTexture gl gl_TEXTURE_2D tex
-                drawSurface gl m
-                uniform1f gl userLoc 0
-                disable gl gl_BLEND
-                depthMask gl True
-                --enable gl gl_DEPTH_TEST
+    drawInCurrContext w c = drawCity w c
+    updateDrawContext City{buildShader = bProg}
+                      w@World{curContext = cc} = w
+        { curContext = cc
+            { wProjLoc = unifLoc bProg "uProjM"
+            , wViewLoc = unifLoc bProg "uModelViewM"
+            }
+        }
 
 
--- | Apply current transform of an object (including perspective) and save shader uniforms
-applyTransform' :: (SpaceTransform s GLfloat)
-               => World -> UniformLocation -> s a -> IO a
-applyTransform' w@(World{glctx = gl}) loc tr = do
-        let MTransform matrix x = transform (MTransform (currentView w) id) tr
-        fillTypedArray (modelViewLoc w) matrix
-        uniformMatrix4fv gl loc False (modelViewLoc w)
-        return x
+drawCity :: World -> City -> IO ()
+drawCity w@World
+    { glctx = gl
+    , curContext = WorldContext{wSunDir = Vector3 sx sy sz, wProjLoc = projLoc}
+    } (City (j,k) bProg _ buildings) = do
+    enableVertexAttribArray gl 0
+    enableVertexAttribArray gl 1
+    enableVertexAttribArray gl 2
+    useProgram gl . programId $ bProg
+    activeTexture gl gl_TEXTURE0
+    uniform1i gl (unifLoc bProg "uSampler") 0
+    uniformMatrix4fv gl projLoc False (projectLoc w)
+    uniform3f gl (unifLoc bProg "uSunDir") sx sy sz
+    uniform4f gl colLoc 0.7 0.7 0.7 1
+    IM.foldMapWithKey g buildings
+    uniform4f gl colLoc 0.75 0.75 0.7 1
+    IM.foldMapWithKey f buildings
+    disableVertexAttribArray gl 0
+    disableVertexAttribArray gl 1
+    disableVertexAttribArray gl 2
+    where f i (CityObjRep o m locs) | behavior o == Static = return ()
+                                    | i /= j = IM.foldMapWithKey
+                (\_ t -> applyTransform w t >>= maybeWithTexture m 0.6) locs
+                                    | otherwise = IM.foldMapWithKey
+                (\l t -> if l /= k then applyTransform w t >>= maybeWithTexture m 0.6
+                                   else do
+                        uniform4f gl colLoc 1 0.65 0.65 1
+                        applyTransform w t >>= maybeWithTexture m 0.2
+                        uniform4f gl colLoc 0.75 0.75 0.7 1) locs
+          g _ (CityObjRep o m locs) | behavior o == Dynamic = return ()
+                                    | otherwise = IM.foldMapWithKey
+                (\_ t -> applyTransform w t >>= maybeWithTexture m 0.6) locs
+          colLoc = unifLoc bProg "uVertexColor"
+          userLoc = unifLoc bProg "uTexUser"
+          maybeWithTexture m _ Nothing   = drawSurface gl m
+          maybeWithTexture m l (Just tex) = do
+            uniform1f gl userLoc l
+            bindTexture gl gl_TEXTURE_2D tex
+            drawSurface gl m
+            uniform1f gl userLoc 0
+
 
 -- City selectable means one can select objects in a city
 instance Selectable City where
-    selectArea w@World{glctx = gl} (City _ _ sProg buildings) = do
-        enableVertexAttribArray gl 0
-        useProgram gl . programId $ sProg
-        uniformMatrix4fv gl (unifLoc sProg "uProjM") False (projectLoc w)
-        IM.foldMapWithKey f buildings
-        disableVertexAttribArray gl 0
-        where f i (CityObjRep o m locs) = M.when (behavior o == Dynamic) $
-                IM.foldMapWithKey (f' m i) locs
-              f' m i j loc = do
-                uniform4f gl selValLoc
-                            (fromIntegral (i .&. 0xFF) / 255)
-                            ((fromIntegral (shift i (-8) .&. 0x000000FF))/255)
-                            (fromIntegral (j .&. 0xFF) / 255)
-                            ((fromIntegral (shift j (-8) .&. 0x000000FF))/255)
-                applyTransform' w viewLoc loc >> drawSurface gl m
-              viewLoc = unifLoc sProg "uModelViewM"
-              selValLoc = unifLoc sProg "uSelector"
+    selectInCurrContext w c = selectCityArea w c
+    updateSelectContext City{selectShader = sProg}
+                        w@World{curContext = cc} = w
+        { curContext = cc
+            { wProjLoc = unifLoc sProg "uProjM"
+            , wViewLoc = unifLoc sProg "uModelViewM"
+            }
+        }
 
+selectCityArea :: World -> City -> IO ()
+selectCityArea w@World{glctx = gl} (City _ _ sProg buildings) = do
+    enableVertexAttribArray gl 0
+    useProgram gl . programId $ sProg
+    uniformMatrix4fv gl (unifLoc sProg "uProjM") False (projectLoc w)
+    IM.foldMapWithKey f buildings
+    disableVertexAttribArray gl 0
+    where f i (CityObjRep o m locs) = M.when (behavior o == Dynamic) $
+            IM.foldMapWithKey (f' m i) locs
+          f' m i j loc = do
+            uniform4f gl selValLoc
+                        (fromIntegral (i .&. 0x000000FF) / 255)
+                        (fromIntegral (i .&. 0x0000FF00)/65280)
+                        (fromIntegral (j .&. 0x000000FF) / 255)
+                        (fromIntegral (j .&. 0x0000FF00)/65280)
+            applyTransform w loc >> drawSurface gl m
+          selValLoc = unifLoc sProg "uSelector"
 
 ----------------------------------------------------------------------------------------------------
 -- Functions for interacting with the city objects
@@ -342,18 +348,18 @@ instance Monoid (IO ()) where
 
 fragBuilding :: String
 fragBuilding = unlines [
-  "precision lowp float;",
+  "precision mediump float;",
   "varying vec4 vColor;",
   "varying vec2 vTextureCoord;",
   "uniform sampler2D uSampler;",
   "uniform float uTexUser;",
   "void main(void) {",
-  "    gl_FragColor = uTexUser * texture2D(uSampler, vec2(vTextureCoord.s, vTextureCoord.t)) + (1.0-uTexUser)*vColor;",
+  "    gl_FragColor = (uTexUser * texture2D(uSampler, vec2(vTextureCoord.s, vTextureCoord.t)) + (1.0-uTexUser))*vColor;",
   "}"]
 
 vertBuilding :: String
 vertBuilding = unlines [
---  "precision lowp float;",
+  "precision mediump float;",
   "attribute vec3 aVertexPosition;",
   "attribute vec3 aVertexNormal;",
   "attribute vec2 aTextureCoord;",
@@ -378,7 +384,7 @@ vertBuilding = unlines [
 
 fragSelector :: String
 fragSelector = unlines [
-  "precision highp float;",
+  "precision mediump float;",
   "uniform vec4 uSelector;",
   "void main(void) {",
   "    gl_FragColor = uSelector;",
@@ -386,7 +392,7 @@ fragSelector = unlines [
 
 vertSelector :: String
 vertSelector = unlines [
---  "precision lowp float;",
+  "precision mediump float;",
   "attribute vec3 aVertexPosition;",
   "uniform mat4 uModelViewM;",
   "uniform mat4 uProjM;",

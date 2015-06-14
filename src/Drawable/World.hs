@@ -22,6 +22,10 @@ module Drawable.World where
 import GHCJS.WebGL
 import GHCJS.Foreign
 
+--import GHCJS.Types
+--import GHCJS.Marshal
+--import Unsafe.Coerce
+
 import Foreign
 import Data.IORef
 import qualified Data.Foldable as F
@@ -34,24 +38,26 @@ import Geometry.Space.Transform
 --import SmallGL.Helpers
 --import SmallGL.Shader
 
+
+
 -- | World global parameters
-data World = forall cam . Camera cam => World {
-    glctx        :: !Ctx, -- ^ WebGL context
-    cameraRef    :: !(IORef cam),
-    currentTime  :: !GLfloat,
-    currentView  :: !(Matrix4x4 GLfloat),
-    projectLoc   :: !(TypedArray GLfloat),
-    modelViewLoc :: !(TypedArray GLfloat),
-    selector     :: !SelectorObject
+data World = forall cam . Camera cam => World
+    { glctx        :: !Ctx -- ^ WebGL context
+    , cameraRef    :: !(IORef cam)
+    , projectLoc   :: !(TypedArray GLfloat)
+    , modelViewLoc :: !(TypedArray GLfloat)
+    , selector     :: !SelectorObject
+    , sunDir       :: !(Vector3 GLfloat)
+    , curContext   :: !WorldContext
     }
 
-
+-- | World state snapshot
 data WorldContext = WorldContext
-    { wview    :: !(Matrix4x4 GLfloat)
-    , wsundir  :: !(Vector4 GLfloat)
-    , wprojLoc :: !UniformLocation
-    , wviewLoc :: !UniformLocation
-    , wtime    :: !GLfloat
+    { wView    :: !(Matrix4x4 GLfloat)
+    , wSunDir  :: !(Vector3 GLfloat)
+    , wProjLoc :: UniformLocation
+    , wViewLoc :: UniformLocation
+    , wTime    :: !GLfloat
     }
 
 
@@ -81,66 +87,95 @@ class Camera c where
 
 -- | Our meshes together with transforms could be drawn - so they implement this interface
 class Drawable a where
-    draw :: World -> a -> IO ()
+    drawInCurrContext :: World -> a -> IO ()
+    updateDrawContext :: a -> World -> World
+
+
+draw :: (Drawable a) => World -> a -> IO ()
+draw w a = drawInCurrContext w' a
+    where w' = updateDrawContext a w
 
 class Selectable a where
-    selectArea :: World -> a -> IO ()
+    selectInCurrContext :: World -> a -> IO ()
+    updateSelectContext :: a -> World -> World
+
+selectArea :: (Selectable a) => World -> a -> IO ()
+selectArea w a = selectInCurrContext w' a
+    where w' = updateSelectContext a w
 
 data Drawing = forall a . (Drawable a) => Draw a
 
 instance Drawable Drawing where
-    draw w (Draw a) = draw w a
+    drawInCurrContext w (Draw a) = drawInCurrContext w a
+    updateDrawContext (Draw a) = updateDrawContext a
 
+instance ( SpaceTransform s GLfloat
+         , Drawable d
+         ) => Drawable (s d) where
+    drawInCurrContext w s = applyTransform w s >>= drawInCurrContext w
+    updateDrawContext s w = updateDrawContext (unwrap s) w
 
---instance ( SpaceTransform s GLfloat
---         , Drawable d
---         ) => Drawable (s d) where
---    draw w s = applyTransform w s >>= draw w
-
---instance ( SpaceTransform s GLfloat
---         , Selectable d
---         ) => Selectable (s d) where
---    selectArea w s = applyTransform w s >>= selectArea w
+instance ( SpaceTransform s GLfloat
+         , Selectable d
+         ) => Selectable (s d) where
+    selectInCurrContext w s = applyTransform w s >>= selectInCurrContext w
+    updateSelectContext s w = updateSelectContext (unwrap s) w
 
 -- | Create default world
 initWorld :: Camera cam
           => Ctx
           -> IORef cam -- ^ active camera
-          -> GLfloat -- ^ current time
+          -> GLfloat -- ^ start time
+          -> Vector3 GLfloat -- ^ sun direction
           -> IO World
-initWorld gl c t = do
+initWorld gl c t sd = do
     -- create uniforms
     pptr <- newTypedArray 16
     mvptr <- newTypedArray 16
     -- create selector
     s <- M.liftM viewSize $ readIORef c
     selB <- initSelectorFramebuffer gl s
-    pickedColorArr <- newTypedArray 4 --mallocArrayBuffer 4 >>= typedArrayView
-    return World {
-        glctx        = gl,
-        cameraRef    = c,
-        currentTime  = t,
-        currentView  = eye,
-        projectLoc   = pptr,
-        modelViewLoc = mvptr,
-        selector     = SelectorObject selB
-                                      --(unifLoc p "uModelViewM") -- (unifLoc p "uSelector")
+    pickedColorArr <- newTypedArray 4
+    return World
+        { glctx        = gl
+        , cameraRef    = c
+        , projectLoc   = pptr
+        , modelViewLoc = mvptr
+        , selector     = SelectorObject selB
                                       pickedColorArr
-    }
+        , sunDir       = sd
+        , curContext   = WorldContext
+            { wView    = eye
+            , wSunDir  = sd
+            , wProjLoc = undefined
+            , wViewLoc = undefined
+            , wTime    = t
+            }
+        }
 
-
+--foreign import javascript safe "console.log($1)"
+--    printRef' :: JSRef a -> IO ()
 
 -- | This function is called every frame to set up correct matrices and time
 prepareWorldRender :: World -> GLfloat -> IO World
-prepareWorldRender w@(World{cameraRef = cRef, glctx = gl}) t = do
+prepareWorldRender w@(World
+        { cameraRef = cRef
+        , glctx = gl
+        , curContext = cc
+        , sunDir = Vector3 sx sy sz
+        }) t = do
     cam <- readIORef cRef
     let viewM = prepareView cam
+        Vector4 sx' sy' sz' _ = viewM `prod` Vector4 sx sy sz 0
     fillTypedArray (projectLoc w) (prepareProjection cam)
     fillTypedArray (modelViewLoc w) viewM
     clear gl (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
     return w {
-        currentTime = t,
-        currentView = viewM
+        curContext = cc
+            { wView    = viewM
+            , wSunDir  = Vector3 sx' sy' sz'
+            , wTime    = t
+            }
     }
 
 applySelector :: (F.Foldable s, Selectable a)=> World -> s a -> IO ()
@@ -156,14 +191,13 @@ applySelector wrld@(World{glctx = gl, cameraRef = camr}) xs = do
 
 -- | Apply current transform of an object (including perspective) and save shader uniforms
 applyTransform :: (SpaceTransform s GLfloat)
-               => World
-               -> UniformLocation
-               -> s a -> IO a
-applyTransform w@(World{glctx = gl}) mloc tr = do
-        let MTransform matrix x = transform (MTransform (currentView w) id) tr
+               => World -> s a -> IO a
+applyTransform w@(World{glctx = gl, curContext = cc}) tr = do
+        let MTransform matrix x = transform (MTransform (wView cc) id) tr
         fillTypedArray (modelViewLoc w) matrix
-        uniformMatrix4fv gl mloc False (modelViewLoc w)
+        uniformMatrix4fv gl (wViewLoc cc) False (modelViewLoc w)
         return x
+
 
 
 initSelectorFramebuffer :: Ctx -> Vector2 GLsizei -> IO FrameBuffer
@@ -179,6 +213,9 @@ initSelectorFramebuffer gl (Vector2 width height) = do
     bindRenderbuffer gl gl_RENDERBUFFER jsNull
     framebufferRenderbuffer gl gl_FRAMEBUFFER gl_COLOR_ATTACHMENT0 gl_RENDERBUFFER rbc
     framebufferRenderbuffer gl gl_FRAMEBUFFER gl_DEPTH_ATTACHMENT gl_RENDERBUFFER rbd
+    checkFramebufferStatus gl gl_FRAMEBUFFER >>= \r ->
+        if r == gl_FRAMEBUFFER_COMPLETE then return ()
+        else print "this combination of attachments does not work"
     bindFramebuffer gl gl_FRAMEBUFFER jsNull
     return fb
 

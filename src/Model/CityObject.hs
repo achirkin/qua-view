@@ -34,6 +34,9 @@ import Drawable.World
 import GHCJS.WebGL
 
 --import GHCJS.Types
+--import GHCJS.Foreign
+--import GHCJS.Marshal
+--import Unsafe.Coerce
 
 -- | Basic entity in the program; Defines the logic of the interaction and visualization
 data CityObject =
@@ -53,6 +56,11 @@ data CityObject =
     { behavior   :: !ObjectBehavior
     , roadWidth  :: !GLfloat
     , roadPoints :: ![Point 2 GLfloat]
+    } |
+    -- | Rectangular primitive hut
+    BoxHut
+    { behavior   :: !ObjectBehavior
+    , hutSize    :: !(Vector3 GLfloat)
     }
 
 -- | Buffers for the object
@@ -113,6 +121,14 @@ packVertices xs p = M.forM_ (zip xs [0..])
     writeByteArray p (20*i+15) (0 :: GLbyte)
     writeByteArray p (10*i+8) tx
     writeByteArray p (10*i+9) ty
+--    writeByteArray p (8*i) x
+--    writeByteArray p (8*i+1) y
+--    writeByteArray p (8*i+2) z
+--    writeByteArray p (8*i+3) (fromIntegral nx / 128 :: GLfloat)
+--    writeByteArray p (8*i+4) (fromIntegral ny / 128 :: GLfloat)
+--    writeByteArray p (8*i+5) (fromIntegral nz / 128 :: GLfloat)
+--    writeByteArray p (8*i+6) (fromIntegral tx / 65535 :: GLfloat)
+--    writeByteArray p (8*i+7) (fromIntegral ty / 65535 :: GLfloat)
 
 
 -- | create an array and a buffer, and fill them
@@ -138,6 +154,9 @@ createIndexBuf gl indices = do
     iarr <- newArrayBuffer indices
     bufferData gl gl_ELEMENT_ARRAY_BUFFER iarr gl_STATIC_DRAW
     return $ MeshData (fromIntegral $ length indices) iarr ibuf
+
+--foreign import javascript safe "console.log($1)"
+--    printRef :: JSRef a -> IO ()
 
 -- | Whether one could interact with an object or not
 data ObjectBehavior = Static | Dynamic deriving (Eq)

@@ -16,7 +16,7 @@ import GHCJS.DOM
 import GHCJS.DOM.Document (documentGetBody, documentGetElementById) -- , documentCreateElement
 import GHCJS.DOM.HTMLElement (htmlElementSetInnerHTML) --, htmlElementSetInnerText)
 import GHCJS.DOM.Element (IsElement,elementOnmousemove,elementOnwheel, elementOnmousedown
-                         ,elementOnmouseup,elementOnmouseleave,elementOnmouseout
+                         ,elementOnmouseup,elementOnmouseleave -- ,elementOnmouseout
                          ,elementOncontextmenu, elementGetClientWidth, elementGetClientHeight
                          ,elementOntouchstart,elementOntouchmove,elementOntouchend,elementOntouchcancel) -- ,elementOnclick
 --import GHCJS.DOM.HTMLParagraphElement (castToHTMLParagraphElement)
@@ -81,10 +81,10 @@ main = runWebGUI $ \ webView -> do
     htmlElementSetInnerHTML body $
         "<div id=\"divview\" "
         ++ "style=\"position: fixed; right: 0; top: 0; padding: 0; margin: 0; width: "
-        ++ show (100::Int) ++ "px; height: "
-        ++ show (500::Int) ++ "px; z-index = 1; overflow: hidden;\" width=\""
-        ++ show (100::Int) ++ "px;\" height=\""
-        ++ show (500::Int) ++ "px;\"></div>"
+        ++ show (30::Int) ++ "%; height: "
+        ++ show (100::Int) ++ "%; z-index = 1; overflow: hidden;\" width=\""
+        ++ show (30::Int) ++ "%;\" height=\""
+        ++ show (100::Int) ++ "%;\"></div>"
 
         ++ "<canvas id=\"glcanvas\" "
         ++ "style=\"position: fixed; left: 0; top: 0; padding: 0; margin: 0; width: "
@@ -96,7 +96,7 @@ main = runWebGUI $ \ webView -> do
 --    Just divview <- documentGetElementById doc "divview"
     let canv = unElement $ canvas
     ctx <- getCtx canv
-
+--    ctx <- makeDebugCtx cts
 
     clearColor ctx 0 0 0 0
     enable ctx gl_DEPTH_TEST
@@ -115,7 +115,7 @@ main = runWebGUI $ \ webView -> do
         OCCState { viewPoint     = Vector3 0 0 0,
                    viewAngles    = Vector2 (pi/3) (pi/4),
                    viewDist      = 40 }
-    iworld <- initWorld ctx camera 0
+    iworld <- initWorld ctx camera 0 (Vector3 (-0.5) (-1) 0.6)
     worldRef <- newIORef iworld
 
     -- Create sample objects
@@ -182,11 +182,11 @@ main = runWebGUI $ \ webView -> do
 
     -- Selecting
     _ <- elementOnmouseup canvas $ -- elementOnclick
-        selectObject posStateRef worldRef cityRef
+        selectObject posStateRef cityRef -- >>= (\x -> liftIO (print "mouseup") >> return x)
         >>= flip when (liftIO $ displayOnTime)
         >> forgetState posStateRef >> liftIO selectNow
     _ <- elementOntouchend canvas $
-        selectObjectT posStateRef worldRef cityRef
+        selectObject posStateRef cityRef -- >>= (\x -> liftIO (print "touchend") >> return x)
         >>= flip when (liftIO $ displayOnTime)
         >> forgetState posStateRef >> liftIO selectNow
 
@@ -195,7 +195,6 @@ main = runWebGUI $ \ webView -> do
         drawAndForget = forgetState posStateRef
             >> liftIO dispAndSelectOnTime
     _ <- elementOnmouseleave canvas drawAndForget
-    _ <- elementOnmouseout canvas drawAndForget
     _ <- elementOntouchcancel canvas drawAndForget
 
     -- Do not react on right mouse click
@@ -246,6 +245,7 @@ selectOnce :: (F.Foldable s, T.Traversable s, Selectable a)
            -> IO ()
 selectOnce wref selectables = do
     world <- readIORef wref
+    -- print "Draw selection buffer"
     T.forM selectables readIORef >>= applySelector world
 
 ----------------------------------------------------------------------------------------------
@@ -258,6 +258,22 @@ foreign import javascript interruptible "var img = new Image();img.crossOrigin='
 
 loadImage :: String -> IO TexImageSource
 loadImage = loadImage' . toJSString
+
+--foreign import javascript unsafe "\
+--  \ function validateNoneOfTheArgsAreUndefined(functionName, args) { \
+--  \     for (var ii = 0; ii < args.length; ++ii) { \
+--  \         if (args[ii] === undefined) { \
+--  \             console.error(\"undefined passed to \" + functionName + \"(\" + \
+--  \                   WebGLDebugUtils.glFunctionArgsToString(functionName, args) + \")\"); \
+--  \         } \
+--  \     } \
+--  \ }; \
+--  \ function throwOnGLError(err, funcName, args) { \
+--  \     document.getElementById('divview').innerHTML = (WebGLDebugUtils.glEnumToString(err) + \" was caused by call to: \" + funcName); \
+--  \ }; \
+--  \ $r = WebGLDebugUtils.makeDebugContext($1, throwOnGLError, validateNoneOfTheArgsAreUndefined);"
+--    makeDebugCtx :: Ctx -> IO Ctx
+
 
 foreign import javascript safe "document.getElementById('divview').innerHTML = $1;"
     printToDiv' :: JSString -> IO ()
@@ -344,6 +360,7 @@ rememberState posStateRef worldref camRef = do
 --        printToDiv (x,y)
         t <- getTime
         i' <- readIORef worldref >>= getSelection (x,y)
+        printToDiv (i', (x,y))
         writeIORef posStateRef InterState
             { lastPos  = [fmap fromIntegral $ Vector2 x y]
             , lastTime = t
@@ -370,6 +387,7 @@ rememberStateT posStateRef worldref camRef = do
         i' <- case ts of
             [] -> return (0,0)
             Vector2 x y:_ -> readIORef worldref >>= getSelection (round x, round y)
+        printToDiv (i', ts)
         writeIORef posStateRef InterState
             { lastPos  = ts
             , lastTime = t
@@ -479,47 +497,64 @@ touchMove posStateRef camRef cityRef = do
 
 
 
-selectObject :: (IsElement self)
+selectObject :: (IsElement self, IsEvent event)
            => IORef InteractionState
-           -> IORef World
            -> IORef City
-           -> EventM MouseEvent self Bool
-selectObject posStateRef worldref cityRef = do
+           -> EventM event self Bool
+selectObject posStateRef cityRef = do
     preventOthers
-    pos <- mouseClientXY
-    but <- mouseButton
-    case but of
-        0 -> liftIO $ do
-            InterState{lastTime = otime} <- readIORef posStateRef
+    ic <- liftIO . liftM iContext . readIORef $ posStateRef
+    case ic of
+        CityChange i -> liftIO $ do
+            otime <- liftM lastTime . readIORef $ posStateRef
             t <- getTime
-            if t - otime > mouseClickTime then return False
-            else do
-              i <- readIORef worldref >>= getSelection pos
-              modifyIORef' cityRef $ \city -> city{activeObj = i}
-              printToDiv (i, pos)
-              return True
+            if t - otime > mouseClickTime
+            then return False
+            else modifyIORef' cityRef (\city -> city{activeObj = i})
+                  >> return True
         _ -> return False
 
-selectObjectT :: (IsElement self)
-           => IORef InteractionState
-           -> IORef World
-           -> IORef City
-           -> EventM UIEvent self Bool
-selectObjectT posStateRef worldref cityRef = do
-    preventOthers
-    e <- event
-    liftIO $ do
-        ts <- getTouches e
-        InterState{lastTime = otime, lastPos = opos} <- readIORef posStateRef
-        case (ts, opos) of
-            ([], Vector2 x y:_) -> do
-                t <- getTime
-                if t - otime > mouseClickTime then return False
-                else do
-                    i <- readIORef worldref >>= getSelection (round x, round y)
-                    modifyIORef' cityRef $ \city -> city{activeObj = i}
-                    return True
-            _ -> return False
+--selectObject :: (IsElement self)
+--           => IORef InteractionState
+--           -> IORef World
+--           -> IORef City
+--           -> EventM MouseEvent self Bool
+--selectObject posStateRef worldref cityRef = do
+--    preventOthers
+--    pos <- mouseClientXY
+--    but <- mouseButton
+--    case but of
+--        0 -> liftIO $ do
+--            InterState{lastTime = otime} <- readIORef posStateRef
+--            t <- getTime
+--            if t - otime > mouseClickTime then return False
+--            else do
+--              i <- readIORef worldref >>= getSelection pos
+--              modifyIORef' cityRef $ \city -> city{activeObj = i}
+--              printToDiv (i, pos)
+--              return True
+--        _ -> return False
+--
+--selectObjectT :: (IsElement self)
+--           => IORef InteractionState
+--           -> IORef World
+--           -> IORef City
+--           -> EventM UIEvent self Bool
+--selectObjectT posStateRef worldref cityRef = do
+--    preventOthers
+--    e <- event
+--    liftIO $ do
+--        ts <- getTouches e
+--        InterState{lastTime = otime, lastPos = opos} <- readIORef posStateRef
+--        case (ts, opos) of
+--            ([], Vector2 x y:_) -> do
+--                t <- getTime
+--                if t - otime > mouseClickTime then return False
+--                else do
+--                    i <- readIORef worldref >>= getSelection (round x, round y)
+--                    modifyIORef' cityRef $ \city -> city{activeObj = i}
+--                    return True
+--            _ -> return False
 
 preventOthers :: (IsEvent e) => EventM e self ()
 preventOthers = do
@@ -543,6 +578,7 @@ getSelection  (x,y) World
     readPixels gl (fromIntegral x) (fromIntegral h - fromIntegral y) 1 1 gl_RGBA gl_UNSIGNED_BYTE pcarr
 --    print (x,y)
 --    printRef pcarr
+--    print "get selection"
     r <- liftM fromIntegral $ getIdx pcarr 0
     g <- liftM fromIntegral $ getIdx pcarr 1
     b <- liftM fromIntegral $ getIdx pcarr 2
