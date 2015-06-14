@@ -76,15 +76,18 @@ data CityObjectMesh = CityObjectMesh
     , wireIndices :: !MeshData
     }
 
-drawSurface :: Ctx -> CityObjectMesh -> IO ()
-drawSurface gl CityObjectMesh
+drawSurface :: Ctx -> (GLuint,Maybe (GLuint,GLuint) ) -> CityObjectMesh -> IO ()
+drawSurface gl (ploc,olocs) CityObjectMesh
     { vertexData  = MeshData _ _ buf
     , surfIndices = MeshData n _ ibuf
     } = do
     bindBuffer gl gl_ARRAY_BUFFER buf
-    vertexAttribPointer gl 0 3 gl_FLOAT False 20 0
-    vertexAttribPointer gl 1 3 gl_BYTE True 20 12
-    vertexAttribPointer gl 2 2 gl_UNSIGNED_SHORT True 20 16
+    vertexAttribPointer gl ploc 3 gl_FLOAT False 20 0
+    case olocs of
+        Just (nloc,tloc) -> do
+            vertexAttribPointer gl nloc 3 gl_BYTE True 20 12
+            vertexAttribPointer gl tloc 2 gl_UNSIGNED_SHORT True 20 16
+        Nothing -> return ()
     bindBuffer gl gl_ELEMENT_ARRAY_BUFFER ibuf
     drawElements gl gl_TRIANGLES n gl_UNSIGNED_SHORT 0
 --    (typedArrayView idata :: IO (TypedArray GLushort)) >>= printRef
@@ -94,15 +97,13 @@ drawSurface gl CityObjectMesh
 --foreign import javascript safe "console.log($1)"
 --    printRef :: JSRef a -> IO ()
 
-drawWires :: Ctx -> CityObjectMesh -> IO ()
-drawWires gl CityObjectMesh
+drawWires :: Ctx -> GLuint -> CityObjectMesh -> IO ()
+drawWires gl ploc CityObjectMesh
     { vertexData  = MeshData _ _ buf
     , wireIndices = MeshData n _ ibuf
     } = do
     bindBuffer gl gl_ARRAY_BUFFER buf
-    vertexAttribPointer gl 0 3 gl_FLOAT False 20 0
-    vertexAttribPointer gl 1 3 gl_BYTE True 20 12
-    vertexAttribPointer gl 2 2 gl_UNSIGNED_SHORT True 20 16
+    vertexAttribPointer gl ploc 3 gl_FLOAT False 20 0
     bindBuffer gl gl_ELEMENT_ARRAY_BUFFER ibuf
     drawElements gl gl_LINES n gl_UNSIGNED_SHORT 0
 
@@ -222,6 +223,50 @@ createObjectMesh World{glctx = gl} (Road _ width pts) = do
                 True -> dir1 `cross` up
                 False -> let q = sqrt $ getRotScale dir0 (neg dir1)
                     in rotScale q dir0 /.. (- up .*. imVec q)
+createObjectMesh World{glctx = gl} (BoxHut _ (Vector3 x y z)) = do
+    mbuf <- createPackedBuf gl $ w1 ++ w2 ++ w3 ++ w4 ++ ro
+    sibuf <- createIndexBuf gl $ [0,4,8,12,16] >>= flip map [0,1,2,0,2,3] . (+)
+    wibuf <- createIndexBuf gl $ [0,4,8,12,16] >>= flip map [0,1,1,2,2,3,3,0] . (+)
+    return $ CityObjectMesh mbuf sibuf wibuf
+    where uuu@(Vector3 x2 _ z2) = Vector3  (x/2) y (z/2)
+          duu = Vector3 (-x2) ( y) ( z2)
+          udu = Vector3 ( x2) ( 0) ( z2)
+          ddu = Vector3 (-x2) ( 0) ( z2)
+          uud = Vector3 ( x2) ( y) (-z2)
+          dud = Vector3 (-x2) ( y) (-z2)
+          udd = Vector3 ( x2) ( 0) (-z2)
+          ddd = Vector3 (-x2) ( 0) (-z2)
+          nnz = Vector3 ( 0) ( 0) (-127)
+          npz = Vector3 ( 0) ( 0) ( 127)
+          nnx = Vector3 (-127) ( 0) ( 0)
+          npx = Vector3 ( 127) ( 0) ( 0)
+          npy = Vector3 ( 0) ( 127) ( 0)
+          txmax = x + z
+          tymax = 2*y + z
+          tx1 = round $ 65535 / txmax * x
+          ty1 = round $ 65535 / tymax * y
+          ty2 = round $ 65535 / tymax * 2 * y
+          m = 65535
+          w1 = [ (ddu, npz, Vector2 0   0  )
+               , (udu, npz, Vector2 tx1 0  )
+               , (uuu, npz, Vector2 tx1 ty1)
+               , (duu, npz, Vector2 0   ty1)]
+          w2 = [ (udu, npx, Vector2 tx1 0  )
+               , (udd, npx, Vector2 m   0  )
+               , (uud, npx, Vector2 m   ty1)
+               , (uuu, npx, Vector2 tx1 ty1)]
+          w3 = [ (udd, nnz, Vector2 0   ty1)
+               , (ddd, nnz, Vector2 tx1 ty1)
+               , (dud, nnz, Vector2 tx1 ty2)
+               , (uud, nnz, Vector2 0   ty2)]
+          w4 = [ (ddd, nnx, Vector2 tx1 ty1)
+               , (ddu, nnx, Vector2 m   ty1)
+               , (duu, nnx, Vector2 m   ty2)
+               , (dud, nnx, Vector2 tx1 ty2)]
+          ro = [ (duu, npy, Vector2 0   ty2)
+               , (uuu, npy, Vector2 tx1 ty2)
+               , (uud, npy, Vector2 tx1 m  )
+               , (dud, npy, Vector2 0   m  )]
 createObjectMesh _ _ = undefined
 
 

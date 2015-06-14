@@ -42,16 +42,12 @@ createGrid :: World
            -> Vector4 GLfloat -- ^ color of the mesh
            -> IO Grid
 createGrid World{glctx = gl} size cells color = do
-    enableVertexAttribArray gl 0
     arr <- newArrayBuffer $ coords >>= \(Vector3 x y z) -> [x,y,z]
     buf <- createBuffer gl
     bindBuffer gl gl_ARRAY_BUFFER buf
     bufferData gl gl_ARRAY_BUFFER arr gl_STATIC_DRAW
     shProgram <- initShaders gl [(gl_FRAGMENT_SHADER, fragStaticMesh)
                                 ,(gl_VERTEX_SHADER, vertStaticMesh)]
-    useProgram gl (programId shProgram)
-    bindAttribLocation gl (programId shProgram) 0 (toJSString "aVertexPosition")
-    disableVertexAttribArray gl 0
     return $ Grid color (fromIntegral $ length coords) arr buf shProgram
     where grid = map (\k -> size*((fromIntegral k / fromIntegral cells) - 0.5)) [1..cells-1]
           coords = (grid >>= \x -> [Vector3 x 0 (-size/2), Vector3 x 0 (size/2)])
@@ -62,16 +58,17 @@ createGrid World{glctx = gl} size cells color = do
 instance Drawable Grid where
     drawInCurrContext w@World{glctx = gl, curContext = cc}
                       (Grid (Vector4 r g b a) size _ buf prog) = do
-        enableVertexAttribArray gl 0
+        enableVertexAttribArray gl ploc
         useProgram gl . programId $ prog
         bindBuffer gl gl_ARRAY_BUFFER buf
         uniformMatrix4fv gl (wProjLoc cc) False (projectLoc w)
         fillTypedArray (modelViewLoc w) (wView cc)
         uniformMatrix4fv gl (wViewLoc cc) False (modelViewLoc w)
         uniform4f gl (unifLoc prog "uColor") r g b a
-        vertexAttribPointer gl 0 3 gl_FLOAT False 12 0
+        vertexAttribPointer gl ploc 3 gl_FLOAT False 12 0
         drawArrays gl gl_LINES 0 size
-        disableVertexAttribArray gl 0
+        disableVertexAttribArray gl ploc
+            where ploc = attrLoc prog "aVertexPosition"
     updateDrawContext (Grid _ _ _ _ prog)
                       w@World{curContext = cc} = w
         { curContext = cc

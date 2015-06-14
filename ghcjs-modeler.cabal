@@ -10,9 +10,9 @@ stability: experimental
 homepage: http://ia.arch.ethz.ch/
 bug-reports: mailto:chirkin@arch.ethz.ch
 synopsis: Modelling OpenGL prototype
-description: This is an implementation fgdfgdfgsfdg
-             sdgdffffffffff
-             222222222222222222222222222222
+description: WebGL application compiled by GHCJS.
+             Allows viewing, rotating and moving buildings in 3D.
+             To be connected to computing backend (server).
 category: OpenGL, WebGL
 author: Artem Chirkin
 data-dir: ""
