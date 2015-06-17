@@ -6,6 +6,7 @@ module Main (
 import GHCJS.WebGL
 import Control.Monad
 import Control.Concurrent (threadDelay)
+import Control.Arrow ((&&&))
 --import Control.Applicative ((<*>))
 --import Control.Monad.Trans (liftIO)
 import Control.Monad.Reader
@@ -356,6 +357,7 @@ foreign import javascript unsafe "var e = window.event || $1;$r = e.wheelDelta>0
 foreign import javascript unsafe "$r=[];for(var i = 0; i < $1['touches'].length; i++){$r.push($1['touches'][i].clientX);$r.push($1['touches'][i].clientY);}"
     getTouches' :: JSRef UIEvent -> JSRef [GLfloat]
 
+
 getTouches :: UIEvent -> IO [Vector2 GLfloat]
 getTouches e = liftM (f . fromMaybe []) . fromJSRefListOf . getTouches' $ unUIEvent e
     where f (a:b:xs) = (Vector2 a b):f xs
@@ -545,16 +547,18 @@ selectObject :: (IsElement self, IsEvent event)
            -> EventM event self Bool
 selectObject posStateRef cityRef = do
     preventOthers
-    ic <- liftIO . liftM iContext . readIORef $ posStateRef
-    case ic of
-        CityChange i -> liftIO $ do
-            otime <- liftM lastTime . readIORef $ posStateRef
-            t <- getTime
-            if t - otime > mouseClickTime
-            then return False
-            else modifyIORef' cityRef (\city -> city{activeObj = i})
-                  >> return True
-        _ -> return False
+    (ic, dt) <- liftIO $ do
+        t <- getTime
+        liftM (iContext &&& ( (t-) . lastTime)) . readIORef $ posStateRef
+    if dt > mouseClickTime
+    then return False
+    else liftIO $ do
+        city@City{activeObj = j} <- readIORef cityRef
+        case (ic) of
+            (CityChange i) -> if i == j then return False
+                else writeIORef cityRef (city{activeObj = i}) >> return True
+            _ -> if fst j == 0 || snd j == 0 then return False
+                else writeIORef cityRef (city{activeObj = (0,0)}) >> return True
 
 preventOthers :: (IsEvent e) => EventM e self ()
 preventOthers = do
