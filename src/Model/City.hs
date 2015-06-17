@@ -1,5 +1,7 @@
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# LANGUAGE DataKinds #-}
 -----------------------------------------------------------------------------
 --
@@ -20,6 +22,8 @@ module Model.City where
 import Control.Applicative
 import qualified Control.Monad as M
 import qualified Data.IntMap.Strict as IM
+import qualified Data.Traversable as TR
+import qualified Control.Arrow as A
 --import qualified Data.Graph as G
 --import qualified Data.Foldable as F
 import Data.Bits
@@ -30,7 +34,7 @@ import GHCJS.WebGL
 
 import Geometry.Space
 --import Geometry.Space.Quaternion
---import Geometry.Structure
+import Geometry.Structure
 import Geometry.Space.Transform
 
 import Drawable.World
@@ -41,7 +45,7 @@ import SmallGL.Shader
 --import SmallGL.Helpers
 
 import Model.CityObject
-
+import Model.ScalarField
 
 -- | Map of all city object (buildings, roads, etc).
 --   Values: object, location (transformed mesh)
@@ -49,14 +53,19 @@ data City = City
     { activeObj    :: !(Int, Int)
     , buildShader  :: !ShaderProgram
     , selectShader :: !ShaderProgram
+    , groundMesh   :: !(Maybe (CityObjectMesh, Texture))
     , objectsIn    :: !(IM.IntMap CityObjRep)
     }
 
 data CityObjRep = CityObjRep
     { orObj  :: !CityObject
     , orMesh :: !CityObjectMesh
-    , orLocs :: !(IM.IntMap (QTransform GLfloat (Maybe Texture)))
+    , orLocs :: !(IM.IntMap (STransform "Quaternion" GLfloat (Maybe Texture)))
     }
+
+-- | Bounding Box for the City in 2D
+ground :: City -> Ground
+ground = minBBox
 
 -- | Add a city object on a pointed place in the city.
 --   Returns a modified city (a city wih modified map of buildings)
@@ -66,13 +75,15 @@ addCityObject :: World
               -> GLfloat -- ^ rotation (w.r.t. Y axis)
               -> City
               -> IO (City)
-addCityObject w o p r c@City{objectsIn = m} =
-    createObjectMesh w o >>= \om ->
-    return $ c{objectsIn = IM.insert i CityObjRep
+addCityObject w o p r c@City{objectsIn = m} = do
+    om <- createObjectMesh w o
+    let city = c{objectsIn = IM.insert i CityObjRep
             { orObj = o
             , orMesh = om
             , orLocs = IM.fromAscList [(1,translate p Nothing >>= rotateY r)]
             } m }
+    updateCityGround w city
+    return city
     where i = fst (IM.findMax m) + 1
 
 -- | The same as `addCityObject`, but modifies a city inplace by its reference
@@ -90,11 +101,12 @@ addCityObject' w o p r cref = do
             , orMesh = om
             , orLocs = IM.fromAscList [(1,translate p Nothing >>= rotateY r)]
             } m}
+    readIORef cref >>= updateCityGround w
 
---addObjectTexture :: World
---                 -> Int
---                 -> Int
---
+-- | Update mesh for the city ground if exists
+updateCityGround :: World -> City -> IO ()
+updateCityGround _ City{ groundMesh = Nothing} = return ()
+updateCityGround w c@City{ groundMesh = Just (gm,_) } = updateGroundMesh w (ground c) gm
 
 -- | Helper for creation of the city from the list of city objects
 buildCity :: World
@@ -113,10 +125,54 @@ buildCity w@World{glctx = gl} bs ps rs texs = do
     createdObjects <- mapM (\(olocs, oobj, omaction) -> do
         omesh <- omaction
         return $ CityObjRep oobj omesh olocs) . zip3 locs bs $ map (createObjectMesh w) bs :: IO [CityObjRep]
-    return $ City (0,0) buProgram seProgram . IM.fromAscList . zip [1..] $ createdObjects
+    let objs = IM.fromAscList . zip [1..] $ createdObjects
+    return $ City (0,0) buProgram seProgram Nothing objs
     where trans p r t = translate p t >>= rotateY r
           locs = zipWith3 (\pp rr -> IM.fromAscList . zip [1..] . zipWith3 trans pp rr) ps rs texs
 
+-- | get the points on all surfaces and put them into Scalar field
+cityEvaluationGrid :: GLfloat -> City -> ScalarField
+cityEvaluationGrid cs (City _ _ _ _ buildings) = ScalarField
+    { cellSize  = cs
+    , sfPoints  = IM.foldr' f [] buildings ++ groundEvalGrid (boundSet buildings) cs
+    , sfRange   = zeros
+    , sfValues  = []
+    } where f :: CityObjRep -> [Vector3 GLfloat] -> [Vector3 GLfloat]
+            f CityObjRep
+                { orObj = obj
+                , orLocs = m
+                } acc = let pts = evaluationGrid obj cs
+                            g tr ac = map (applyV3 . flip fmap tr . const) pts ++ ac
+                        in IM.foldr' g [] m ++ acc
+
+-- | Setup textures from scalar field
+updateCityTextures :: World -> ScalarField -> ColorPalette -> City -> IO City
+updateCityTextures world@World{glctx = gl}
+                   sf@ScalarField{ cellSize  = cs}
+                   palette
+                   city = do
+    objs <- TR.sequence ioseq
+    gr' <- groundf (ground city) $ groundMesh city
+    return city{ objectsIn = objs, groundMesh = gr' }
+    where (gcolors, ioseq) = IM.mapAccum updateObj (makeColors palette sf) (objectsIn city)
+          groundf gr (Just (gm, tex)) = do
+            let (_, mtf) = groundGridToTexArray gr cs gcolors
+            mtarr <- mtf
+            mtex <- g mtarr (Just tex)
+            return $ M.liftM ((,) gm) mtex
+          groundf gr Nothing = do
+            gm <- createGroundMesh world gr
+            let (_, mtf) = groundGridToTexArray gr cs gcolors
+            mtarr <- mtf
+            mtex <- g mtarr Nothing
+            return $ M.liftM ((,) gm) mtex
+          g Nothing Nothing = return Nothing
+          g Nothing (Just tex) = deleteTexture gl tex >> return Nothing
+          g (Just ars) Nothing = M.liftM Just $ initTexture gl (Right ars)
+          g (Just ars) (Just tex) = updateTexture gl (Right ars) tex >> (return $ Just tex)
+          updateObj colors obj = (cleft, TR.sequence locs >>= \ls -> return obj{orLocs = ls})
+            where (cleft,locs) = IM.mapAccum f colors $ orLocs obj
+                  f cc tr = A.second (>>= liftTransform . flip M.liftM tr . g ) $ gridToTextureArray (orObj obj) cs cc
 
 
 ----------------------------------------------------------------------------------------------------
@@ -140,7 +196,7 @@ drawCity :: World -> City -> IO ()
 drawCity w@World
     { glctx = gl
     , curContext = WorldContext{wSunDir = Vector3 sx sy sz, wProjLoc = projLoc}
-    } (City (j,k) bProg _ buildings) = do
+    } (City (j,k) bProg _ mgr buildings) = do
     enableVertexAttribArray gl ploc
     enableVertexAttribArray gl nloc
     enableVertexAttribArray gl tloc
@@ -149,37 +205,57 @@ drawCity w@World
     uniform1i gl (unifLoc bProg "uSampler") 0
     uniformMatrix4fv gl projLoc False (projectLoc w)
     uniform3f gl (unifLoc bProg "uSunDir") sx sy sz
+    case mgr of
+        Nothing -> return ()
+        Just (gm, tex) -> do
+            uniform1f gl userLoc 1
+            uniform4f gl colLoc 1 1 1 1
+            bindTexture gl gl_TEXTURE_2D tex
+            applyTransform w (return () :: MTransform GLfloat ())
+            depthMask gl False
+            drawGround gl alocs gm
+            depthMask gl True
+            uniform1f gl userLoc 0
     uniform4f gl colLoc 0.7 0.7 0.7 1
     IM.foldMapWithKey g buildings
-    uniform4f gl colLoc 0.75 0.75 0.7 1
     IM.foldMapWithKey f buildings
     disableVertexAttribArray gl tloc
     disableVertexAttribArray gl nloc
     disableVertexAttribArray gl ploc
     where f i (CityObjRep o m locs) | behavior o == Static = return ()
                                     | i /= j = IM.foldMapWithKey
-                (\_ t -> applyTransform w t >>= maybeWithTexture m 0.9) locs
+                (\_ t -> applyTransform w t >>= maybeWithTexture m IdleOS) locs
                                     | otherwise = IM.foldMapWithKey
-                (\l t -> if l /= k then applyTransform w t >>= maybeWithTexture m 0.9
-                                   else do
-                        uniform4f gl colLoc 1 0.65 0.65 1
-                        applyTransform w t >>= maybeWithTexture m 0.6
-                        uniform4f gl colLoc 0.75 0.75 0.7 1) locs
+                (\l t -> applyTransform w t >>= maybeWithTexture m (if l /= k then IdleOS else SelectedOS)) locs
           g _ (CityObjRep o m locs) | behavior o == Dynamic = return ()
                                     | otherwise = IM.foldMapWithKey
-                (\_ t -> applyTransform w t >>= maybeWithTexture m 0.9) locs
+                (\_ t -> applyTransform w t >>= maybeWithTexture m StaticOS) locs
           colLoc = unifLoc bProg "uVertexColor"
           userLoc = unifLoc bProg "uTexUser"
           alocs@(ploc,Just (nloc,tloc)) =
                   ( attrLoc bProg "aVertexPosition"
                   , Just ( attrLoc bProg "aVertexNormal"
                          , attrLoc bProg "aTextureCoord"))
-          maybeWithTexture m _ Nothing   = drawSurface gl alocs m
-          maybeWithTexture m l (Just tex) = do
-            uniform1f gl userLoc l
+          maybeWithTexture m state Nothing = do
+            case state of
+                StaticOS -> return ()
+                IdleOS -> uniform4f gl colLoc 0.75 0.75 0.7 1
+                SelectedOS -> uniform4f gl colLoc 1 0.6 0.6 1
+            drawSurface gl alocs m
+          maybeWithTexture m state (Just tex) = do
+            case state of
+                StaticOS -> uniform1f gl userLoc 0.5
+                IdleOS -> do
+                    uniform1f gl userLoc 1
+                    uniform4f gl colLoc 0.8 0.8 0.8 1
+                SelectedOS -> do
+                    uniform1f gl userLoc 0.6
+                    uniform4f gl colLoc 1 0.4 0.4 1
             bindTexture gl gl_TEXTURE_2D tex
             drawSurface gl alocs m
             uniform1f gl userLoc 0
+
+data ObjectState = IdleOS | SelectedOS | StaticOS
 
 
 -- City selectable means one can select objects in a city
@@ -195,7 +271,7 @@ instance Selectable City where
 
 selectCityArea :: World -> City -> IO ()
 selectCityArea w@World{glctx = gl, curContext = WorldContext{wProjLoc = projLoc}}
-               (City _ _ sProg buildings) = do
+               (City _ _ sProg _ buildings) = do
     enableVertexAttribArray gl ploc
     useProgram gl . programId $ sProg
     uniformMatrix4fv gl projLoc False (projectLoc w)
@@ -213,6 +289,34 @@ selectCityArea w@World{glctx = gl, curContext = WorldContext{wProjLoc = projLoc}
           selValLoc = unifLoc sProg "uSelector"
           alocs@(ploc, _) = ( attrLoc sProg "aVertexPosition"
                   , Nothing)
+
+
+instance Boundable CityObjRep 3 GLfloat where
+    minBBox (CityObjRep o _ locs) = boundSet $ IM.map (wrap bb) locs
+        where bb = minBBox o :: BoundingBox 3 GLfloat
+
+instance Boundable CityObjRep 2 GLfloat where
+    minBBox cor = boundingBox (Vector2 lx lz) (Vector2 hx hz)
+        where bb = minBBox cor :: BoundingBox 3 GLfloat
+              Vector3 lx _ lz = lowBound bb
+              Vector3 hx _ hz = highBound bb
+
+instance Boundable City 2 GLfloat where
+    minBBox City{ objectsIn = objs } = boundSet objs
+
+--    minBBox Building{ objPolygon = poly} = boundingBox (Vector2 lx lz)
+--                                                       (Vector2 hx hz)
+--        where bound3 = minBBox poly
+--              Vector3 lx _ lz = lowBound bound3
+--              Vector3 hx _ hz = lowBound bound3
+--    minBBox Road{ roadPoints = poly, roadWidth = rw} = boundingBox lb hb
+--        where bound2 = boundSet poly
+--              lb = fmap (+(-r2)) $ lowBound bound2
+--              hb = fmap (+r2) $ highBound bound2
+--              r2 = rw / 2
+--    minBBox BoxHut { hutSize = hs } = boundingBox (Vector2 (-x) (-z))
+--                                                  (Vector2 x z)
+--        where Vector3 x _ z = (hs /.. 2)
 
 ----------------------------------------------------------------------------------------------------
 -- Functions for interacting with the city objects
@@ -332,10 +436,10 @@ findPos (Vector3 c1 c2 c3) (Vector3 v1 v2 v3) h = Vector3 x h z
 
 
 
-instance Monoid (IO ()) where
-    mempty = return ()
-    mappend a b = a >> b
-    mconcat as = M.sequence_ as
+instance (Monoid m) => Monoid (IO m) where
+    mempty = return mempty
+    mappend a b = mappend <$> a <*> b
+    mconcat as = mconcat <$> M.sequence as
 
 
 -- Render shader
@@ -366,10 +470,10 @@ vertBuilding = unlines [
   "void main(void) {",
   "  vec4 globalPos = uModelViewM * vec4(aVertexPosition, 1.0);",
   "  gl_Position = uProjM * globalPos;",
-  "  vec3 vDist = globalPos.xyz/globalPos.w/200.0;",
+  "  vec3 vDist = globalPos.xyz/globalPos.w/150.0;",
   "  float z = clamp(dot(vDist,vDist), 0.0, 3.0);",
-  "  vColor = clamp(uVertexColor * (1.0 + 0.3*max(0.0, dot(-vec4(uSunDir, 0.0), uModelViewM * vec4(aVertexNormal, 0.0)))), vec4(z-0.0,z-0.0,z-0.0,0.0), vec4(1.0,1.0,1.0,min(3.0-z, 1.0)));",
---  "  vColor = vec4(aVertexNormal,1) + 0.00001*vColor;",
+  "  vColor = uVertexColor * (1.0 + 0.3*max(0.0, dot(-vec4(uSunDir, 0.0), uModelViewM * vec4(aVertexNormal, 0.0))));",
+  "  vColor = clamp(vColor, vec4(0.0,0.0,0.0,0.0), vec4(1.0,1.0,1.0,min(3.0-z, 1.0)));",
   "  vTextureCoord = aTextureCoord;",
   "}"]
 

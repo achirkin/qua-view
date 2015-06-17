@@ -1,4 +1,4 @@
-{-# LANGUAGE JavaScriptFFI #-}
+{-# LANGUAGE JavaScriptFFI, DataKinds #-}
 module Main (
     main
 ) where
@@ -48,7 +48,8 @@ import Model.City
 import Model.CityObject
 import Model.Grid
 
-
+import Model.ScalarField
+import Model.RadianceService
 --import System.Random
 -- closure-compiler all.js --compilation_level=ADVANCED_OPTIMIZATIONS > all.min.js
 -- style="position:fixed;left:0;top:0;padding:0;margin:0;width:100%;height:100%;overflow:hidden;"
@@ -103,12 +104,12 @@ main = runWebGUI $ \ webView -> do
     depthFunc ctx gl_LEQUAL
     viewport ctx 0 0 vpWidth vpHeight
 
-    atlaspic <- loadImage "atlaspic.png"
-    atex <- initTexture ctx atlaspic
+--    atlaspic <- loadImage "atlaspic.png"
+--    atex <- initTexture ctx $ Left atlaspic
 
-    img <- loadImage "ia512tex.png"
---    printRef img
-    tex <- initTexture ctx img
+--    img <- loadImage "ia512tex.png"
+----    printRef img
+--    tex <- initTexture ctx $ Left img
 --    printRef tex
 
     -- Setup world
@@ -126,19 +127,34 @@ main = runWebGUI $ \ webView -> do
 --        :: IO (QTransform GLfloat Grid)
     grid <- createGrid iworld 500 100 (Vector4 0.6 0.6 0.8 1)
     let numb2 = 8
-    cityRef <- buildCity iworld [building1,building2,building3,building4,hut1]
+    cityRef <- buildCity iworld [building1,building2,building3,hut1,building4]
             [ [Vector3 8 0 0],[Vector3 (-8) 0 0],[Vector3 (-8) 0 (-6)]
             , [Vector3 (-i*4 - 12) 0 (j*4) | i <- [1..numb2], j <- [1..numb2]]
             , [Vector3 0 0 4]]
             [[pi/3],[0],[0],map ((pi/100)*) [1..], [1]]
-            [[Nothing],[Nothing],[Nothing],repeat (Just tex), [Just atex]]
+            [[Nothing],[Nothing],[Nothing],repeat Nothing, [Nothing]]
         >>= newIORef
 --    cityRef <- buildCity iworld (repeat building4)
 --            [Vector3 (-i*4 - 12) 0 (j*4) | i <- [1..numb2], j <- [1..numb2]]
 --            (map ((pi/100)*) [1..])
 --        >>= newIORef
-
+--    readIORef cityRef >>= print . (minBBox :: City -> BoundingBox 2 GLfloat)
     addCityObject' iworld road1 (Vector3 0 0 0) 0 cityRef
+--    readIORef cityRef >>= print . (minBBox :: City -> BoundingBox 2 GLfloat)
+
+    let applyService =
+          readIORef cityRef >>= \city -> do
+          updateCityGround iworld city
+          city' <- updateCityTextures
+                iworld
+                (distFromPoint (Vector3 (-10) 4 5) $ cityEvaluationGrid 1 city)
+                palette
+                city
+          writeIORef cityRef city'
+            where palette = Bezier3Palette (Vector4 255 0 0 255)
+                                           (Vector4 100 255 0 255)
+                                           (Vector4 0 255 100 255)
+                                           (Vector4 0 0 255 255)
 
 
     -- Everything to draw in the world
@@ -159,7 +175,7 @@ main = runWebGUI $ \ webView -> do
             , iContext = Idle
             }
 
-    let selectNow = selectOnce worldRef [cityRef]
+    let selectNow = selectOnce worldRef [cityRef] >> applyService
     displayOnTime <- liftM animate
         . syncCallback NeverRetain False $ displayOnce ltimeRef worldRef drawSequence
     dispAndSelectOnTime <- liftM animate
@@ -255,11 +271,11 @@ selectOnce wref selectables = do
 ----------------------------------------------------------------------------------------------
 
 
-foreign import javascript interruptible "var img = new Image();img.crossOrigin='anonymous';img.onload=function(){$c(img);};img.src = $1;"
-    loadImage' :: JSString -> IO TexImageSource
-
-loadImage :: String -> IO TexImageSource
-loadImage = loadImage' . toJSString
+--foreign import javascript interruptible "var img = new Image();img.crossOrigin='anonymous';img.onload=function(){$c(img);};img.src = $1;"
+--    loadImage' :: JSString -> IO TexImageSource
+--
+--loadImage :: String -> IO TexImageSource
+--loadImage = loadImage' . toJSString
 
 --foreign import javascript unsafe "\
 --  \ function validateNoneOfTheArgsAreUndefined(functionName, args) { \
@@ -584,7 +600,7 @@ getSelection (x,y) World
 ----------------------------------------------------------------------------------------------
 
 hut1 :: CityObject
-hut1 = BoxHut Dynamic $ Vector3 2 3 5
+hut1 = BoxHut Dynamic $ Vector3 2 3 3
 
 building1 :: CityObject
 building1 = Building Dynamic $ SimpleConvexPolygon

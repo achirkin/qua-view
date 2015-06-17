@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE DataKinds #-}
 -----------------------------------------------------------------------------
@@ -17,6 +19,7 @@
 module Model.CityObject where
 
 import qualified Control.Monad as M
+--import qualified Control.Arrow as A
 --import qualified Data.IntMap.Strict as IM
 import Data.List (zip4)
 import Data.Primitive.ByteArray (writeByteArray)
@@ -33,7 +36,7 @@ import Drawable.World
 --import Data.IORef
 import GHCJS.WebGL
 
---import GHCJS.Types
+import GHCJS.Types
 --import GHCJS.Foreign
 --import GHCJS.Marshal
 --import Unsafe.Coerce
@@ -122,14 +125,16 @@ packVertices xs p = M.forM_ (zip xs [0..])
     writeByteArray p (20*i+15) (0 :: GLbyte)
     writeByteArray p (10*i+8) tx
     writeByteArray p (10*i+9) ty
---    writeByteArray p (8*i) x
---    writeByteArray p (8*i+1) y
---    writeByteArray p (8*i+2) z
---    writeByteArray p (8*i+3) (fromIntegral nx / 128 :: GLfloat)
---    writeByteArray p (8*i+4) (fromIntegral ny / 128 :: GLfloat)
---    writeByteArray p (8*i+5) (fromIntegral nz / 128 :: GLfloat)
---    writeByteArray p (8*i+6) (fromIntegral tx / 65535 :: GLfloat)
---    writeByteArray p (8*i+7) (fromIntegral ty / 65535 :: GLfloat)
+
+-- | pack points, normals, and tex coords tightly in one buffer
+packVertexCoords :: [Vector3 GLfloat]
+             -> ArrayBuffer -> IO ()
+packVertexCoords xs p = M.forM_ (zip xs [0..])
+        $ \(Vector3 x y z, i) -> do
+    writeByteArray p (5*i) x
+    writeByteArray p (5*i+1) y
+    writeByteArray p (5*i+2) z
+
 
 
 -- | create an array and a buffer, and fill them
@@ -268,6 +273,181 @@ createObjectMesh World{glctx = gl} (BoxHut _ (Vector3 x y z)) = do
                , (uud, npy, Vector2 tx1 m  )
                , (dud, npy, Vector2 0   m  )]
 createObjectMesh _ _ = undefined
+
+
+
+evaluationGrid :: CityObject -- ^ hut
+               -> GLfloat  -- ^ desired cell size
+               -> [Vector3 GLfloat]
+evaluationGrid (BoxHut _ (Vector3 sx sy sz)) cellSize =
+    w12 ++ w34 ++ ro
+    where nx = max 1 . round $ sx / cellSize :: Int
+          ny = max 1 . round $ sy / cellSize :: Int
+          nz = max 1 . round $ sz / cellSize :: Int
+          dx = sx / fromIntegral nx
+          dy = sy / fromIntegral ny
+          dz = sz / fromIntegral nz
+          xs = take nx $ iterate (+dx) (0.5*(dx-sx))
+          ys = take ny $ iterate (+dy) (0.5*dy)
+          zs = take nz $ iterate (+dz) (0.5*(dz-sz))
+          w1 = \y -> map (\x -> Vector3 x y (sz/2)) xs
+          w2 = \y -> map (\z -> Vector3 (sx/2) y (-z)) zs
+          w3 = \y -> map (\x -> Vector3 (-x) y (-sz/2)) xs
+          w4 = \y -> map (\z -> Vector3 (-sx/2) y z) zs
+          w12 = ys >>= \y -> w1 y ++ w2 y
+          w34 = ys >>= \y -> w3 y ++ w4 y
+          ro = zs >>= \z -> map (\x -> Vector3 x sy (-z)) xs
+evaluationGrid _ _ = []
+
+-- | Create a texture array from the color list.
+--   Put remaining points as the second output
+gridToTextureArray :: CityObject
+                   -> GLfloat
+                   -> [Vector4 GLubyte]
+                   -> ([Vector4 GLubyte], IO (Maybe (TypedArray GLubyte, Vector2 GLsizei)))
+gridToTextureArray (BoxHut _ (Vector3 sx sy sz)) cellSize colors =
+    f (newTypedArray $ ntx*nty*4) 0 colors
+    where nx = max 1 . round $ sx / cellSize :: Int
+          ny = max 1 . round $ sy / cellSize :: Int
+          nz = max 1 . round $ sz / cellSize :: Int
+          ntx = nx+nz
+          nty = 2*ny+nz
+          rec = ntx*2*ny
+          size = fmap fromIntegral $ Vector2 ntx nty
+          writeVec i (Vector4 r g b a) arr = do
+            setIdx arr (i) r
+            setIdx arr (i+1) g
+            setIdx arr (i+2) b
+            setIdx arr (i+3) a
+            return arr
+          f :: IO (TypedArray GLubyte) -> Int -> [Vector4 GLubyte] -> ([Vector4 GLubyte], IO (Maybe (TypedArray GLubyte, Vector2 GLsizei)))
+          f a i (x:xs) | i < rec                  = let a' = a >>= writeVec (4*i) x in a' `seq` f a' (i+1) xs -- first rectangular area
+                       | (i - rec) `mod` ntx < nx && i < ntx*nty = let a' = a >>= writeVec (4*i) x in a' `seq` f a' (i+1) xs -- roof
+                       | i < ntx*nty              = let a' = a >>= writeVec (4*i) (Vector4 0 0 0 0) in a' `seq` f a' (i+1) (x:xs) -- spare space
+                       | otherwise                = (x:xs, a >>= (\arr -> return $ Just (arr, size))) -- finished, there are points left
+          f a i [] | i >= ntx*nty = ([], a >>= (\arr -> return $ Just (arr, size))) -- finished, there is no points left
+                   | (i - rec) `mod` ntx >= nx = let a' = a >>= writeVec (4*i) (Vector4 0 0 0 0) in a' `seq` f a' (i+1) [] -- finish spare space
+                   | otherwise    = ([], return Nothing) -- there were not enough points!
+gridToTextureArray _ _ colors =  (colors, return Nothing)
+
+
+foreign import javascript safe "console.log($1)"
+    printRe :: JSRef a -> IO ()
+
+
+instance Boundable CityObject 2 GLfloat where
+    minBBox Building{ objPolygon = poly} = boundingBox (Vector2 lx lz)
+                                                       (Vector2 hx hz)
+        where bound3 = minBBox poly
+              Vector3 lx _ lz = lowBound bound3
+              Vector3 hx _ hz = lowBound bound3
+    minBBox Road{ roadPoints = poly, roadWidth = rw} = boundingBox lb hb
+        where bound2 = boundSet poly
+              lb = fmap (+(-r2)) $ lowBound bound2
+              hb = fmap (+r2) $ highBound bound2
+              r2 = rw / 2
+    minBBox BoxHut { hutSize = hs } = boundingBox (Vector2 (-x) (-z))
+                                                  (Vector2 x z)
+        where Vector3 x _ z = (hs /.. 2)
+
+instance Boundable CityObject 3 GLfloat where
+    minBBox Building{ objPolygon = poly} = boundPair bb zbound
+        where bb = minBBox poly
+              Vector3 lx _ lz = lowBound bb
+              Vector3 hx _ hz = highBound bb
+              zbound = boundingBox (Vector3 lx 0 lz) (Vector3 hx 0 hz)
+    minBBox Road{ roadPoints = poly, roadWidth = rw} = boundingBox (Vector3 lx 0 lz)
+                                                                   (Vector3 hx roadLevel hz)
+        where bound2 = boundSet poly
+              Vector2 lx lz = fmap (+(-r2)) $ lowBound bound2
+              Vector2 hx hz = fmap (+r2) $ highBound bound2
+              r2 = rw / 2
+    minBBox BoxHut { hutSize = Vector3 x y z } = boundingBox (Vector3 (-0.5*x) 0 (-0.5*z))
+                                                             (Vector3 (0.5*x) y (0.5*z))
+
+
+----------------------------------------------------------------------------------------------------
+-- | Ground as a bounding rectangle
+----------------------------------------------------------------------------------------------------
+
+type Ground = BoundingBox 2 GLfloat
+
+createGroundMesh :: World -> Ground -> IO CityObjectMesh
+createGroundMesh World{glctx = gl} b = do
+    mbuf <- createPackedBuf gl $ [ (Vector3 lx 0 hz, npy, Vector2 0 0)
+                                 , (Vector3 hx 0 hz, npy, Vector2 m 0)
+                                 , (Vector3 hx 0 lz, npy, Vector2 m m)
+                                 , (Vector3 lx 0 lz, npy, Vector2 0 m)]
+    sibuf <- createIndexBuf gl $ [0,1,3,2]
+    wibuf <- createIndexBuf gl $ [0,1,1,2,2,3,3,0]
+    return $ CityObjectMesh mbuf sibuf wibuf
+    where Vector2 lx lz = lowBound b
+          Vector2 hx hz = highBound b
+          npy = Vector3 0 127 0
+          m = 65535
+
+updateGroundMesh :: World -> Ground -> CityObjectMesh -> IO ()
+updateGroundMesh World{glctx = gl} b CityObjectMesh{vertexData = MeshData _ arr buf } = do
+    packVertexCoords [ Vector3 lx 0 hz
+                     , Vector3 hx 0 hz
+                     , Vector3 hx 0 lz
+                     , Vector3 lx 0 lz] arr
+    bindBuffer gl gl_ARRAY_BUFFER buf
+    bufferData gl gl_ARRAY_BUFFER arr gl_STATIC_DRAW
+    where Vector2 lx lz = lowBound b
+          Vector2 hx hz = highBound b
+
+
+drawGround :: Ctx -> (GLuint,Maybe (GLuint,GLuint) ) -> CityObjectMesh -> IO ()
+drawGround gl (ploc,olocs) CityObjectMesh
+    { vertexData  = MeshData _ _ buf
+    , surfIndices = MeshData n _ ibuf
+    } = do
+    bindBuffer gl gl_ARRAY_BUFFER buf
+    vertexAttribPointer gl ploc 3 gl_FLOAT False 20 0
+    case olocs of
+        Just (nloc,tloc) -> do
+            vertexAttribPointer gl nloc 3 gl_BYTE True 20 12
+            vertexAttribPointer gl tloc 2 gl_UNSIGNED_SHORT True 20 16
+        Nothing -> return ()
+    bindBuffer gl gl_ELEMENT_ARRAY_BUFFER ibuf
+    drawElements gl gl_TRIANGLE_STRIP n gl_UNSIGNED_SHORT 0
+
+groundEvalGrid :: Ground
+               -> GLfloat  -- ^ desired cell size
+               -> [Vector3 GLfloat] -- half size in 111 direction
+groundEvalGrid b cellSize = zs >>= \z -> map (\x -> Vector3 x 0 z) xs
+    where Vector2 sx sz = highBound b .- lowBound b
+          Vector2 x0 _ = lowBound b
+          Vector2 _ z1 = highBound b
+          nx = max 1 . round $ sx / cellSize :: Int
+          nz = max 1 . round $ sz / cellSize :: Int
+          dx = sx / fromIntegral nx
+          dz = - sz / fromIntegral nz
+          xs = take nx $ iterate (+dx) (0.5*dx+x0)
+          zs = take nz $ iterate (+dz) (0.5*dz+z1)
+
+groundGridToTexArray :: Ground
+                     -> GLfloat
+                     -> [Vector4 GLubyte]
+                     -> ([Vector4 GLubyte], IO (Maybe (TypedArray GLubyte, Vector2 GLsizei)))
+groundGridToTexArray bb cellSize colors =
+    f (newTypedArray $ nx*nz*4) 0 colors
+    where Vector2 sx sz = highBound bb .- lowBound bb
+          nx = max 1 . round $ sx / cellSize :: Int
+          nz = max 1 . round $ sz / cellSize :: Int
+          size = fmap fromIntegral $ Vector2 nx nz
+          writeVec i (Vector4 r g b a) arr = do
+            setIdx arr (i) r
+            setIdx arr (i+1) g
+            setIdx arr (i+2) b
+            setIdx arr (i+3) a
+            return arr
+          f :: IO (TypedArray GLubyte) -> Int -> [Vector4 GLubyte] -> ([Vector4 GLubyte], IO (Maybe (TypedArray GLubyte, Vector2 GLsizei)))
+          f a i (x:xs) | i < nx*nz = let a' = a >>= writeVec (4*i) x in a' `seq` f a' (i+1) xs
+                       | otherwise = (x:xs, a >>= (\arr -> return $ Just (arr, size))) -- finished, there are points left
+          f a i [] | i >= nx*nz = ([], a >>= (\arr -> return $ Just (arr, size))) -- finished, there is no points left
+                   | otherwise  = ([], return Nothing) -- there were not enough points!
 
 
 ----------------------------------------------------------------------------------------------------

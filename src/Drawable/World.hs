@@ -22,7 +22,7 @@ module Drawable.World where
 import GHCJS.WebGL
 import GHCJS.Foreign
 
---import GHCJS.Types
+import GHCJS.Types
 --import GHCJS.Marshal
 --import Unsafe.Coerce
 
@@ -111,13 +111,13 @@ instance Drawable Drawing where
 
 instance ( SpaceTransform s GLfloat
          , Drawable d
-         ) => Drawable (s d) where
+         ) => Drawable (STransform s GLfloat d) where
     drawInCurrContext w s = applyTransform w s >>= drawInCurrContext w
     updateDrawContext s w = updateDrawContext (unwrap s) w
 
 instance ( SpaceTransform s GLfloat
          , Selectable d
-         ) => Selectable (s d) where
+         ) => Selectable (STransform s GLfloat d) where
     selectInCurrContext w s = applyTransform w s >>= selectInCurrContext w
     updateSelectContext s w = updateSelectContext (unwrap s) w
 
@@ -153,8 +153,8 @@ initWorld gl c t sd = do
             }
         }
 
---foreign import javascript safe "console.log($1)"
---    printRef' :: JSRef a -> IO ()
+foreign import javascript safe "console.log($1)"
+    printRef' :: JSRef a -> IO ()
 
 -- | This function is called every frame to set up correct matrices and time
 prepareWorldRender :: World -> GLfloat -> IO World
@@ -191,9 +191,9 @@ applySelector wrld@(World{glctx = gl, cameraRef = camr}) xs = do
 
 -- | Apply current transform of an object (including perspective) and save shader uniforms
 applyTransform :: (SpaceTransform s GLfloat)
-               => World -> s a -> IO a
+               => World -> STransform s GLfloat a -> IO a
 applyTransform w@(World{glctx = gl, curContext = cc}) tr = do
-        let MTransform matrix x = transform (MTransform (wView cc) id) tr
+        let MTransform matrix x = mergeSecond (MTransform (wView cc) id) tr
         fillTypedArray (modelViewLoc w) matrix
         uniformMatrix4fv gl (wViewLoc cc) False (modelViewLoc w)
         return x
@@ -225,15 +225,22 @@ initSelectorFramebuffer gl (Vector2 width height) = do
     bindFramebuffer gl gl_FRAMEBUFFER jsNull
     return fb
 
+-- void texImage2D(GLenum target, GLint level, GLenum internalformat, GLsizei width, GLsizei height
+----   , GLint border, GLenum format, GLenum type, ArrayBufferView? pixels)
+--foreign import javascript unsafe "$1.texImage2D($2, $3, $4, $5, $6, $7, $8, $9, $10)"
+--    texImage2D :: Ctx -> GLenum -> GLint-> GLenum -> GLsizei-> GLsizei-> GLint-> GLenum -> GLenum -> TypedArray a -> IO ()
 
-
-initTexture :: Ctx -> TexImageSource -> IO Texture
-initTexture gl img = do
+initTexture :: Ctx -> Either TexImageSource (TypedArray GLubyte, Vector2 GLsizei) -> IO Texture
+initTexture gl texdata = do
     tex <- createTexture gl
     bindTexture gl gl_TEXTURE_2D tex
-    pixelStorei gl gl_UNPACK_FLIP_Y_WEBGL 1
-    texImage2DImg gl gl_TEXTURE_2D 0 gl_RGBA gl_RGBA gl_UNSIGNED_BYTE img
---    texParameteri gl gl_TEXTURE_2D gl_TEXTURE_MIN_FILTER $ fromIntegral gl_LINEAR
+    case texdata of
+        Left img -> do
+            pixelStorei gl gl_UNPACK_FLIP_Y_WEBGL 1
+            texImage2DImg gl gl_TEXTURE_2D 0 gl_RGBA gl_RGBA gl_UNSIGNED_BYTE img
+        Right (arr, Vector2 w h) -> do
+            pixelStorei gl gl_UNPACK_FLIP_Y_WEBGL 0
+            texImage2D gl gl_TEXTURE_2D 0 gl_RGBA w h 0 gl_RGBA gl_UNSIGNED_BYTE arr
     texParameteri gl gl_TEXTURE_2D gl_TEXTURE_WRAP_S $ fromIntegral gl_CLAMP_TO_EDGE
     texParameteri gl gl_TEXTURE_2D gl_TEXTURE_WRAP_T $ fromIntegral gl_CLAMP_TO_EDGE
     texParameteri gl gl_TEXTURE_2D gl_TEXTURE_MAG_FILTER $ fromIntegral gl_NEAREST
@@ -241,4 +248,17 @@ initTexture gl img = do
     bindTexture gl gl_TEXTURE_2D jsNull
     return tex
 
-
+updateTexture :: Ctx
+              -> Either TexImageSource (TypedArray GLubyte, Vector2 GLsizei)
+              -> Texture
+              -> IO ()
+updateTexture gl texdata tex = do
+    bindTexture gl gl_TEXTURE_2D tex
+    case texdata of
+        Left img -> do
+            pixelStorei gl gl_UNPACK_FLIP_Y_WEBGL 1
+            texImage2DImg gl gl_TEXTURE_2D 0 gl_RGBA gl_RGBA gl_UNSIGNED_BYTE img
+        Right (arr, Vector2 w h) -> do
+            pixelStorei gl gl_UNPACK_FLIP_Y_WEBGL 0
+            texImage2D gl gl_TEXTURE_2D 0 gl_RGBA w h 0 gl_RGBA gl_UNSIGNED_BYTE arr
+    bindTexture gl gl_TEXTURE_2D jsNull
