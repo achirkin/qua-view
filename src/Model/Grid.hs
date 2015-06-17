@@ -23,7 +23,7 @@ module Model.Grid where
 --import qualified Data.Foldable as F
 --import Data.Bits
 
-import GHCJS.Foreign
+--import GHCJS.Foreign
 import GHCJS.WebGL
 
 import SmallGL.Shader
@@ -85,7 +85,7 @@ fragStaticMesh = unlines [
   "varying vec3 vDist;",
   "void main(void) {",
   "    lowp float z = clamp(dot(vDist,vDist), 0.0, 3.0);",
-  "    gl_FragColor = clamp(uColor, vec4(z-0.0,z-0.0,z-0.0,0.0), vec4(1.0,1.0,1.0,min(3.0-z, 1.0)));",
+  "    gl_FragColor = clamp(uColor, vec4(0.0,0.0,0.0,0.0), vec4(1.0,1.0,1.0,min(3.0-z, 1.0)));",
   "}"]
 
 vertStaticMesh :: String
@@ -98,5 +98,5 @@ vertStaticMesh = unlines [
   "void main(void) {",
   "  vec4 globalPos = uModelViewM * vec4(aVertexPosition, 1.0);",
   "  gl_Position = uProjM * globalPos;",
-  "  vDist = globalPos.xyz/globalPos.w/200.0;",
+  "  vDist = globalPos.xyz/globalPos.w/150.0;",
   "}"]
