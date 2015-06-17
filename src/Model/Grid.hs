@@ -15,7 +15,7 @@
 --
 -----------------------------------------------------------------------------
 
-module Model.Grid where
+module Model.Grid (Grid(), createGrid) where
 
 --import Control.Applicative
 --import qualified Control.Monad as M
