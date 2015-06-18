@@ -6,25 +6,23 @@ module Main (
 import GHCJS.WebGL
 import Control.Monad
 import Control.Concurrent (threadDelay)
-import Control.Arrow ((&&&))
+--import Control.Arrow ((&&&))
 --import Control.Applicative ((<*>))
 --import Control.Monad.Trans (liftIO)
-import Control.Monad.Reader
+--import Control.Monad.Reader
+
+import Data.IORef
+import Data.Bits (shift)
+--import Data.Maybe (fromMaybe)
 import qualified Data.Foldable as F
 import qualified Data.Traversable as T
 import GHCJS.DOM
        (enableInspector, webViewGetDomDocument, runWebGUI)
 import GHCJS.DOM.Document (documentGetBody, documentGetElementById) -- , documentCreateElement
-import GHCJS.DOM.HTMLElement (htmlElementSetInnerHTML) --, htmlElementSetInnerText)
-import GHCJS.DOM.Element (IsElement,elementOnmousemove,elementOnwheel, elementOnmousedown
-                         ,elementOnmouseup,elementOnmouseleave -- ,elementOnmouseout
-                         ,elementOncontextmenu, elementGetClientWidth, elementGetClientHeight
-                         ,elementOntouchstart,elementOntouchmove,elementOntouchend,elementOntouchcancel) -- ,elementOnclick
---import GHCJS.DOM.HTMLParagraphElement (castToHTMLParagraphElement)
---import GHCJS.DOM.Node (nodeAppendChild)
-import GHCJS.DOM.EventM (EventM,Signal,mouseClientXY, mouseButton,event,returnValue
-                        ,stopPropagation, stopImmediatePropagation,preventDefault)
-import GHCJS.DOM.Types (MouseEvent,IsEvent, UIEvent, unElement,unUIEvent)
+import GHCJS.DOM.HTMLElement (htmlElementSetInnerHTML)
+import GHCJS.DOM.Element (IsElement, elementGetClientWidth, elementGetClientHeight)
+import GHCJS.DOM.EventM (Signal)
+import GHCJS.DOM.Types (unElement)
 
 import GHCJS.Foreign
 import GHCJS.Marshal
@@ -34,16 +32,11 @@ import Geometry.Space
 --import Geometry.Space.Transform
 import Geometry.Structure
 
---import Data.Foldable (toList)
 
---import Foreign
+import GUI.PointerEvent
+
 import Drawable.OCCamera
 import Drawable.World
-
---import Data.List (intercalate)
-import Data.IORef
-import Data.Bits (shift)
-import Data.Maybe (fromMaybe)
 
 import Model.City
 import Model.CityObject
@@ -55,8 +48,6 @@ import Model.RadianceService
 -- closure-compiler all.js --compilation_level=ADVANCED_OPTIMIZATIONS > all.min.js
 -- style="position:fixed;left:0;top:0;padding:0;margin:0;width:100%;height:100%;overflow:hidden;"
 
-mouseClickTime :: GLfloat
-mouseClickTime = 0.2
 
 --vpWidth :: GLsizei
 --vpWidth = 800
@@ -114,18 +105,14 @@ main = runWebGUI $ \ webView -> do
 --    printRef tex
 
     -- Setup world
-    camera <- newIORef $ initOCCamera (fromIntegral vpWidth) (fromIntegral vpHeight)
+    camRef <- newIORef $ initOCCamera (fromIntegral vpWidth) (fromIntegral vpHeight)
         OCCState { viewPoint     = Vector3 0 0 0,
                    viewAngles    = Vector2 (pi/3) (pi/4),
                    viewDist      = 40 }
-    iworld <- initWorld ctx camera 0 (Vector3 (-0.5) (-1) 0.6)
+    iworld <- initWorld ctx camRef 0 (Vector3 (-0.5) (-1) 0.6)
     worldRef <- newIORef iworld
 
     -- Create sample objects
---    grid <- liftM wrap $ createGrid iworld 500 100 (Vector3 160 160 200)
---        :: IO (QTransform GLfloat Grid)
---    grid <- liftM wrap $ createGrid iworld 500 100 (Vector4 0.6 0.6 0.8 1)
---        :: IO (QTransform GLfloat Grid)
     grid <- createGrid iworld 500 100 (Vector4 0.6 0.6 0.8 1)
     let numb2 = 8
     cityRef <- buildCity iworld [building1,building2,building3,hut1,building4]
@@ -163,61 +150,18 @@ main = runWebGUI $ \ webView -> do
             city <- readIORef cityRef
             draw world grid
             draw world city
---            applySelector world [city]
-
 
     -- Mouse controls
     curTime <- getTime
     ltimeRef <- newIORef (curTime-1)
-    posStateRef <- newIORef InterState
-            { lastPos  = []
-            , lastTime = curTime
-            , iType    = toEnum $ -1
-            , iContext = Idle
-            }
+    posStateRef <- newIORef (Idle, NoInteraction)
 
-    let selectNow = selectOnce worldRef [cityRef] >> applyService
+    let selectNow = selectOnce worldRef [cityRef]
     displayOnTime <- liftM animate
         . syncCallback NeverRetain False $ displayOnce ltimeRef worldRef drawSequence
     dispAndSelectOnTime <- liftM animate
         . syncCallback NeverRetain False $ displayOnce ltimeRef worldRef drawSequence >> selectNow
 
-    -- Remember state to start moving
-    _ <- elementOnmousedown canvas $ rememberState posStateRef worldRef camera
-    _ <- elementOntouchstart canvas $ rememberStateT posStateRef worldRef camera
-
-    -- mouse scrolling
-    _ <- elementOnwheel canvas $ do
-        ev <- event
-        liftIO $ toJSRef ev >>= mouseWheelChange
-                >>= modifyIORef' camera . scroll
-                >> dispAndSelectOnTime
-
-    -- moving
-    _ <- elementOnmousemove canvas $ mouseMove posStateRef camera cityRef
-        >>= flip when (liftIO $ displayOnTime)
-    _ <- elementOntouchmove canvas $ touchMove posStateRef camera cityRef
-        >>= flip when (liftIO $ displayOnTime)
-
-    -- Selecting
-    _ <- elementOnmouseup canvas $ -- elementOnclick
-        selectObject posStateRef cityRef -- >>= (\x -> liftIO (print "mouseup") >> return x)
-        >>= flip when (liftIO $ displayOnTime)
-        >> forgetState posStateRef >> liftIO selectNow
-    _ <- elementOntouchend canvas $
-        selectObject posStateRef cityRef -- >>= (\x -> liftIO (print "touchend") >> return x)
-        >>= flip when (liftIO $ displayOnTime)
-        >> forgetState posStateRef >> liftIO selectNow
-
-    -- Forget state by hard!
-    let drawAndForget :: (IsElement self, IsEvent e) => EventM e self ()
-        drawAndForget = forgetState posStateRef
-            >> liftIO dispAndSelectOnTime
-    _ <- elementOnmouseleave canvas drawAndForget
-    _ <- elementOntouchcancel canvas drawAndForget
-
-    -- Do not react on right mouse click
-    _ <- elementOncontextmenu canvas preventOthers
 
     -- Resize body
     _ <- elementOnResize body $ \_ -> do
@@ -226,18 +170,22 @@ main = runWebGUI $ \ webView -> do
             elementSetSize canv w h
             elementSetStyleSize canv w h
             viewport ctx 0 0 w h
-            modifyIORef' camera $ \OCCamera{newState = ns} -> initOCCamera (fromIntegral w) (fromIntegral h) ns
+            modifyIORef' camRef $ \OCCamera{newState = ns} -> initOCCamera (fromIntegral w) (fromIntegral h) ns
             fb <- initSelectorFramebuffer ctx $ Vector2 w h
             modifyIORef' worldRef $ \wrld@World{selector = SelectorObject _ pickedColorArr} -> wrld{selector = SelectorObject fb pickedColorArr}
             dispAndSelectOnTime
 
+    onMouseWheel canvas $ \x -> modifyIORef' camRef (scroll (if x > 0 then 0.25 else -0.2)) >> dispAndSelectOnTime
+    onCancel canvas dispAndSelectOnTime
+    onMove canvas True
+        (setInteractionContext worldRef cityRef camRef posStateRef)
+        ((>>= flip when displayOnTime) . guiMove camRef cityRef posStateRef)
+        ((applyService >>) . const dispAndSelectOnTime)
+        ((>>= flip when displayOnTime) . guiClick worldRef cityRef)
 
     -- Draw world
     threadDelay 1000000
     dispAndSelectOnTime
---    displayOnTime
-    --displayOnce ltimeRef worldRef drawSequence
---    selectOnce worldRef [cityRef]
 
 
 
@@ -278,20 +226,6 @@ selectOnce wref selectables = do
 --loadImage :: String -> IO TexImageSource
 --loadImage = loadImage' . toJSString
 
---foreign import javascript unsafe "\
---  \ function validateNoneOfTheArgsAreUndefined(functionName, args) { \
---  \     for (var ii = 0; ii < args.length; ++ii) { \
---  \         if (args[ii] === undefined) { \
---  \             console.error(\"undefined passed to \" + functionName + \"(\" + \
---  \                   WebGLDebugUtils.glFunctionArgsToString(functionName, args) + \")\"); \
---  \         } \
---  \     } \
---  \ }; \
---  \ function throwOnGLError(err, funcName, args) { \
---  \     document.getElementById('divview').innerHTML = (WebGLDebugUtils.glEnumToString(err) + \" was caused by call to: \" + funcName); \
---  \ }; \
---  \ $r = WebGLDebugUtils.makeDebugContext($1, throwOnGLError, validateNoneOfTheArgsAreUndefined);"
---    makeDebugCtx :: Ctx -> IO Ctx
 
 --foreign import javascript unsafe "if (!document.fullscreenElement && \
 --    \  !document.mozFullScreenElement && \
@@ -350,225 +284,121 @@ foreign import javascript safe "$r = new Date().getTime()/1000"
 --foreign import javascript safe "console.log($1)"
 --    printRef :: JSRef a -> IO ()
 
-foreign import javascript unsafe "var e = window.event || $1;$r = e.wheelDelta>0 || e.detail<0 || e['deltaY']<0 ? 0.25 : -0.2;"
-    mouseWheelChange :: JSRef a -> IO GLfloat
 
+----------------------------------------------------------------------------------------------
+-- Pointer actions ---------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------
 
-foreign import javascript unsafe "$r=[];for(var i = 0; i < $1['touches'].length; i++){$r.push($1['touches'][i].clientX);$r.push($1['touches'][i].clientY);}"
-    getTouches' :: JSRef UIEvent -> JSRef [GLfloat]
-
-
-getTouches :: UIEvent -> IO [Vector2 GLfloat]
-getTouches e = liftM (f . fromMaybe []) . fromJSRefListOf . getTouches' $ unUIEvent e
-    where f (a:b:xs) = (Vector2 a b):f xs
-          f _ = []
-
-data InteractionState = InterState
-    { lastPos  :: ![Vector2 GLfloat] -- position on screen
-    , lastTime :: !GLfloat -- time of interaction start
-    , iType    :: !InteractionType
-    , iContext :: !InteractionContext
-    }
-
-data InteractionType = MainPointer
-                 | SecondaryPointer
-                 | AltPointer
-                 | Touches
-                 | NoInteraction deriving (Eq)
-
-instance Enum InteractionType where
-    fromEnum MainPointer = 0
-    fromEnum SecondaryPointer = 1
-    fromEnum AltPointer = 2
-    fromEnum Touches = 99
-    fromEnum NoInteraction = -1
-    toEnum 0 = MainPointer
-    toEnum 1 = SecondaryPointer
-    toEnum 2 = AltPointer
-    toEnum 99 = Touches
-    toEnum _ = NoInteraction
-
+-- | Interaction regime
 data InteractionContext = Idle | CameraMotion | CityChange (Int,Int) deriving (Eq)
 
+-- | How do we handle previous and current state of the pointers together
+data MoveAction = MouseAction MouseButton (Vector2 GLfloat) (Vector2 GLfloat)
+                | FingerAction [Vector2 GLfloat] [Vector2 GLfloat]
 
-rememberState :: (IsElement self)
-              => IORef InteractionState
-              -> IORef World
-              -> IORef OCCamera
-              -> EventM MouseEvent self ()
-rememberState posStateRef worldref camRef = do
-    preventOthers
-    (x, y) <- mouseClientXY
-    but <- mouseButton
-    liftIO $ do
---        printToDiv (x,y)
-        t <- getTime
-        i' <- readIORef worldref >>= getSelection (x,y)
---        printToDiv (i', (x,y))
-        writeIORef posStateRef InterState
-            { lastPos  = [fmap fromIntegral $ Vector2 x y]
-            , lastTime = t
-            , iType    = toEnum $ fromIntegral but
-            , iContext = case i' of
-                (0,_) -> CameraMotion
-                (_,0) -> CameraMotion
-                i     -> CityChange i
-            }
-        modifyIORef' camRef (\camera@OCCamera{newState = nstate} -> camera{oldState = nstate})
+-- | Set interaction context for building or camera movement
+setInteractionContext :: IORef World
+                      -> IORef City
+                      -> IORef OCCamera
+                      -> IORef (InteractionContext, Interaction)
+                      -> PointerClickEvent
+                      -> IO ()
+setInteractionContext worldref cityRef camRef icref (Click interaction) = case interaction of
+        (Mouse LeftButton pos) -> update pos
+        (Mouse RightButton pos) -> update pos
+        (Touches (pos:_))      -> update pos
+        _ -> writeIORef icref (CameraMotion, interaction)
+    >> modifyIORef' camRef (\c@OCCamera{newState = nstate} -> c{oldState = nstate})
+    where update pos = do
+            i <- readIORef worldref >>= getSelection pos
+            j  <- liftM activeObj $ readIORef cityRef
+            writeIORef icref $ if i == j && fst i /= 0 && snd i /= 0
+                then (CityChange i, interaction)
+                else (CameraMotion, interaction)
 
-rememberStateT :: (IsElement self)
-              => IORef InteractionState
-              -> IORef World
-              -> IORef OCCamera
-              -> EventM UIEvent self ()
-rememberStateT posStateRef worldref camRef = do
-    preventOthers
-    e <- event
-    liftIO $ do
-        ts <- getTouches e
---        printToDiv . intercalate "<br/>" $ map (\(Vector2 x y) -> show (x,y)) ts
-        t <- getTime
-        i' <- case ts of
-            [] -> return (0,0)
-            Vector2 x y:_ -> readIORef worldref >>= getSelection (round x, round y)
---        printToDiv (i', ts)
-        writeIORef posStateRef InterState
-            { lastPos  = ts
-            , lastTime = t
-            , iType    = Touches
-            , iContext = case i' of
-                (0,_) -> CameraMotion
-                (_,0) -> CameraMotion
-                i     -> CityChange i
-            }
-        modifyIORef' camRef (\camera@OCCamera{newState = nstate} -> camera{oldState = nstate})
+-- | At this moment, the only action is to select a building
+guiClick :: IORef World
+         -> IORef City
+         -> PointerClickEvent
+         -> IO Bool
+guiClick worldRef cityRef (Click interaction) = case interaction of
+    (Mouse LeftButton pos) -> readIORef worldRef >>= getSelection pos >>= update
+    (Touches (pos:_)) -> readIORef worldRef >>= getSelection pos >>= update
+    (Mouse _ _) -> update (0,0)
+    _ -> return False
+    where update i = do
+            city <- readIORef cityRef
+            if i == activeObj city
+            then return False
+            else writeIORef cityRef city{activeObj = i} >> return True
 
-forgetState :: (IsElement self, IsEvent e)
-            => IORef InteractionState
-            -> EventM e self ()
-forgetState posStateRef = do
-    preventOthers
-    liftIO $ writeIORef posStateRef InterState
-            { lastPos  = []
-            , lastTime = 0
-            , iType    = toEnum $ -1
-            , iContext = Idle
-            }
-
-mouseMove :: (IsElement self)
-           => IORef InteractionState
-           -> IORef OCCamera
-           -> IORef City
-           -> EventM MouseEvent self Bool
-mouseMove posStateRef camRef cityRef = do
-    preventOthers
-    (x, y) <- mouseClientXY
-    liftIO $ do
-        istate@InterState
-            { lastPos  = opos
-            , iType    = button
-            , iContext = ictx
-            } <- readIORef posStateRef
-        let updateCamera move = modifyIORef' camRef (move (head opos) npos) >> return True
-            npos = fmap fromIntegral $ Vector2 x y
-        mcity <- case ictx of
-            CityChange i -> do
-                city <- readIORef cityRef
-                return $ if i /= activeObj city
-                    then Nothing
-                    else Just city
-            _ -> return Nothing
-        case (button, mcity) of
-            (MainPointer,Nothing) -> updateCamera dragHorizontal
-            (SecondaryPointer, _) -> updateCamera dragVertical
-            (AltPointer,Nothing) -> updateCamera rotateCentered
-            (MainPointer,Just city) -> do
-                cam <- readIORef camRef
-                writeIORef cityRef (dragBuilding (head opos) npos cam city)
-                writeIORef posStateRef istate{lastPos = [npos]}
-                return True
-            (AltPointer,Just city) -> do
-                cam <- readIORef camRef
-                writeIORef cityRef (rotateBuilding (head opos) npos cam city)
-                writeIORef posStateRef istate{lastPos = [npos]}
-                return True
-            (NoInteraction,_) -> return False
-            (Touches,_) -> return False
-
-touchMove :: (IsElement self)
-           => IORef InteractionState
-           -> IORef OCCamera
-           -> IORef City
-           -> EventM UIEvent self Bool
-touchMove posStateRef camRef cityRef = do
-    preventOthers
-    e <- event
-    liftIO $ do
-        ts <- getTouches e
-        istate@InterState
-            { lastPos  = opos
-            , iContext = ictx
-            } <- readIORef posStateRef
-        mcity <- case ictx of
-            CityChange i -> do
-                city <- readIORef cityRef
-                return $ if i /= activeObj city
-                    then Nothing
-                    else Just city
-            _ -> return Nothing
-        case (ts, opos, mcity) of
-            ([], _, _) -> return False
-            (_, [], _) -> return False
-            ([n1], o1:_, Nothing) -> modifyIORef' camRef (dragHorizontal o1 n1)
-                >> return True
-            ([n1,n2], o1:o2:_, Nothing) -> modifyIORef' camRef (twoFingerControl (o1,o2) (n1,n2))
-                >> return True
-            (n1:_:_:_, o1:_:_:_, Nothing) -> modifyIORef' camRef (rotateCentered o1 n1)
-                >> return True
-            ([n1], o1:_,Just city) -> do
-                cam <- readIORef camRef
-                writeIORef cityRef (dragBuilding o1 n1 cam city)
-                writeIORef posStateRef istate{lastPos = [n1]}
-                return True
-            ([n1,n2], o1:o2:_,Just city) -> do
-                cam <- readIORef camRef
-                writeIORef cityRef (twoFingerBuilding (o1,o2) (n1,n2) cam city)
-                writeIORef posStateRef istate{lastPos = [n1,n2]}
-                return True
-            (_, _,Just _) -> return False
-            (_:_:_, [_],Nothing) -> return False
-            (_:_:_:_, [_,_],Nothing) -> return False
+-- | Move building or camera
+guiMove :: IORef OCCamera
+        -> IORef City
+        -> IORef (InteractionContext, Interaction)
+        -> PointerMoveEvent
+        -> IO Bool
+guiMove camRef cityRef icRef (Move ls cs _) = case maction of
+    Nothing -> return False
+    Just action -> readIORef icRef >>= \(ic, sint) -> case ic of
+        Idle         -> return False
+        CameraMotion -> cameraMove camRef $ recomb sint action
+        CityChange _ -> buildingMove camRef cityRef action
+    where maction = combine ls cs
+          combine _ NoInteraction = Nothing
+          combine os (Mouse but npos) = case os of
+            Mouse _ opos  -> Just $ MouseAction but opos npos
+            Touches (opos:_)  -> Just $ MouseAction but opos npos
+            _ -> Nothing
+          combine os (Touches nposs) = case os of
+            Mouse _ opos  -> Just $ FingerAction [opos] nposs
+            Touches oposs -> Just $ FingerAction oposs nposs
+            _ -> Nothing
+          recomb os (FingerAction oposs nposs) = case os of
+            Mouse _ spos  -> FingerAction [spos] nposs
+            Touches sposs -> FingerAction sposs nposs
+            _ -> FingerAction oposs nposs
+          recomb os (MouseAction mp opos npos) = case os of
+            Mouse _ spos     -> MouseAction mp spos npos
+            Touches (spos:_) -> MouseAction mp spos npos
+            _ -> MouseAction mp opos npos
 
 
 
-selectObject :: (IsElement self, IsEvent event)
-           => IORef InteractionState
-           -> IORef City
-           -> EventM event self Bool
-selectObject posStateRef cityRef = do
-    preventOthers
-    (ic, dt) <- liftIO $ do
-        t <- getTime
-        liftM (iContext &&& ( (t-) . lastTime)) . readIORef $ posStateRef
-    if dt > mouseClickTime
-    then return False
-    else liftIO $ do
-        city@City{activeObj = j} <- readIORef cityRef
-        case (ic) of
-            (CityChange i) -> if i == j then return False
-                else writeIORef cityRef (city{activeObj = i}) >> return True
-            _ -> if fst j == 0 || snd j == 0 then return False
-                else writeIORef cityRef (city{activeObj = (0,0)}) >> return True
+cameraMove :: IORef OCCamera
+           -> MoveAction
+           -> IO Bool
+cameraMove camRef (MouseAction LeftButton opos npos) =
+    modifyIORef' camRef (dragHorizontal opos npos) >> return True
+cameraMove camRef (MouseAction RightButton opos npos) =
+    modifyIORef' camRef (rotateCentered opos npos) >> return True
+cameraMove camRef (MouseAction MiddleButton opos npos) =
+    modifyIORef' camRef (dragVertical opos npos) >> return True
+cameraMove camRef (FingerAction (opos:_) [npos]) =
+    modifyIORef' camRef (dragHorizontal opos npos) >> return True
+cameraMove camRef (FingerAction (o1:o2:_) [n1,n2]) =
+    modifyIORef' camRef (twoFingerControl (o1,o2) (n1,n2)) >> return True
+cameraMove camRef (FingerAction (o1:_:_:_) (n1:_:_:_)) =
+    modifyIORef' camRef (rotateCentered o1 n1) >> return True
+cameraMove _ (FingerAction _ _ ) = return False
 
-preventOthers :: (IsEvent e) => EventM e self ()
-preventOthers = do
-    preventDefault
-    stopPropagation
-    stopImmediatePropagation
-    returnValue False
 
-getSelection :: (Int,Int) -> World -> IO (Int,Int)
-getSelection (x,y) World
+buildingMove :: IORef OCCamera
+             -> IORef City
+             -> MoveAction
+             -> IO Bool
+buildingMove camRef cityRef action = do
+    cam <- readIORef camRef
+    case action of
+        MouseAction LeftButton opos npos -> modifyIORef' cityRef (dragBuilding opos npos cam) >> return True
+        MouseAction RightButton opos npos -> modifyIORef' cityRef (rotateBuilding opos npos cam) >> return True
+        FingerAction [o1] [n1] -> modifyIORef' cityRef (dragBuilding o1 n1 cam) >> return True
+        FingerAction (o1:o2:_) (n1:n2:_) -> modifyIORef' cityRef (twoFingerBuilding (o1,o2) (n1,n2) cam) >> return True
+        _ -> return False
+
+
+getSelection :: Vector2 GLfloat -> World -> IO (Int,Int)
+getSelection (Vector2 x y) World
     { glctx     = gl
     , cameraRef = camRef
     , selector  = SelectorObject
@@ -579,22 +409,13 @@ getSelection (x,y) World
     Vector2 w h <- liftM viewSize $ readIORef camRef
     bindFramebuffer gl gl_FRAMEBUFFER sbuf
     viewport gl 0 0 w h
---    clear gl (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
---    readIORef city >>= selectArea world
---    checkFramebufferStatus gl gl_FRAMEBUFFER >>= \r ->
---        if r == gl_FRAMEBUFFER_COMPLETE then print "ok"
---        else print "this combination of attachments does not work"
-    readPixels gl (fromIntegral x) (fromIntegral h - fromIntegral y) 1 1 gl_RGBA gl_UNSIGNED_BYTE pcarr
---    print (x,y)
---    printRef pcarr
---    print "get selection"
+    readPixels gl (round x) (fromIntegral h - round y) 1 1 gl_RGBA gl_UNSIGNED_BYTE pcarr
     r <- liftM fromIntegral $ getIdx pcarr 0
     g <- liftM fromIntegral $ getIdx pcarr 1
     b <- liftM fromIntegral $ getIdx pcarr 2
     a <- liftM fromIntegral $ getIdx pcarr 3
     let i = r + shift g 8
         j = b + shift a 8
---    print (i,j)
     bindFramebuffer gl gl_FRAMEBUFFER jsNull
     viewport gl 0 0 w h
     return (i,j)

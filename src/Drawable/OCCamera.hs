@@ -28,11 +28,11 @@ import Drawable.World
 
 
 -- | Object-Centered Camera
-data OCCamera = OCCamera {
-        viewportSize :: Vector2 GLfloat,
-        projMatrix   :: Matrix4x4 GLfloat,
-        oldState     :: OCCState,
-        newState     :: OCCState
+data OCCamera = OCCamera
+    { viewportSize :: Vector2 GLfloat
+    , projMatrix   :: Matrix4x4 GLfloat
+    , oldState     :: OCCState
+    , newState     :: OCCState
     }
 
 instance Camera OCCamera where
@@ -58,11 +58,11 @@ initOCCamera :: GLfloat -- ^ width of the viewport
              -> GLfloat -- ^ height of the viewport
              -> OCCState -- ^ look position and direction
              -> OCCamera
-initOCCamera width height state = OCCamera {
-        viewportSize = Vector2 width height,
-        projMatrix   = perspective 0.1 1000 fovy ratio,
-        oldState     = state,
-        newState     = state
+initOCCamera width height state = OCCamera
+    { viewportSize = Vector2 width height
+    , projMatrix   = perspective 0.1 1000 fovy ratio
+    , oldState     = state
+    , newState     = state
     } where ratio = width / height
             fovy = (1*) . atan2 height . sqrt $ height*height + width*width
 
@@ -124,9 +124,9 @@ dragVertical (Vector2 ox oy) (Vector2 x y) camera@OCCamera {
             viewPoint = v .+ dv
         }
     } where imat = invert (projmat `prod` stateToView ostate)
-            sdx = ρ * (x-ox) / width -- different behaviour in desktop and browser (ox-x)
+            sdx = ρ * (x-ox) / width
             dy = ρ * (y-oy) / height
-            Vector3 dx _ dz = sdx ..* (unit . fromHom $ imat `prod` Vector4 1 0 0 0)
+            Vector3 dx _ dz = sdx ..* (unit . fromHom $ imat `prod` Vector4 0 0 1 1 .- imat `prod` Vector4 1 0 1 1)
             dv = Vector3 dx dy dz
 
 
