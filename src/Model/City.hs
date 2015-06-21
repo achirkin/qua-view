@@ -108,6 +108,23 @@ updateCityGround :: World -> City -> IO ()
 updateCityGround _ City{ groundMesh = Nothing} = return ()
 updateCityGround w c@City{ groundMesh = Just (gm,_) } = updateGroundMesh w (ground c) gm
 
+clearCityTextures :: World -> City -> IO City
+clearCityTextures World{glctx = gl} city = do
+    gm <- removeGTex $ groundMesh city
+    buildings <- TR.mapM removeAllTexs $ objectsIn city
+    return city{groundMesh = gm, objectsIn = buildings}
+    where removeTex tr = case unwrap tr of
+                          Nothing -> return tr
+                          Just tex -> deleteTexture gl tex >> return (wrap Nothing tr)
+          removeGTex Nothing = return Nothing
+          removeGTex (Just (com,tex)) = deleteTexture gl tex >> deleteCityObjectMesh gl com >> return Nothing
+          removeAllTexs b@CityObjRep{orLocs = im} = TR.mapM removeTex im >>= \im' -> return b{orLocs = im'}
+
+clearCityTextures' :: IORef World -> IORef City -> IO ()
+clearCityTextures' wRef cRef = do
+    world <- readIORef wRef
+    readIORef cRef >>= clearCityTextures world >>= writeIORef cRef
+
 -- | Helper for creation of the city from the list of city objects
 buildCity :: World
           -> [CityObject]
@@ -216,7 +233,7 @@ drawCity w@World
             drawGround gl alocs gm
             depthMask gl True
             uniform1f gl userLoc 0
-    uniform4f gl colLoc 0.7 0.7 0.7 1
+    uniform4f gl colLoc 0.5 0.5 0.55 1
     IM.foldMapWithKey g buildings
     IM.foldMapWithKey f buildings
     disableVertexAttribArray gl tloc

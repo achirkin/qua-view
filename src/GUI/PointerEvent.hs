@@ -18,15 +18,15 @@ module GUI.PointerEvent
     , Interaction (..)
     , onMouseWheel
     , onMove
-    , onClick
     , onCancel
+    , onSimpleClick
     ) where
 
 import Control.Monad.Reader (liftIO)
 import Control.Monad
 
 import GHCJS.DOM.Element (IsElement,elementOnmousemove,elementOnwheel, elementOnmousedown
-                         ,elementOnmouseup,elementOnmouseleave, elementOncontextmenu
+                         ,elementOnmouseup,elementOnmouseleave, elementOncontextmenu -- , elementOnclick
                          ,elementOntouchstart,elementOntouchmove,elementOntouchend,elementOntouchcancel)
 import GHCJS.DOM.EventM (EventM,mouseClientXY, mouseButton,event,target,returnValue
                         ,stopPropagation, stopImmediatePropagation,preventDefault)
@@ -161,27 +161,6 @@ moveCallBack f = do
             else liftIO . f $ Move ostate cstate (ct-ot)
       liftIO $ unsafeSetProp "movingInProcess" jsFalse el
 
-
-----------------------------------------------------------------------------------------------------
--- Click (triggers on release)
-----------------------------------------------------------------------------------------------------
-
--- | Adds a click action of the elment
---   Works only if no onMove
-onClick :: IsElement self
-        => self -- ^ element to setup event
-        -> Bool -- ^ whether to block right click or not
-        -> (PointerClickEvent -> IO ()) -- ^ callback
-        -> IO ()
-onClick self replaceOnContextMenu f = do
-    _ <- elementOnmouseup self $ clickCallBacks f (const $ return ())
-    _ <- elementOntouchend self $ clickCallBacks f (const $ return ())
-    _ <- if replaceOnContextMenu
-         then elementOncontextmenu self preventOthers
-         else return (return ())
-    return ()
-
-
 clickCallBacks :: (IsElement self, IsPointerEvent ev)
               => (PointerClickEvent -> IO ()) -- ^ on time
               -> (PointerClickEvent -> IO ()) -- ^ after click time (onmouseup)
@@ -198,6 +177,31 @@ clickCallBacks f g = do
     forgetState
     where tryclick NoInteraction = return ()
           tryclick interaction   = liftIO . f . Click $ interaction
+
+----------------------------------------------------------------------------------------------------
+-- Click (triggers on release)
+----------------------------------------------------------------------------------------------------
+
+-- | Adds a click action of the elment
+--   Works only if no onMove
+onSimpleClick :: IsElement self
+              => self -- ^ element to setup event
+              -> Bool -- ^ whether to block right click or not
+              -> (PointerClickEvent -> IO ()) -- ^ callback
+              -> IO ()
+onSimpleClick self replaceOnContextMenu f = do
+    _ <- elementOnmouseup self $ simpleClickCallBack f
+    _ <- elementOntouchend self $ simpleClickCallBack f
+    _ <- if replaceOnContextMenu
+         then elementOncontextmenu self preventOthers
+         else return (return ())
+    return ()
+
+simpleClickCallBack :: (IsElement self, IsPointerEvent ev)
+                    => (PointerClickEvent -> IO ())
+                    -> EventM ev self ()
+simpleClickCallBack f = preventOthers >> getState >>= liftIO . f . Click
+
 
 ----------------------------------------------------------------------------------------------------
 -- Introducing state to the events
