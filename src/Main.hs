@@ -11,6 +11,7 @@ import Control.Concurrent (threadDelay)
 --import Control.Monad.Trans (liftIO)
 --import Control.Monad.Reader
 
+import Data.List (intercalate)
 import Data.IORef
 import Data.Bits (shift)
 --import Data.Maybe (fromMaybe)
@@ -19,10 +20,10 @@ import qualified Data.Traversable as T
 import GHCJS.DOM
        (enableInspector, webViewGetDomDocument, runWebGUI)
 import GHCJS.DOM.Document (documentGetBody, documentGetElementById) -- , documentCreateElement
-import GHCJS.DOM.HTMLElement (htmlElementSetInnerHTML)
+--import GHCJS.DOM.HTMLElement (htmlElementSetInnerHTML)
 import GHCJS.DOM.Element (IsElement, elementGetClientWidth, elementGetClientHeight)
 import GHCJS.DOM.EventM (Signal)
-import GHCJS.DOM.Types (unElement)
+import GHCJS.DOM.Types (Element,unElement)
 
 import GHCJS.Foreign
 import GHCJS.Marshal
@@ -34,6 +35,7 @@ import Geometry.Structure
 
 
 import GUI.PointerEvent
+import GUI.LuciClient
 
 import Drawable.OCCamera
 import Drawable.World
@@ -44,6 +46,7 @@ import Model.Grid
 
 import Model.ScalarField
 import Model.RadianceService
+
 --import System.Random
 -- closure-compiler all.js --compilation_level=ADVANCED_OPTIMIZATIONS > all.min.js
 -- style="position:fixed;left:0;top:0;padding:0;margin:0;width:100%;height:100%;overflow:hidden;"
@@ -71,25 +74,23 @@ main = runWebGUI $ \ webView -> do
 --                              then (vpWidth' `div` 2, vpHeight' `div` 2)
 --                              else (vpWidth', vpHeight')
 
-    htmlElementSetInnerHTML body $
---        "<div id=\"divview\" "
---        ++ "style=\"position: fixed; right: 0; top: 0; padding: 0; margin: 0; width: "
---        ++ show (30::Int) ++ "%; height: "
---        ++ show (100::Int) ++ "%; z-index = 1; overflow: hidden;\" width=\""
---        ++ show (30::Int) ++ "%;\" height=\""
---        ++ show (100::Int) ++ "%;\"></div>"
-        "<canvas id=\"glcanvas\" "
-        ++ "style=\"position: fixed; left: 0; top: 0; padding: 0; margin: 0; width: "
-        ++ show vpWidth ++ "px; height: "
-        ++ show vpHeight ++ "px; z-index = 2; overflow: hidden;\" width=\""
-        ++ show vpWidth ++ "px;\" height=\""
-        ++ show vpHeight ++ "px;\"></canvas>"
+--    htmlElementSetInnerHTML body $
+----        "<div id=\"divview\" "
+----        ++ "style=\"position: fixed; right: 0; top: 0; padding: 0; margin: 0; width: "
+----        ++ show (30::Int) ++ "%; height: "
+----        ++ show (100::Int) ++ "%; z-index = 1; overflow: hidden;\" width=\""
+----        ++ show (30::Int) ++ "%;\" height=\""
+----        ++ show (100::Int) ++ "%;\"></div>"
+--        "<canvas id=\"glcanvas\" width=\""
+--        ++ show vpWidth ++ "px;\" height=\""
+--        ++ show vpHeight ++ "px;\"></canvas>"
+
     Just canvas <- documentGetElementById doc "glcanvas"
 --    Just divview <- documentGetElementById doc "divview"
     let canv = unElement $ canvas
+    elementSetSize canv vpWidth vpHeight
+    elementSetStyleSize canv vpWidth vpHeight
     ctx <- getCtx canv
---    ctx <- makeDebugCtx cts
-
     clearColor ctx 0 0 0 0
     enable ctx gl_DEPTH_TEST
     blendFunc ctx gl_SRC_ALPHA gl_ONE_MINUS_SRC_ALPHA
@@ -175,17 +176,58 @@ main = runWebGUI $ \ webView -> do
             modifyIORef' worldRef $ \wrld@World{selector = SelectorObject _ pickedColorArr} -> wrld{selector = SelectorObject fb pickedColorArr}
             dispAndSelectOnTime
 
+    Just console <- documentGetElementById doc "consolecontent"
+
     onMouseWheel canvas $ \x -> modifyIORef' camRef (scroll (if x > 0 then 0.25 else -0.2)) >> dispAndSelectOnTime
     onCancel canvas dispAndSelectOnTime
     onMove canvas True
         (setInteractionContext worldRef cityRef camRef posStateRef)
         ((>>= flip when displayOnTime) . guiMove camRef cityRef posStateRef)
-        ((applyService >>) . const dispAndSelectOnTime)
-        ((>>= flip when displayOnTime) . guiClick worldRef cityRef)
+        ((>> dispAndSelectOnTime) . afterAction posStateRef)
+        (\eve -> do
+            updated <- guiClick worldRef cityRef eve
+            logText console $ show eve
+            if updated then displayOnTime else return ()
+        )
+
+
+    Just fsbutton <- documentGetElementById doc "fullscreenbutton"
+    onSimpleClick fsbutton False $ const toggleFullScreen
+
+    Just evalbutton <- documentGetElementById doc "evaluatebutton"
+    Just clearbutton <- documentGetElementById doc "clearbutton"
+    let clearb = unElement clearbutton
+    onSimpleClick evalbutton False $ const (
+        programInProgress >> applyService >> showParentElem clearb >> dispAndSelectOnTime
+        >> programIdle)
+    onSimpleClick clearbutton False $ const (clearCityTextures' worldRef cityRef >> hideParentElem clearb  >> dispAndSelectOnTime)
+
+    Just guipanel <- documentGetElementById doc "guipanel"
+    let guip = unElement guipanel
+    Just toolboxbutton <- documentGetElementById doc "toolboxbutton"
+    onSimpleClick toolboxbutton False . const $ toggleGUIPanel guip
+
+    -- submit... very ugly!
+    Just submitbutton <- documentGetElementById doc "loginbutton"
+    onSimpleClick submitbutton False . const $ do
+        programInProgress
+        host <- getInputValue "inputip"
+        name <- getInputValue "inputlogin"
+        pass <- getInputValue "inputpass"
+        (lc, ip) <- connectToLucy host
+        logText console $ "Connected to Luci on " ++ host
+        ans <- authenticate lc name pass
+        setInnerHTML "ipaddressinfo" ip
+        logText console ans
+        getElementById "loginform" >>= hideElem
+        getElementById "logondiv" >>= showElem
+        programIdle
+
 
     -- Draw world
-    threadDelay 1000000
     dispAndSelectOnTime
+    threadDelay 1000000
+    programIdle
 
 
 
@@ -219,6 +261,63 @@ selectOnce wref selectables = do
 -- Interaction  ------------------------------------------------------------------------------
 ----------------------------------------------------------------------------------------------
 
+foreign import javascript unsafe "$r = document.getElementById($1);"
+    getElementById' :: JSString -> IO (JSRef a)
+
+getElementById :: String -> IO (JSRef a)
+getElementById = getElementById' . toJSString
+
+foreign import javascript unsafe "document.getElementById($1).innerHTML = $2;"
+    setInnerHTML' :: JSString -> JSString -> IO ()
+
+setInnerHTML :: String -> String -> IO ()
+setInnerHTML el val = setInnerHTML' (toJSString el) (toJSString val)
+
+
+foreign import javascript unsafe "$r = document.getElementById($1).value;"
+    getInputValue' :: JSString -> IO JSString
+
+getInputValue :: String -> IO String
+getInputValue = liftM fromJSString . getInputValue' . toJSString
+
+foreign import javascript unsafe "if ($1.className == 'idleguipanel') { \
+    \    $1.className = 'activeguipanel'; \
+    \    document.getElementById('guiplaceholder').className = 'activeplaceholder'; \
+    \ } else {  \
+    \    $1.className = 'idleguipanel';  \
+    \    document.getElementById('guiplaceholder').className = 'idleplaceholder'; \
+    \ }"
+    toggleGUIPanel :: JSRef a -> IO ()
+
+foreign import javascript unsafe "$1.style.display = 'none';"
+    hideElem :: JSRef a -> IO ()
+
+foreign import javascript unsafe "$1.style.display = 'block';"
+    showElem :: JSRef a -> IO ()
+
+foreign import javascript unsafe "$1.parentNode.style.visibility = 'hidden';"
+    hideParentElem :: JSRef a -> IO ()
+
+foreign import javascript unsafe "$1.parentNode.style.visibility = 'visible';"
+    showParentElem :: JSRef a -> IO ()
+
+foreign import javascript unsafe "var n = $1.children.length; \
+    \ var panelr = document.getElementById('guipanel').getBoundingClientRect(); \
+    \ var z = panelr.top + 0.6*panelr.height; \
+    \ while(n > 0 && $1.children[0].getBoundingClientRect().top < z) { \
+    \   $1.removeChild($1.children[0]); n--; \
+    \ } \
+    \ for(var i = 0; i < n; i++) { \
+    \    $1.children[i].className = 'consolem' + Math.max(i-n+9,0); \
+    \ } \
+    \ var newDiv = document.createElement(\"div\"); \
+    \ newDiv.innerHTML = $2; \
+    \ newDiv.className = 'consolem9'; \
+    \ $1.appendChild(newDiv); "
+    logText' :: JSRef a -> JSString -> IO ()
+
+logText :: Element -> String -> IO ()
+logText el s = logText' (unElement el) (toJSString . intercalate "<br/>" . lines $ s)
 
 --foreign import javascript interruptible "var img = new Image();img.crossOrigin='anonymous';img.onload=function(){$c(img);};img.src = $1;"
 --    loadImage' :: JSString -> IO TexImageSource
@@ -227,36 +326,42 @@ selectOnce wref selectables = do
 --loadImage = loadImage' . toJSString
 
 
---foreign import javascript unsafe "if (!document.fullscreenElement && \
---    \  !document.mozFullScreenElement && \
---    \  !document.webkitFullscreenElement && !document.msFullscreenElement ) { \
---    \    if (document.documentElement.requestFullscreen) { \
---    \      document.documentElement.requestFullscreen(); \
---    \    } else if (document.documentElement.msRequestFullscreen) { \
---    \      document.documentElement.msRequestFullscreen(); \
---    \    } else if (document.documentElement.mozRequestFullScreen) { \
---    \      document.documentElement.mozRequestFullScreen(); \
---    \    } else if (document.documentElement.webkitRequestFullscreen) { \
---    \      document.documentElement.webkitRequestFullscreen(Element.ALLOW_KEYBOARD_INPUT); \
---    \    } \
---    \  } else { \
---    \    if (document.exitFullscreen) { \
---    \      document.exitFullscreen(); \
---    \    } else if (document.msExitFullscreen) { \
---    \      document.msExitFullscreen(); \
---    \    } else if (document.mozCancelFullScreen) { \
---    \      document.mozCancelFullScreen(); \
---    \    } else if (document.webkitExitFullscreen) { \
---    \      document.webkitExitFullscreen(); \
---    \    } \
---    \  }"
---    toggleFullScreen :: IO ()
+foreign import javascript unsafe "if (!document['fullscreenElement'] && \
+    \  !document['mozFullScreenElement'] && \
+    \  !document['webkitFullscreenElement'] && !document['msFullscreenElement'] && !document['fullScreen']) { \
+    \    if (document.documentElement['requestFullscreen']) { \
+    \      document.documentElement.requestFullscreen(); \
+    \    } else if (document.documentElement['msRequestFullscreen']) { \
+    \      document.documentElement.msRequestFullscreen(); \
+    \    } else if (document.documentElement['mozRequestFullScreen']) { \
+    \      document.documentElement.mozRequestFullScreen(); \
+    \    } else if (document.documentElement['webkitRequestFullscreen']) { \
+    \      document.documentElement.webkitRequestFullscreen(Element.ALLOW_KEYBOARD_INPUT); \
+    \    } \
+    \    document.getElementById('fullscreenbshape').setAttribute('d','M14,14H19V16H16V19H14V14M5,14H10V19H8V16H5V14M8,5H10V10H5V8H8V5M19,8V10H14V5H16V8H19Z'); \
+    \  } else { \
+    \    if (document['exitFullscreen']) { \
+    \      document.exitFullscreen(); \
+    \    } else if (document['msExitFullscreen']) { \
+    \      document.msExitFullscreen(); \
+    \    } else if (document['mozCancelFullScreen']) { \
+    \      document.mozCancelFullScreen(); \
+    \    } else if (document['webkitExitFullscreen']) { \
+    \      document.webkitExitFullscreen(); \
+    \    } else { \
+    \      document.cancelFullScreen(); \
+    \      document.exitFullscreen(); \
+    \    } \
+    \    document.getElementById('fullscreenbshape').setAttribute('d','M5,5H10V7H7V10H5V5M14,5H19V10H17V7H14V5M17,14H19V19H14V17H17V14M10,17V19H5V14H7V17H10Z'); \
+    \  }"
+    toggleFullScreen :: IO ()
 
 --foreign import javascript safe "document.getElementById('divview').innerHTML = $1;"
 --    printToDiv' :: JSString -> IO ()
 --
 --printToDiv :: (Show a) => a -> IO ()
 --printToDiv = printToDiv' . toJSString . show
+
 
 foreign import javascript unsafe "window.requestAnimationFrame($1);"
    animate :: JSFun (IO ()) -> IO ()
@@ -296,6 +401,15 @@ data InteractionContext = Idle | CameraMotion | CityChange (Int,Int) deriving (E
 data MoveAction = MouseAction MouseButton (Vector2 GLfloat) (Vector2 GLfloat)
                 | FingerAction [Vector2 GLfloat] [Vector2 GLfloat]
 
+
+-- | Says whether city was changed or not
+afterAction :: IORef (InteractionContext, Interaction)
+            -> PointerClickEvent
+            -> IO Bool
+afterAction icref _ = readIORef icref >>= \(ic,_) -> return $ case ic of
+    CityChange _ -> True
+    _ -> False
+
 -- | Set interaction context for building or camera movement
 setInteractionContext :: IORef World
                       -> IORef City
@@ -322,6 +436,7 @@ guiClick :: IORef World
          -> PointerClickEvent
          -> IO Bool
 guiClick worldRef cityRef (Click interaction) = case interaction of
+    (Touches (_:_:_:_:_)) -> toggleFullScreen >> return True
     (Mouse LeftButton pos) -> readIORef worldRef >>= getSelection pos >>= update
     (Touches (pos:_)) -> readIORef worldRef >>= getSelection pos >>= update
     (Mouse _ _) -> update (0,0)

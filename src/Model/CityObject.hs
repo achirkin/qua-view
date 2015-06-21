@@ -79,6 +79,15 @@ data CityObjectMesh = CityObjectMesh
     , wireIndices :: !MeshData
     }
 
+
+clearMeshData :: Ctx -> MeshData -> IO ()
+clearMeshData gl (MeshData _ _ buf) = deleteBuffer gl buf
+
+deleteCityObjectMesh :: Ctx -> CityObjectMesh -> IO ()
+deleteCityObjectMesh gl (CityObjectMesh a b c) = clearMeshData gl a
+                                              >> clearMeshData gl b
+                                              >> clearMeshData gl c
+
 drawSurface :: Ctx -> (GLuint,Maybe (GLuint,GLuint) ) -> CityObjectMesh -> IO ()
 drawSurface gl (ploc,olocs) CityObjectMesh
     { vertexData  = MeshData _ _ buf
