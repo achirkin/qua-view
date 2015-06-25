@@ -42,21 +42,7 @@
         </a>
       </div>
     <!-- console -->
-    
-    <div id="consolediv">
-    <div id="consolecontent">
-<div class="consolem5">
-    Lorem ipsum dolor sit amet, consectetur adipiscing elit. Maecenas vitae finibus massa, id condimentum turpis. Nulla vel nibh laoreet, volutpat lorem sed, pulvinar diam. Vivamus ut urna at massa blandit ornare. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Proin tempus libero ac diam laoreet sollicitudin. Donec a ligula vitae erat semper euismod sit amet ut enim. Etiam eleifend, lorem ut mattis malesuada, tellus turpis mattis tellus, sollicitudin hendrerit ex elit porta lacus. Nullam eu enim eu neque pulvinar scelerisque. Mauris nec massa quam. Donec eleifend sagittis porta. Integer malesuada ante ac pretium auctor. Donec iaculis finibus tellus congue dignissim.
-</div><div class="consolem6">
-Vivamus accumsan ac odio sit amet congue. Fusce pharetra lobortis lacus et posuere. Donec suscipit gravida suscipit. Nulla facilisi. Aenean erat velit, lobortis sit amet arcu eget, convallis sodales libero. Morbi nec ante suscipit, euismod turpis non, varius odio. Aliquam dictum consectetur ligula, non lobortis ex venenatis at. Donec ullamcorper, ex in maximus accumsan, neque quam laoreet lorem, nec lobortis enim ipsum ut diam. Morbi ultrices sagittis augue, ut ultricies diam tristique vitae.
-</div><div class="consolem7">
-Pellentesque nunc dui, imperdiet non nisl ut, condimentum viverra odio. Donec porttitor est id gravida porttitor. Vivamus volutpat egestas metus.
-</div><div class="consolem8">
-Fusce eget accumsan magna, non elementum neque. Sed justo ante, fermentum ut ornare quis, tristique et est. Vestibulum vitae sodales ex. Morbi venenatis urna feugiat luctus commodo.
-</div><div class="consolem9">
-Fusce erat orci, auctor vitae suscipit nec, facilisis interdum dolor.</div>
-</div>
-    </div>
+    <div id="consolediv"><div id="consolecontent"></div></div>
     <!-- on-canvas buttons -->
     <div id="guiplaceholder" class='idleplaceholder'>
     <!-- evaluate button -->
@@ -125,6 +111,19 @@ Fusce erat orci, auctor vitae suscipit nec, facilisis interdum dolor.</div>
   <div style="display: none;" id="logondiv">
   <div class="pheading">Connected to Luci on <p id="ipaddressinfo" style="display: inline;"></p></div>
   </div>
+  
+  <!-- GeoJSON file reading -->
+  <div class="pheading">Read GeoJSON from file</div>
+  <div class="pnormal pfilebutdiv">
+     <input id="dynamicstaticswitcher" type="checkbox" checked >
+     <label for="dynamicstaticswitcher" class="label"></label>
+  </div>
+  <div class="pfilebutdiv">
+      <button type="button" class="button" onclick="document.getElementById('jsonfileinput').click()" style="display: inline;">Browse</button>
+      <div id="filenameIndicator" class="pnormal" style="display: inline;"></div>
+      <input type="file" id="jsonfileinput" style="display:none" onchange="document.getElementById('filenameIndicator').innerText = document.getElementById('jsonfileinput').value.split(/(\\|\/)/g).pop();">
+  </div>
+
 
 </div>
 </body>

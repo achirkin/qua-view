@@ -65,6 +65,7 @@ data CityObject =
     { behavior   :: !ObjectBehavior
     , hutSize    :: !(Vector3 GLfloat)
     }
+    deriving Show
 
 -- | Buffers for the object
 data MeshData = MeshData
@@ -174,7 +175,7 @@ createIndexBuf gl indices = do
 --    printRef :: JSRef a -> IO ()
 
 -- | Whether one could interact with an object or not
-data ObjectBehavior = Static | Dynamic deriving (Eq)
+data ObjectBehavior = Static | Dynamic deriving (Eq,Show)
 
 
 -- | I draw the roads on this height
