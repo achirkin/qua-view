@@ -36,7 +36,6 @@ import GHCJS.Marshal
 import GHCJS.Types
 
 import Data.Maybe (fromMaybe)
-import Unsafe.Coerce
 
 
 import GHCJS.WebGL
@@ -62,10 +61,10 @@ newtype PointerClickEvent = Click Interaction -- ^ current position on screen an
 data MouseButton = LeftButton | RightButton | MiddleButton deriving (Eq, Show)
 
 instance ToJSRef MouseButton where
-    toJSRef = unsafeCoerce . toJSRef . fromEnum
+    toJSRef = liftM castRef . toJSRef . fromEnum
 
 instance FromJSRef MouseButton where
-    fromJSRef = liftM (>>= return . toEnum) . fromJSRef . (unsafeCoerce :: JSRef MouseButton -> JSRef Int)
+    fromJSRef = liftM (>>= return . toEnum) . fromJSRef . (castRef :: JSRef MouseButton -> JSRef Int)
 
 instance Enum MouseButton where
     fromEnum LeftButton = 0
@@ -82,12 +81,12 @@ data Interaction = Mouse !MouseButton !(Vector2 GLfloat)
                  | NoInteraction deriving (Eq, Show)
 
 instance ToJSRef Interaction where
-    toJSRef (Mouse mb (Vector2 x y)) = unsafeCoerce $ toJSRef (1::Int, fromEnum mb, [(x,y)]::[(GLfloat,GLfloat)])
-    toJSRef (Touches xs) = unsafeCoerce $ toJSRef (2::Int,0::Int, map (\(Vector2 x y) -> (x,y)) xs ::[(GLfloat,GLfloat)])
-    toJSRef NoInteraction = unsafeCoerce $ toJSRef (0::Int,0::Int,[]::[GLfloat])
+    toJSRef (Mouse mb (Vector2 x y)) = liftM castRef $ toJSRef (1::Int, fromEnum mb, [(x,y)]::[(GLfloat,GLfloat)])
+    toJSRef (Touches xs) = liftM castRef $ toJSRef (2::Int,0::Int, map (\(Vector2 x y) -> (x,y)) xs ::[(GLfloat,GLfloat)])
+    toJSRef NoInteraction = liftM castRef $ toJSRef (0::Int,0::Int,[]::[GLfloat])
 
 instance FromJSRef Interaction where
-    fromJSRef = liftM (>>= parse) . fromJSRef . (unsafeCoerce :: JSRef Interaction -> JSRef (Int,Int,[(GLfloat,GLfloat)]))
+    fromJSRef = liftM (>>= parse) . fromJSRef . (castRef :: JSRef Interaction -> JSRef (Int,Int,[(GLfloat,GLfloat)]))
         where parse (0,_,_)       = Just NoInteraction
               parse (1,b,(x,y):_) = Just $ Mouse (toEnum b) (Vector2 x y)
               parse (2,_,xs)      = Just . Touches $ map (\(x,y) -> Vector2 x y) xs

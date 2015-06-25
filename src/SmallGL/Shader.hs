@@ -1,5 +1,5 @@
 -----------------------------------------------------------------------------
---
+-- |
 -- Module      :  SmallGL.Shader
 -- Copyright   :  (c) Artem Chirkin
 -- License     :  BSD3
@@ -8,7 +8,6 @@
 -- Stability   :  experimental
 -- Portability :
 --
--- |
 --
 -----------------------------------------------------------------------------
 
@@ -26,14 +25,14 @@ import GHCJS.Marshal
 import Data.Maybe
 
 -- | Shader program definision
-data ShaderProgram = ShaderProgram {
-        programId :: Program, -- ^ if of a program to supply to glUseProgram
-        attributesOf :: Map.Map
-            String -- ^ name of the attribute
-            (GLuint, GLenum, GLint), -- ^ location,type,count
-        uniformsOf :: Map.Map
-            String -- ^ name of the uniform
-            (UniformLocation, GLenum, GLint) -- ^ location,type,count
+data ShaderProgram = ShaderProgram
+    { programId :: Program -- ^ if of a program to supply to glUseProgram
+    , attributesOf :: Map.Map
+            String
+            (GLuint, GLenum, GLint) -- ^ name of the attribute - location,type,count
+    , uniformsOf :: Map.Map
+            String
+            (UniformLocation, GLenum, GLint) -- ^ name of the uniform - location,type,count
     }
 
 -- | Synonym for a type of shader gl enum

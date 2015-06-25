@@ -1,7 +1,11 @@
 {-# LANGUAGE JavaScriptFFI, DataKinds #-}
+-- {-# LANGUAGE QuasiQuotes #-}
+-- {-# LANGUAGE TemplateHaskell #-}
 module Main (
     main
 ) where
+
+-- import Language.Haskell.TH
 
 import GHCJS.WebGL
 import Control.Monad
@@ -9,8 +13,13 @@ import Control.Concurrent (threadDelay)
 --import Control.Arrow ((&&&))
 --import Control.Applicative ((<*>))
 --import Control.Monad.Trans (liftIO)
---import Control.Monad.Reader
+import Control.Monad.Reader (liftIO)
 
+
+import Data.Geospatial
+--import qualified Data.ByteString.Lazy as BSL (putStrLn)
+
+import qualified Data.Aeson as A -- (FromJSON(), fromJSON, Result(..))
 import Data.List (intercalate)
 import Data.IORef
 import Data.Bits (shift)
@@ -21,8 +30,8 @@ import GHCJS.DOM
        (enableInspector, webViewGetDomDocument, runWebGUI)
 import GHCJS.DOM.Document (documentGetBody, documentGetElementById) -- , documentCreateElement
 --import GHCJS.DOM.HTMLElement (htmlElementSetInnerHTML)
-import GHCJS.DOM.Element (IsElement, elementGetClientWidth, elementGetClientHeight)
-import GHCJS.DOM.EventM (Signal)
+import GHCJS.DOM.Element (IsElement, elementGetClientWidth, elementGetClientHeight, elementOnchange)
+import GHCJS.DOM.EventM (Signal,target)
 import GHCJS.DOM.Types (Element,unElement)
 
 import GHCJS.Foreign
@@ -30,8 +39,9 @@ import GHCJS.Marshal
 import GHCJS.Types
 
 import Geometry.Space
---import Geometry.Space.Transform
+import Geometry.Space.Transform
 import Geometry.Structure
+import Geometry.Math
 
 
 import GUI.PointerEvent
@@ -47,6 +57,8 @@ import Model.Grid
 import Model.ScalarField
 import Model.RadianceService
 
+import Model.GeoJsonImport
+
 --import System.Random
 -- closure-compiler all.js --compilation_level=ADVANCED_OPTIMIZATIONS > all.min.js
 -- style="position:fixed;left:0;top:0;padding:0;margin:0;width:100%;height:100%;overflow:hidden;"
@@ -57,14 +69,16 @@ import Model.RadianceService
 --vpHeight :: GLsizei
 --vpHeight = 1000
 
+--import TextImporter
 
+--primes :: String
+--primes = [litFile|uploadia.sh|]
 
 main :: IO ()
 main = runWebGUI $ \ webView -> do
     enableInspector webView
     Just doc <- webViewGetDomDocument webView
     Just body <- documentGetBody doc
-
 
     vpWidth <- liftM (round . max 100) $ elementGetClientWidth body
     vpHeight <- liftM (round . max 100) $ elementGetClientHeight body
@@ -145,7 +159,6 @@ main = runWebGUI $ \ webView -> do
                                            (Vector4 0 255 100 255)
                                            (Vector4 0 0 255 255)
 
-
     -- Everything to draw in the world
     let drawSequence world = do
             city <- readIORef cityRef
@@ -186,7 +199,6 @@ main = runWebGUI $ \ webView -> do
         ((>> dispAndSelectOnTime) . afterAction posStateRef)
         (\eve -> do
             updated <- guiClick worldRef cityRef eve
-            logText console $ show eve
             if updated then displayOnTime else return ()
         )
 
@@ -214,15 +226,35 @@ main = runWebGUI $ \ webView -> do
         host <- getInputValue "inputip"
         name <- getInputValue "inputlogin"
         pass <- getInputValue "inputpass"
-        (lc, ip) <- connectToLucy host
+        lc <- connectToLuci host
         logText console $ "Connected to Luci on " ++ host
         ans <- authenticate lc name pass
-        setInnerHTML "ipaddressinfo" ip
+        setInnerHTML "ipaddressinfo" (hostOf lc)
         logText console ans
         getElementById "loginform" >>= hideElem
         getElementById "logondiv" >>= showElem
         programIdle
 
+
+    Just jsonfileinput <- documentGetElementById doc "jsonfileinput"
+    _ <- elementOnchange jsonfileinput $ do
+        el <- liftM unElement target
+        liftIO $ do
+            logText console $ "Trying to parse GeoJSON FeatureCollection..."
+            c <- getFiles el >>= fromJSRef_aeson :: IO (Maybe (GeoFeatureCollection A.Value))
+            case c of
+                Nothing -> logText console "Could not read geometry"
+                Just gfc -> do
+                    isBehChecked <- isChecked $ toJSString "dynamicstaticswitcher"
+                    let (geoms,msgs) = featureCollection2DtoObjects behav gfc
+                        sh = neg . mean $ map (applyV3 . wrap zeros) geoms
+                        geoms' = map (scale 0.15 () >>= translate sh >>) geoms
+                        behav = if isBehChecked then Dynamic else Static
+                    logText console $ unlines msgs
+                    addCityObjectsT' iworld geoms' cityRef
+                    logText console $ "Successfully imported "
+                        ++ show (length geoms) ++ " geometries, skipped " ++ show (length msgs) ++ "."
+                    dispAndSelectOnTime
 
     -- Draw world
     dispAndSelectOnTime
@@ -230,7 +262,14 @@ main = runWebGUI $ \ webView -> do
     programIdle
 
 
+-- | Convert JSON object in JavaScript back to Haskell data that implements fromJSON a class
+fromJSRef_aeson :: A.FromJSON a => JSRef a -> IO (Maybe a)
+fromJSRef_aeson = liftM (>>= f . A.fromJSON) . fromJSRef . castRef
+    where f (A.Error _) = Nothing
+          f (A.Success x) = Just x
 
+--fromJSRef_aeson2 :: A.FromJSON a => JSRef a -> IO (Maybe (A.Result a))
+--fromJSRef_aeson2 = liftM (liftM A.fromJSON) . fromJSRef . castRef
 
 displayOnce :: IORef (GLfloat)
             -> IORef World
@@ -260,6 +299,21 @@ selectOnce wref selectables = do
 ----------------------------------------------------------------------------------------------
 -- Interaction  ------------------------------------------------------------------------------
 ----------------------------------------------------------------------------------------------
+--FileReader.readAsText
+
+foreign import javascript unsafe "$r = document.getElementById($1).checked;"
+    isChecked :: JSString -> IO Bool
+
+foreign import javascript interruptible "var r = new FileReader(); \
+    \ var load = function() { \
+    \ if (r.readyState != FileReader.EMPTY ) { $c(JSON.parse(r.result)); }}; \
+    \ r.onloadend = load;  \
+    \ r.readAsText($1.files[0]);"
+    getFiles :: JSRef a -> IO (JSRef b)
+
+--config' = $(do
+--    s <- runIO $ readFile "src/model/Grid.hs"
+--    return $ LitE $ stringL s)
 
 foreign import javascript unsafe "$r = document.getElementById($1);"
     getElementById' :: JSString -> IO (JSRef a)

@@ -86,6 +86,26 @@ addCityObject w o p r c@City{objectsIn = m} = do
     return city
     where i = fst (IM.findMax m) + 1
 
+-- | Add a city object on a pointed place in the city.
+--   Returns a modified city (a city wih modified map of buildings)
+addCityObjectsT' :: World
+                 -> [STransform "Quaternion" GLfloat CityObject]
+                 -> IORef City
+                 -> IO ()
+addCityObjectsT' w os' cref = do
+    reps <- M.liftM (\rs x -> zip [x+1..] rs) . M.forM os' $ \s -> do
+        let o = unwrap s
+            tr = wrap Nothing s
+        om <- createObjectMesh w o
+        return CityObjRep
+            { orObj = o
+            , orMesh = om
+            , orLocs = IM.fromAscList [(1,tr)]
+            }
+    modifyIORef' cref $ \c@City{objectsIn = m} ->
+        c{objectsIn = IM.union m . IM.fromAscList . reps . fst $ IM.findMax m}
+    readIORef cref >>= updateCityGround w
+
 -- | The same as `addCityObject`, but modifies a city inplace by its reference
 addCityObject' :: World
                -> CityObject
@@ -489,7 +509,7 @@ vertBuilding = unlines [
   "  gl_Position = uProjM * globalPos;",
   "  vec3 vDist = globalPos.xyz/globalPos.w/150.0;",
   "  float z = clamp(dot(vDist,vDist), 0.0, 3.0);",
-  "  vColor = uVertexColor * (1.0 + 0.3*max(0.0, dot(-vec4(uSunDir, 0.0), uModelViewM * vec4(aVertexNormal, 0.0))));",
+  "  vColor = uVertexColor * (1.0 + 0.3*max(0.0, dot(-vec4(uSunDir, 0.0), normalize(uModelViewM * vec4(aVertexNormal, 0.0)))));",
   "  vColor = clamp(vColor, vec4(0.0,0.0,0.0,0.0), vec4(1.0,1.0,1.0,min(3.0-z, 1.0)));",
   "  vTextureCoord = aTextureCoord;",
   "}"]
