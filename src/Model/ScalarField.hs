@@ -59,12 +59,12 @@ makeColors (Bezier3Palette p0 p1 p2 p3) sf = map f $ normalized sf
 -- helpers
 
 v :: Vector4 GLubyte -> Vector4 GLfloat
-v p = fmap fromIntegral p
+v = fmap fromIntegral
 
 normalized :: ScalarField -> [GLfloat]
 normalized ScalarField
     { sfRange  = Vector2 xmin xmax
     , sfValues = vals
     } = map f vals
-    where f x = (min 1 . max 0 $ (x - xmin)/xspan)
+    where f x = min 1 . max 0 $ (x - xmin)/xspan
           xspan = max 10e-5 $ xmax - xmin

@@ -19,7 +19,6 @@
 
 module Model.City where
 
-import Control.Applicative
 import qualified Control.Monad as M
 import qualified Data.IntMap.Strict as IM
 import qualified Data.Traversable as TR
@@ -27,7 +26,6 @@ import qualified Control.Arrow as A
 --import qualified Data.Graph as G
 --import qualified Data.Foldable as F
 import Data.Bits
-import Data.Monoid
 
 --import GHCJS.Foreign (toJSString)
 import GHCJS.WebGL
@@ -74,7 +72,7 @@ addCityObject :: World
               -> Vector3 GLfloat -- ^ position
               -> GLfloat -- ^ rotation (w.r.t. Y axis)
               -> City
-              -> IO (City)
+              -> IO City
 addCityObject w o p r c@City{objectsIn = m} = do
     om <- createObjectMesh w o
     let city = c{objectsIn = IM.insert i CityObjRep
@@ -151,7 +149,7 @@ buildCity :: World
           -> [[Vector3 GLfloat]] -- ^ positions
           -> [[GLfloat]] -- ^ rotations (w.r.t. Y axis)
           -> [[Maybe Texture]]
-          -> IO (City)
+          -> IO City
 buildCity w@World{glctx = gl} bs ps rs texs = do
     buProgram <- initShaders gl [(gl_FRAGMENT_SHADER, fragBuilding)
                                 ,(gl_VERTEX_SHADER, vertBuilding)]
@@ -206,7 +204,7 @@ updateCityTextures world@World{glctx = gl}
           g Nothing Nothing = return Nothing
           g Nothing (Just tex) = deleteTexture gl tex >> return Nothing
           g (Just ars) Nothing = M.liftM Just $ initTexture gl (Right ars)
-          g (Just ars) (Just tex) = updateTexture gl (Right ars) tex >> (return $ Just tex)
+          g (Just ars) (Just tex) = updateTexture gl (Right ars) tex >> return (Just tex)
           updateObj colors obj = (cleft, TR.sequence locs >>= \ls -> return obj{orLocs = ls})
             where (cleft,locs) = IM.mapAccum f colors $ orLocs obj
                   f cc tr = A.second (>>= liftTransform . flip M.liftM tr . g ) $ gridToTextureArray (orObj obj) cs cc
@@ -219,7 +217,7 @@ updateCityTextures world@World{glctx = gl}
 
 -- Drawing a city means drawing all its objects
 instance Drawable City where
-    drawInCurrContext w c = drawCity w c
+    drawInCurrContext = drawCity
     updateDrawContext City{buildShader = bProg}
                       w@World{curContext = cc} = w
         { curContext = cc
@@ -297,7 +295,7 @@ data ObjectState = IdleOS | SelectedOS | StaticOS
 
 -- City selectable means one can select objects in a city
 instance Selectable City where
-    selectInCurrContext w c = selectCityArea w c
+    selectInCurrContext = selectCityArea
     updateSelectContext City{selectShader = sProg}
                         w@World{curContext = cc} = w
         { curContext = cc
@@ -372,7 +370,7 @@ dragBuilding (Vector2 ox oy) (Vector2 x y) camera city@City
     } = city {
         objectsIn = IM.adjust f i m
     } where imat = invert (prepareProjection camera `prod` prepareView camera)
-            Vector2 width height = fmap fromIntegral $ viewSize camera
+            Vector2 width height = fromIntegral <$> viewSize camera
             campos = fromHom $ imat `prod` Vector4 0 0 0 1
             oldpos = fromHom $ imat `prod` Vector4 
                 (2 * ox / width - 1)
@@ -400,7 +398,7 @@ rotateBuilding (Vector2 ox oy) (Vector2 x y) camera city@City
     } = city {
         objectsIn = IM.adjust f i m
     } where imat = invert (prepareProjection camera `prod` prepareView camera)
-            Vector2 width height = fmap fromIntegral $ viewSize camera
+            Vector2 width height = fromIntegral <$> viewSize camera
             campos = fromHom $ imat `prod` Vector4 0 0 0 1
             oldpos = fromHom $ imat `prod` Vector4 
                 (2 * ox / width - 1)
@@ -433,7 +431,7 @@ twoFingerBuilding (Vector2 ox1 oy1, Vector2 ox2 oy2)
     } = city {
         objectsIn = IM.adjust f i m
     } where imat = invert (prepareProjection camera `prod` prepareView camera)
-            Vector2 width height = fmap fromIntegral $ viewSize camera
+            Vector2 width height = fromIntegral <$> viewSize camera
             ox = (ox1 + ox2) / 2
             oy = (oy1 + oy2) / 2
             x = (x1 + x2) / 2

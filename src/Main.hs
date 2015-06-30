@@ -246,9 +246,9 @@ main = runWebGUI $ \ webView -> do
                 Nothing -> logText console "Could not read geometry"
                 Just gfc -> do
                     isBehChecked <- isChecked $ toJSString "dynamicstaticswitcher"
-                    let (geoms,msgs) = featureCollection2DtoObjects behav gfc
+                    let (geoms,msgs) = featureCollection2DtoObjects behav 0.15 gfc
                         sh = neg . mean $ map (applyV3 . wrap zeros) geoms
-                        geoms' = map (scale 0.15 () >>= translate sh >>) geoms
+                        geoms' = map (translate sh () >>) geoms
                         behav = if isBehChecked then Dynamic else Static
                     logText console $ unlines msgs
                     addCityObjectsT' iworld geoms' cityRef
