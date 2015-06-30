@@ -15,7 +15,6 @@
 module Model.RadianceService where
 
 import Data.List (foldl')
-import Control.Applicative (pure)
 
 import GHCJS.WebGL
 
