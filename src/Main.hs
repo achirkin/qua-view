@@ -214,10 +214,9 @@ main = runWebGUI $ \ webView -> do
         >> programIdle)
     onSimpleClick clearbutton False $ const (clearCityTextures' worldRef cityRef >> hideParentElem clearb  >> dispAndSelectOnTime)
 
-    Just guipanel <- documentGetElementById doc "guipanel"
-    let guip = unElement guipanel
+
     Just toolboxbutton <- documentGetElementById doc "toolboxbutton"
-    onSimpleClick toolboxbutton False . const $ toggleGUIPanel guip
+    onSimpleClick toolboxbutton False . const $ toggleGUIPanel
 
     -- submit... very ugly!
     Just submitbutton <- documentGetElementById doc "loginbutton"
@@ -235,11 +234,13 @@ main = runWebGUI $ \ webView -> do
         getElementById "logondiv" >>= showElem
         programIdle
 
+--    print $ building1
 
     Just jsonfileinput <- documentGetElementById doc "jsonfileinput"
     _ <- elementOnchange jsonfileinput $ do
         el <- liftM unElement target
         liftIO $ do
+            programInProgress
             logText console $ "Trying to parse GeoJSON FeatureCollection..."
             c <- getFiles el >>= fromJSRef_aeson :: IO (Maybe (GeoFeatureCollection A.Value))
             case c of
@@ -252,9 +253,17 @@ main = runWebGUI $ \ webView -> do
                         behav = if isBehChecked then Dynamic else Static
                     logText console $ unlines msgs
                     addCityObjectsT' iworld geoms' cityRef
+                    --logText console $ show geoms'
+                    --logText console "added geoms"
                     logText console $ "Successfully imported "
                         ++ show (length geoms) ++ " geometries, skipped " ++ show (length msgs) ++ "."
                     dispAndSelectOnTime
+            programIdle
+
+    -- clear geometry
+    Just clearButton <- documentGetElementById doc "cleargeombutton"
+    onSimpleClick clearButton False . const $
+        readIORef cityRef >>= clearCity iworld >>= writeIORef cityRef >> dispAndSelectOnTime
 
     -- Draw world
     dispAndSelectOnTime
@@ -334,14 +343,8 @@ foreign import javascript unsafe "$r = document.getElementById($1).value;"
 getInputValue :: String -> IO String
 getInputValue = liftM fromJSString . getInputValue' . toJSString
 
-foreign import javascript unsafe "if ($1.className == 'idleguipanel') { \
-    \    $1.className = 'activeguipanel'; \
-    \    document.getElementById('guiplaceholder').className = 'activeplaceholder'; \
-    \ } else {  \
-    \    $1.className = 'idleguipanel';  \
-    \    document.getElementById('guiplaceholder').className = 'idleplaceholder'; \
-    \ }"
-    toggleGUIPanel :: JSRef a -> IO ()
+foreign import javascript unsafe "toggleGUIPanel()"
+    toggleGUIPanel :: IO ()
 
 foreign import javascript unsafe "$1.style.display = 'none';"
     hideElem :: JSRef a -> IO ()
@@ -355,19 +358,7 @@ foreign import javascript unsafe "$1.parentNode.style.visibility = 'hidden';"
 foreign import javascript unsafe "$1.parentNode.style.visibility = 'visible';"
     showParentElem :: JSRef a -> IO ()
 
-foreign import javascript unsafe "var n = $1.children.length; \
-    \ var panelr = document.getElementById('guipanel').getBoundingClientRect(); \
-    \ var z = panelr.top + 0.6*panelr.height; \
-    \ while(n > 0 && $1.children[0].getBoundingClientRect().top < z) { \
-    \   $1.removeChild($1.children[0]); n--; \
-    \ } \
-    \ for(var i = 0; i < n; i++) { \
-    \    $1.children[i].className = 'consolem' + Math.max(i-n+9,0); \
-    \ } \
-    \ var newDiv = document.createElement(\"div\"); \
-    \ newDiv.innerHTML = $2; \
-    \ newDiv.className = 'consolem9'; \
-    \ $1.appendChild(newDiv); "
+foreign import javascript unsafe "logText($1,$2)"
     logText' :: JSRef a -> JSString -> IO ()
 
 logText :: Element -> String -> IO ()
@@ -380,34 +371,7 @@ logText el s = logText' (unElement el) (toJSString . intercalate "<br/>" . lines
 --loadImage = loadImage' . toJSString
 
 
-foreign import javascript unsafe "if (!document['fullscreenElement'] && \
-    \  !document['mozFullScreenElement'] && \
-    \  !document['webkitFullscreenElement'] && !document['msFullscreenElement'] && !document['fullScreen']) { \
-    \    if (document.documentElement['requestFullscreen']) { \
-    \      document.documentElement.requestFullscreen(); \
-    \    } else if (document.documentElement['msRequestFullscreen']) { \
-    \      document.documentElement.msRequestFullscreen(); \
-    \    } else if (document.documentElement['mozRequestFullScreen']) { \
-    \      document.documentElement.mozRequestFullScreen(); \
-    \    } else if (document.documentElement['webkitRequestFullscreen']) { \
-    \      document.documentElement.webkitRequestFullscreen(Element.ALLOW_KEYBOARD_INPUT); \
-    \    } \
-    \    document.getElementById('fullscreenbshape').setAttribute('d','M14,14H19V16H16V19H14V14M5,14H10V19H8V16H5V14M8,5H10V10H5V8H8V5M19,8V10H14V5H16V8H19Z'); \
-    \  } else { \
-    \    if (document['exitFullscreen']) { \
-    \      document.exitFullscreen(); \
-    \    } else if (document['msExitFullscreen']) { \
-    \      document.msExitFullscreen(); \
-    \    } else if (document['mozCancelFullScreen']) { \
-    \      document.mozCancelFullScreen(); \
-    \    } else if (document['webkitExitFullscreen']) { \
-    \      document.webkitExitFullscreen(); \
-    \    } else { \
-    \      document.cancelFullScreen(); \
-    \      document.exitFullscreen(); \
-    \    } \
-    \    document.getElementById('fullscreenbshape').setAttribute('d','M5,5H10V7H7V10H5V5M14,5H19V10H17V7H14V5M17,14H19V19H14V17H17V14M10,17V19H5V14H7V17H10Z'); \
-    \  }"
+foreign import javascript unsafe "toggleFullScreen()"
     toggleFullScreen :: IO ()
 
 --foreign import javascript safe "document.getElementById('divview').innerHTML = $1;"
@@ -597,7 +561,7 @@ hut1 :: CityObject
 hut1 = BoxHut Dynamic $ Vector3 2 3 3
 
 building1 :: CityObject
-building1 = Building Dynamic $ SimpleConvexPolygon
+building1 = Building Dynamic $ SimplePolygon
     [ Vector3 (-1) 2 (-1)
     , Vector3   0  2 (-2)
     , Vector3   2  3   0

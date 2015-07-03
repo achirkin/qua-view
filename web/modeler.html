@@ -12,7 +12,6 @@
     <meta http-equiv="expires" content="Tue, 01 Jan 1980 1:00:00 GMT" />
     <meta http-equiv="pragma" content="no-cache" />
     <link href="modeler.css" rel="stylesheet" type="text/css">
-    <script type="text/javascript" src="luciConnect.js"></script>
   </head>
 <body>
 <svg id="loadingSplash" timelinebegin="loadbegin" fill="none" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 72 72">
@@ -41,8 +40,25 @@
         </svg>
         </a>
       </div>
+    <!-- tabs bar -->
+      <div id="tabsbar">
+        <script type="text/javascript">
+            var selectTab = function(id) {
+                Array.prototype.forEach.call(document.getElementsByClassName('tabpane')
+                    , function(tab){tab.style.display = 'none';});
+                document.getElementById(id).style.display = 'block';
+                Array.prototype.forEach.call(document.getElementsByClassName('tabitem')
+                    , function(tab){tab.className = 'tabitem tabitemidle';});
+		document.getElementById('i' + id).className = 'tabitem tabitemactive';
+            }
+        </script>
+        <div class="tabitem tabitemactive" id="itabGeometry" onclick="selectTab('tabGeometry');">Geometry</div>
+        <div class="tabitem tabitemidle" id="itabServices" onclick="selectTab('tabServices');">Services</div>
+        <div class="tabitem tabitemidle" id="itabLuci" onclick="selectTab('tabLuci');">Luci</div>
+      </div>
     <!-- console -->
     <div id="consolediv"><div id="consolecontent"></div></div>
+
     <!-- on-canvas buttons -->
     <div id="guiplaceholder" class='idleplaceholder'>
     <!-- evaluate button -->
@@ -74,6 +90,7 @@
 
 
     <!-- main control panel  -->
+<div class="tabpane" id="tabLuci" style="display: none;">
   <form style="display: block;" id="loginform">
     <script language="javascript">
 	function checkIfUsed(id) {
@@ -104,118 +121,45 @@
       <label class="plabel">Password</label>
     </div>
     <div class="pbutdiv" id="loginbutton">
-     <button type="button" class="button buttonBlue">Connect</button>
+     <button type="button" class="button">Connect</button>
     </div>
   </form>
   
   <div style="display: none;" id="logondiv">
   <div class="pheading">Connected to Luci on <p id="ipaddressinfo" style="display: inline;"></p></div>
   </div>
-  
+</div>
+<div class="tabpane" id="tabGeometry" style="display: block;">
+
   <!-- GeoJSON file reading -->
   <div class="pheading">Read GeoJSON from file</div>
-  <div class="pnormal pfilebutdiv">
+  <div class="pnormal pleftbutdiv">
      <input id="dynamicstaticswitcher" type="checkbox" checked >
      <label for="dynamicstaticswitcher" class="label"></label>
   </div>
-  <div class="pfilebutdiv">
+  <div class="pleftbutdiv">
       <button type="button" class="button" onclick="document.getElementById('jsonfileinput').click()" style="display: inline;">Browse</button>
       <div id="filenameIndicator" class="pnormal" style="display: inline;"></div>
       <input type="file" id="jsonfileinput" style="display:none" onchange="document.getElementById('filenameIndicator').innerText = document.getElementById('jsonfileinput').value.split(/(\\|\/)/g).pop();">
   </div>
-
+  
+  <!-- GeoJSON clear button -->
+  <div class="pleftbutdiv">
+      <button id="cleargeombutton" type="button" class="button" onclick="document.getElementById('filenameIndicator').innerText = ''; document.getElementById('jsonfileinput').value = '';" style="display: inline;">Clear</button>
+  </div>
+</div>
+<div class="tabpane" id="tabServices" style="display: none;">
+Services
+</div>
 
 </div>
 </body>
-  <script language="javascript">
-(function(){
-  var attachEvent = document.attachEvent;
-  var isIE = navigator.userAgent.match(/Trident/);
-  var requestFrame = (function(){
-    var raf = window.requestAnimationFrame || window.mozRequestAnimationFrame || window.webkitRequestAnimationFrame ||
-        function(fn){ return window.setTimeout(fn, 20); };
-    return function(fn){ return raf(fn); };
-  })();
-  
-  var cancelFrame = (function(){
-    var cancel = window.cancelAnimationFrame || window.mozCancelAnimationFrame || window.webkitCancelAnimationFrame ||
-           window.clearTimeout;
-    return function(id){ return cancel(id); };
-  })();
-  
-  function resizeListener(e){
-    var win = e.target || e.srcElement;
-    if (win.__resizeRAF__) cancelFrame(win.__resizeRAF__);
-    win.__resizeRAF__ = requestFrame(function(){
-      var trigger = win.__resizeTrigger__;
-      trigger.__resizeListeners__.forEach(function(fn){
-        fn.call(trigger, e);
-      });
-    });
-  }
-  
-  function objectLoad(e){
-    this.contentDocument.defaultView.__resizeTrigger__ = this.__resizeElement__;
-    this.contentDocument.defaultView.addEventListener('resize', resizeListener);
-  }
-  
-  window.addResizeListener = function(element, fn){
-    if (!element.__resizeListeners__) {
-      element.__resizeListeners__ = [];
-      if (attachEvent) {
-        element.__resizeTrigger__ = element;
-        element.attachEvent('onresize', resizeListener);
-      }
-      else {
-        if (getComputedStyle(element).position == 'static') element.style.position = 'relative';
-        var obj = element.__resizeTrigger__ = document.createElement('object'); 
-        obj.setAttribute('style', 'display: block; position: absolute; top: 0; left: 0; height: 100%; width: 100%; overflow: hidden; pointer-events: none; z-index: -1;');
-        obj.__resizeElement__ = element;
-        obj.onload = objectLoad;
-        obj.type = 'text/html';
-        if (isIE) element.appendChild(obj);
-        obj.data = 'about:blank';
-        if (!isIE) element.appendChild(obj);
-      }
-    }
-    element.__resizeListeners__.push(fn);
-  };
-  
-  window.removeResizeListener = function(element, fn){
-    element.__resizeListeners__.splice(element.__resizeListeners__.indexOf(fn), 1);
-    if (!element.__resizeListeners__.length) {
-      if (attachEvent) element.detachEvent('onresize', resizeListener);
-      else {
-        element.__resizeTrigger__.contentDocument.defaultView.removeEventListener('resize', resizeListener);
-        element.__resizeTrigger__ = !element.removeChild(element.__resizeTrigger__);
-      }
-    }
-  }
-}());
-(function() {
-    var lastTime = 0;
-    var vendors = ['ms', 'moz', 'webkit', 'o'];
-    for(var x = 0; x < vendors.length && !window.requestAnimationFrame; ++x) {
-        window.requestAnimationFrame = window[vendors[x]+'RequestAnimationFrame'];
-        window.cancelAnimationFrame = window[vendors[x]+'CancelAnimationFrame']
-                                   || window[vendors[x]+'CancelRequestAnimationFrame'];
-    }
- 
-    if (!window.requestAnimationFrame)
-        window.requestAnimationFrame = function(callback, element) {
-            var currTime = new Date().getTime();
-            var timeToCall = Math.max(0, 16 - (currTime - lastTime));
-            var id = window.setTimeout(function() { callback(currTime + timeToCall); },
-              timeToCall);
-            lastTime = currTime + timeToCall;
-            return id;
-        };
- 
-    if (!window.cancelAnimationFrame)
-        window.cancelAnimationFrame = function(id) {
-            clearTimeout(id);
-        };
-}());
-  </script>
-  <script src="modeler.js" defer></script>
+<script type="text/javascript" defer>
+window.onload = function() {
+var mainjs=document.createElement('script')
+mainjs.setAttribute("type","text/javascript")
+mainjs.setAttribute("src", "modeler.js")
+document.head.appendChild(mainjs);
+}
+</script>
 </html>
