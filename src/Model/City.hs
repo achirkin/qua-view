@@ -82,7 +82,7 @@ addCityObject w o p r c@City{objectsIn = m} = do
             } m }
     updateCityGround w city
     return city
-    where i = fst (IM.findMax m) + 1
+    where i = if IM.null m then 1 else (fst (IM.findMax m) + 1)
 
 -- | Add a city object on a pointed place in the city.
 --   Returns a modified city (a city wih modified map of buildings)
@@ -101,7 +101,7 @@ addCityObjectsT' w os' cref = do
             , orLocs = IM.fromAscList [(1,tr)]
             }
     modifyIORef' cref $ \c@City{objectsIn = m} ->
-        c{objectsIn = IM.union m . IM.fromAscList . reps . fst $ IM.findMax m}
+        c{objectsIn = IM.union m . IM.fromAscList . reps $ if IM.null m then 0 else fst (IM.findMax m)}
     readIORef cref >>= updateCityGround w
 
 -- | The same as `addCityObject`, but modifies a city inplace by its reference
@@ -114,7 +114,7 @@ addCityObject' :: World
 addCityObject' w o p r cref = do
     om <- createObjectMesh w o
     modifyIORef' cref $ \c@City{objectsIn = m} ->
-        c{objectsIn = IM.insert (fst (IM.findMax m) + 1) CityObjRep
+        c{objectsIn = IM.insert (if IM.null m then 1 else (fst (IM.findMax m) + 1)) CityObjRep
             { orObj = o
             , orMesh = om
             , orLocs = IM.fromAscList [(1,translate p Nothing >>= rotateY r)]
@@ -142,6 +142,19 @@ clearCityTextures' :: IORef World -> IORef City -> IO ()
 clearCityTextures' wRef cRef = do
     world <- readIORef wRef
     readIORef cRef >>= clearCityTextures world >>= writeIORef cRef
+
+
+clearCity :: World -> City -> IO City
+clearCity World{glctx = gl} city = do
+    gm <- removeG $ groundMesh city
+    _ <- TR.mapM removeAll $ objectsIn city
+    return city{groundMesh = gm, objectsIn = IM.empty, activeObj = (0,0)}
+    where removeTex tr = case unwrap tr of
+                          Nothing -> return tr
+                          Just tex -> deleteTexture gl tex >> return (wrap Nothing tr)
+          removeG Nothing = return Nothing
+          removeG (Just (com,tex)) = deleteTexture gl tex >> deleteCityObjectMesh gl com >> return Nothing
+          removeAll b@CityObjRep{orLocs = im, orMesh = om} = deleteCityObjectMesh gl om >> TR.mapM removeTex im >>= \im' -> return b{orLocs = im'}
 
 -- | Helper for creation of the city from the list of city objects
 buildCity :: World

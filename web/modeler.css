@@ -3,7 +3,7 @@
   font-family: 'Roboto Regular';
   font-style: normal;
   /*font-weight: 400;*/
-  src: local('Roboto Regular'), local('Roboto'), url(Roboto-Regular.ttf);
+  src: local('Roboto Regular'), local('Roboto'), url('Roboto-Regular.ttf');
   /*unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2212, U+2215, U+E0FF, U+EFFD, U+F000;*/
 }
 
@@ -20,6 +20,7 @@ body {
     overflow: hidden;
     background-color: #FFFFFF;
     touch-action: none;
+    color: #BF360C;
 }
 
 #loadingSplash {
@@ -107,13 +108,63 @@ rect.btn {
     width: 400px;
     height: 100%;
     background-color: #FFFFFF;
-    -webkit-transition:right 300ms ease-in-out;
-    -moz-transition:right 300ms ease-in-out;
-    -o-transition:right 300ms ease-in-out;
-    transition:right 300ms ease-in-out;
+    -webkit-transition:right 300ms ease-in-out,min-width 300ms ease-in-out;
+    -moz-transition:right 300ms ease-in-out,min-width 300ms ease-in-out;
+    -o-transition:right 300ms ease-in-out,min-width 300ms ease-in-out;
+    transition:right 300ms ease-in-out,min-width 300ms ease-in-out;
 }
 
 /* GUI panel - title bar */
+
+/*.idleguipanel > #tabsbar {
+    box-shadow: 0px 0px 0px 0px #FFFFFF;
+}
+
+.activeguipanel > #tabsbar {
+    box-shadow: 0px 5px 10px 0px #999999;
+}*/
+
+#tabsbar {
+    position: relative;
+    display: table;
+    color: #FFFFFF;
+    z-index: 5;
+    background-color: #FF5722;
+    padding: 0;
+    margin: 0;
+    width: 100%;
+    height: 48px;
+    max-height: 5%;
+    font-size: 14px;
+    table-layout: fixed;
+}
+
+.tabitem {
+    display: table-cell;
+    margin: 0;
+    padding: 0;
+    vertical-align: middle;
+    text-align: center;
+    cursor: pointer;
+    white-space: initial;
+    box-sizing: border-box;
+    width: 1%
+}
+
+.tabpane {
+    margin: 15px 5px 0px 32px;
+    padding-top: 0px;
+}
+
+.tabitemactive {
+    font-weight: bold;
+    border-bottom: 4px solid #BF360C;
+    padding-top: 4px;
+}
+
+.tabitemidle {
+    opacity: 0.6;
+}
 
 #titlebar {
     position: relative;
@@ -124,8 +175,9 @@ rect.btn {
     width: 100%;
     height: 200px;
     max-height: 10%;
-    box-shadow: 0px 0px 15px 0px #999999;
 }
+
+
 .titlediv {
     position: absolute;
     left: 10%;
@@ -197,11 +249,13 @@ rect.btn {
 
 .activeguipanel {
     box-shadow: 15px 15px 15px 15px #999999;
+    min-width: 20%;
     right: 0px;
 }
 
 
 .idleguipanel {
+    min-width: 0%;
     box-shadow: 0;
 }
 
@@ -289,22 +343,20 @@ rect.btn {
     z-index: 5;
     position: relative;
     font-size: 18px;
-    margin: 10px auto 0px 32px;
-    color: #BF360C;
+    margin: 10px auto 0px 0px;
 }
 
 .pnormal {
     z-index: 5;
     font-size: 14px;
     margin: auto 5px auto 5px;
-    color: #BF360C;
     line-height: 12px;
 }
 
 .group { 
     z-index: 5;
     position: relative; 
-    margin: 20px auto 10px 32px;
+    margin: 20px auto 10px 0px;
     width: 60%;
     border-bottom: 1px solid #757575;
 }
@@ -411,14 +463,14 @@ rect.btn {
 
 .pbutdiv {
     position: relative; 
-    margin: 0px auto 5px 32px;
+    margin: 0px auto 5px 0px;
     width: 60%;
     text-align: center;
 }
 
-.pfilebutdiv {
+.pleftbutdiv {
     position: relative; 
-    margin: 0px auto 5px 32px;
+    margin: 0px auto 5px 0px;
     width: 100%;
     text-align: left;
 }

@@ -27,11 +27,12 @@ import GHCJS.WebGL
 import Geometry.Space
 import Geometry.Space.Transform
 import Geometry.Math
-import Geometry.Structure
+import qualified Geometry.Structure as S
 import Model.CityObject
 
 import Data.Geospatial
 import Data.LinearRing
+--import Debug.Trace (traceShow)
 
 
 defaultHeight :: GLfloat
@@ -45,13 +46,13 @@ polygon2DtoCityObject :: ObjectBehavior
                       -> GLfloat -- ^ Scale
                       -> GeoPolygon
                       -> Either String (STransform "Quaternion" GLfloat CityObject)
-polygon2DtoCityObject beh scal (GeoPolygon (points:_)) = f . map (\(x:z:_) -> fmap ((scal*) . realToFrac) $ Vector2 x z) . fromLinearRing $ points
+polygon2DtoCityObject beh scal (GeoPolygon (points:_)) = f . map (\(x:z:_) -> fmap ((scal*) . realToFrac) $ Vector2 x (-z)) . fromLinearRing $ points
     where f :: [Vector 2 GLfloat] -> Either String (STransform "Quaternion" GLfloat CityObject)
-          f [p1,p2,p3,p4,_] | a@(Vector2 ax ay) <- p2.-p1
+          f [_,p1,p2,p3,p4] | a@(Vector2 ax ay) <- p2.-p1
                             , b <- p4.-p1
                             , c <- p2.-p3
                             , d <- p4.-p3
-                            , (s,si) <- geojsonTransform (mean [p1,p2,p3,p4]) (atan2 ay ax)
+                            , (s,si) <- geojsonTransform (mean [p1,p2,p3,p4]) (atan2 (-ay) ax)
                             = Right . flip runApprox approxTolerance $ do
             corner1 <- areOrthogonal a b
             corner2 <- areOrthogonal a c
@@ -59,11 +60,11 @@ polygon2DtoCityObject beh scal (GeoPolygon (points:_)) = f . map (\(x:z:_) -> fm
             return . s $ if corner1 && corner2 && corner3
                 then BoxHut beh (Vector3 (normL2 a) defaultHeight (normL2 b))
                 else bds [p1,p2,p3,p4] si
-          f xs@(p1:p2:_:_) | Vector2 ax ay <- p2.-p1
-                         , (s,si) <- geojsonTransform (mean xs) (atan2 ay ax)
-                         = Right . s $ bds (tail xs) si
+          f (_:xs@(p1:p2:_:_)) | Vector2 ax ay <- p2.-p1
+                         , (s,si) <- geojsonTransform (mean xs) (atan2 (-ay) ax)
+                         = Right . s $ bds xs si
           f _ = Left "polygon2DtoCityObject: not enough points!"
-          bds xs si = Building beh . SimpleConvexPolygon $ map (\(Vector2 x z) -> transform . si $ Vector3 x defaultHeight z) xs
+          bds xs si = Building beh . S.SimplePolygon $ map (\(Vector2 x z) -> transform . si $ Vector3 x defaultHeight z) xs
 polygon2DtoCityObject _ _ (GeoPolygon []) = Left "polygon2DtoCityObject: No polygons at all!"
 
 

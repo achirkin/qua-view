@@ -189,9 +189,9 @@ precision = 0.001
 -- | Supplementary function for city objects - creates a mesh for building.
 --   If one adds another type of a city object, they need to add a function for it here
 createObjectMesh :: World -> CityObject -> IO CityObjectMesh
-createObjectMesh World{glctx = gl} (Building _ (SimpleConvexPolygon pts)) = do
+createObjectMesh World{glctx = gl} (Building _ poly) = do
     mbuf <- createPackedBuf gl (wpts ++ rpts)
-    sibuf <- createIndexBuf gl (wis ++ triangulate' [nw..nw+nr-1])
+    sibuf <- createIndexBuf gl (wis ++ map ((+(nw-1)) . fromIntegral) rixs)
     wibuf <- createIndexBuf gl (wiw ++ [nw+nr-1,nw] ++ ([nw..nw+nr-2] >>= \i -> [i,i+1]))
     return $ CityObjectMesh mbuf sibuf wibuf
     where n = fromIntegral $ length pts
@@ -204,12 +204,19 @@ createObjectMesh World{glctx = gl} (Building _ (SimpleConvexPolygon pts)) = do
           walls [] = []
           wis = [0..n-1] >>= \i -> [4*i,4*i+1,4*i+2,4*i,4*i+2,4*i+3]
           wiw = [0..n-1] >>= \i -> [4*i,4*i+1,4*i+3,4*i+2,4*i,4*i+3]
+          rixs = triangulate3 poly >>= (\(i0,i1,i2) -> [i0,i1,i2])
           rpts = zip (ptl:pts) pts >>= \(p1,p2) -> let no = norm (p2 .- p1)
-                                                  in [(p1,no, Vector2 0 0)]
+                                                  in [(p2,no, Vector2 0 0)]
           ptl = last pts
           norm :: Vector3 GLfloat -> Vector3 GLbyte
           norm v = fmap (round . max (-128) . min 127)
                 . (*..127) . unit $ v `cross` (Vector3 0 1 0) `cross` v
+          pts = mkpts poly
+          mkpts pol = case pol of
+            SimpleConvexPolygon xs -> xs
+            SimplePolygon xs -> xs
+            GenericPolygon [] -> []
+            GenericPolygon (p:_) -> mkpts p
 createObjectMesh World{glctx = gl} (Road _ width pts) = do
     mbuf <- createPackedBuf gl $ zip3 ps (repeat . fmap round $ up *.. 127) (repeat $ Vector2 0 0)
     sibuf <- createIndexBuf gl $ zip4 [0,4..(n-1)*4] [1,5..(n-1)*4] [2,6..(n-1)*4] [3,7..(n-1)*4]
@@ -282,7 +289,7 @@ createObjectMesh World{glctx = gl} (BoxHut _ (Vector3 x y z)) = do
                , (uuu, npy, Vector2 tx1 ty2)
                , (uud, npy, Vector2 tx1 m  )
                , (dud, npy, Vector2 0   m  )]
-createObjectMesh _ _ = undefined
+--createObjectMesh _ _ = undefined
 
 
 
@@ -482,12 +489,12 @@ buildWall p1@(Vector3 x1 y1 z1) p2@(Vector3 x2 y2 z2) c =
             $ (signum (nr' .*. (p1 .- c)) * 127 / normL2 nr') ..* nr'
 
 
-triangulate' :: [a] -> [a]
-triangulate' pts = f pts []
-    where f [] [] = []
-          f [_] [] = []
-          f [_,_] [] = []
-          f [] qs = f (reverse qs) []
-          f [a] qs = f (reverse $ a:qs) []
-          f [a,b] qs = f (reverse $ b:a:qs) []
-          f (a:b:c:xs) qs = a:b:c: f (c:xs) (a:qs)
+--triangulate' :: [a] -> [a]
+--triangulate' pts = f pts []
+--    where f [] [] = []
+--          f [_] [] = []
+--          f [_,_] [] = []
+--          f [] qs = f (reverse qs) []
+--          f [a] qs = f (reverse $ a:qs) []
+--          f [a,b] qs = f (reverse $ b:a:qs) []
+--          f (a:b:c:xs) qs = a:b:c: f (c:xs) (a:qs)
