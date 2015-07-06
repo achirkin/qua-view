@@ -1,4 +1,5 @@
 {-# LANGUAGE JavaScriptFFI #-}
+{-# LANGUAGE DataKinds, FlexibleInstances, MultiParamTypeClasses #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  GUI.PointerEvent
@@ -41,6 +42,22 @@ import Data.Maybe (fromMaybe)
 import GHCJS.WebGL
 
 import Geometry.Space
+
+
+
+
+
+
+import Reactive
+instance Reaction Int PointerMoveEvent "moveP" where
+    react _ (Move _ _ d) n = n - round (1000*d)
+instance Reaction Int PointerClickEvent "increment" where
+    react _ (Click (Mouse _ (Vector2 x y))) n = n + round x - round y
+    react _ (Click i) n = n + length (show i)
+instance Reaction Int PointerClickEvent "justFun" where
+    react _ _ n = n `div` 3
+
+
 
 -- | Click counts only if a user releases pointer before this time elapses
 clickTime :: GLfloat

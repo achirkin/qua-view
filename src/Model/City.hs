@@ -44,6 +44,17 @@ import SmallGL.Shader
 
 import Model.CityObject
 import Model.ScalarField
+--
+
+--import Reactive
+--instance Reaction City Int "HelloInstance" where
+--    react _ _ n = n `div` 3
+
+--instance Reaction Int Int "SuperFun2" where
+--    react _ b n = n  + 5 + b*2
+
+
+
 
 -- | Map of all city object (buildings, roads, etc).
 --   Values: object, location (transformed mesh)

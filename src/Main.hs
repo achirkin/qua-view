@@ -1,4 +1,8 @@
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE JavaScriptFFI, DataKinds #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 -- {-# LANGUAGE QuasiQuotes #-}
 -- {-# LANGUAGE TemplateHaskell #-}
 module Main (
@@ -59,6 +63,10 @@ import Model.RadianceService
 
 import Model.GeoJsonImport
 
+--import Reactive
+--import Control.Concurrent.MVar
+
+-- import Language.Haskell.TH
 --import System.Random
 -- closure-compiler all.js --compilation_level=ADVANCED_OPTIMIZATIONS > all.min.js
 -- style="position:fixed;left:0;top:0;padding:0;margin:0;width:100%;height:100%;overflow:hidden;"
@@ -69,16 +77,21 @@ import Model.GeoJsonImport
 --vpHeight :: GLsizei
 --vpHeight = 1000
 
---import TextImporter
+-- this TH function generates instances of EventSense for all reactions available from this module
+-- $(createEventSense)
 
---primes :: String
---primes = [litFile|uploadia.sh|]
 
 main :: IO ()
 main = runWebGUI $ \ webView -> do
     enableInspector webView
     Just doc <- webViewGetDomDocument webView
     Just body <- documentGetBody doc
+
+
+--    printOnTime <- liftM animate
+--        . syncCallback NeverRetain False $
+
+--    eventHole <- reactiveCycle (0::Int) (print)
 
     vpWidth <- liftM (round . max 100) $ elementGetClientWidth body
     vpHeight <- liftM (round . max 100) $ elementGetClientHeight body
@@ -121,8 +134,8 @@ main = runWebGUI $ \ webView -> do
 
     -- Setup world
     camRef <- newIORef $ initOCCamera (fromIntegral vpWidth) (fromIntegral vpHeight)
-        OCCState { viewPoint     = Vector3 0 0 0,
-                   viewAngles    = Vector2 (pi/3) (pi/4),
+        OCCState { viewPoint     = Vector3 (-3) 0 2,
+                   viewAngles    = Vector2 (-pi/5) (pi/12),
                    viewDist      = 40 }
     iworld <- initWorld ctx camRef 0 (Vector3 (-0.5) (-1) 0.6)
     worldRef <- newIORef iworld
@@ -195,12 +208,13 @@ main = runWebGUI $ \ webView -> do
     onCancel canvas dispAndSelectOnTime
     onMove canvas True
         (setInteractionContext worldRef cityRef camRef posStateRef)
-        ((>>= flip when displayOnTime) . guiMove camRef cityRef posStateRef)
-        ((>> dispAndSelectOnTime) . afterAction posStateRef)
+        (\move -> guiMove camRef cityRef posStateRef move >>= flip when displayOnTime)  -- reqEvent eventHole (EBox move) >>
+        (\click -> afterAction posStateRef click >> dispAndSelectOnTime) -- reqEvent eventHole (EBox click) >>
         (\eve -> do
             updated <- guiClick worldRef cityRef eve
             if updated then displayOnTime else return ()
         )
+
 
 
     Just fsbutton <- documentGetElementById doc "fullscreenbutton"
@@ -225,13 +239,17 @@ main = runWebGUI $ \ webView -> do
         host <- getInputValue "inputip"
         name <- getInputValue "inputlogin"
         pass <- getInputValue "inputpass"
-        lc <- connectToLuci host
-        logText console $ "Connected to Luci on " ++ host
-        ans <- authenticate lc name pass
-        setInnerHTML "ipaddressinfo" (hostOf lc)
-        logText console ans
-        getElementById "loginform" >>= hideElem
-        getElementById "logondiv" >>= showElem
+        elc <- connectToLuci host
+        case elc of
+            Left err -> logText console err
+            Right lc -> do
+                logText console $ "Connected to Luci on " ++ host
+                ans <- authenticate lc name pass
+                setInnerHTML "ipaddressinfo" (hostOf lc)
+                logText console $ show ans
+                getElementById "loginform" >>= hideElem
+                getElementById "logondiv" >>= showElem
+                liftM (liftM $ intercalate " ") (getServicesList lc) >>= logText console . show
         programIdle
 
 --    print $ building1
