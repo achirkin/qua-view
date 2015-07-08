@@ -49,13 +49,16 @@ import Geometry.Space
 
 
 import Reactive
-instance Reaction Int PointerMoveEvent "moveP" where
+instance Reaction Int String PointerMoveEvent "moveP" where
     react _ (Move _ _ d) n = n - round (1000*d)
-instance Reaction Int PointerClickEvent "increment" where
+    response _ _ _ view = putStrLn "moveP" >> return view
+instance Reaction Int String PointerClickEvent "increment" where
     react _ (Click (Mouse _ (Vector2 x y))) n = n + round x - round y
     react _ (Click i) n = n + length (show i)
-instance Reaction Int PointerClickEvent "justFun" where
+    response _ _ _ view = putStrLn "increment" >> return (view ++ "i")
+instance Reaction Int String PointerClickEvent "justFun" where
     react _ _ n = n `div` 3
+    response _rname _event program view = putStrLn ("justFun " ++ show program ++ ' ': take (program `mod` 50) view) >> return (view ++ "!")
 
 
 

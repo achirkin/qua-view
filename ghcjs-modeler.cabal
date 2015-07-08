@@ -44,7 +44,6 @@ executable ghcjs-modeler
         Model.GeoJsonImport
         Model.ScalarField
         Reactive
-        Reactive.Core
         SmallGL.Helpers
         SmallGL.Shader
         Drawable.World

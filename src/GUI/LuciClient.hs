@@ -21,6 +21,7 @@ module GUI.LuciClient
     , programInProgress
     , programIdle
     , getServicesList
+    , getServiceInfo
     ) where
 
 import GHCJS.Foreign
@@ -31,6 +32,7 @@ import Control.Arrow (first)
 import Control.Concurrent (threadDelay)
 import Control.Monad (liftM)
 import System.IO.Unsafe (unsafePerformIO)
+import Data.Aeson (Value)
 
 
 -- | Object for Luci connection
@@ -111,9 +113,14 @@ foreign import javascript interruptible "var req = {}; req['action'] = 'get_list
     getServicesList' :: LuciClient -> IO (JSRef (Either String [String]))
 
 
-
-
-
+getServiceInfo :: LuciClient -> String -> IO (Either String Value)
+getServiceInfo lc sname = liftM eitherJustOrError $ getServiceInfo' lc (toJSString sname) >>= fromJSRef
+foreign import javascript interruptible "var req = {}; req['action'] = 'get_infos_about'; req['servicename'] = $2; $1.sendAndReceive(req,[function(){ \
+    \ var m = $1.getMessage(); \
+    \ if(m['result'] && m['result'][$2]) {$c({right: m['result'][$2]});} \
+    \ else if(m['error']) {$c({left: 'Luci says: ' + m['error']});} \
+    \ else {$c({left: \"Message contains neither service info nor an error. MSG: \" + JSON.stringify(m)});}}]);"
+    getServiceInfo' :: LuciClient -> JSString -> IO (JSRef (Either String Value))
 
 
 --- "WORK IN PROGRESS" splash
