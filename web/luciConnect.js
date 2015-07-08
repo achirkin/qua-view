@@ -69,39 +69,39 @@ function typeof_o(o){
 //	return arr8.buffer;
 //}
 
-function array2buffer(arr){
-	var buf = new Uint8Array(arr.length);
-	for (var i = 0; i < arr.length; i++){
-		buf[i] = arr[i];
-	}
-	return buf.buffer;
-}
+//function array2buffer(arr){
+//	var buf = new Uint8Array(arr.length);
+//	for (var i = 0; i < arr.length; i++){
+//		buf[i] = arr[i];
+//	}
+//	return buf.buffer;
+//}
 
-function buffer2array(buf){
-	var arr = [];
-	for (var i = 0; i < buf.byteLength; i++){
-		arr[i] = buf[i];
-	}
-	return arr;
-}
+//function buffer2array(buf){
+//	var arr = [];
+//	for (var i = 0; i < buf.byteLength; i++){
+//		arr[i] = buf[i];
+//	}
+//	return arr;
+//}
 
-function mergeBuffers(bufs){
-	var l  = 0;
-	for (var i = 0; i < bufs.length; i++){
-		var buf = bufs[i];
-		l += buf.byteLength;
-	}
-	var arr8 = new Uint8Array(l);
-	for (var i = 0, j = 0; i < bufs.length; i++){
-//		console.log("  :  "+bufs[i][0]);
-		var buf = new Uint8Array(bufs[i]);
-//		console.log("  -  "+buf[0]);
-		arr8.set(buf, j);
-		j += buf.byteLength;
-	}
-//	console.log(arr8[0]);
-	return arr8.buffer;
-}
+//function mergeBuffers(bufs){
+//	var l  = 0;
+//	for (var i = 0; i < bufs.length; i++){
+//		var buf = bufs[i];
+//		l += buf.byteLength;
+//	}
+//	var arr8 = new Uint8Array(l);
+//	for (var i = 0, j = 0; i < bufs.length; i++){
+////		console.log("  :  "+bufs[i][0]);
+//		var buf = new Uint8Array(bufs[i]);
+////		console.log("  -  "+buf[0]);
+//		arr8.set(buf, j);
+//		j += buf.byteLength;
+//	}
+////	console.log(arr8[0]);
+//	return arr8.buffer;
+//}
 
 var CounterLatch = function(cb){
 	this.callback = cb;
@@ -243,10 +243,12 @@ var LuciClient = (function(){
 	function _streaminfo_count(j){
 		if ("format" in j && "streaminfo" in j){
 			var chck = j["streaminfo"]["checksum"];
-			total_length += file_lengths[chck] = j["streaminfo"]["length"];
-			file_progress[chck] = 0;
-			_download(chck, j["format"]);
-			return 1;
+			if (chck != "string") {
+				total_length += file_lengths[chck] = j["streaminfo"]["length"];
+				file_progress[chck] = 0;
+				_download(chck, j["format"]);
+				return 1;
+			} else return 0;
 		} else {
 			var i = 0;
 			for (var k in j){
@@ -262,6 +264,7 @@ var LuciClient = (function(){
 	function _streaminfo_check(j){
 		if ("format" in j && "streaminfo" in j){
 			var chksum = j["streaminfo"]["checksum"];
+			if (chksum !== "string")
 			if (chksum in _bytes_in) j["bytes"] = _bytes_in[chksum];
 			else throw new Error("byte-array with checksum '" + chksum + "' not received!");
 		} else {
@@ -275,14 +278,16 @@ var LuciClient = (function(){
 	}
 	
 	function _download(checksum, format){
-		var url = "/download/"+checksum+"."+format;
+		var url = "http://" + _this.host + ":" + _this.port +"/download/"+checksum+"."+format;
+		console.log(url);
 		var xhr = new XMLHttpRequest();
 		xhr.open('GET', url, true); // parameter 3 = asynchronous
 		xhr.responseType = 'arraybuffer';
 
 		xhr.onload = function(e) {
 			var vbuf = this.response;
-			_bytes_in[faultylabs.MD5(buf)] = buf;
+			// _bytes_in[faultylabs.MD5(buf)] = buf;
+			_bytes_in[faultylabs.MD5(vbuf)] = vbuf;
 			msgLatch.countDown();
 		};
 		xhr.onprogress = function(e){

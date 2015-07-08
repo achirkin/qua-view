@@ -3,8 +3,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE JavaScriptFFI, DataKinds #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
--- {-# LANGUAGE QuasiQuotes #-}
--- {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TemplateHaskell #-}
 module Main (
     main
 ) where
@@ -63,7 +62,7 @@ import Model.RadianceService
 
 import Model.GeoJsonImport
 
---import Reactive
+import Reactive
 --import Control.Concurrent.MVar
 
 -- import Language.Haskell.TH
@@ -78,7 +77,7 @@ import Model.GeoJsonImport
 --vpHeight = 1000
 
 -- this TH function generates instances of EventSense for all reactions available from this module
--- $(createEventSense)
+$(createEventSense)
 
 
 main :: IO ()
@@ -91,7 +90,7 @@ main = runWebGUI $ \ webView -> do
 --    printOnTime <- liftM animate
 --        . syncCallback NeverRetain False $
 
---    eventHole <- reactiveCycle (0::Int) (print)
+    eventHole <- reactiveCycle (0::Int) "Hello"
 
     vpWidth <- liftM (round . max 100) $ elementGetClientWidth body
     vpHeight <- liftM (round . max 100) $ elementGetClientHeight body
@@ -208,8 +207,8 @@ main = runWebGUI $ \ webView -> do
     onCancel canvas dispAndSelectOnTime
     onMove canvas True
         (setInteractionContext worldRef cityRef camRef posStateRef)
-        (\move -> guiMove camRef cityRef posStateRef move >>= flip when displayOnTime)  -- reqEvent eventHole (EBox move) >>
-        (\click -> afterAction posStateRef click >> dispAndSelectOnTime) -- reqEvent eventHole (EBox click) >>
+        (\move -> optEvent eventHole (EBox move) >> guiMove camRef cityRef posStateRef move >>= flip when displayOnTime)  -- reqEvent eventHole (EBox move) >>
+        (\click -> reqEvent eventHole (EBox click) >> afterAction posStateRef click >> dispAndSelectOnTime) -- reqEvent eventHole (EBox click) >>
         (\eve -> do
             updated <- guiClick worldRef cityRef eve
             if updated then displayOnTime else return ()
@@ -249,7 +248,10 @@ main = runWebGUI $ \ webView -> do
                 logText console $ show ans
                 getElementById "loginform" >>= hideElem
                 getElementById "logondiv" >>= showElem
+                logText console "Getting list of services"
                 liftM (liftM $ intercalate " ") (getServicesList lc) >>= logText console . show
+                logText console "Getting info about service fibonacci"
+                getServiceInfo lc "fibonacci" >>= logText console . show
         programIdle
 
 --    print $ building1
