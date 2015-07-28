@@ -1,5 +1,5 @@
 name: ghcjs-modeler
-version: 0.1
+version: 0.2
 cabal-version: >=1.22
 build-type: Simple
 license: BSD3
@@ -22,31 +22,52 @@ executable ghcjs-modeler
     build-depends:
         geojson >=1.3,
         primitive >=0.5.4.0,
-        containers >=0.5.6.2,
-        mtl >=2.1 && <2.3,
         base >=4.2 && <5,
-        ghcjs-dom >=0.1,
         fgeom >=0.2.2,
+        ghc-prim >=0.4 && <1,
         ghcjs-base >=0.1.0.0,
         ghcjs-webgl >=0.2 && <2,
+        geojson >=1.3,
         aeson >=0.9.0.1 && <0.10,
-        template-haskell >=2.10.0.0 && <2.11
+        template-haskell >=2.10.0.0 && <2.11,
+        containers >=0.5.6.3 && <0.6
     cpp-options: -DGHCJS_BROWSER
     default-language: Haskell2010
     hs-source-dirs: src
     other-modules:
-        GUI.LuciClient
-        GUI.PointerEvent
-        Model.City
-        Model.Grid
-        Model.CityObject
-        Model.RadianceService
-        Model.GeoJsonImport
-        Model.ScalarField
+        Controllers.ElementResizing
+        Controllers.GUIEvents
+        Controllers.GeoJSONFileImport
+        Controllers.LuciClient
+        Controllers.Pointer
+        GHCJS.Useful
+        Program
+        Program.Model.Camera
+        Program.Model.City
+        Program.Model.CityGround
+        Program.Model.CityObject
+        Program.Model.DecorativeGrid
+        Program.Model.GeoJSON
+        Program.Model.ScalarField
+        Program.Reactions
+        Program.Reactions.CameraBehavior
+        Program.Reactions.CitySelection
+        Program.Reactions.GeometryChanges
+        Program.Reactions.LuciProcesses
+        Program.Reactions.SelectorRendering
+        Program.Reactions.ServiceFinish
+        Program.Reactions.ServiceRun
+        Program.Reactions.ViewRendering
+        Program.View
+        Program.View.CityGroundView
+        Program.View.CityObjectView
+        Program.View.CityView
+        Program.View.DecorativeGridView
         Reactive
+        Services
+        Services.RadianceService
         SmallGL.Helpers
         SmallGL.Shader
-        Drawable.World
-        Drawable.OCCamera
-    ghc-options: -Wall -O2 -DGHCJS_BROWSER
+        SmallGL.WritableVectors
+    ghc-options: -Wall -O2 -ddump-splices
 

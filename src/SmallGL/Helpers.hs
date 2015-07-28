@@ -13,7 +13,7 @@
 --
 -----------------------------------------------------------------------------
 
-module SmallGL.Helpers where
+module SmallGL.Helpers (GLErrorCode(..), checkGLError) where
 
 import Control.Monad (unless)
 

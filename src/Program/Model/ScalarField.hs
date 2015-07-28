@@ -1,18 +1,17 @@
 -----------------------------------------------------------------------------
---
--- Module      :  Model.ScalarField
+-- |
+-- Module      :  Program.Model.ScalarField
 -- Copyright   :  (c) Artem Chirkin
 -- License     :  BSD3
 --
 -- Maintainer  :  Artem Chirkin <chirkin@arch.ethz.ch>
 -- Stability   :  experimental
--- Portability :
 --
--- |
+--
 --
 -----------------------------------------------------------------------------
 
-module Model.ScalarField
+module Program.Model.ScalarField
     ( ScalarField(..)
     , ColorPalette (..)
     , makeColors
@@ -29,7 +28,7 @@ import Geometry.Space
 data ScalarField = ScalarField
     { cellSize  :: !GLfloat -- ^ desired size of computed cell
     , sfPoints  :: ![Vector3 GLfloat] -- ^ set of points to compute values on
-    , sfRange   :: !(Vector2 GLfloat) -- ^ min and max values of the field values
+    , sfRange   :: !(Vector2 GLfloat) -- ^ min and max of the field values
     , sfValues  :: ![GLfloat] -- ^ set of values
     }
 

@@ -1,25 +1,22 @@
 {-# LANGUAGE JavaScriptFFI #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 -----------------------------------------------------------------------------
---
--- Module      :  GUI.LuciClient
+-- |
+-- Module      :  Controllers.LuciClient
 -- Copyright   :  (c) Artem Chirkin
 -- License     :  BSD3
 --
 -- Maintainer  :  Artem Chirkin <chirkin@arch.ethz.ch>
 -- Stability   :  experimental
--- Portability :
 --
--- |
+--
 --
 -----------------------------------------------------------------------------
 
-module GUI.LuciClient
+module Controllers.LuciClient
     ( LuciClient (), hostOf, portOf, localPathOf, connectionString
     , connectToLuci
     , authenticate
-    , programInProgress
-    , programIdle
     , getServicesList
     , getServiceInfo
     ) where
@@ -29,7 +26,6 @@ import GHCJS.Marshal
 import GHCJS.Types
 
 import Control.Arrow (first)
-import Control.Concurrent (threadDelay)
 import Control.Monad (liftM)
 import System.IO.Unsafe (unsafePerformIO)
 import Data.Aeson (Value)
@@ -123,19 +119,6 @@ foreign import javascript interruptible "var req = {}; req['action'] = 'get_info
     getServiceInfo' :: LuciClient -> JSString -> IO (JSRef (Either String Value))
 
 
---- "WORK IN PROGRESS" splash
-
--- | Display loading splash
-programInProgress :: IO ()
-programInProgress = programInProgress' >> threadDelay 0
-
-foreign import javascript interruptible "document.getElementById('loadingSplash').style.display = 'block';$c();"
-    programInProgress' :: IO ()
-
--- | Hide loading splash
-foreign import javascript unsafe "document.getElementById('loadingSplash').style.display = 'none';"
-    programIdle :: IO ()
-
 
 
 --- EITHER instance
@@ -171,4 +154,3 @@ liftEitherRef ref = do
 eitherJustOrError :: Maybe (Either String a) -> Either String a
 eitherJustOrError Nothing = Left "Could not read javascript object."
 eitherJustOrError (Just x) = x
-
