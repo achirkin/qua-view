@@ -77,9 +77,7 @@ initShaders gl shtexts = do
     shaderAttribs <- liftM Map.fromList $ sequence . flip map [0..attrCount-1] $ \i -> do
         activeInfo <- getActiveAttrib gl shaderProgram i
         checkGLError gl $ "GetActiveAttrib gl for getting shader attrib" ++ show i
-        ainame <- aiName activeInfo
-        aisize <- aiSize activeInfo
-        aitype <- aiType activeInfo
+        (ainame,aisize,aitype) <- getAI activeInfo
         aPos <- getAttribLocation gl shaderProgram ainame
         return (fromJSString ainame, (fromIntegral aPos, aitype, aisize))
     -- load uniforms' information
@@ -89,9 +87,7 @@ initShaders gl shtexts = do
     shaderUniforms <- liftM Map.fromList $ sequence . flip map [0..uniCount-1] $ \i -> do
         activeInfo <- getActiveUniform gl shaderProgram i
         checkGLError gl $ "GetActiveUniform gl for getting shader uniform" ++ show i
-        ainame <- aiName activeInfo
-        aisize <- aiSize activeInfo
-        aitype <- aiType activeInfo
+        (ainame,aisize,aitype) <- getAI activeInfo
         uPos <- getUniformLocation gl shaderProgram ainame
         return (fromJSString ainame, (uPos, aitype, aisize))
 --    sequence_ . map (putStrLn . show) . Map.toList $ shaderAttribs
@@ -101,6 +97,11 @@ initShaders gl shtexts = do
             attributesOf = shaderAttribs,
             uniformsOf = shaderUniforms
         }
+        where getAI ai = do
+                ainame <- aiName ai
+                aisize <- aiSize ai
+                aitype <- aiType ai
+                return (ainame,aisize,aitype)
 
 -- | Helper function to load shader
 getShader :: Ctx -> ShaderType -> String-> IO Shader
