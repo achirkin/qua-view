@@ -14,6 +14,7 @@
 
 module Controllers.GeoJSONFileImport
     ( onGeoJSONFileImport
+    , loadGeoJSONFromLink
     ) where
 
 import qualified Data.Aeson as A
@@ -43,6 +44,16 @@ onGeoJSONFileImport importButton callback = elementOnChange importButton $ do
                 }
     programIdle
 
+loadGeoJSONFromLink :: String -> GeoJSONLoadCallBack -> IO ()
+loadGeoJSONFromLink url callback = do
+    c <- getUrlJSON url >>= fromJSRef_aeson
+    case c of
+        Nothing -> logText "Could not read geometry"
+        Just gfc -> do
+            callback GeoJSONLoaded
+                { isDynamic          = False
+                , featureCollection  = gfc
+                }
 
 
 foreign import javascript unsafe "$r = document.getElementById($1).checked;"
@@ -67,6 +78,24 @@ fromJSRef_aeson = liftM (>>= f . A.fromJSON) . fromJSRef . castRef
     where f (A.Error _) = Nothing
           f (A.Success x) = Just x
 
+getUrlJSON :: String -> IO (JSRef b)
+getUrlJSON = getUrlJSON' . toJSString
+
+foreign import javascript interruptible "var xmlHttp = new XMLHttpRequest(); \
+    \ var json = null; \
+    \ var i = 0;\
+    \ var loadjson = function() { \
+    \   try { \
+    \       json = JSON.parse(xmlHttp.responseText); \
+    \   } catch (err) { logText('Your browser does not like JSON file you have chosen: ' + err); } \
+    \   if(i == 0){i++;$c(json);} \
+    \ }; \
+    \ try { \
+    \     xmlHttp.onload = loadjson; \
+    \     xmlHttp.open( 'GET', $1, true ); \
+    \     xmlHttp.send( ); \
+    \ } catch (err) { logText(err); if(i == 0){i++;$c(null);}} "
+    getUrlJSON' :: JSString -> IO (JSRef b)
 
 
 -- | Simple event when JSElement is changed (e.g. one picked file in "file" button)
