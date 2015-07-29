@@ -28,9 +28,11 @@ import Geometry.Space.Transform
 import Program.Model.City
 import Program.Model.CityObject
 import Program.Model.CityGround
+import Program.Model.WiredGeometry
 import Program.View
 import Program.View.CityObjectView
 import Program.View.CityGroundView
+import Program.View.WiredGeometryView ()
 import Data.Bits (Bits(..))
 
 
@@ -39,6 +41,7 @@ data CityView = CityView
     , selectShader :: !ShaderProgram
     , viewsIn      :: !(IM.IntMap (View CityObject))
     , groundView   :: !(View CityGround)
+    , clutterView  :: !(View WiredGeometry)
     }
 
 
@@ -51,11 +54,13 @@ instance Drawable City where
                                     ,(gl_VERTEX_SHADER, vertSelector)]
         objs <- mapM (createView gl . unwrap) (objectsIn city)
         gr <- createView gl (ground city)
+        clview <- createView gl (clutter city)
         return CityView
             { viewShader   = buProgram
             , selectShader = seProgram
             , viewsIn      = objs
             , groundView   = gr
+            , clutterView  = clview
             }
     drawInCurrContext vc@ViewContext
         { glctx = gl
@@ -102,8 +107,10 @@ instance Drawable City where
     updateView gl city@City{objectsIn = objs} cv@CityView{ viewsIn = views } = do
         mviews' <- sequence $ IM.mergeWithKey updateFunc addFunc deleteFunc objs views
         gr <- updateView gl (ground city) (groundView cv)
+        cl <- updateView gl (clutter city) (clutterView cv)
         return cv
             { groundView = gr
+            , clutterView = cl
             , viewsIn = IM.mapMaybe id mviews'
             } where updateFunc _ o = Just . liftM Just . updateView gl o
                     addFunc = fmap (liftM Just . createView gl)
@@ -113,9 +120,13 @@ instance Drawable City where
     deleteView gl _ CityView
             { viewsIn      = views
             , groundView   = gr
+            , clutterView  = clutterv
             } = do -- TODO :: delete shaders
         mapM_ (deleteView gl (undefined :: LocatedCityObject)) views
         deleteView gl (undefined :: CityGround) gr
+        deleteView gl (undefined :: WiredGeometry) clutterv
+    draw vc city view = draw vc (clutter city) (clutterView view) >> drawInCurrContext vc' city view
+        where vc' = vc{ curState = updateDrawState city view $ curState vc}
 
 -- City selectable means one can select objects in a city
 instance Selectable City where

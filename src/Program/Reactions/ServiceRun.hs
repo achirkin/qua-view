@@ -17,6 +17,7 @@
 module Program.Reactions.ServiceRun where
 
 --import Control.Concurrent (forkIO)
+import Control.Monad (liftM)
 import Geometry.Space
 import Geometry.Structure
 
@@ -41,11 +42,19 @@ instance Reaction Program PView ServiceRunBegin "Run service" 1 where
     response _ _ Program
             { controls = Controls {activeService = ServiceBox service}
             , city = ci
-            } _ = do
+            } pview = if barea < 0.1
+                      then do
+        logText "No geometry to run a service."
+        getElementById "clearbutton" >>= elementParent >>= hideElement
+        return $ Left pview
+                      else do
         programInProgress
         logText ("Running service " ++ show service)
-        runService service sf >>= return . Right . EBox . ServiceRunFinish
+        liftM (Right . EBox . ServiceRunFinish) (runService service sf)
             where cs = 1
+                  barea = let Vector2 w h = (highBound . groundBox $ ground ci)
+                                         .- (lowBound . groundBox $ ground ci)
+                          in w*h
                   evalGrid = groundEvalGrid (ground ci) cs
                   sf = ScalarField
                     { cellSize  = cs

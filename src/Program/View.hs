@@ -79,11 +79,10 @@ class Drawable obj where
     drawInCurrContext :: ViewContext -> obj -> View obj -> IO ()
     -- | Set up necessary context (e.g. shader params)
     updateDrawState   :: obj -> View obj -> ViewState -> ViewState
-
-
-draw :: (Drawable obj) => ViewContext -> obj -> View obj -> IO ()
-draw vc obj view = drawInCurrContext vc' obj view
-    where vc' = vc{ curState = updateDrawState obj view $ curState vc}
+    -- | Update context and draw
+    draw :: ViewContext -> obj -> View obj -> IO ()
+    draw vc obj view = drawInCurrContext vc' obj view
+        where vc' = vc{ curState = updateDrawState obj view $ curState vc}
 
 class Drawable a => Selectable a where
     selectInCurrContext :: ViewContext -> a -> View a -> IO ()
