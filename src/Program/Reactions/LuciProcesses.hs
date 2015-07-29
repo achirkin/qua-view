@@ -17,7 +17,6 @@
 module Program.Reactions.LuciProcesses () where
 
 import Control.Monad (liftM)
-import Data.List (intercalate)
 
 import GHCJS.Useful
 
@@ -41,7 +40,7 @@ instance Reaction Program PView LuciConnect "Connecting to Luci" 1 where
                 getElementById "loginform" >>= hideElement
                 getElementById "logondiv" >>= showElement
                 logText "Getting list of services"
-                liftM (liftM $ intercalate " ") (getServicesList lc) >>= logText . show
+                liftM (liftM unwords) (getServicesList lc) >>= logText . show
                 logText "Getting info about service fibonacci"
                 getServiceInfo lc "fibonacci" >>= logText . show
                 return $ Just lc

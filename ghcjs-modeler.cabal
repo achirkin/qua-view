@@ -46,9 +46,9 @@ executable ghcjs-modeler
         Program.Model.City
         Program.Model.CityGround
         Program.Model.CityObject
-        Program.Model.DecorativeGrid
         Program.Model.GeoJSON
         Program.Model.ScalarField
+        Program.Model.WiredGeometry
         Program.Reactions
         Program.Reactions.CameraBehavior
         Program.Reactions.CitySelection
@@ -62,7 +62,7 @@ executable ghcjs-modeler
         Program.View.CityGroundView
         Program.View.CityObjectView
         Program.View.CityView
-        Program.View.DecorativeGridView
+        Program.View.WiredGeometryView
         Reactive
         Services
         Services.RadianceService
