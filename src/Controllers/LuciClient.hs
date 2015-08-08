@@ -19,6 +19,7 @@ module Controllers.LuciClient
     , authenticate
     , getServicesList
     , getServiceInfo
+    , Scenario (), createScenario
     ) where
 
 import GHCJS.Foreign
@@ -28,13 +29,16 @@ import GHCJS.Types
 import Control.Arrow (first)
 import Control.Monad (liftM)
 import System.IO.Unsafe (unsafePerformIO)
-import Data.Aeson (Value)
-
+import Data.Aeson (Value, ToJSON)
+import Data.Geospatial
 
 -- | Object for Luci connection
 type LuciClient = JSRef LuciClient_
 data LuciClient_
 
+-- | Scenario Object
+type Scenario = JSRef Scenario_
+data Scenario_
 
 -- | Full string passed into WebSocket constructor
 connectionString :: LuciClient -> String
@@ -118,6 +122,17 @@ foreign import javascript interruptible "var req = {}; req['action'] = 'get_info
     \ else {$c({left: \"Message contains neither service info nor an error. MSG: \" + JSON.stringify(m)});}}]);"
     getServiceInfo' :: LuciClient -> JSString -> IO (JSRef (Either String Value))
 
+
+createScenario :: ToJSON a => LuciClient -> String -> GeoFeatureCollection a -> IO (Either String Scenario)
+createScenario lc sname geom = do
+    geomref <- toJSRef_aeson geom
+    liftM eitherJustOrError $ createScenario' lc (toJSString sname) geomref >>= fromJSRef
+foreign import javascript interruptible "$1.createScenario($2,function(){ \
+    \ var m = $1.getMessage(); \
+    \ if(m['result']) {$c({right: m['result']});} \
+    \ else if(m['error']) {$c({left: 'Luci says: ' + m['error']});} \
+    \ else {$c({left: \"Message contains neither scenario nor an error. MSG: \" + JSON.stringify(m)});}}, {'ghcjs-modeler-scenario': {'format':'GeoJSON', 'geometry':$3}});"
+    createScenario' :: LuciClient -> JSString -> JSRef a -> IO (JSRef (Either String Scenario))
 
 
 

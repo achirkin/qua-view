@@ -28,8 +28,8 @@ newtype RadianceService = RadianceService (Vector3 GLfloat) deriving Show
 
 
 instance ComputingService RadianceService where
-    runService _ sf@ScalarField{ sfPoints = []} = return sf{sfRange = zeros, sfValues = []}
-    runService (RadianceService x) sf@ScalarField{ sfPoints = pnts} = return sf
+    runService _ _ sf@ScalarField{ sfPoints = []} = return $ Nothing
+    runService (RadianceService x) _ sf@ScalarField{ sfPoints = pnts} = return $ Just sf
         { sfRange = foldl' (\(Vector2 xmin xmax) t
             -> Vector2 (min xmin t) (max xmax t)) (pure $ head vals) vals
         , sfValues = vals

@@ -17,7 +17,7 @@
 module Program.Reactions.ServiceRun where
 
 --import Control.Concurrent (forkIO)
-import Control.Monad (liftM)
+--import Control.Monad (liftM)
 import Geometry.Space
 import Geometry.Structure
 
@@ -50,7 +50,9 @@ instance Reaction Program PView ServiceRunBegin "Run service" 1 where
                       else do
         programInProgress
         logText ("Running service " ++ show service)
-        liftM (Right . EBox . ServiceRunFinish) (runService service sf)
+        runService service (luciClient pview) sf >>= \r -> case r of
+            Nothing -> return $ Left pview
+            Just sfin -> return . Right . EBox $ ServiceRunFinish sfin
             where cs = 1
                   barea = let Vector2 w h = (highBound . groundBox $ ground ci)
                                          .- (lowBound . groundBox $ ground ci)

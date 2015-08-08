@@ -351,7 +351,7 @@ var LuciClient = (function(){
 	
 	LuciClient.prototype.createScenario = function(name, callback, geometry, projection){
 		var action = {"action":"create_scenario","name":name};
-		if (geometry !== undefined) action.geomtry = geomtry;
+		if (geometry !== undefined) action.geometry = geometry;
 		if (projection !== undefined) action.projection = projection;
 		if (callback !== undefined) this.sendAndReceive(action, [callback]);
 		else this.sendAndReceive(action);

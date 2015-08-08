@@ -99,6 +99,7 @@ rect.btn {
 
 #guipanel {
     position: fixed;
+    opacity: 0.95;
     top: 0;
     padding: 0;
     margin: 0;
