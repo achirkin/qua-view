@@ -44,14 +44,14 @@ onGeoJSONFileImport importButton callback = elementOnChange importButton $ do
                 }
     programIdle
 
-loadGeoJSONFromLink :: String -> GeoJSONLoadCallBack -> IO ()
-loadGeoJSONFromLink url callback = do
+loadGeoJSONFromLink :: String -> Bool -> GeoJSONLoadCallBack -> IO ()
+loadGeoJSONFromLink url isDyn callback = do
     c <- getUrlJSON url >>= fromJSRef_aeson
     case c of
         Nothing -> logText "Could not read geometry"
         Just gfc -> do
             callback GeoJSONLoaded
-                { isDynamic          = False
+                { isDynamic          = isDyn
                 , featureCollection  = gfc
                 }
 

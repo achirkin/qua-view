@@ -31,7 +31,7 @@ import Program.View
 
 import Services
 import Services.RadianceService
-
+import Services.Isovist
 
 -- | Data type representing the whole program state; pure functional
 data Program = Program
@@ -45,6 +45,7 @@ data Controls = Controls
     { selectedObject     :: !Int
     , activeService      :: !ServiceBox
     , availableServices  :: ![ServiceBox]
+    , placeTransform     :: !(Maybe (GLfloat, Vector2 GLfloat))
     }
 
 
@@ -55,54 +56,12 @@ initProgram :: GLfloat -- ^ width of the viewport
 initProgram vw vh cstate = Program
     { camera = initCamera vw vh cstate
     , decGrid = createDecorativeGrid 500 100 (Vector4 0.6 0.6 0.8 1)
-    , city = buildCity [ building Dynamic $ SimplePolygon
-                             [ Vector3 0 1 0
-                             , Vector3 1 1 0
-                             , Vector3 1 2 2
-                             , Vector3 0 1.5 1
-                             ]
-                       , building Static $ SimplePolygon
-                             [ Vector3 (-1) 2   (-1)
-                             , Vector3   1  1.5 (-1)
-                             , Vector3   1  2     1
-                             , Vector3 (-1) 1.5   1
-                             ]
-                       , building Static $ SimplePolygon
-                             [ Vector3 (-1) 1   (-1)
-                             , Vector3   1  1.5 (-1)
-                             , Vector3   1  1     1
-                             , Vector3 (-1) 1.5   1
-                             ]
-                       , building Dynamic $ SimplePolygon
-                             [ Vector3 (-1) 2   (-1)
-                             , Vector3   0  1.5   2
-                             , Vector3   1  2   (-1)
-                             ]
-                       , building Dynamic $ SimplePolygon
-                             [ Vector3 (-1) 1   (-1)
-                             , Vector3   1  1.5 (-1)
-                             , Vector3   1  1     1
-                             ]]
-                       [ Vector3 0 0 1
-                       , Vector3 10 0 0
-                       , Vector3 0 0 5
-                       , Vector3 0 0 (-5)
-                       , Vector3 0 0 (-8)]
-                       [ 0.4
-                       , pi/4
-                       , 0
-                       , pi - 0.00000001
-                       , pi/2]
-                       [ [ Vector3 (-4) 0.1 (-12), Vector3 (-4) 0.1 10
-                         , Vector3 5 0.1 11, Vector3 7 0.1 8
-                         , Vector3 7 0.1 (-12), Vector3 (-4) 0.1 (-12)]
-                       , [ Vector3 11 0.1 10, Vector3 15 0.1 10
-                         , Vector3 15 0.1 14, Vector3 11 0.1 13, Vector3 11 0.1 10]
-                       ]
+    , city = buildCity [] [] [] []
     , controls = Controls
         { selectedObject = 0
         , activeService = radService
         , availableServices = [radService]
+        , placeTransform = Nothing
         }
     } where radService = ServiceBox . RadianceService $ Vector3 0 3 5
 
@@ -138,3 +97,49 @@ initView prog@Program
         , cityView   = cview
         , luciClient = Nothing
         }
+
+
+--, city = buildCity [ building Dynamic $ SimplePolygon
+--                             [ Vector3 0 1 0
+--                             , Vector3 1 1 0
+--                             , Vector3 1 2 2
+--                             , Vector3 0 1.5 1
+--                             ]
+--                       , building Static $ SimplePolygon
+--                             [ Vector3 (-1) 2   (-1)
+--                             , Vector3   1  1.5 (-1)
+--                             , Vector3   1  2     1
+--                             , Vector3 (-1) 1.5   1
+--                             ]
+--                       , building Static $ SimplePolygon
+--                             [ Vector3 (-1) 1   (-1)
+--                             , Vector3   1  1.5 (-1)
+--                             , Vector3   1  1     1
+--                             , Vector3 (-1) 1.5   1
+--                             ]
+--                       , building Dynamic $ SimplePolygon
+--                             [ Vector3 (-1) 2   (-1)
+--                             , Vector3   0  1.5   2
+--                             , Vector3   1  2   (-1)
+--                             ]
+--                       , building Dynamic $ SimplePolygon
+--                             [ Vector3 (-1) 1   (-1)
+--                             , Vector3   1  1.5 (-1)
+--                             , Vector3   1  1     1
+--                             ]]
+--                       [ Vector3 0 0 1
+--                       , Vector3 10 0 0
+--                       , Vector3 0 0 5
+--                       , Vector3 0 0 (-5)
+--                       , Vector3 0 0 (-8)]
+--                       [ 0.4
+--                       , pi/4
+--                       , 0
+--                       , pi - 0.00000001
+--                       , pi/2]
+--                       [ [ Vector3 (-4) 0.1 (-12), Vector3 (-4) 0.1 10
+--                         , Vector3 5 0.1 11, Vector3 7 0.1 8
+--                         , Vector3 7 0.1 (-12), Vector3 (-4) 0.1 (-12)]
+--                       , [ Vector3 11 0.1 10, Vector3 15 0.1 10
+--                         , Vector3 15 0.1 14, Vector3 11 0.1 13, Vector3 11 0.1 10]
+--                       ]

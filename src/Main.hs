@@ -88,7 +88,9 @@ main = do
     -- experiments
     logText "Hello World!"
     logText "Printing to panel\nin two lines!\n(or event three)"
-    loadGeoJSONFromLink "lines.js" (reqEvent eventHole . EBox)
+    loadGeoJSONFromLink "lines.js" False (reqEvent eventHole . EBox)
+    loadGeoJSONFromLink "outsidePolys.js" False (reqEvent eventHole . EBox)
+    loadGeoJSONFromLink "insidePolys.js" True  (reqEvent eventHole . EBox)
 
     -- done!
     -- simulate an event to force render picture

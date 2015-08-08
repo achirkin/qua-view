@@ -14,8 +14,10 @@
 
 module Services where
 
+import Controllers.LuciClient
 import Program.Model.ScalarField
---
+
+
 --data ServiceInput = GridInput ScalarField
 --
 --data ServiceOuput = GridOutput
@@ -24,4 +26,4 @@ data ServiceBox = forall s . ComputingService s => ServiceBox s
 
 
 class (Show s) => ComputingService s where
-    runService :: s -> ScalarField -> IO ScalarField
+    runService :: s -> Maybe LuciClient -> ScalarField -> IO (Maybe ScalarField)

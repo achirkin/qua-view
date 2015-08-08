@@ -65,6 +65,7 @@ executable ghcjs-modeler
         Program.View.WiredGeometryView
         Reactive
         Services
+        Services.Isovist
         Services.RadianceService
         SmallGL.Helpers
         SmallGL.Shader
