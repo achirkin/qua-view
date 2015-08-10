@@ -59,21 +59,23 @@ initProgram vw vh cstate = Program
     , city = buildCity [] [] [] []
     , controls = Controls
         { selectedObject = 0
-        , activeService = radService
-        , availableServices = [radService]
+        , activeService = isovistService
+        , availableServices = [radService, isovistService]
         , placeTransform = Nothing
         }
     } where radService = ServiceBox . RadianceService $ Vector3 0 3 5
+            isovistService = ServiceBox Isovist
 
 
 
 
 -- | Statefull view of the program; used in IO actions for displaying and interaction
 data PView = PView
-    { context    :: !ViewContext
-    , dgView     :: !(View WiredGeometry)
-    , cityView   :: !(View City)
-    , luciClient :: !(Maybe LuciClient)
+    { context      :: !ViewContext
+    , dgView       :: !(View WiredGeometry)
+    , cityView     :: !(View City)
+    , luciClient   :: !(Maybe LuciClient)
+    , luciScenario :: !(Maybe Scenario)
     }
 
 
@@ -92,10 +94,11 @@ initView prog@Program
     cview <- createView gl (city prog)
     -- done!
     return PView
-        { context    = ctx
-        , dgView     = dgview
-        , cityView   = cview
-        , luciClient = Nothing
+        { context      = ctx
+        , dgView       = dgview
+        , cityView     = cview
+        , luciClient   = Nothing
+        , luciScenario = Nothing
         }
 
 

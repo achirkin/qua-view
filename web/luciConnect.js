@@ -484,125 +484,125 @@ var LuciClient = (function(){
 
 
 
-var LuciRemoteService = (function(){
-	var inputIndex = {};
-	var outputIndex = {};
-	var servicename;
-	var machinename;
-	var description;
-	var version;
-	var inputs;
-	var outputs;
-	var hashcode;
-	var sobjid;
-	var scid;
-	var scenario_timestamp;
-	var outputStreams;
-	var registered;
-	var task;
-	var _this;
+//var LuciRemoteService = (function(){
+//	var inputIndex = {};
+//	var outputIndex = {};
+//	var servicename;
+//	var machinename;
+//	var description;
+//	var version;
+//	var inputs;
+//	var outputs;
+//	var hashcode;
+//	var sobjid;
+//	var scid;
+//	var scenario_timestamp;
+//	var outputStreams;
+//	var registered;
+//	var task;
+//	var _this;
 
-	LuciRemoteService = function(
-			s, // servicename
-			i, // inputIndex / input description (javascript object following the Luci Meta JSON Spec)
-			o, // outputIndex / output desciption (javascript object following the Luci Meta JSON Spec)
-			m, // machinename
-			d, // description (what the service is doing)
-			v, // version
-			t  // task / callback
-		){
-		if (typeof_o(i) != "Object") throw new Error("inputIndex must be of type 'object' {}");
-		if (typeof_o(o) != "Object") throw new Error("outputIndex must be of type 'object' {}");
-		inputIndex = i;
-		outputIndex = o;
-		servicename = s;
-		machinename = m;
-		description = d;
-		version = v;
-		task = t;
-		_this = this;
-	}
+//	LuciRemoteService = function(
+//			s, // servicename
+//			i, // inputIndex / input description (javascript object following the Luci Meta JSON Spec)
+//			o, // outputIndex / output desciption (javascript object following the Luci Meta JSON Spec)
+//			m, // machinename
+//			d, // description (what the service is doing)
+//			v, // version
+//			t  // task / callback
+//		){
+//		if (typeof_o(i) != "Object") throw new Error("inputIndex must be of type 'object' {}");
+//		if (typeof_o(o) != "Object") throw new Error("outputIndex must be of type 'object' {}");
+//		inputIndex = i;
+//		outputIndex = o;
+//		servicename = s;
+//		machinename = m;
+//		description = d;
+//		version = v;
+//		task = t;
+//		_this = this;
+//	}
 
-	LuciRemoteService.prototype = LuciClient; // inheritance
+//	LuciRemoteService.prototype = LuciClient; // inheritance
 
-	LuciRemoteService.prototype.getTask = function(){
-		return task;
-	}
+//	LuciRemoteService.prototype.getTask = function(){
+//		return task;
+//	}
 
-	LuciRemoteService.prototype.register = function(onsuccess, onfailure){
-		var r = {"action":"remote_register", "machinename":this.machinename, "service":{
-			"classname":this.servicename, "version":this.version, "description":this.description,
-			"inputs":this.inputIndex, "outputs":this.outputIndex
-		}
-		}
-		_this.one("onregister_success", onsuccess);
-		_this.one("onregister_failure", onfailure);
-		_this.on("onmessage", function(e){
-			e.stopPropagation();
-			var run = e.target.message;
-			if ("action" in run ){
-				var action = run["action"];
-				if(action == "run"){
-					if ("SObjID" in run){
-						if ("input_hashcode" in run){
-							var result = {"result":"any","input_hashcode":run["input_hashcode"],"SObjID":run["SObjID"]}
-							var o = this.task(run.inputs);
-							if (typeof_o(o) != "Object") {
-								result["outputs"] = o;
-								this.send(result);
-							} else this.send({"error":"LuciRemoteService: invalid task return type!"});
-						} else {
-							this.send({"error":"remote service '"+this.servicename+"' is missing the input_hashcode"});
-						}
-					} else {
-						this.send({"error":"remote service '"+this.servicename+"' is missing the SObjID"});
-					}
-				} else if (action == "cancel") {
-					this.send({"error":"LuciConnect.js is being developed under the assumption of a " +
-						"single threaded event queue environment as it is typical for browsers " +
-						"and most situations in node.js. Adapt it to your needs if you wish to " +
-						"use javascript in a multi-threaded environment. You may want to consider " +
-					"also this post: http://stackoverflow.com/a/8845948"});
-				} else {
-					this.send({"error":"remote service '"+this.servicename+"': invalid action '"+action+"'."});
-				}
-			} else if ("result" in run){
+//	LuciRemoteService.prototype.register = function(onsuccess, onfailure){
+//		var r = {"action":"remote_register", "machinename":this.machinename, "service":{
+//			"classname":this.servicename, "version":this.version, "description":this.description,
+//			"inputs":this.inputIndex, "outputs":this.outputIndex
+//		}
+//		}
+//		_this.one("onregister_success", onsuccess);
+//		_this.one("onregister_failure", onfailure);
+//		_this.on("onmessage", function(e){
+//			e.stopPropagation();
+//			var run = e.target.message;
+//			if ("action" in run ){
+//				var action = run["action"];
+//				if(action == "run"){
+//					if ("SObjID" in run){
+//						if ("input_hashcode" in run){
+//							var result = {"result":"any","input_hashcode":run["input_hashcode"],"SObjID":run["SObjID"]}
+//							var o = this.task(run.inputs);
+//							if (typeof_o(o) != "Object") {
+//								result["outputs"] = o;
+//								this.send(result);
+//							} else this.send({"error":"LuciRemoteService: invalid task return type!"});
+//						} else {
+//							this.send({"error":"remote service '"+this.servicename+"' is missing the input_hashcode"});
+//						}
+//					} else {
+//						this.send({"error":"remote service '"+this.servicename+"' is missing the SObjID"});
+//					}
+//				} else if (action == "cancel") {
+//					this.send({"error":"LuciConnect.js is being developed under the assumption of a " +
+//						"single threaded event queue environment as it is typical for browsers " +
+//						"and most situations in node.js. Adapt it to your needs if you wish to " +
+//						"use javascript in a multi-threaded environment. You may want to consider " +
+//					"also this post: http://stackoverflow.com/a/8845948"});
+//				} else {
+//					this.send({"error":"remote service '"+this.servicename+"': invalid action '"+action+"'."});
+//				}
+//			} else if ("result" in run){
 
-			} else if ("error" in run){
+//			} else if ("error" in run){
 
-			} else {
-				this.send({"error":"json sent to '"+this.servicename+"' is missing an action"});
-			}
-		});
-		this.sendAndReceive(r, [function(lc){
-			var answer = lc.getMessage();
-			if ("result" in answer){
-				this.registered = true;
-				this.trigger("onregister_success");
-			} else {
-				this.trigger("onregister_failure");
-			}
-		}]);
-	}
+//			} else {
+//				this.send({"error":"json sent to '"+this.servicename+"' is missing an action"});
+//			}
+//		});
+//		this.sendAndReceive(r, [function(lc){
+//			var answer = lc.getMessage();
+//			if ("result" in answer){
+//				this.registered = true;
+//				this.trigger("onregister_success");
+//			} else {
+//				this.trigger("onregister_failure");
+//			}
+//		}]);
+//	}
 
-	LuciRemoteService.prototype.unregister = function(onsuccess, onfailure){
-		var u = {"action":"remote_unregister"};
-		this.one("onunregister_success", onsuccess);
-		this.one("onunregister_failure", onfailure);
-		if (this.registered){
-			this.sendAndReceive(u, [function(lc){
-				var answer = lc.getMessage();
-				if ("result" in answer){
-					this.trigger("onunregister_success");
-					this.registered = false;
-				} else {
-					this.trigger("onunregister_failure");
-				}
-			}]);
-		} else {
-			this.trigger("onunregister_failure");
-		}
-	}
+//	LuciRemoteService.prototype.unregister = function(onsuccess, onfailure){
+//		var u = {"action":"remote_unregister"};
+//		this.one("onunregister_success", onsuccess);
+//		this.one("onunregister_failure", onfailure);
+//		if (this.registered){
+//			this.sendAndReceive(u, [function(lc){
+//				var answer = lc.getMessage();
+//				if ("result" in answer){
+//					this.trigger("onunregister_success");
+//					this.registered = false;
+//				} else {
+//					this.trigger("onunregister_failure");
+//				}
+//			}]);
+//		} else {
+//			this.trigger("onunregister_failure");
+//		}
+//	}
 
-	return LuciRemoteService;
-})();
+//	return LuciRemoteService;
+//})();
