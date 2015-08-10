@@ -41,15 +41,18 @@ updateProgramView msg program pview = do
         cityView' <- updateView (glctx $ context pview) (city program) (cityView pview)
         logText msg
 --        (toJSRef_aeson . geometries2features . cityGeometryFull3D $ city program) >>= printRef
-        case luciClient pview of
-            Nothing -> logText $ "I would send new geometry to Luci, but we are not connected :("
+        programInProgress
+        mscenario <- case luciClient pview of
+            Nothing -> logText ("I would send new geometry to Luci, but we are not connected :(")
+                        >> return Nothing
             Just lc -> do
-                tryscenario <- createScenario lc "Visualizer scenario" . geometries2features . cityGeometryFull3D $ city program
+                tryscenario <- createScenario lc "Visualizer scenario" . geometries2features . cityGeometryRoofs $ city program
                 case tryscenario of
-                    Left err ->  toJSRef err >>= printRef
-                    Right scenario -> printRef scenario
+                    Left err ->  toJSRef err >>= printRef >> return Nothing
+                    Right scenario -> return (Just scenario)
 --        (toJSRef_aeson . cityGeometryFull3D $ city program) >>= printRef
-        return $ Left pview{cityView = cityView'}
+        programIdle
+        return $ Left pview{cityView = cityView', luciScenario = mscenario}
 
 instance Reaction Program PView ClearingGeometry "Clearing City Geometry" 0 where
     react _ ClearingGeometry program = program

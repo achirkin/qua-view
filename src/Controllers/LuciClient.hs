@@ -20,7 +20,11 @@ module Controllers.LuciClient
     , getServicesList
     , getServiceInfo
     , Scenario (), createScenario
+    , scenarioId, scenarioName, scenarioMqttTopic, scenarioTimestamp
+    , runLuciService
     ) where
+
+import Data.Int
 
 import GHCJS.Foreign
 import GHCJS.Marshal
@@ -69,6 +73,36 @@ foreign import javascript unsafe "$r = $1.host;"
     hostOf' :: LuciClient -> IO JSString
 
 
+-- | ScID
+scenarioId :: Scenario -> Int
+{-# NOINLINE scenarioId #-}
+scenarioId sc = unsafePerformIO (scenarioId' sc)
+foreign import javascript unsafe "$r = $1['ScID'];"
+    scenarioId' :: Scenario -> IO Int
+
+
+-- | Name of the scenario
+scenarioName :: Scenario -> String
+{-# NOINLINE scenarioName #-}
+scenarioName sc = fromJSString $ unsafePerformIO (scenarioName' sc)
+foreign import javascript unsafe "$r = $1['name'];"
+    scenarioName' :: Scenario -> IO JSString
+
+-- | Name of the scenario
+scenarioMqttTopic :: Scenario -> String
+{-# NOINLINE scenarioMqttTopic #-}
+scenarioMqttTopic sc = fromJSString $ unsafePerformIO (scenarioMqttTopic' sc)
+foreign import javascript unsafe "$r = $1['mqtt_topic'];"
+    scenarioMqttTopic' :: Scenario -> IO JSString
+
+-- | Timestamp of the scenario
+scenarioTimestamp:: Scenario -> Int64
+{-# NOINLINE scenarioTimestamp #-}
+scenarioTimestamp sc = unsafePerformIO (scenarioTimestamp' sc)
+foreign import javascript unsafe "$r = $1['timestamp'];"
+    scenarioTimestamp' :: Scenario -> IO Int64
+
+
 -- | Open WebSocket and connect to Luci
 connectToLuci :: String -> IO (Either String LuciClient)
 connectToLuci address = connectToLuci' (toJSString host) port (toJSString path) >>= liftEitherRef
@@ -87,6 +121,20 @@ foreign import javascript interruptible "try{var lc = new LuciClient($1, $2, $3,
     \ lc.host = $1;lc.port = $2;lc.localpath = $3;}catch(err){$c({left: 'Error occured while trying to create Luci client: ' + JSON.stringify(err)});}"
     connectToLuci' :: JSString -> Int -> JSString -> IO (JSRef (Either String LuciClient_))
 
+
+runLuciService :: LuciClient -> String -> Value -> Scenario -> IO (Either String Value)
+runLuciService lc service inputs scenario = liftM eitherJustOrError
+    $ toJSRef_aeson inputs >>= runService' lc
+                  (toJSString service)
+                  (scenarioId scenario) >>= fromJSRef
+foreign import javascript interruptible  "var req = \
+    \ {'action': 'run', 'service': {'classname': $2, 'ScID': $3, 'inputs': $4}}; \
+    \ $1.sendAndReceive(req,[function(){ \
+    \ var m = $1.getMessage(); \
+    \ if(m['result']) {$c({right: m['result']});} \
+    \ else if(m['error']) {$c({left: 'Luci says: ' + m['error']});} \
+    \ else {$c({left: \"Message contains neither a result nor an error. MSG: \" + JSON.stringify(m)});}}]);"
+    runService' :: LuciClient -> JSString -> Int -> JSRef Value -> IO (JSRef (Either String Value))
 
 -- | Authenticate in Luci
 authenticate :: LuciClient
