@@ -64,7 +64,7 @@ initProgram vw vh cstate = Program
         , placeTransform = Nothing
         }
     } where radService = ServiceBox . RadianceService $ Vector3 0 3 5
-            isovistService = ServiceBox Isovist
+            isovistService = ServiceBox (Isovist IMArea)
 
 
 
@@ -76,6 +76,7 @@ data PView = PView
     , cityView     :: !(View City)
     , luciClient   :: !(Maybe LuciClient)
     , luciScenario :: !(Maybe Scenario)
+    , scUpToDate   :: !Bool
     }
 
 
@@ -99,6 +100,7 @@ initView prog@Program
         , cityView     = cview
         , luciClient   = Nothing
         , luciScenario = Nothing
+        , scUpToDate   = False
         }
 
 
