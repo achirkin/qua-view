@@ -89,7 +89,7 @@ main = do
     logText "Hello World!"
     logText "Printing to panel\nin two lines!\n(or event three)"
     loadGeoJSONFromLink "lines.js" False (reqEvent eventHole . EBox)
-    loadGeoJSONFromLink "outsidePolys.js" False (reqEvent eventHole . EBox)
+--    loadGeoJSONFromLink "outsidePolys.js" False (reqEvent eventHole . EBox)
     loadGeoJSONFromLink "insidePolys.js" True  (reqEvent eventHole . EBox)
 
     -- done!

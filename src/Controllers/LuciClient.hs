@@ -53,7 +53,7 @@ connectionString lc = "ws://" ++ hostOf lc ++ ":" ++ show (portOf lc) ++ "/" ++ 
 localPathOf :: LuciClient -> String
 {-# NOINLINE localPathOf #-}
 localPathOf lc = unsafePerformIO (liftM fromJSString $ localPathOf' lc)
-foreign import javascript unsafe "$r = $1.localpath;"
+foreign import javascript unsafe "$r = $1['localpath'];"
     localPathOf' :: LuciClient -> IO JSString
 
 
@@ -61,7 +61,7 @@ foreign import javascript unsafe "$r = $1.localpath;"
 portOf :: LuciClient -> Int
 {-# NOINLINE portOf #-}
 portOf lc = unsafePerformIO (portOf' lc)
-foreign import javascript unsafe "$r = $1.port;"
+foreign import javascript unsafe "$r = $1['port'];"
     portOf' :: LuciClient -> IO Int
 
 
@@ -69,7 +69,7 @@ foreign import javascript unsafe "$r = $1.port;"
 hostOf :: LuciClient -> String
 {-# NOINLINE hostOf #-}
 hostOf lc = unsafePerformIO (liftM fromJSString $ hostOf' lc)
-foreign import javascript unsafe "$r = $1.host;"
+foreign import javascript unsafe "$r = $1['host'];"
     hostOf' :: LuciClient -> IO JSString
 
 
@@ -127,8 +127,11 @@ runLuciService lc service inputs scenario = liftM eitherJustOrError
     $ toJSRef_aeson inputs >>= runService' lc
                   (toJSString service)
                   (scenarioId scenario) >>= fromJSRef
-foreign import javascript interruptible  "var req = \
-    \ {'action': 'run', 'service': {'classname': $2, 'ScID': $3, 'inputs': $4}}; \
+foreign import javascript interruptible  "var req = {}; \
+    \ req['action'] = 'run'; req['service'] = {}; \
+    \ req['service']['classname'] = $2; \
+    \ req['service']['ScID'] = $3; \
+    \ req['service']['inputs'] = $4; \
     \ $1.sendAndReceive(req,[function(){ \
     \ var m = $1.getMessage(); \
     \ if(m['result']) {$c({right: m['result']});} \
@@ -175,11 +178,17 @@ createScenario :: ToJSON a => LuciClient -> String -> GeoFeatureCollection a -> 
 createScenario lc sname geom = do
     geomref <- toJSRef_aeson geom
     liftM eitherJustOrError $ createScenario' lc (toJSString sname) geomref >>= fromJSRef
-foreign import javascript interruptible "$1.createScenario($2,function(){ \
+foreign import javascript interruptible "var req = {}; \
+    \ req['action'] = 'create_scenario'; req['name'] = $2; \
+    \ req['geometry']= {}; \
+    \ req['geometry']['ghcjs-modeler-scenario'] = {}; \
+    \ req['geometry']['ghcjs-modeler-scenario']['format'] = 'GeoJSON'; \
+    \ req['geometry']['ghcjs-modeler-scenario']['geometry'] = $3; \
+    \ $1.sendAndReceive(req,[function(){ \
     \ var m = $1.getMessage(); \
     \ if(m['result']) {$c({right: m['result']});} \
     \ else if(m['error']) {$c({left: 'Luci says: ' + m['error']});} \
-    \ else {$c({left: \"Message contains neither scenario nor an error. MSG: \" + JSON.stringify(m)});}}, {'ghcjs-modeler-scenario': {'format':'GeoJSON', 'geometry':$3}});"
+    \ else {$c({left: \"Message contains neither a result nor an error. MSG: \" + JSON.stringify(m)});}}]);"
     createScenario' :: LuciClient -> JSString -> JSRef a -> IO (JSRef (Either String Scenario))
 
 

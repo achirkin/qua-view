@@ -200,10 +200,10 @@ var LuciClient = (function(){
 	var receive_progress = 0;
 
 	LuciClient = function(host, port, path, do_onopen, do_onclose, do_onerror){
-		this.path = path || "";
-		this.port = port || 80;
-		this.host = host;
-		socket = new WebSocket("ws://"+this.host+":"+this.port+"/"+path);
+		this['path'] = path || "";
+		this['port'] = port || 80;
+		this['host'] = host;
+		socket = new WebSocket("ws://"+this['host']+":"+this['port']+"/"+this['path']);
 		socket.binaryType = "arraybuffer";
 		if (do_onopen !== undefined) socket.onopen = do_onopen;
 		if (do_onclose !== undefined) {
@@ -323,7 +323,10 @@ var LuciClient = (function(){
 
 	LuciClient.prototype.authenticate = function(user, pwd, cllbk){
 		if (!isAuth){
-			var auth = {"action": "authenticate", "username": user, "userpasswd": pwd};
+			var auth = {};
+            auth["action"] = "authenticate";
+            auth["username"] = user;
+            auth["userpasswd"] = pwd;
 			var cllbks = [function(lc){
 //				console.log(lc.getMessage());
 				isAuth = true;
@@ -337,7 +340,8 @@ var LuciClient = (function(){
 
 	LuciClient.prototype.logout = function(cllbk){
 		if (isAuth){
-			var lout = {"action": "logout"};
+			var lout = {};
+            lout["action"] = "logout";
 			var cllbks = [function(lc){
 				console.log(lc.getMessage());
 				isAuth = false;
@@ -350,18 +354,22 @@ var LuciClient = (function(){
 	}
 	
 	LuciClient.prototype.createScenario = function(name, callback, geometry, projection){
-		var action = {"action":"create_scenario","name":name};
-		if (geometry !== undefined) action.geometry = geometry;
-		if (projection !== undefined) action.projection = projection;
+		var action = {};
+        action["action"] = "create_scenario";
+        action["name"] = name;
+		if (geometry !== undefined) action["geometry"] = geometry;
+		if (projection !== undefined) action["projection"] = projection;
 		if (callback !== undefined) this.sendAndReceive(action, [callback]);
 		else this.sendAndReceive(action);
 	}
 	
 	LuciClient.prototype.updateScenario = function(ScID, callback, name, geometry, bbox){
-		var action = {"action":"update_scenario","ScID":ScID};
-		if (geometry !== undefined && geometry != null) action.geometry = geometry;
-		if (name !== undefined && name != null) action.name = name;
-		if (bbox !== undefined && bbox != null) action.bbox = bbox;
+        var action = {};
+        action["action"] = "update_scenario";
+        action["ScID"] = ScID;
+		if (geometry !== undefined && geometry != null) action["geometry"] = geometry;
+		if (name !== undefined && name != null) action["name"] = name;
+		if (bbox !== undefined && bbox != null) action["bbox"] = bbox;
 		if (callback !== undefined && callback != null) this.sendAndReceive(action, [callback]);
 		else this.sendAndReceive(action);
 	}

@@ -16,6 +16,7 @@
 
 module Program.Reactions.ServiceRun where
 
+import Data.Maybe (isJust)
 --import Control.Concurrent (forkIO)
 --import Control.Monad (liftM)
 import Geometry.Space
@@ -27,8 +28,13 @@ import Program
 import Program.Model.City
 import Program.Model.CityGround
 import Program.Model.ScalarField
+import Program.Model.GeoJSON
 
 import Controllers.GUIEvents
+import Controllers.LuciClient
+
+
+
 import Services
 
 
@@ -39,7 +45,7 @@ $(createEventSense ''ServiceRunFinish)
 instance Reaction Program PView ServiceRunBegin "Run service" 1 where
     react _ _ program@Program{city = ci}
         = program{city = ci{ground = rebuildGround (minBBox ci) (ground ci)}}
-    response _ _ Program
+    response _ _ program@Program
             { controls = Controls {activeService = ServiceBox service}
             , city = ci
             } pview = if barea < 0.1
@@ -64,3 +70,19 @@ instance Reaction Program PView ServiceRunBegin "Run service" 1 where
                     , sfRange   = zeros
                     , sfValues  = []
                     }
+
+instance Reaction Program PView ServiceRunBegin "Update Scenario" 0 where
+    response _ _ _ pview@PView{luciClient = Nothing} = return $ Left pview
+    response _ _ _ pview@PView{scUpToDate = True, luciScenario = Just _} = return $ Left pview
+    response _ _ program pview@PView{scUpToDate = False, luciClient = Just lc} = do
+        programInProgress
+        mscenario <- case luciScenario pview of
+            _ -> do
+              logText "Updating scenario on Luci..."
+              tryscenario <- createScenario lc "Visualizer scenario" . geometries2features . cityGeometryRoofs $ city program
+              case tryscenario of
+                Left err ->  logText err >> return Nothing
+                Right scenario -> return (Just scenario)
+        logText "Scenario updated."
+        programIdle
+        return (Left pview{luciScenario = mscenario, scUpToDate = isJust mscenario})

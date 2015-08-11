@@ -18,6 +18,7 @@ module Program.Reactions.ServiceFinish where
 import GHCJS.WebGL hiding (Program)
 import Geometry.Space
 
+import GHCJS.Marshal
 import GHCJS.Useful
 
 import Reactive
@@ -39,17 +40,24 @@ instance Reaction Program PView ServiceRunFinish "Finish service" 0 where
     response _ (ServiceRunFinish sf) Program
             { city = City {ground = gr}
             } view@PView{cityView = cv} = do
-        texarr <- typedArrayViewS texbuf
-        ngr <- updateGroundView (glctx $ context view) gr (Just (Right (texarr, texsize))) (groundView cv)
-        getElementById "clearbutton" >>= elementParent >>= showElement
+        ngr <- case groundGridToTexArray gr 1 colors of
+            (_, Nothing) -> do
+                getElementById "clearbutton" >>= elementParent >>= hideElement
+                updateGroundView (glctx $ context view) gr Nothing (groundView cv)
+            (_, Just (texbuf, texsize)) -> do
+                getElementById "clearbutton" >>= elementParent >>= showElement
+                texarr <- typedArrayViewS texbuf
+                updateGroundView (glctx $ context view)
+                                 gr
+                                 (Just (Right (texarr, texsize)))
+                                 (groundView cv)
         programIdle
         return (Left view{cityView = cv{groundView = ngr}})
         where colors = makeColors palette sf
-              palette = Bezier3Palette (Vector4 255 0 0 255)
-                                       (Vector4 100 255 0 255)
+              palette = Bezier3Palette (Vector4 0 0 255 255)
                                        (Vector4 0 255 100 255)
-                                       (Vector4 0 0 255 255)
-              (_, Just (texbuf, texsize)) = groundGridToTexArray gr 1 colors
+                                       (Vector4 100 255 0 255)
+                                       (Vector4 255 0 0 255)
 
 instance Reaction Program PView ClearServiceResults "Clear service results" 0 where
     response _ _ program pview = do
