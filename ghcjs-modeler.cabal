@@ -59,6 +59,7 @@ executable ghcjs-modeler
         Program.Reactions.ServiceFinish
         Program.Reactions.ServiceRun
         Program.Reactions.ViewRendering
+        Program.Reactions.ViewSubmitPopup
         Program.View
         Program.View.CityGroundView
         Program.View.CityObjectView

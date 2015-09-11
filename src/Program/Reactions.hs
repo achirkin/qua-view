@@ -30,6 +30,7 @@ import Program.Reactions.ServiceRun ()
 import Program.Reactions.ServiceFinish ()
 import Program.Reactions.GeometryChanges ()
 import Program.Reactions.LuciProcesses ()
+import Program.Reactions.ViewSubmitPopup ()
 
 -- this TH function generates instances of EventSense for all reactions available from this module
 $(createAllEventSenses)

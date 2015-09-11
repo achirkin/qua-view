@@ -18,7 +18,7 @@ module Program.Reactions.ServiceFinish where
 import GHCJS.WebGL hiding (Program)
 import Geometry.Space
 
-import GHCJS.Marshal
+--import GHCJS.Marshal
 import GHCJS.Useful
 
 import Reactive

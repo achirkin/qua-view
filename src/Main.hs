@@ -34,13 +34,23 @@ main = do
     -- drawing area
     canvas <- getElementById "glcanvas"
 
-    -- run main reactive programming cycle and get event submission functions (in EventHole)
+    -- get request processing
+    userProfile <- getHtmlArg "role" >>= \mrole -> return $ case mrole of
+        Nothing -> Full
+        Just "edit" -> ExternalEditor
+        Just "view" -> ExternalViewer
+        Just _      -> Full
+    customGreetings userProfile
+    -- create program and view
     let program = initProgram viewWidth viewHeight
             CState { viewPoint  = Vector3 (-3) 0 2,
                      viewAngles = Vector2 (-pi/5) (pi/12),
                      viewDist   = 40 }
+            userProfile
     view <- initView program canvas
+    -- run main reactive programming cycle and get event submission functions (in EventHole)
     eventHole <- reactiveCycle program view
+    print $ userRole program
 
     -- mouse/touch events
     addEventlisteners canvas (reqEvent eventHole . EBox)
@@ -64,6 +74,10 @@ main = do
     elementOnClick evaluateButton . const $ reqEvent eventHole $ EBox ServiceRunBegin
     clearServiceButton <- getElementById "clearbutton"
     elementOnClick clearServiceButton . const $ reqEvent eventHole $ EBox ClearServiceResults
+
+    -- "submit geometry" button opens popup to save the geometry on server
+    submitButton <- getElementById "submitbutton"
+    elementOnClick submitButton . const $ reqEvent eventHole $ EBox SubmitScenario
 
     -- "import geometry" button converts GeoJSON into internal representation
     importButton <- getElementById "jsonfileinput"
@@ -97,3 +111,26 @@ main = do
     canvasResize $ ResizeEvent viewWidth viewHeight
     -- remove loading splash
     programIdle
+
+
+customGreetingHTML :: Profile -> String
+customGreetingHTML profile = wrapf $ case profile of
+    Full ->
+        " You are in a standard Luci-enabled mode. Use control panel on the right hand-side to \
+        \ work with scenarios, available Luci computing services, and GeoJSON geometry."
+    ExternalEditor ->
+        " You are in the editor mode. \
+        \ Edit the geometry according to a given task, and then \
+        \ save it on our server."
+    ExternalViewer ->
+        " You are in the viewer mode. \
+        \ You can browse and change geometry locally, but no changes would be saved on our server."
+    where thead = "<hr><div style=\"font-size: 125%; text-align: justify;\">"
+          ttail = "</div>"
+          wrapf t = thead ++ t ++ ttail
+
+customGreetings :: Profile -> IO ()
+customGreetings profile = getElementById "greetings"
+    >>= flip insertAfterHTML (customGreetingHTML profile)
+
+

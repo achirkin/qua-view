@@ -72,3 +72,8 @@ instance Reaction Program PView GeoJSONLoaded "Render" 9 where
 
 instance Reaction Program PView ClearServiceResults "Render" 9 where
     response _ _ = renderScene
+
+-- In order to show a preview of the scenario as an image,
+-- we need to render staff in a buffer (not to get empty image)
+instance Reaction Program PView SubmitScenario "Render" 0 where
+    response _ _ = renderScene
