@@ -18,12 +18,12 @@ module Program.Reactions.GeometryChanges () where
 --import Geometry.Space
 --import Geometry.Space.Transform
 --import Geometry.Math
-import GHCJS.Marshal
+--import GHCJS.Marshal
 import GHCJS.Useful
 
 import Reactive
 import Controllers.GUIEvents
-import Controllers.LuciClient
+--import Controllers.LuciClient
 
 import Program
 import Program.Model.City

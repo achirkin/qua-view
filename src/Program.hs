@@ -17,13 +17,13 @@ module Program where
 import GHCJS.WebGL hiding (Program)
 import GHCJS.Useful
 import Geometry.Space
-import Geometry.Structure (Polygon(..))
+--import Geometry.Structure (Polygon(..))
 
 import Controllers.LuciClient
 
 import Program.Model.Camera
 import Program.Model.City
-import Program.Model.CityObject
+--import Program.Model.CityObject
 import Program.Model.WiredGeometry
 import Program.View.CityView ()
 import Program.View.WiredGeometryView ()
@@ -33,12 +33,15 @@ import Services
 import Services.RadianceService
 import Services.Isovist
 
+data Profile = Full | ExternalEditor | ExternalViewer deriving Show
+
 -- | Data type representing the whole program state; pure functional
 data Program = Program
     { camera   :: !Camera
     , decGrid  :: !WiredGeometry
     , city     :: !City
     , controls :: !Controls
+    , userRole :: !Profile
     }
 
 data Controls = Controls
@@ -52,8 +55,9 @@ data Controls = Controls
 initProgram :: GLfloat -- ^ width of the viewport
             -> GLfloat -- ^ height of the viewport
             -> CState -- ^ initial camera state
+            -> Profile -- ^ determine the functionality of the program
             -> Program
-initProgram vw vh cstate = Program
+initProgram vw vh cstate userProfile = Program
     { camera = initCamera vw vh cstate
     , decGrid = createDecorativeGrid 500 100 (Vector4 0.6 0.6 0.8 1)
     , city = buildCity [] [] [] []
@@ -63,6 +67,7 @@ initProgram vw vh cstate = Program
         , availableServices = [radService, isovistService]
         , placeTransform = Nothing
         }
+    , userRole = userProfile
     } where radService = ServiceBox . RadianceService $ Vector3 0 3 5
             isovistService = ServiceBox (Isovist IMArea)
 

@@ -153,6 +153,235 @@ Services
 </div>
 
 </div>
+
+<!-- Popup windows -->
+<div id="popupbg" onclick="document.getElementById('popuphelp').style.display='none'; document.getElementById('popupbg').style.display='none'; document.getElementById('popupsave').style.display='none';"></div>
+
+<div class="popupdiv" id="popuphelp">
+<center id="greetings" class="pheading">Welcome to the web-based geometry modeler</center>
+<hr/>
+<table>
+<tr>
+<td>
+</td>
+<td>
+<div class="pheading">You can use mouse to move camera and buildings:</div></td>
+</tr>
+<tr>
+<td>
+<svg id="mouseLeftIcon" class="helpIcons" timelinebegin="loadbegin" fill="none" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 128 128">
+  <path
+     style="fill:#FF5722"
+     id="leftButton"
+     d="m 60,66 0,-8.233239 c -3.690856,-1.401015 -6.258857,-4.504114 -6.258857,-8.109972 l 0,-15.313352 c 0,-3.605859 2.567755,-6.708958 6.258857,-8.109972 L 60,10 55.836735,10 C 38.253796,10 24,22.692958 24,38.350648 L 24,66 60,66 Z" />
+  <path
+     d="M 71,47.54717 C 71,51.110943 67.865965,54 64.000001,54 l 0,0 C 60.134035,54 57,51.110943 57,47.54717 L 57,36.45283 C 57,32.889056 60.134035,30 64.000001,30 l 0,0 C 67.865965,30 71,32.889056 71,36.45283 l 0,11.09434 z"
+     id="middleButton"
+     style="fill:#020202" />
+  <path
+     style="fill:#020202"
+     id="rightButton"
+     d="m 68,26.233239 c 3.690857,1.401015 6.258857,4.504113 6.258857,8.109973 l 0,15.313351 c 0,3.605859 -2.567755,6.708958 -6.258857,8.109972 L 68,66 l 36,0 0,-27.649352 C 104,22.692958 89.746203,10 72.163265,10 L 68,10 68,26.233239 Z" />
+  <path
+     style="fill:#020202"
+     id="mouseBody"
+     d="m 24,69 0,21.536878 C 24,106.25679 38.109818,119 55.515151,119 l 16.969697,0 C 89.890181,119 104,106.25679 104,90.536878 L 104,69 24,69 Z" />
+</svg>
+</td>
+<td>
+Click on a building using left mouse button to select it, or click on empty space to unselect a building.
+</td>
+</tr>
+<tr>
+<td>
+<svg id="mouseLeftIcon" class="helpIcons" timelinebegin="loadbegin" fill="none" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 128 128">
+  <path
+     style="fill:#FF5722"
+     id="leftButton"
+     d="m 60,66 0,-8.233239 c -3.690856,-1.401015 -6.258857,-4.504114 -6.258857,-8.109972 l 0,-15.313352 c 0,-3.605859 2.567755,-6.708958 6.258857,-8.109972 L 60,10 55.836735,10 C 38.253796,10 24,22.692958 24,38.350648 L 24,66 60,66 Z" />
+  <path
+     d="M 71,47.54717 C 71,51.110943 67.865965,54 64.000001,54 l 0,0 C 60.134035,54 57,51.110943 57,47.54717 L 57,36.45283 C 57,32.889056 60.134035,30 64.000001,30 l 0,0 C 67.865965,30 71,32.889056 71,36.45283 l 0,11.09434 z"
+     id="middleButton"
+     style="fill:#020202" />
+  <path
+     style="fill:#020202"
+     id="rightButton"
+     d="m 68,26.233239 c 3.690857,1.401015 6.258857,4.504113 6.258857,8.109973 l 0,15.313351 c 0,3.605859 -2.567755,6.708958 -6.258857,8.109972 L 68,66 l 36,0 0,-27.649352 C 104,22.692958 89.746203,10 72.163265,10 L 68,10 68,26.233239 Z" />
+  <path
+     style="fill:#020202"
+     id="mouseBody"
+     d="m 24,69 0,21.536878 C 24,106.25679 38.109818,119 55.515151,119 l 16.969697,0 C 89.890181,119 104,106.25679 104,90.536878 L 104,69 24,69 Z" />
+  <path
+     id="dragArrows"
+     transform="translate(64,64)"
+     d="m 32,0 -12,13.886719 4.697266,0 0,10.810547 -10.810547,0 0,-4.697266 L 0,32 l 13.886719,12 0,-4.697266 10.810547,0 0,10.808594 -4.697266,0 L 32,64 44,50.111328 l -4.697266,0 0,-10.808594 10.808594,0 0,4.697266 L 64,32 50.111328,20 l 0,4.697266 -10.808594,0 0,-10.810547 4.697266,0 L 32,0 Z"
+     style="fill:#FF5722;opacity:0.5" />
+</svg>
+</td>
+<td>
+Press left mouse button to move camera or selected building horizontally
+</td>
+</tr>
+<tr>
+<td>
+<svg id="mouseLeftIcon" class="helpIcons" timelinebegin="loadbegin" fill="none" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 128 128">
+  <path
+     style="fill:#020202"
+     id="leftButton"
+     d="m 60,66 0,-8.233239 c -3.690856,-1.401015 -6.258857,-4.504114 -6.258857,-8.109972 l 0,-15.313352 c 0,-3.605859 2.567755,-6.708958 6.258857,-8.109972 L 60,10 55.836735,10 C 38.253796,10 24,22.692958 24,38.350648 L 24,66 60,66 Z" />
+  <path
+     d="M 71,47.54717 C 71,51.110943 67.865965,54 64.000001,54 l 0,0 C 60.134035,54 57,51.110943 57,47.54717 L 57,36.45283 C 57,32.889056 60.134035,30 64.000001,30 l 0,0 C 67.865965,30 71,32.889056 71,36.45283 l 0,11.09434 z"
+     id="middleButton"
+     style="fill:#FF5722" />
+  <path
+     style="fill:#020202"
+     id="rightButton"
+     d="m 68,26.233239 c 3.690857,1.401015 6.258857,4.504113 6.258857,8.109973 l 0,15.313351 c 0,3.605859 -2.567755,6.708958 -6.258857,8.109972 L 68,66 l 36,0 0,-27.649352 C 104,22.692958 89.746203,10 72.163265,10 L 68,10 68,26.233239 Z" />
+  <path
+     style="fill:#020202"
+     id="mouseBody"
+     d="m 24,69 0,21.536878 C 24,106.25679 38.109818,119 55.515151,119 l 16.969697,0 C 89.890181,119 104,106.25679 104,90.536878 L 104,69 24,69 Z" />
+  <path
+     id="dragArrows"
+     transform="translate(64,64)"
+     d="m 32,0 -12,13.886719 4.697266,0 0,10.810547 -10.810547,0 0,-4.697266 L 0,32 l 13.886719,12 0,-4.697266 10.810547,0 0,10.808594 -4.697266,0 L 32,64 44,50.111328 l -4.697266,0 0,-10.808594 10.808594,0 0,4.697266 L 64,32 50.111328,20 l 0,4.697266 -10.808594,0 0,-10.810547 4.697266,0 L 32,0 Z"
+     style="fill:#FF5722;opacity:0.5" />
+</svg>
+</td>
+<td>
+Press middle mouse button to move camera vertically
+</td>
+</tr>
+<tr>
+<td>
+<svg id="mouseLeftIcon" class="helpIcons" timelinebegin="loadbegin" fill="none" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 128 128">
+  <path
+     style="fill:#020202"
+     id="leftButton"
+     d="m 60,66 0,-8.233239 c -3.690856,-1.401015 -6.258857,-4.504114 -6.258857,-8.109972 l 0,-15.313352 c 0,-3.605859 2.567755,-6.708958 6.258857,-8.109972 L 60,10 55.836735,10 C 38.253796,10 24,22.692958 24,38.350648 L 24,66 60,66 Z" />
+  <path
+     d="M 71,47.54717 C 71,51.110943 67.865965,54 64.000001,54 l 0,0 C 60.134035,54 57,51.110943 57,47.54717 L 57,36.45283 C 57,32.889056 60.134035,30 64.000001,30 l 0,0 C 67.865965,30 71,32.889056 71,36.45283 l 0,11.09434 z"
+     id="middleButton"
+     style="fill:#020202" />
+  <path
+     style="fill:#FF5722"
+     id="rightButton"
+     d="m 68,26.233239 c 3.690857,1.401015 6.258857,4.504113 6.258857,8.109973 l 0,15.313351 c 0,3.605859 -2.567755,6.708958 -6.258857,8.109972 L 68,66 l 36,0 0,-27.649352 C 104,22.692958 89.746203,10 72.163265,10 L 68,10 68,26.233239 Z" />
+  <path
+     style="fill:#020202"
+     id="mouseBody"
+     d="m 24,69 0,21.536878 C 24,106.25679 38.109818,119 55.515151,119 l 16.969697,0 C 89.890181,119 104,106.25679 104,90.536878 L 104,69 24,69 Z" />
+  <path
+     id="dragArrows"
+     transform="translate(64,64)"
+     d="m 32,0 -12,13.886719 4.697266,0 0,10.810547 -10.810547,0 0,-4.697266 L 0,32 l 13.886719,12 0,-4.697266 10.810547,0 0,10.808594 -4.697266,0 L 32,64 44,50.111328 l -4.697266,0 0,-10.808594 10.808594,0 0,4.697266 L 64,32 50.111328,20 l 0,4.697266 -10.808594,0 0,-10.810547 4.697266,0 L 32,0 Z"
+     style="fill:#FF5722;opacity:0.5" />
+</svg>
+</td>
+<td>
+Press right mouse button to rotate camera or selected building</td>
+</tr>
+<tr>
+<td>
+</td>
+<td>
+<div class="pheading">If your device has a multitouch screen, you can use touch controls:</div></td>
+</tr>
+<tr>
+<td>
+<svg id="singleTouch" class="helpIcons" timelinebegin="loadbegin" fill="none" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 128 128">
+  <circle id="outerCircle" stroke-width="8"  fill="none" stroke="#FF5722" cy="64" cx="64" r="40" />
+  <circle id="innerCircle" fill="#999999" cy="64" cx="64" r="30" />
+</svg>
+</td>
+<td>
+Touch a building using left mouse button to select it, or touch on empty space to unselect a building.
+</td>
+</tr>
+<tr>
+<td>
+<svg id="singleDrag" class="helpIcons" timelinebegin="loadbegin" fill="none" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 128 128">
+  <circle id="outerCircle" stroke-width="8"  fill="none" stroke="#FF5722" cy="64" cx="64" r="40" />
+  <circle id="innerCircle" fill="#999999" cy="64" cx="64" r="30" />
+  <path
+     id="dragArrows"
+     transform="translate(64,64)"
+     d="m 32,0 -12,13.886719 4.697266,0 0,10.810547 -10.810547,0 0,-4.697266 L 0,32 l 13.886719,12 0,-4.697266 10.810547,0 0,10.808594 -4.697266,0 L 32,64 44,50.111328 l -4.697266,0 0,-10.808594 10.808594,0 0,4.697266 L 64,32 50.111328,20 l 0,4.697266 -10.808594,0 0,-10.810547 4.697266,0 L 32,0 Z"
+     style="fill:#FF5722;opacity:0.5" />
+</svg>
+</td>
+<td>
+Move camera or selected building horizontally with one finger
+</td>
+</tr>
+<tr>
+<td>
+<svg id="twinDrag" class="helpIcons" timelinebegin="loadbegin" fill="none" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 128 128">
+  <circle id="outerCircle" stroke-width="6"  fill="none" stroke="#FF5722" cy="75" cx="32" r="29" />
+  <circle id="innerCircle" fill="#999999" cy="75" cx="32" r="22" />
+
+  <circle id="outerCircle" stroke-width="6"  fill="none" stroke="#FF5722" cy="40" cx="91" r="29" />
+  <circle id="innerCircle" fill="#999999" cy="40" cx="91" r="22" />
+  <path
+     id="dragArrows"
+     transform="translate(64,64)"
+     d="m 32,0 -12,13.886719 4.697266,0 0,10.810547 -10.810547,0 0,-4.697266 L 0,32 l 13.886719,12 0,-4.697266 10.810547,0 0,10.808594 -4.697266,0 L 32,64 44,50.111328 l -4.697266,0 0,-10.808594 10.808594,0 0,4.697266 L 64,32 50.111328,20 l 0,4.697266 -10.808594,0 0,-10.810547 4.697266,0 L 32,0 Z"
+     style="fill:#FF5722;opacity:0.5" />
+</svg>
+</td>
+<td>
+Use two fingers to move, scale, and rotate naturally
+</td>
+</tr>
+<tr>
+<td>
+<svg id="twinDrag" class="helpIcons" timelinebegin="loadbegin" fill="none" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 128 128">
+  <circle id="outerCircle" stroke-width="6"  fill="none" stroke="#FF5722" cy="60" cx="29" r="26" />
+  <circle id="innerCircle" fill="#999999" cy="60" cx="29" r="20" />
+
+  <circle id="outerCircle" stroke-width="6"  fill="none" stroke="#FF5722" cy="29" cx="91" r="26" />
+  <circle id="innerCircle" fill="#999999" cy="29" cx="91" r="20" />
+
+  <circle id="outerCircle" stroke-width="6"  fill="none" stroke="#FF5722" cy="96" cx="80" r="26" />
+  <circle id="innerCircle" fill="#999999" cy="96" cx="80" r="20" />
+  <path
+     id="dragArrows"
+     transform="translate(64,64)"
+     d="m 32,0 -12,13.886719 4.697266,0 0,10.810547 -10.810547,0 0,-4.697266 L 0,32 l 13.886719,12 0,-4.697266 10.810547,0 0,10.808594 -4.697266,0 L 32,64 44,50.111328 l -4.697266,0 0,-10.808594 10.808594,0 0,4.697266 L 64,32 50.111328,20 l 0,4.697266 -10.808594,0 0,-10.810547 4.697266,0 L 32,0 Z"
+     style="fill:#FF5722;opacity:0.5" />
+</svg>
+</td>
+<td>
+Use three fingers to rotate camera in all directions
+</td>
+</tr>
+</table>
+<hr/>
+
+<div style="text-align: justify;">
+<b>Note:</b> for research purposes some of your actions (e.g. moving and rotating geometry objects) on this page may be anonymously recorded and sent to our servers; by proceeding you agree to share these data.
+</div>
+
+</br>
+<center>
+<button type="button" class="button" onclick="document.getElementById('popuphelp').style.display='none'; document.getElementById('popupbg').style.display='none';">Ok, let's go!</button>
+</center>
+</div>
+
+<div class="popupdiv" id="popupsave" style="display: none;">
+<div id="previewcontainer"></div>	
+</br>
+<form id="submitform" method="post">
+<input type="hidden" id="sfSessionId" name="sessionId">
+<input type="hidden" id="sfGeometry" name="geometry">
+<input type="hidden" id="sfPreview" name="preview">
+<center>
+<button type="button" class="button" onclick="document.getElementById('popupsave').style.display='none'; document.getElementById('popupbg').style.display='none';">Cancel</button>
+<button type="submit" class="button">Submit</button>
+</center>
+<form>
+</div>
+
 </body>
 <script type="text/javascript" defer>
 window.onload = function() {

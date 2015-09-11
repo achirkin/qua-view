@@ -113,6 +113,10 @@ foreign import javascript unsafe "var clickTime = 200; var clickMove = 10; \
     \ var pointerUp = function(event){ \
     \     event.preventDefault(); \
     \     event.stopPropagation(); \
+    \     for (i = 0; i < event.target.pointerPos.length; i++) { \
+    \         event.target.pointerPos[i].ox = event.target.pointerPos[i].nx; \
+    \         event.target.pointerPos[i].oy = event.target.pointerPos[i].ny; \
+    \     } \
     \     var arg = toInteraction(event.target.pointerState,event.target.deltaTime,event.target.pointerPos); \
     \     if (arg) {\
     \     if ((new Date()).getTime() - event.target.downTime < clickTime \

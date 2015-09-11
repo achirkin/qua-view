@@ -45,7 +45,7 @@ $(createEventSense ''ServiceRunFinish)
 instance Reaction Program PView ServiceRunBegin "Run service" 1 where
     react _ _ program@Program{city = ci}
         = program{city = ci{ground = rebuildGround (minBBox ci) (ground ci)}}
-    response _ _ program@Program
+    response _ _ Program
             { controls = Controls {activeService = ServiceBox service}
             , city = ci
             } pview = if barea < 0.1
@@ -86,3 +86,4 @@ instance Reaction Program PView ServiceRunBegin "Update Scenario" 0 where
         logText "Scenario updated."
         programIdle
         return (Left pview{luciScenario = mscenario, scUpToDate = isJust mscenario})
+    response _ _ _ pview = return $ Left pview

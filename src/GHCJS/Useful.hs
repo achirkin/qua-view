@@ -19,7 +19,7 @@ import Data.List (intercalate)
 import Control.Concurrent (threadDelay)
 import Control.Monad (liftM)
 import GHCJS.Foreign
---import GHCJS.Marshal
+import GHCJS.Marshal
 import GHCJS.Types
 import GHCJS.WebGL.Types (GLfloat)
 
@@ -72,6 +72,13 @@ foreign import javascript unsafe "$1.style.height = $2 + 'px'"
     setElementStyleHeight :: JSElement -> GLfloat -> IO ()
 
 
+insertAfterHTML :: JSElement -> String -> IO ()
+insertAfterHTML el string = insertAfterHTML' el (toJSString string)
+
+foreign import javascript unsafe "$1.insertAdjacentHTML('afterend', $2);"
+    insertAfterHTML' :: JSElement -> JSString -> IO ()
+
+
 -- | Display loading splash
 programInProgress :: IO ()
 programInProgress = programInProgress' >> threadDelay 0
@@ -113,3 +120,12 @@ getInputValue = liftM fromJSString . getInputValue'
 
 foreign import javascript unsafe "$r = $1.parentNode;"
     elementParent :: JSElement -> IO JSElement
+
+getHtmlArg :: String -> IO (Maybe String)
+getHtmlArg arg = liftM (\s -> if s == Just "" then Nothing else s)
+    $ getHtmlArg' (toJSString arg) >>= fromJSRef
+
+foreign import javascript unsafe "$r = httpArgs[$1];"
+    getHtmlArg' :: JSString -> IO (JSRef String)
+
+

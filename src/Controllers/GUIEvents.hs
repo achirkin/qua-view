@@ -1,3 +1,4 @@
+-- {-# LANGUAGE ExistentialQuantification #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Controllers.GUIEvents
@@ -15,7 +16,7 @@ module Controllers.GUIEvents where
 
 import Data.Geospatial
 import qualified Data.Aeson as A
-
+--import GHCJS.Types
 
 -- | Reaction on this event should be starting evaluation of current service
 data ServiceRunBegin = ServiceRunBegin
@@ -38,3 +39,10 @@ data LuciConnect = LuciConnect
     , cUser :: String
     , cPass :: String
     }
+
+
+
+--type PreviewURL = JSString
+-- | Get the geometry and its preview image
+data SubmitScenario = SubmitScenario
+--data SubmitScenario = forall a . A.ToJSON a => SubmitScenario (GeoFeatureCollection a) PreviewURL

@@ -68,9 +68,9 @@ instance Reaction Program PView PointerMoveEvent "Move City Object" 0 where
     react _ (PMove Touches      _ (_:_:_:_))         = id
     react _ (PMove MiddleButton _ _)                 = id
     response _ (PMove _            _ []             )   _ = geometryChanged False
-    response _ (PMove LeftButton   _ ((npos,opos):_))   _ = geometryChanged True
-    response _ (PMove RightButton  _ ((npos,opos):_))   _ = geometryChanged True
-    response _ (PMove Touches      _ [(npos,opos)]  )   _ = geometryChanged True
-    response _ (PMove Touches      _ [(n1,o1),(n2,o2)]) _ = geometryChanged True
+    response _ (PMove LeftButton   _ ((_npos,_opos):_))   _ = geometryChanged True
+    response _ (PMove RightButton  _ ((_npos,_opos):_))   _ = geometryChanged True
+    response _ (PMove Touches      _ [(_npos,_opos)]  )   _ = geometryChanged True
+    response _ (PMove Touches      _ [(_n1,_o1),(_n2,_o2)]) _ = geometryChanged True
     response _ (PMove Touches      _ (_:_:_:_))         _ = geometryChanged False
     response _ (PMove MiddleButton _ _)                 _ = geometryChanged False
