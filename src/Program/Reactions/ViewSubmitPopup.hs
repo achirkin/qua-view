@@ -26,16 +26,19 @@ import GHCJS.Useful
 --import Program.View
 
 import GHCJS.Types
+import GHCJS.Foreign
 import GHCJS.Marshal
 
 
 instance Reaction Program PView SubmitScenario "Show popup" 1 where
-    response _ _ program view = do
+    response _ (SubmitScenario url) program view = do
         -- this must be ASAP - before drawing buffer is flushed
         previewURL <- getPreviewURL
+        programInProgress
         -- ... and then all the rest
         json <- toJSRef_aeson . geometries2features . cityGeometryFull3D $ city program
-        showSubmitPopup previewURL json
+        showSubmitPopup previewURL json (toJSString url)
+        programIdle
         return $ Left view
 
 foreign import javascript safe "document.getElementById('previewcontainer').innerHTML = \
@@ -43,10 +46,10 @@ foreign import javascript safe "document.getElementById('previewcontainer').inne
     \ document.getElementById('sfSessionId').setAttribute('value', httpArgs['sessionId']);\
     \ document.getElementById('sfGeometry').setAttribute('value', $2);\
     \ document.getElementById('sfPreview').setAttribute('value', $1);\
-    \ document.getElementById('submitform').setAttribute('action', 'http://www.archevolve.com/process.php');\
+    \ document.getElementById('submitform').setAttribute('action', $3);\
     \ document.getElementById('popupsave').style.display='block';\
     \ document.getElementById('popupbg').style.display='block';"
-    showSubmitPopup :: JSRef previewURL -> JSRef json -> IO ()
+    showSubmitPopup :: JSRef previewURL -> JSRef json -> JSString -> IO ()
 
 foreign import javascript safe "$r = document.getElementById(\"glcanvas\").toDataURL('image/png');"
     getPreviewURL :: IO (JSRef a)

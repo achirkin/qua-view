@@ -33,7 +33,7 @@ import Services
 import Services.RadianceService
 import Services.Isovist
 
-data Profile = Full | ExternalEditor | ExternalViewer deriving Show
+data Profile = Full | ExternalEditor | ExternalViewer deriving (Show, Eq)
 
 -- | Data type representing the whole program state; pure functional
 data Program = Program
@@ -63,7 +63,7 @@ initProgram vw vh cstate userProfile = Program
     , city = buildCity [] [] [] []
     , controls = Controls
         { selectedObject = 0
-        , activeService = isovistService
+        , activeService = radService
         , availableServices = [radService, isovistService]
         , placeTransform = Nothing
         }

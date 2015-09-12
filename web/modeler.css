@@ -24,7 +24,7 @@ body {
 }
 
 #loadingSplash {
-    z-index: 10000;
+    z-index: 777;
     display: block;
     position: fixed;
     height: 40%;
@@ -79,7 +79,7 @@ body {
 }
 
 .uibutton {
-    position: absolute;
+    position: relative;
     padding: 0;
     margin: 0;
     z-index: 10;
@@ -232,7 +232,7 @@ rect.btn {
     margin: 0;
     z-index: 4;
     overflow: visible;
-    height: 256px;
+/*    height: 256px; */
     width: 64px;
     -webkit-transition:width 300ms ease-in-out, left 300ms ease-in-out;
     -moz-transition:width 300ms ease-in-out, left 300ms ease-in-out;

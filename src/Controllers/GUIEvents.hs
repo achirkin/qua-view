@@ -42,7 +42,6 @@ data LuciConnect = LuciConnect
 
 
 
---type PreviewURL = JSString
+type SubmitURL = String
 -- | Get the geometry and its preview image
-data SubmitScenario = SubmitScenario
---data SubmitScenario = forall a . A.ToJSON a => SubmitScenario (GeoFeatureCollection a) PreviewURL
+newtype SubmitScenario = SubmitScenario SubmitURL
