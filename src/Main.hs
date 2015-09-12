@@ -69,39 +69,54 @@ main = do
             reqEvent eventHole $ EBox re
     onElementResize body canvasResize
 
-    -- "evaluate" button runs current service
-    evaluateButton <- getElementById "evaluatebutton"
-    elementOnClick evaluateButton . const $ reqEvent eventHole $ EBox ServiceRunBegin
-    clearServiceButton <- getElementById "clearbutton"
-    elementOnClick clearServiceButton . const $ reqEvent eventHole $ EBox ClearServiceResults
-
     -- "submit geometry" button opens popup to save the geometry on server
     submitButton <- getElementById "submitbutton"
-    elementOnClick submitButton . const $ reqEvent eventHole $ EBox SubmitScenario
+    case userProfile of
+        ExternalViewer -> elementParent submitButton >>= hideElement
+        ExternalEditor -> elementOnClick submitButton . const . reqEvent eventHole . EBox
+                $ SubmitScenario "http://www.archevolve.com/process.php"
+        Full -> elementOnClick submitButton . const . reqEvent eventHole . EBox
+                $ SubmitScenario "http://httpbin.org/post"
 
-    -- "import geometry" button converts GeoJSON into internal representation
-    importButton <- getElementById "jsonfileinput"
-    onGeoJSONFileImport importButton (reqEvent eventHole . EBox)
+    -- hide everything that is not related to the full profile
+    if userProfile /= Full
+    then do
+        getElementById "evaluatebutton" >>= elementParent >>= hideElement
+        getElementById "itabGeometry" >>= hideElement
+        getElementById "itabServices" >>= hideElement
+        getElementById "itabLuci" >>= hideElement
+        getElementById "tabGeometry" >>= hideElement
+        getElementById "tabServices" >>= hideElement
+        getElementById "tabLuci" >>= hideElement
+    else do
+        -- "evaluate" button runs current service
+        evaluateButton <- getElementById "evaluatebutton"
+        elementOnClick evaluateButton . const $ reqEvent eventHole $ EBox ServiceRunBegin
+        clearServiceButton <- getElementById "clearbutton"
+        elementOnClick clearServiceButton . const $ reqEvent eventHole $ EBox ClearServiceResults
 
-    -- "clear geometry" button removes all buildings from the city
-    clearGeomButton <- getElementById "cleargeombutton"
-    elementOnClick clearGeomButton . const $ reqEvent eventHole $ EBox ClearingGeometry
+        -- "import geometry" button converts GeoJSON into internal representation
+        importButton <- getElementById "jsonfileinput"
+        onGeoJSONFileImport importButton (reqEvent eventHole . EBox)
 
-    -- Connect to Luci
-    luciConnectButton <- getElementById "loginbutton"
-    elementOnClick luciConnectButton . const $ do
-        host <- getElementById "inputip" >>= getInputValue
-        name <- getElementById "inputlogin" >>= getInputValue
-        pass <- getElementById "inputpass" >>= getInputValue
-        reqEvent eventHole $ EBox LuciConnect
-            { cHost = host
-            , cUser = name
-            , cPass = pass
-            }
+        -- "clear geometry" button removes all buildings from the city
+        clearGeomButton <- getElementById "cleargeombutton"
+        elementOnClick clearGeomButton . const $ reqEvent eventHole $ EBox ClearingGeometry
+
+        -- Connect to Luci
+        luciConnectButton <- getElementById "loginbutton"
+        elementOnClick luciConnectButton . const $ do
+            host <- getElementById "inputip" >>= getInputValue
+            name <- getElementById "inputlogin" >>= getInputValue
+            pass <- getElementById "inputpass" >>= getInputValue
+            reqEvent eventHole $ EBox LuciConnect
+                { cHost = host
+                , cUser = name
+                , cPass = pass
+                }
 
     -- experiments
-    logText "Hello World!"
-    logText "Printing to panel\nin two lines!\n(or event three)"
+    logText $ "Started " ++ show userProfile ++ " session of modeler."
     loadGeoJSONFromLink "lines.js" False (reqEvent eventHole . EBox)
 --    loadGeoJSONFromLink "outsidePolys.js" False (reqEvent eventHole . EBox)
     loadGeoJSONFromLink "insidePolys.js" True  (reqEvent eventHole . EBox)
