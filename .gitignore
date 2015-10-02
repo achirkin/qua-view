@@ -3,6 +3,7 @@ testdata
 cabal-dev
 SourceGraph
 web/modeler-icons
+*~
 *.o
 *.hi
 *.chi
