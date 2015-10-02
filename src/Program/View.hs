@@ -161,15 +161,16 @@ updateViewPortSize cam c@ViewContext
     where vps@(Vector2 vpWidth vpHeight) = round <$> viewportSize cam
 
 
+clearScreen :: ViewContext -> IO ()
+clearScreen c = clear (glctx c) (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
+
 prepareRenderState :: ViewContext -> Camera -> GLfloat -> IO ViewContext
 prepareRenderState vc@ViewContext
-        { glctx    = gl
-        , sunDir   = Vector3 sx sy sz
+        { sunDir   = Vector3 sx sy sz
         , curState = cs
         } cam t = do
     fillTypedArray (projectArr vc) (projMatrix cam)
     fillTypedArray (modelViewArr vc) viewM
-    clear gl (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
     return vc
         { curState = cs
             { vView      = viewM

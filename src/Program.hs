@@ -41,6 +41,7 @@ data Program = Program
     , decGrid  :: !WiredGeometry
     , city     :: !City
     , controls :: !Controls
+    --, info     :: !Info
     , userRole :: !Profile
     }
 
@@ -50,6 +51,17 @@ data Controls = Controls
     , availableServices  :: ![ServiceBox]
     , placeTransform     :: !(Maybe (GLfloat, Vector2 GLfloat))
     }
+
+--data Info = Info
+--    { geomUpdateTime   :: !GLfloat
+--    , geomUpdateAmount :: !Int
+--    }
+--
+--infoDef :: Info
+--infoDef = Info
+--    { geomUpdateTime   = 0
+--    , geomUpdateAmount = 0
+--    }
 
 
 initProgram :: GLfloat -- ^ width of the viewport
@@ -67,6 +79,7 @@ initProgram vw vh cstate userProfile = Program
         , availableServices = [radService, isovistService]
         , placeTransform = Nothing
         }
+    --, info = infoDef
     , userRole = userProfile
     } where radService = ServiceBox . RadianceService $ Vector3 0 3 5
             isovistService = ServiceBox (Isovist IMArea)

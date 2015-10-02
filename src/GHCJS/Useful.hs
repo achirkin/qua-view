@@ -43,6 +43,12 @@ inNextFrame a = syncCallback NeverRetain False a >>= inNextFrame'
 foreign import javascript unsafe "window.requestAnimationFrame($1)"
     inNextFrame' :: JSFun (IO ()) -> IO ()
 
+--inNextFrame :: (GLfloat -> IO a) -> IO ()
+--inNextFrame f = syncCallback1 NeverRetain False ((>>= f . fromMaybe 0) . fromJSRef)
+--    >>= inNextFrame'
+--foreign import javascript unsafe "$r = window.requestAnimationFrame($1);"
+--    inNextFrame' :: JSFun (JSRef GLfloat -> IO (JSRef a)) -> IO (JSRef a)
+
 -- | Log staff
 foreign import javascript unsafe "console.log($1)"
     printRef :: JSRef a -> IO ()
