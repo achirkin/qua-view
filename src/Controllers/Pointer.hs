@@ -159,19 +159,16 @@ foreign import javascript unsafe "var clickTime = 200; var clickMove = 10; \
     \     if (event.target.downTime && event.target.pointerPos) { \
     \         if (event.touches) { \
     \             var npos = Array.prototype.slice.call(event.touches).map(function(t) {return {x: t.clientX, y: t.clientY};}); \
-    \             if (npos.length <= event.target.pointerPos.length) { \
+    \             if (npos.length == event.target.pointerPos.length) { \
+    \                 for(var i = 0; i < event.target.pointerPos.length; i++) {\
+    \                   event.target.pointerPos[i].nx = npos[i].x; \
+    \                   event.target.pointerPos[i].ny = npos[i].y; \
+    \                 } \
+    \             } else { \
     \                 event.target.pointerPos = npos.map(function (np, i) {return { nx: np.x \
     \                                                                             , ny: np.y \
-    \                                                                             , ox: event.target.pointerPos[i].ox \
-    \                                                                             , oy: event.target.pointerPos[i].oy };}); \
-    \             } else { \
-    \                 for(var i = 0; i < event.target.pointerPos.length; i++) { \
-    \                     event.target.pointerPos[i].nx = npos[i].x; \
-    \                     event.target.pointerPos[i].ny = npos[i].y; \
-    \                 } for(var i = 0; i < event.target.pointerPos.length; i++) { \
-    \                     event.target.pointerPos[i].nx = event.target.pointerPos[i].ox; \
-    \                     event.target.pointerPos[i].ny = event.target.pointerPos[i].oy; \
-    \                 } \
+    \                                                                             , ox: np.x \
+    \                                                                             , oy: np.y };}); \
     \             } \
     \         } else { \
     \             event.target.pointerPos = [event.target.pointerPos[0]]; \
