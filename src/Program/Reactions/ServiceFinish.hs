@@ -37,7 +37,7 @@ newtype ServiceRunFinish = ServiceRunFinish ScalarField
 
 
 instance Reaction Program PView ServiceRunFinish "Finish service" 0 where
-    response _ (ServiceRunFinish sf) Program
+    response _ (ServiceRunFinish sf) _ Program
             { city = City {ground = gr}
             } view@PView{cityView = cv} = do
         ngr <- case groundGridToTexArray gr 1 colors of
@@ -60,7 +60,7 @@ instance Reaction Program PView ServiceRunFinish "Finish service" 0 where
                                        (Vector4 255 0 0 255)
 
 instance Reaction Program PView ClearServiceResults "Clear service results" 0 where
-    response _ _ program pview = do
+    response _ _ _ program pview = do
         cityView' <- updateView (glctx $ context pview) (city program) (cityView pview)
         getElementById "clearbutton" >>= elementParent >>= hideElement
         return $ Left pview{cityView = cityView'}

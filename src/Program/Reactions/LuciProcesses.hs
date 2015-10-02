@@ -27,7 +27,7 @@ import Controllers.LuciClient
 import Program
 
 instance Reaction Program PView LuciConnect "Connecting to Luci" 1 where
-    response _ LuciConnect{..} _ pview = do
+    response _ LuciConnect{..} _ _ pview = do
         programInProgress
         elc <- connectToLuci cHost
         mlc <- case elc of

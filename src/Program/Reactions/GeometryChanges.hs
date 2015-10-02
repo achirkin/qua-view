@@ -47,7 +47,7 @@ instance Reaction Program PView ClearingGeometry "Clearing City Geometry" 0 wher
         { city = clearCity (city program)
         , controls = (controls program){placeTransform = Nothing}
         }
-    response _ _ = updateProgramView "Cleared geometry."
+    response _ _ _ = updateProgramView "Cleared geometry."
 
 
 instance Reaction Program PView GeoJSONLoaded "Updating City Geometry after GeoJSON is loaded" 0 where
@@ -65,6 +65,6 @@ instance Reaction Program PView GeoJSONLoaded "Updating City Geometry after GeoJ
         where ((geoms, lns),_msgs) = featureCollectionToObjects
                     behav scal shift (featureCollection geoJSONI) -- TODO: how to log this?
               behav = if isDynamic geoJSONI then Dynamic else Static
-    response _ _ = updateProgramView "Updated geometry."
+    response _ _ _ = updateProgramView "Updated geometry."
 
 
