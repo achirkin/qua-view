@@ -33,4 +33,4 @@ instance ComputingService RadianceService where
         { sfRange = foldl' (\(Vector2 xmin xmax) t
             -> Vector2 (min xmin t) (max xmax t)) (pure $ head vals) vals
         , sfValues = vals
-        } where vals = map (\v -> 1 / (1 + normL2 (x .- v))) pnts
+        } where vals = map (\v -> - normL2 (x .- v)) pnts
