@@ -31,7 +31,7 @@ import GHCJS.Marshal
 
 
 instance Reaction Program PView SubmitScenario "Show popup" 1 where
-    response _ (SubmitScenario url) program view = do
+    response _ (SubmitScenario url) _ program view = do
         -- this must be ASAP - before drawing buffer is flushed
         previewURL <- getPreviewURL
         programInProgress
@@ -43,8 +43,8 @@ instance Reaction Program PView SubmitScenario "Show popup" 1 where
 
 foreign import javascript safe "document.getElementById('previewcontainer').innerHTML = \
     \   '<img src=\"' + $1 + '\" style=\"width:100%;\"></img>';\
-    \ document.getElementById('sfSessionId').setAttribute('value', httpArgs['sessionId']);\
-    \ document.getElementById('sfGeometry').setAttribute('value', $2);\
+    \ document.getElementById('sfSessionId').setAttribute('value', httpArgs['sessionID']);\
+    \ document.getElementById('sfGeometry').setAttribute('value', JSON.stringify($2));\
     \ document.getElementById('sfPreview').setAttribute('value', $1);\
     \ document.getElementById('submitform').setAttribute('action', $3);\
     \ document.getElementById('popupsave').style.display='block';\

@@ -20,13 +20,15 @@ module Program.Model.City
     , addCityObjects
     , clearCity
     , addCityStaticWires
+    , cityToJS
     ) where
 
 
 --import qualified Control.Monad as M
 import qualified Data.IntMap.Strict as IM
 
---import GHCJS.Foreign (toJSString)
+import GHCJS.Foreign
+import GHCJS.Types
 import GHCJS.WebGL
 
 import Geometry.Space
@@ -83,6 +85,26 @@ boundMap3d2d objs = boundingBox (Vector2 xl zl) (Vector2 xh zh)
               Vector3 xl _ zl = lowBound bb3d
               Vector3 xh _ zh = highBound bb3d
 
+
+----------------------------------------------------------------------------------------------------
+-- GeoJSON conversion
+----------------------------------------------------------------------------------------------------
+
+
+type GeometryJson = JSRef GeometryJson_
+data GeometryJson_
+
+cityToJS :: City -> IO GeometryJson
+cityToJS city = do
+    jcity <- newObj :: IO GeometryJson
+    --unsafeSetProp "type" "FeatureCollection" jcity
+    setJSString jcity (toJSString "type") (toJSString "FeatureCollection")
+
+    return jcity
+
+
+foreign import javascript unsafe "$1[$2] = $3;"
+    setJSString :: JSRef obj -> JSString -> JSString -> IO ()
 
 ----------------------------------------------------------------------------------------------------
 -- Edit city object set

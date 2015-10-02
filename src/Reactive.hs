@@ -33,6 +33,9 @@ module Reactive
     , createEventSense
     ) where
 
+import GHCJS.Useful
+import GHCJS.Marshal
+
 import Language.Haskell.TH
 import GHC.TypeLits
 
@@ -72,9 +75,9 @@ class Reaction program view event (name :: Symbol) (priority :: Nat)
     react _ _ = id
     -- | Response IO action: gets an event, a program changed after `react`, and a view to modify.
     --   By default does nothing.
-    response :: R name priority -> event -> program -> view
+    response :: R name priority -> event -> program -> program -> view
              -> IO (Either view (EventBox program view))
-    response _ _ _ = return . Left
+    response _ _ _ _ = return . Left
 
 -- | Main cycle of our reactive programming engine.
 --   Supply here the init states of the program and its view,
@@ -178,8 +181,8 @@ class EventSense program view event | program -> view, view -> program where
     processAllReactions :: event -> program -> program
     processAllReactions _ = id
     -- | Process all responses on a given event; do not call it explicitly
-    processAllResponses :: event -> program -> view -> IO (view, [EventBox program view])
-    processAllResponses _ _ v = return (v,[])
+    processAllResponses :: event -> program -> program -> view -> IO (view, [EventBox program view])
+    processAllResponses _ _ _ v = return (v,[])
 
 
 ----------------------------------------------------------------------------------------------------
@@ -198,9 +201,9 @@ reactList :: [ SR program view event ]
 reactList rs ev program =  ev `seq` program `seq` foldl' (\p (SR r) -> react r ev p) program rs
 
 responseList :: [ SR program view event ]
-             -> event -> program -> view -> IO (view, [EventBox program view])
-responseList rs ev program view = ev `seq` program `seq` view `seq`
-    foldM (\(v, es) (SR r) -> response r ev program v
+             -> event -> program -> program -> view -> IO (view, [EventBox program view])
+responseList rs ev programOld programNew view = ev `seq` programNew `seq` view `seq`
+    foldM (\(v, es) (SR r) -> response r ev programOld programNew v
     >>= \resp -> return $ case resp of
         Left v' -> (v',es)
         Right e -> (v, e:es)) (view, []) rs
@@ -221,7 +224,15 @@ pIteration senseRef [] pv = pv `seq` do
 
 pProcessIteration :: (EventSense program view event)
                   => event -> (program, view) -> IO (program, view, [EventBox program view])
-pProcessIteration event (program, view) = event `seq` program `seq` view `seq` nprog `seq` do
-    (nview, nevs) <- processAllResponses event nprog view
-    nview `seq` nevs `seq` return (nprog, nview, nevs)
-    where nprog = processAllReactions event program
+pProcessIteration event (program, view) = event `seq` program `seq` view `seq` do
+    t0 <- getTime
+    (nprog, t1) <- t0 `seq` case processAllReactions event program of
+        prog -> prog `seq` getTime >>= \t -> return (prog, t)
+    (nview, nevs) <- processAllResponses event program nprog view
+    r <- inNextFrame $ return ()
+    t2 <- t1 `seq` getTime
+    let dt1 = t1-t0
+        dt2 = t2-t1
+    if dt1 < 0.05 && dt2 < 0.05 then return ()
+       else toJSRef ("react: " ++ show (t1-t0) ++ "; response: " ++ show (t2-t1)) >>= printRef
+    r `seq` nview `seq` nevs `seq` return (nprog, nview, nevs)
