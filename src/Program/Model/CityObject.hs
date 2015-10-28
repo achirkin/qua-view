@@ -21,22 +21,67 @@ module Program.Model.CityObject
     , PointData (..)
     , LocatedCityObject
     , building
+    , ScenarioObject (..), GeomID, ScenarioLayer (..), ImportedScenarioObject (..)
     ) where
 
-import Control.Monad.Primitive
+import Unsafe.Coerce
+import GHCJS.Foreign
+--import GHCJS.Types
+import GHCJS.Marshal
+--import GHCJS.Instances ()
+
+--import Control.Monad.Primitive
 import qualified Control.Monad as M
 import Control.Monad.ST (runST, ST)
-import Data.Primitive.ByteArray
-import Data.Primitive (sizeOf)
+--import Data.Primitive.ByteArray
+--import Data.Primitive (sizeOf)
 import GHCJS.WebGL
 
-import SmallGL.WritableVectors
+--import SmallGL.WritableVectors
 
-import Geometry.Space
-import Geometry.Space.Transform
-import Geometry.Structure
+import Data.Geometry
+import Data.Geometry.Transform
 
-type LocatedCityObject = STransform "Quaternion" GLfloat CityObject
+--import Geometry.Space
+--import Geometry.Space.Transform
+--import Geometry.Structure
+
+type LocatedCityObject = QFTransform CityObject
+
+-- | Whether one could interact with an object or not
+data ObjectBehavior = Static | Dynamic deriving (Eq,Show)
+
+--instance ToJSVal where
+--    toJSVal = return $ unsafeCoerce jsTrue
+--    toJSVal = return $ unsafeCoerce jsFalse
+
+--instance FromJSVal where
+--    fromJSVal = return . Just $  if fromJSBool' jr
+--        then Static
+--        else Dynamic
+
+data ScenarioLayer = SLbuildings | SLfootprints
+    deriving Show
+
+--instance ToJSVal where
+--    toJSVal = return . unsafeCoerce $ toJSString "buildings"
+--    toJSVal = return . unsafeCoerce $ toJSString "footprints"
+----    toJSVal = return . unsafeCoerce $ toJSString "clutter"
+--
+--instance FromJSVal where
+--    fromJSVal = return $ case fromJSString $ unsafeCoerce l of
+--        "buildings" -> Just SLbuildings
+--        "footprints" -> Just SLfootprints
+--        _ -> Nothing
+
+
+type GeomID = Int
+
+data ScenarioObject = ScenarioObject ScenarioLayer GeomID (Maybe GeomID) LocatedCityObject
+    deriving Show
+
+--data ImportedScenarioObject = ISObject ScenarioLayer (Maybe GeomID) ObjectBehavior (Polygon 3 GLfloat)
+--    deriving Show
 
 -- | Basic entity in the program; Defines the logic of the interaction and visualization
 data CityObject =
@@ -56,8 +101,6 @@ instance Show CityObject where
     show obj = show (behavior obj) ++ " CityObject: " ++ show (objPolygon obj)
 
 
--- | Whether one could interact with an object or not
-data ObjectBehavior = Static | Dynamic deriving (Eq,Show)
 
 data PointData points indices = PointData
     { vertexArray       :: !ByteArray
@@ -82,19 +125,19 @@ building beh poly =  Building
 
 
 
-instance Boundable CityObject 2 GLfloat where
-    minBBox Building{ objPolygon = poly} = boundingBox (Vector2 lx lz)
-                                                       (Vector2 hx hz)
-        where bound3 = minBBox poly
-              Vector3 lx _ lz = lowBound bound3
-              Vector3 hx _ hz = lowBound bound3
-
-instance Boundable CityObject 3 GLfloat where
-    minBBox Building{ objPolygon = poly} = boundPair bb zbound
-        where bb = minBBox poly
-              Vector3 lx _ lz = lowBound bb
-              Vector3 hx _ hz = highBound bb
-              zbound = boundingBox (Vector3 lx 0 lz) (Vector3 hx 0 hz)
+--instance Boundable CityObject 2 GLfloat where
+--    minBBox Building{ objPolygon = poly} = boundingBox (Vector2 lx lz)
+--                                                       (Vector2 hx hz)
+--        where bound3 = minBBox poly
+--              Vector3 lx _ lz = lowBound bound3
+--              Vector3 hx _ hz = lowBound bound3
+--
+--instance Boundable CityObject 3 GLfloat where
+--    minBBox Building{ objPolygon = poly} = boundPair bb zbound
+--        where bb = minBBox poly
+--              Vector3 lx _ lz = lowBound bb
+--              Vector3 hx _ hz = highBound bb
+--              zbound = boundingBox (Vector3 lx 0 lz) (Vector3 hx 0 hz)
 
 
 ----------------------------------------------------------------------------------------------------

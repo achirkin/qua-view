@@ -20,20 +20,20 @@ module Program.Model.City
     , addCityObjects
     , clearCity
     , addCityStaticWires
-    , cityToJS
+    --, cityToJS
     ) where
 
 
 --import qualified Control.Monad as M
 import qualified Data.IntMap.Strict as IM
 
-import GHCJS.Foreign
-import GHCJS.Types
+--import GHCJS.Foreign
+--import GHCJS.Types
 import GHCJS.WebGL
 
-import Geometry.Space
-import Geometry.Space.Transform
-import Geometry.Structure
+import Data.Geometry
+import Data.Geometry.Transform
+--import Geometry.Structure
 
 import Program.Model.CityObject
 import Program.Model.CityGround
@@ -90,21 +90,32 @@ boundMap3d2d objs = boundingBox (Vector2 xl zl) (Vector2 xh zh)
 -- GeoJSON conversion
 ----------------------------------------------------------------------------------------------------
 
-
-type GeometryJson = JSRef GeometryJson_
-data GeometryJson_
-
-cityToJS :: City -> IO GeometryJson
-cityToJS city = do
-    jcity <- newObj :: IO GeometryJson
-    --unsafeSetProp "type" "FeatureCollection" jcity
-    setJSString jcity (toJSString "type") (toJSString "FeatureCollection")
-
-    return jcity
-
-
-foreign import javascript unsafe "$1[$2] = $3;"
-    setJSString :: JSRef obj -> JSString -> JSString -> IO ()
+--
+--type GeometryJson = JSVal
+--data GeometryJson_
+--
+--cityToJS :: City -> IO GeometryJson
+--cityToJS city = do
+--    jcity <- newObj :: IO GeometryJson
+--    --unsafeSetProp "type" "FeatureCollection" jcity
+--    setJSString jcity (toJSString "type") (toJSString "FeatureCollection")
+--
+--    return jcity
+--
+--
+----cityObjectToJSRef :: (Int, LocatedCityObject) -> JSVal
+----cityObjectToJSRef (i, obj) = do
+----    jsrMultiPolygon
+--
+--
+--foreign import javascript safe "console.log({ \
+--    \ 'type': 'Feature', properties: { Layer: 'buildings', 'SubClasses': $1, 'ExtendedEn': null, \
+--    \ 'Linetype': null, 'EntityHand': '6F', 'Text': null }, 'geometry': { 'type': 'Polygon', 'coordinates': \
+--    \[ [ [ 17093338.071588061749935, 39302064.126328192651272 ], [ 17093698.622214030474424, 39298130.289272576570511 ], [ 17083208.390065658837557, 39297168.820936642587185 ], [ 17082847.839439678937197, 39301102.657992236316204 ], [ 17093338.071588061749935, 39302064.126328192651272 ] ] ] } });"
+--    jsrMultiPolygon :: Int -> IO ()
+--
+--foreign import javascript unsafe "$1[$2] = $3;"
+--    setJSString :: JSVal -> JSString -> JSString -> IO ()
 
 ----------------------------------------------------------------------------------------------------
 -- Edit city object set

@@ -20,7 +20,7 @@ import Control.Monad (unless)
 import GHCJS.WebGL
 
 -- check if the is an error
-checkGLError :: Ctx -> String -> IO ()
+checkGLError :: WebGLRenderingContext -> String -> IO ()
 checkGLError gl s = do
     x <- getError gl
     unless (x == 0) . putStrLn $ "OpenGL error occured: "

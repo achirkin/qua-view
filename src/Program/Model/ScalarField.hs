@@ -20,7 +20,8 @@ module Program.Model.ScalarField
 --import GHC.TypeLits
 
 import GHCJS.WebGL
-import Geometry.Space
+import Data.Geometry
+import Data.Coerce
 
 -- | Describes evaluations performed on geometry.
 --   Provides functions to convert set of points into set of values,
@@ -42,28 +43,29 @@ makeColors :: ColorPalette
            -> ScalarField
            -> [Vector4 GLubyte] -- ^ set of values in RGBA form [0..255]
 makeColors (LinearPalette p0 p1) sf = map f $ normalized sf
-    where f x = fmap round $ (1-x) ..* v p0
-                          .+    x  ..* v p1
+    where f x = round $ (1-x) * v p0
+                           +    x  * v p1
 makeColors (Bezier2Palette p0 p1 p2) sf = map f $ normalized sf
-    where f x | y <- 1-x = fmap round $   y*y ..* v p0
-                                     .+ 2*x*y ..* v p1
-                                     .+   x*x ..* v p2
+    where f x | y <- 1-x = round $   y*y * v p0
+                                      + 2*x*y * v p1
+                                      +   x*x * v p2
 makeColors (Bezier3Palette p0 p1 p2 p3) sf = map f $ normalized sf
-    where f x | y <- 1-x = fmap round $   y*y*y ..* v p0
-                                     .+ 3*x*y*y ..* v p1
-                                     .+ 3*x*x*y ..* v p2
-                                     .+   x*x*x ..* v p3
+    where f x | y <- 1-x = round $   y*y*y * v p0
+                                      + 3*x*y*y * v p1
+                                      + 3*x*x*y * v p2
+                                      +   x*x*x * v p3
 
 
 -- helpers
 
 v :: Vector4 GLubyte -> Vector4 GLfloat
-v = fmap fromIntegral
+v = coerce
 
-normalized :: ScalarField -> [GLfloat]
+normalized :: ScalarField -> [Vector4 GLfloat]
 normalized ScalarField
-    { sfRange  = Vector2 xmin xmax
+    { sfRange  = range
     , sfValues = vals
     } = map f vals
-    where f x = min 1 . max 0 $ (x - xmin)/xspan
+    where f x = realToFrac . min 1 . max 0 $ (x - xmin)/xspan
           xspan = max 10e-5 $ xmax - xmin
+          (xmin, xmax) = unpackV2 range

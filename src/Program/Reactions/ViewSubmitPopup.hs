@@ -18,7 +18,7 @@ module Program.Reactions.ViewSubmitPopup () where
 import Reactive
 
 import Program
-import Program.Model.GeoJSON
+--import Program.Model.GeoJSON
 
 import Controllers.GUIEvents
 
@@ -36,8 +36,8 @@ instance Reaction Program PView SubmitScenario "Show popup" 1 where
         previewURL <- getPreviewURL
         programInProgress
         -- ... and then all the rest
-        json <- toJSRef_aeson . geometries2features . cityGeometryFull3D $ city program
-        showSubmitPopup previewURL json (toJSString url)
+--        json <- toJSRef_aeson . geometries2features . cityGeometryFull3D $ city program
+--        showSubmitPopup previewURL json (toJSString url)
         programIdle
         return $ Left view
 
@@ -49,7 +49,7 @@ foreign import javascript safe "document.getElementById('previewcontainer').inne
     \ document.getElementById('submitform').setAttribute('action', $3);\
     \ document.getElementById('popupsave').style.display='block';\
     \ document.getElementById('popupbg').style.display='block';"
-    showSubmitPopup :: JSRef previewURL -> JSRef json -> JSString -> IO ()
+    showSubmitPopup :: JSVal -> JSVal -> JSString -> IO ()
 
 foreign import javascript safe "$r = document.getElementById(\"glcanvas\").toDataURL('image/png');"
-    getPreviewURL :: IO (JSRef a)
+    getPreviewURL :: IO (JSVal)

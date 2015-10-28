@@ -70,15 +70,15 @@ foreign import javascript interruptible "var r = new FileReader(); \
     \   $c(json); }}; \
     \ r.onloadend = load;  \
     \ r.readAsText($1.files[0]);"
-    getElementFiles :: JSRef a -> IO (JSRef b)
+    getElementFiles :: JSVal -> IO (JSVal)
 
 -- | Convert JSON object in JavaScript back to Haskell data that implements fromJSON a class
-fromJSRef_aeson :: A.FromJSON a => JSRef a -> IO (Maybe a)
+fromJSRef_aeson :: A.FromJSON a => JSVal -> IO (Maybe a)
 fromJSRef_aeson = liftM (>>= f . A.fromJSON) . fromJSRef . castRef
     where f (A.Error _) = Nothing
           f (A.Success x) = Just x
 
-getUrlJSON :: String -> IO (JSRef b)
+getUrlJSON :: String -> IO (JSVal)
 getUrlJSON = getUrlJSON' . toJSString
 
 foreign import javascript interruptible "var xmlHttp = new XMLHttpRequest(); \
@@ -95,7 +95,7 @@ foreign import javascript interruptible "var xmlHttp = new XMLHttpRequest(); \
     \     xmlHttp.open( 'GET', $1, true ); \
     \     xmlHttp.send( ); \
     \ } catch (err) { logText(err); if(i == 0){i++;$c(null);}} "
-    getUrlJSON' :: JSString -> IO (JSRef b)
+    getUrlJSON' :: JSString -> IO (JSVal)
 
 
 -- | Simple event when JSElement is changed (e.g. one picked file in "file" button)

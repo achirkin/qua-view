@@ -34,7 +34,7 @@ module Reactive
     ) where
 
 import GHCJS.Useful
-import GHCJS.Marshal
+--import GHCJS.Marshal
 
 import Language.Haskell.TH
 import GHC.TypeLits
@@ -229,10 +229,11 @@ pProcessIteration event (program, view) = event `seq` program `seq` view `seq` d
     (nprog, t1) <- t0 `seq` case processAllReactions event program of
         prog -> prog `seq` getTime >>= \t -> return (prog, t)
     (nview, nevs) <- processAllResponses event program nprog view
-    r <- inNextFrame $ return ()
-    t2 <- t1 `seq` getTime
-    let dt1 = t1-t0
-        dt2 = t2-t1
-    if dt1 < 0.05 && dt2 < 0.05 then return ()
-       else toJSRef ("react: " ++ show (t1-t0) ++ "; response: " ++ show (t2-t1)) >>= printRef
-    r `seq` nview `seq` nevs `seq` return (nprog, nview, nevs)
+--    r <- inNextFrame $ return ()
+--    t2 <- t1 `seq` getTime
+--    let dt1 = t1-t0
+--        dt2 = t2-t1
+--    if dt1 < 0.05 && dt2 < 0.05 then return ()
+--       else toJSRef ("react: " ++ show (t1-t0) ++ "; response: " ++ show (t2-t1)) >>= printRef
+--    r `seq` nview `seq` nevs `seq`
+    return (nprog, nview, nevs)

@@ -13,57 +13,69 @@
 
 module Program where
 
+--import GHCJS.Foreign
+--import GHCJS.Marshal
+--import Program.Model.GeoJSON
 
-import GHCJS.WebGL hiding (Program)
+
+import JavaScript.Web.Canvas (Canvas)
+import GHCJS.WebGL
 import GHCJS.Useful
-import Geometry.Space
---import Geometry.Structure (Polygon(..))
-
-import Controllers.LuciClient
-
+import Data.Geometry
+----import Geometry.Structure (Polygon(..))
+--
+--import Controllers.LuciClient
+--
 import Program.Model.Camera
-import Program.Model.City
+--import Program.Model.City
 --import Program.Model.CityObject
 import Program.Model.WiredGeometry
-import Program.View.CityView ()
+--import Program.View.CityView ()
 import Program.View.WiredGeometryView ()
 import Program.View
 
-import Services
-import Services.RadianceService
-import Services.Isovist
+--import Services
+--import Services.RadianceService
+--import Services.Isovist
 
 data Profile = Full | ExternalEditor | ExternalViewer deriving (Show, Eq)
 
--- | Data type representing the whole program state; pure functional
+-- | Data type representing the whole program state
 data Program = Program
+--    {
+--    --, info     :: !Info
     { camera   :: !Camera
     , decGrid  :: !WiredGeometry
-    , city     :: !City
-    , controls :: !Controls
-    --, info     :: !Info
+--    , city     :: !City
     , userRole :: !Profile
+    , controls :: !Controls
     }
 
 data Controls = Controls
     { selectedObject     :: !Int
-    , activeService      :: !ServiceBox
-    , availableServices  :: ![ServiceBox]
-    , placeTransform     :: !(Maybe (GLfloat, Vector2 GLfloat))
+--    , activeService      :: !ServiceBox
+--    , availableServices  :: ![ServiceBox]
+--    , placeTransform     :: !(Maybe (GLfloat, Vector2 GLfloat))
     }
-
---data Info = Info
---    { geomUpdateTime   :: !GLfloat
---    , geomUpdateAmount :: !Int
---    }
 --
---infoDef :: Info
---infoDef = Info
---    { geomUpdateTime   = 0
---    , geomUpdateAmount = 0
+----data Info = Info
+----    { geomUpdateTime   :: !GLfloat
+----    , geomUpdateAmount :: !Int
+----    }
+----
+----infoDef :: Info
+----infoDef = Info
+----    { geomUpdateTime   = 0
+----    , geomUpdateAmount = 0
+----    }
+--
+--initProgram userProfile = Program
+--    { controls = Controls
+--        { selectedObject = 0
+--        }
+--    --, info = infoDef
+--    , userRole = userProfile
 --    }
-
-
 initProgram :: GLfloat -- ^ width of the viewport
             -> GLfloat -- ^ height of the viewport
             -> CState -- ^ initial camera state
@@ -71,18 +83,18 @@ initProgram :: GLfloat -- ^ width of the viewport
             -> Program
 initProgram vw vh cstate userProfile = Program
     { camera = initCamera vw vh cstate
-    , decGrid = createDecorativeGrid 500 100 (Vector4 0.6 0.6 0.8 1)
-    , city = buildCity [] [] [] []
+    , decGrid = createDecorativeGrid 500 100 (vector4 0.6 0.6 0.8 1)
+--    , city = smallCity -- buildCity [] [] [] []
     , controls = Controls
         { selectedObject = 0
-        , activeService = radService
-        , availableServices = [radService, isovistService]
-        , placeTransform = Nothing
+--        , activeService = radService
+--        , availableServices = [radService, isovistService]
+--        , placeTransform = Nothing
         }
     --, info = infoDef
     , userRole = userProfile
-    } where radService = ServiceBox . RadianceService $ Vector3 0 3 5
-            isovistService = ServiceBox (Isovist IMArea)
+    } where -- radService = ServiceBox . RadianceService $ Vector3 0 3 5
+            -- isovistService = ServiceBox (Isovist IMArea)
 
 
 
@@ -91,38 +103,39 @@ initProgram vw vh cstate userProfile = Program
 data PView = PView
     { context      :: !ViewContext
     , dgView       :: !(View WiredGeometry)
-    , cityView     :: !(View City)
-    , luciClient   :: !(Maybe LuciClient)
-    , luciScenario :: !(Maybe Scenario)
-    , scUpToDate   :: !Bool
+--    , cityView     :: !(View City)
+--    , luciClient   :: !(Maybe LuciClient)
+--    , luciScenario :: !(Maybe Scenario)
+--    , scUpToDate   :: !Bool
     }
 
 
-initView :: Program -> JSElement -> IO PView
+initView :: Program -> Canvas -> IO PView
 initView prog@Program
     { camera = cam
     } canvas = do
     -- current time
     ctime <- getTime
     -- init GL
-    gl <- getCtx canvas
+    gl <- getWebGLContext canvas
     -- init Context
-    ctx <- setupViewContext gl cam ctime (Vector3 (-0.5) (-1) 0.6)
+    ctx <- setupViewContext gl cam ctime (vector3 (-0.5) (-1) 0.6)
     -- init object views
     dgview <- createView gl (decGrid prog)
-    cview <- createView gl (city prog)
+--    cview <- createView gl (city prog)
+--    toJSRef (decGrid prog) >>= printRef
     -- done!
     return PView
         { context      = ctx
         , dgView       = dgview
-        , cityView     = cview
-        , luciClient   = Nothing
-        , luciScenario = Nothing
-        , scUpToDate   = False
+--        , cityView     = cview
+--        , luciClient   = Nothing
+--        , luciScenario = Nothing
+--        , scUpToDate   = False
         }
 
-
---, city = buildCity [ building Dynamic $ SimplePolygon
+--
+--smallCity = buildCity [ building Dynamic $ SimplePolygon
 --                             [ Vector3 0 1 0
 --                             , Vector3 1 1 0
 --                             , Vector3 1 2 2
