@@ -1,4 +1,6 @@
 {-# LANGUAGE JavaScriptFFI #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE CPP #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  GHCJS.Useful
@@ -14,49 +16,44 @@
 
 module GHCJS.Useful where
 
+import Prelude hiding (lines)
 --import qualified Data.Aeson as A
-import Data.List (intercalate)
+import Data.JSString
+--import Data.List (intercalate)
 import Control.Concurrent (threadDelay)
-import Control.Monad (liftM)
+--import Control.Monad (liftM)
 import GHCJS.Foreign
 import GHCJS.Marshal
 import GHCJS.Types
 import GHCJS.WebGL.Types (GLfloat)
+import JavaScript.Web.Canvas (Canvas)
+
+type Time = Double
 
 -- | Good name to call all html-js elements
-type JSElement = JSRef JSElement_
-data JSElement_
+newtype JSElement = JSElement JSVal
+instance IsJSVal JSElement
 
 -- | Shortcut to get the element from the DOM
-getElementById :: String -> IO JSElement
-getElementById = getElementById' . toJSString
 foreign import javascript unsafe "$r = document.getElementById($1)"
-    getElementById' :: JSString -> IO JSElement
+    getElementById :: JSString -> IO JSElement
+
+-- | Shortcut to get the element from the DOM
+foreign import javascript unsafe "$r = document.getElementById($1)"
+    getCanvasById :: JSString -> IO Canvas
 
 -- | Get body element of the page
 foreign import javascript unsafe "$r = document.body"
     documentBody :: IO JSElement
 
--- | Do some staff in next animation frame
-inNextFrame :: IO () -> IO ()
-inNextFrame a = syncCallback NeverRetain False a >>= inNextFrame'
-foreign import javascript unsafe "window.requestAnimationFrame($1)"
-    inNextFrame' :: JSFun (IO ()) -> IO ()
-
---inNextFrame :: (GLfloat -> IO a) -> IO ()
---inNextFrame f = syncCallback1 NeverRetain False ((>>= f . fromMaybe 0) . fromJSRef)
---    >>= inNextFrame'
---foreign import javascript unsafe "$r = window.requestAnimationFrame($1);"
---    inNextFrame' :: JSFun (JSRef GLfloat -> IO (JSRef a)) -> IO (JSRef a)
 
 -- | Log staff
 foreign import javascript unsafe "console.log($1)"
-    printRef :: JSRef a -> IO ()
+    printVal :: JSVal -> IO ()
 
 -- | Current time in seconds
-foreign import javascript unsafe "$r = new Date().getTime()/1000"
-    getTime :: IO (GLfloat)
-
+foreign import javascript unsafe "$r = performance.now()"
+    getTime :: IO Time
 
 foreign import javascript unsafe "$r = $1.clientWidth"
     getElementWidth :: JSElement -> IO GLfloat
@@ -78,11 +75,8 @@ foreign import javascript unsafe "$1.style.height = $2 + 'px'"
     setElementStyleHeight :: JSElement -> GLfloat -> IO ()
 
 
-insertAfterHTML :: JSElement -> String -> IO ()
-insertAfterHTML el string = insertAfterHTML' el (toJSString string)
-
 foreign import javascript unsafe "$1.insertAdjacentHTML('afterend', $2);"
-    insertAfterHTML' :: JSElement -> JSString -> IO ()
+    insertAfterHTML :: JSElement -> JSString -> IO ()
 
 
 -- | Display loading splash
@@ -103,14 +97,14 @@ foreign import javascript unsafe "logText($1)"
 
 -- | Log into in-program console
 logText :: String -> IO ()
-logText s = logText' (toJSString . intercalate "<br/>" . lines $ s)
+logText s = logText' (intercalate "<br/>" . lines . pack $ s)
 
+logShowable :: Show a => a -> IO ()
+logShowable = logText . show
 
-setElementInnerHTML :: JSElement -> String -> IO ()
-setElementInnerHTML el = setElementInnerHTML' el . toJSString
 
 foreign import javascript unsafe "$1.innerHTML = $2;"
-    setElementInnerHTML' :: JSElement -> JSString -> IO ()
+    setElementInnerHTML :: JSElement -> JSString -> IO ()
 
 foreign import javascript unsafe "$1.style.display = 'none';"
     hideElement :: JSElement -> IO ()
@@ -119,19 +113,24 @@ foreign import javascript unsafe "$1.style.display = 'block';"
     showElement :: JSElement -> IO ()
 
 foreign import javascript unsafe "$r = $1.value;"
-    getInputValue' :: JSElement -> IO JSString
-
-getInputValue :: JSElement -> IO String
-getInputValue = liftM fromJSString . getInputValue'
+    getInputValue :: JSElement -> IO JSString
 
 foreign import javascript unsafe "$r = $1.parentNode;"
     elementParent :: JSElement -> IO JSElement
 
-getHtmlArg :: String -> IO (Maybe String)
-getHtmlArg arg = liftM (\s -> if s == Just "" then Nothing else s)
-    $ getHtmlArg' (toJSString arg) >>= fromJSRef
-
 foreign import javascript unsafe "$r = httpArgs[$1];"
-    getHtmlArg' :: JSString -> IO (JSRef String)
+    getHtmlArg :: JSString -> JSString
 
 
+class JSNum a where
+    fromJSNum :: JSVal -> a
+    toJSNum :: a -> JSVal
+
+#define JSNUM(T) \
+foreign import javascript unsafe "$r = $1" js_to/**/T :: JSVal -> T; {-# INLINE js_to/**/T #-};\
+foreign import javascript unsafe "$r = $1" js_from/**/T :: T -> JSVal; {-# INLINE js_from/**/T #-};\
+instance JSNum T where { fromJSNum = js_to/**/T; {-# INLINE fromJSNum #-}; toJSNum = js_from/**/T; {-# INLINE toJSNum #-}}
+
+JSNUM(Int)
+JSNUM(Float)
+JSNUM(Double)

@@ -20,13 +20,12 @@ module Program.Model.CityGround
     , groundGridToTexArray
     ) where
 
-import Data.Primitive.ByteArray
-import Data.Primitive (sizeOf)
+--import Data.Primitive.ByteArray
+--import Data.Primitive (sizeOf)
 import Control.Monad.ST (runST)
 import GHCJS.WebGL
 import SmallGL.WritableVectors
-import Geometry.Space
-import Geometry.Structure
+import Data.Geometry
 import Program.Model.CityObject
 
 -- | This object is used to show service evaluation results on its surface

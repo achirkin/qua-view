@@ -24,15 +24,16 @@ module Controllers.Pointer
     )
     where
 
-import Control.Monad (liftM)
-
-import GHCJS.Foreign
+import GHCJS.Foreign.Callback
 import GHCJS.Marshal
 import GHCJS.Types
+import GHCJS.Prim
 import GHCJS.WebGL
 import GHCJS.Useful
 
-import Geometry.Space
+import Data.Coerce (coerce)
+
+import Data.Geometry
 
 
 
@@ -49,20 +50,15 @@ data PointerClickEvent = PClick !InteractionType [Vector2 GLfloat] deriving (Eq,
 -- | Start of dragging
 data PointerDownEvent = PDown !InteractionType [Vector2 GLfloat] deriving (Eq, Show)
 -- | During dragging
-data PointerMoveEvent = PMove !InteractionType GLfloat [(Vector2 GLfloat,Vector2 GLfloat)] deriving (Eq, Show)
+data PointerMoveEvent = PMove !InteractionType !Time [(Vector2 GLfloat,Vector2 GLfloat)] deriving (Eq, Show)
 -- | End of dragging
-data PointerUpEvent = PUp !InteractionType GLfloat [(Vector2 GLfloat,Vector2 GLfloat)] deriving (Eq, Show)
+data PointerUpEvent = PUp !InteractionType !Time [(Vector2 GLfloat,Vector2 GLfloat)] deriving (Eq, Show)
 -- | Cancel move or leave an area
-data PointerCancelEvent = PCancel
+data PointerCancelEvent = PCancel deriving (Eq, Show)
 -- | Mouse wheel change
 newtype WheelEvent = WheelDelta GLfloat deriving (Eq, Show)
 -- | Supported mouse buttons or touches
 data InteractionType = LeftButton | RightButton | MiddleButton | Touches deriving (Eq, Show)
-
-
-
-instance FromJSRef InteractionType where
-    fromJSRef = liftM (>>= return . toEnum) . fromJSRef . (castRef :: JSRef InteractionType -> JSRef Int)
 
 instance Enum InteractionType where
     fromEnum LeftButton = 0
@@ -89,15 +85,15 @@ addEventlisteners :: JSElement
                   -> PCancelCallBack -- ^ cancel
                   -> IO ()
 addEventlisteners element clickFun downFun moveFun upFun cancelFun = do
-    clickCallBack <- asyncCallback1 AlwaysRetain (\iref -> fromJSRef iref
+    clickCallBack <- asyncCallback1 (\ival -> fromJSVal ival
         >>= maybeCall (\(Interaction t _ ps) -> clickFun $ PClick t (map fst ps)))
-    downCallBack <- asyncCallback1 AlwaysRetain (\iref -> fromJSRef iref
+    downCallBack <- asyncCallback1 (\ival -> fromJSVal ival
         >>= maybeCall (\(Interaction t _ ps) -> downFun $ PDown t (map snd ps)))
-    moveCallBack <- asyncCallback1 AlwaysRetain (\iref -> fromJSRef iref
+    moveCallBack <- asyncCallback1 (\ival -> fromJSVal ival
         >>= maybeCall (\(Interaction t dt ps) -> moveFun $ PMove t dt ps))
-    upCallBack <- asyncCallback1 AlwaysRetain (\iref -> fromJSRef iref
+    upCallBack <- asyncCallback1 (\ival -> fromJSVal ival
         >>= maybeCall (\(Interaction t dt ps) -> upFun $ PUp t dt ps))
-    cancelCallback <- asyncCallback AlwaysRetain (cancelFun PCancel)
+    cancelCallback <- asyncCallback (cancelFun PCancel)
     addEventlisteners' element clickCallBack downCallBack moveCallBack upCallBack cancelCallback
     where maybeCall _ Nothing = print "ups!" >> return ()
           maybeCall f (Just x) = f x
@@ -107,7 +103,7 @@ foreign import javascript unsafe "var clickTime = 200; var clickMove = 10; \
     \ var toInteraction = function(state,dt,pos){ \
     \     var points = []; \
     \     if (!pos) {return undefined;} \
-    \     points = points.concat.apply(points, pos.map(function(p) {return [p.nx,p.ny,p.ox,p.oy];})); \
+    \     points = points.concat.apply(points, pos.map(function(p) {return [[p.nx,p.ny],[p.ox,p.oy]];})); \
     \     return [state,dt,points]; \
     \ }; \
     \ var pointerUp = function(event){ \
@@ -119,7 +115,7 @@ foreign import javascript unsafe "var clickTime = 200; var clickMove = 10; \
     \     } \
     \     var arg = toInteraction(event.target.pointerState,event.target.deltaTime,event.target.pointerPos); \
     \     if (arg) {\
-    \     if ((new Date()).getTime() - event.target.downTime < clickTime \
+    \     if (performance.now() - event.target.downTime < clickTime \
     \        && Math.abs(event.target.pointerPos[0].nx - event.target.pointerPos[0].ox) < clickMove \
     \        && Math.abs(event.target.pointerPos[0].ny - event.target.pointerPos[0].oy) < clickMove){ \
     \         $2(arg); \
@@ -139,7 +135,7 @@ foreign import javascript unsafe "var clickTime = 200; var clickMove = 10; \
     \ var pointerDown = function(event){ \
     \     event.preventDefault(); \
     \     event.stopPropagation(); \
-    \     event.target.downTime = (new Date()).getTime(); \
+    \     event.target.downTime = performance.now(); \
     \     if (event.touches) { \
     \         event.target.pointerState = 99; \
     \         event.target.pointerPos = Array.prototype.slice.call(event.touches).map(function(t) {return {ox: t.clientX, oy: t.clientY, nx: t.clientX, ny: t.clientY};}); \
@@ -175,7 +171,7 @@ foreign import javascript unsafe "var clickTime = 200; var clickMove = 10; \
     \             event.target.pointerPos[0].nx = event.clientX; \
     \             event.target.pointerPos[0].ny = event.clientY; \
     \         } \
-    \         event.target.deltaTime = (new Date()).getTime() - event.target.downTime; \
+    \         event.target.deltaTime = performance.now() - event.target.downTime; \
     \         var arg = toInteraction(event.target.pointerState,event.target.deltaTime,event.target.pointerPos); \
     \         if (arg) {$4(arg);} \
     \     } \
@@ -201,25 +197,26 @@ foreign import javascript unsafe "var clickTime = 200; var clickMove = 10; \
     \ $1.addEventListener('mouseleave', pointerCancel); \
     \ $1.addEventListener('touchcancel', pointerCancel); "
     addEventlisteners' :: JSElement
-                       -> JSFun (JSRef Interaction -> IO ()) -- ^ click
-                       -> JSFun (JSRef Interaction -> IO ()) -- ^ down
-                       -> JSFun (JSRef Interaction -> IO ()) -- ^ move
-                       -> JSFun (JSRef Interaction -> IO ()) -- ^ up
-                       -> JSFun (IO ()) -- ^ cancel
+                       -> Callback (JSVal -> IO ()) -- ^ click
+                       -> Callback (JSVal -> IO ()) -- ^ down
+                       -> Callback (JSVal -> IO ()) -- ^ move
+                       -> Callback (JSVal -> IO ()) -- ^ up
+                       -> Callback (IO ()) -- ^ cancel
                        -> IO ()
 
 
-data Interaction = Interaction !InteractionType !GLfloat ![(Vector2 GLfloat, Vector2 GLfloat)]
+data Interaction = Interaction !InteractionType !Time ![(Vector2 GLfloat, Vector2 GLfloat)]
     deriving (Eq, Show)
 
-instance FromJSRef Interaction where
-    fromJSRef = liftM (>>= parse) . fromJSRef . (castRef :: JSRef Interaction -> JSRef (Int,GLfloat,[GLfloat]))
-        where parse (t,dt,arr) = Just $ Interaction (toEnum t) dt (listToCoords arr)
-              listToCoords (a:b:c:d:xs) = (Vector2 a b,Vector2 c d) : listToCoords xs
-              listToCoords [_,_,_] = []
-              listToCoords [_,_] = []
-              listToCoords [_] = []
-              listToCoords [] = []
+
+instance FromJSVal Interaction where
+    fromJSVal val = fromJSArray val >>= \vals ->
+      case vals of
+        mode:dt:ar:_ -> Just . Interaction (toEnum $ fromJSNum mode) (fromJSNum dt) . f <$> fromJSArray ar
+        _            -> pure Nothing
+      where f :: [JSVal] -> [(Vector2 GLfloat, Vector2 GLfloat)]
+            f (n:o:xs) = (coerce n, coerce o) : f xs
+            f _ = []
 
 ----------------------------------------------------------------------------------------------------
 -- Mouse wheel
@@ -229,7 +226,7 @@ instance FromJSRef Interaction where
 --   This is the only stateless action in the module.
 onMouseWheel :: JSElement -> WheelCallBack -> IO ()
 onMouseWheel element wheelFun = do
-    wheelCallBack <- asyncCallback1 AlwaysRetain (\iref -> fromJSRef iref
+    wheelCallBack <- asyncCallback1 (\iref -> fromJSVal iref
         >>= maybeCall (\d -> wheelFun $ WheelDelta d))
     onMouseWheel' element wheelCallBack
     where maybeCall _ Nothing = print "ups!" >> return ()
@@ -242,7 +239,7 @@ foreign import javascript unsafe "\
     \     $2(e['wheelDelta'] > 0 || e['detail'] < 0 || e['deltaY'] < 0 ? (1.0) : (-1.0)); \
     \     return false; \
     \ });"
-    onMouseWheel' :: JSElement -> JSFun (JSRef GLfloat -> IO ()) -> IO ()
+    onMouseWheel' :: JSElement -> Callback (JSVal -> IO ()) -> IO ()
 
 
 
@@ -253,7 +250,7 @@ foreign import javascript unsafe "\
 -- | Simple event when JSElement is clicked
 elementOnClick :: JSElement -> ElementClickCallback -> IO ()
 elementOnClick element clickFun = do
-    clickCallBack <- asyncCallback AlwaysRetain (clickFun ElementClick)
+    clickCallBack <- asyncCallback (clickFun ElementClick)
     elementOnClick' element clickCallBack
 foreign import javascript unsafe "\
     \ $1.addEventListener('click', function(event){ \
@@ -263,10 +260,9 @@ foreign import javascript unsafe "\
     \     $2(); \
     \     return false; \
     \ });"
-    elementOnClick' :: JSElement -> JSFun (IO ()) -> IO ()
-
+    elementOnClick' :: JSElement -> Callback (IO ()) -> IO ()
 
 
 -- | Simple click on element
-data ElementClickEvent = ElementClick
+data ElementClickEvent = ElementClick deriving (Eq, Show)
 type ElementClickCallback = ElementClickEvent -> IO ()

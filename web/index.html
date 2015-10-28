@@ -20,12 +20,104 @@
     <script type="text/javascript" src="misc.js"></script>
   </head>
 <body>
-<svg id="loadingSplash" timelinebegin="loadbegin" fill="none" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 72 72">
-   <circle id="redCircle" stroke-opacity="1" cx="36" stroke="#FF5722" cy="36" r="28" stroke-dasharray="10, 5, 50, 40, 30.929188601, 40" stroke-width="16">
-      <animate attributeType="CSS" attributeName="stroke-dashoffset" from="175.929188601" to="0" dur="2s" repeatCount="indefinite" begin="0s" />
+<svg id="loadingSplash" fill="none" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 72 72">
+<style>
+#redCircle {
+  position: relative;
+  transform-origin: 36px 36px;
+  -ms-transform-origin: 36px 36px;
+  -moz-transform-origin: 36px 36px;
+  -webkit-transform-origin: 36px 36px;
+  -webkit-animation: rotRed 32s linear infinite;
+  -moz-animation: rotRed 3s linear infinite;
+  -ms-animation: rotRed 3s linear infinite;
+  -o-animation: rotRed 3s linear infinite;
+  animation: rotRed 3s linear infinite;
+}
+#greyCircle {
+  position: relative;
+  transform-origin: 36px 36px;
+  -ms-transform-origin: 36px 36px;
+  -moz-transform-origin: 36px 36px;
+  -webkit-transform-origin: 36px 36px;
+  -webkit-animation: rotGrey 8s linear infinite;
+  -moz-animation: rotGrey 8s linear infinite;
+  -ms-animation: rotGrey 8s linear infinite;
+  -o-animation: rotGrey 8s linear infinite;
+  animation: rotGrey 8s linear infinite;
+}
+
+@-webkit-keyframes rotRed /* Safari and Chrome */ {
+  from {
+    -ms-transform: rotate(0deg);
+    -moz-transform: rotate(0deg);
+    -webkit-transform: rotate(0deg);
+    -o-transform: rotate(0deg);
+    transform: rotate(0deg);
+  }
+  to {
+    -ms-transform: rotate(360deg);
+    -moz-transform: rotate(360deg);
+    -webkit-transform: rotate(360deg);
+    -o-transform: rotate(360deg);
+    transform: rotate(360deg);
+  }
+}
+@keyframes rotRed {
+  from {
+    -ms-transform: rotate(0deg);
+    -moz-transform: rotate(0deg);
+    -webkit-transform: rotate(0deg);
+    -o-transform: rotate(0deg);
+    transform: rotate(0deg);
+  }
+  to {
+    -ms-transform: rotate(360deg);
+    -moz-transform: rotate(360deg);
+    -webkit-transform: rotate(360deg);
+    -o-transform: rotate(360deg);
+    transform: rotate(360deg);
+  }
+}
+@-webkit-keyframes rotGrey /* Safari and Chrome */ {
+  from {
+    -ms-transform: rotate(360deg);
+    -moz-transform: rotate(360deg);
+    -webkit-transform: rotate(360deg);
+    -o-transform: rotate(360deg);
+    transform: rotate(360deg);
+  }
+  to {
+    -ms-transform: rotate(0deg);
+    -moz-transform: rotate(0deg);
+    -webkit-transform: rotate(0deg);
+    -o-transform: rotate(0deg);
+    transform: rotate(0deg);
+  }
+}
+@keyframes rotGrey {
+  from {
+    -ms-transform: rotate(360deg);
+    -moz-transform: rotate(360deg);
+    -webkit-transform: rotate(360deg);
+    -o-transform: rotate(360deg);
+    transform: rotate(360deg);
+  }
+  to {
+    -ms-transform: rotate(0deg);
+    -moz-transform: rotate(0deg);
+    -webkit-transform: rotate(0deg);
+    -o-transform: rotate(0deg);
+    transform: rotate(0deg);
+  }
+}
+
+</style>
+   <circle id="redCircle" stroke-opacity="1" cx="36" cy="36" stroke="#FF5722" r="28" stroke-dasharray="10, 5, 50, 40, 30.929188601, 40" stroke-width="16">
+      <!-- animate attributeType="CSS" attributeName="stroke-dashoffset" from="175.929188601" to="0" dur="2s" repeatCount="indefinite" begin="0s" / -->
    </circle>
    <circle id="greyCircle" stroke-width="8" stroke-opacity=".2" stroke="#BF360C" cy="36" cx="36" stroke-dasharray="38, 14, 8, 14, 65.929188601, 14, 8, 14" r="28">
-      <animate attributeType="CSS" attributeName="stroke-dashoffset" to="175.929188601" from="0" dur="10s" repeatCount="indefinite" begin="0s" />
+      <!-- <animate attributeType="CSS" attributeName="stroke-dashoffset" to="175.929188601" from="0" dur="10s" repeatCount="indefinite" begin="0s" /> -->
    </circle>
 </svg>
 <canvas id="glcanvas"></canvas>

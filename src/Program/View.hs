@@ -1,8 +1,10 @@
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeFamilies, DataKinds #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE ViewPatterns #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Program.View
@@ -18,23 +20,27 @@
 
 module Program.View where
 
-
-import Control.Monad (liftM)
 import Data.Bits (Bits(..))
+import Data.Coerce (coerce)
+
+import Control.Arrow ((***))
 
 import GHCJS.WebGL
 import GHCJS.Foreign
+import GHCJS.Marshal.Pure (pFromJSVal)
+import GHCJS.Useful
 
-import Geometry.Space
-import Geometry.Space.Transform
+import Data.Geometry
+import Data.Geometry.Transform
+import JavaScript.TypedArray
+import JavaScript.TypedArray.IO
 import Program.Model.Camera (viewMatrix, Camera(..))
-
 
 -- | Rendering global parameters
 data ViewContext = ViewContext
-    { glctx        :: !Ctx -- ^ WebGL context
-    , projectArr   :: !(TypedArray GLfloat)
-    , modelViewArr :: !(TypedArray GLfloat)
+    { glctx        :: !WebGLRenderingContext -- ^ WebGL context
+    , projectArr   :: !(IOTypedArray GLfloat)
+    , modelViewArr :: !(IOTypedArray GLfloat)
     , selector     :: !SelectorObject
     , sunDir       :: !(Vector3 GLfloat)
     , curState     :: !ViewState
@@ -42,11 +48,11 @@ data ViewContext = ViewContext
 
 -- | View state snapshot
 data ViewState = ViewState
-    { vView      :: !(Matrix4x4 GLfloat)
+    { vView      :: !(Matrix4 GLfloat)
     , vSunDir    :: !(Vector3 GLfloat)
-    , vGLProjLoc :: UniformLocation
-    , vGLViewLoc :: UniformLocation
-    , vTime      :: !GLfloat
+    , vGLProjLoc :: WebGLUniformLocation
+    , vGLViewLoc :: WebGLUniformLocation
+    , vTime      :: !Time
     }
 
 
@@ -57,9 +63,9 @@ data ShAttrLocations = ShAttrLocations {
     }
 
 data SelectorObject = SelectorObject {
-        sbuffer   :: !FrameBuffer, -- buffer to draw selector to
-       -- svalue    :: !UniformLocation,  -- selector value for object identification
-        pixProber :: !(TypedArray GLubyte) -- typed array to read pixel to
+        sbuffer   :: !WebGLFramebuffer, -- buffer to draw selector to
+       -- svalue    :: !WebGLUniformLocation,  -- selector value for object identification
+        pixProber :: !(IOTypedArray GLubyte) -- typed array to read pixel to
     }
 
 type AttribLocation = GLuint
@@ -70,11 +76,11 @@ class Drawable obj where
     -- | Object view contains data necessary for drawing
     type View obj
     -- | View creation should only require object itself and GL context
-    createView :: Ctx -> obj -> IO (View obj)
+    createView :: WebGLRenderingContext -> obj -> IO (View obj)
     -- | Update view to correspond to current object
-    updateView :: Ctx -> obj -> View obj -> IO (View obj)
+    updateView :: WebGLRenderingContext -> obj -> View obj -> IO (View obj)
     -- | Delete unmanaged objects in view, if any. obj may be undefined
-    deleteView :: Ctx -> obj -> View obj -> IO ()
+    deleteView :: WebGLRenderingContext -> obj -> View obj -> IO ()
     -- | Draw the object (without setting up shaders)
     drawInCurrContext :: ViewContext -> obj -> View obj -> IO ()
     -- | Set up necessary context (e.g. shader params)
@@ -92,29 +98,29 @@ selectArea :: (Selectable obj) => ViewContext -> obj -> View obj -> IO ()
 selectArea vc obj view = selectInCurrContext vc' obj view
     where vc' = vc{ curState = updateSelectState obj view $ curState vc}
 
-instance ( SpaceTransform s GLfloat
+instance ( SpaceTransform s 3 GLfloat
          , Drawable obj
-         ) => Drawable (STransform s GLfloat obj) where
-    type View (STransform s GLfloat obj) = View obj
+         ) => Drawable (s obj) where
+    type View (s obj) = View obj
     createView gl = createView gl . unwrap
     drawInCurrContext w s view = applyTransform w s >>= \obj -> drawInCurrContext w obj view
     updateDrawState s = updateDrawState (unwrap s)
     updateView ctx s = updateView ctx (unwrap s)
     deleteView ctx s = deleteView ctx (f s)
-        where f :: STransform s GLfloat obj -> obj
+        where f :: s obj -> obj
               f _ = undefined
 
-instance ( SpaceTransform s GLfloat
+instance ( SpaceTransform s 3 GLfloat
          , Selectable obj
-         ) => Selectable (STransform s GLfloat obj) where
+         ) => Selectable (s obj) where
     selectInCurrContext w s view = applyTransform w s >>= \obj -> selectInCurrContext w obj view
     updateSelectState s = updateSelectState (unwrap s)
 
 
 -- | Create default world
-setupViewContext :: Ctx
+setupViewContext :: WebGLRenderingContext
                  -> Camera-- ^ active camera
-                 -> GLfloat -- ^ start time
+                 -> Time -- ^ start time
                  -> Vector3 GLfloat -- ^ sun direction
                  -> IO ViewContext
 setupViewContext gl cam t sd = do
@@ -125,11 +131,11 @@ setupViewContext gl cam t sd = do
     depthFunc gl gl_LEQUAL
     viewport gl 0 0 vpWidth vpHeight
     -- create uniforms
-    pptr <- newTypedArray 16
-    mvptr <- newTypedArray 16
+    pptr <- newIOTypedArray 16
+    mvptr <- newIOTypedArray 16
     -- create selector
     selB <- initSelectorFramebuffer gl vps
-    pickedColorArr <- newTypedArray 4
+    pickedColorArr <- newIOTypedArray 4
     return ViewContext
         { glctx        = gl
         , projectArr   = pptr
@@ -145,7 +151,7 @@ setupViewContext gl cam t sd = do
             , vTime      = t
             }
         }
-    where vps@(Vector2 vpWidth vpHeight) = round <$> viewportSize cam
+    where vps@(vpWidth, vpHeight) = round *** round $ viewportSize cam
 
 updateViewPortSize :: Camera-- ^ active camera
                    -> ViewContext
@@ -158,28 +164,28 @@ updateViewPortSize cam c@ViewContext
     deleteFramebuffer gl sbuf -- TODO: do proper delete and update of framebuffers
     sbuf' <- initSelectorFramebuffer gl vps
     return c{selector = sobj{sbuffer = sbuf'}}
-    where vps@(Vector2 vpWidth vpHeight) = round <$> viewportSize cam
+    where vps@(vpWidth, vpHeight) = round *** round $ viewportSize cam
 
 
 clearScreen :: ViewContext -> IO ()
 clearScreen c = clear (glctx c) (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
 
-prepareRenderState :: ViewContext -> Camera -> GLfloat -> IO ViewContext
+prepareRenderState :: ViewContext -> Camera -> Time -> IO ViewContext
 prepareRenderState vc@ViewContext
-        { sunDir   = Vector3 sx sy sz
+        { sunDir   = unpackV3 -> (sx, sy, sz)
         , curState = cs
         } cam t = do
-    fillTypedArray (projectArr vc) (projMatrix cam)
-    fillTypedArray (modelViewArr vc) viewM
+    setIndex 0 (projMatrix cam) (coerce $ projectArr vc)
+    setIndex 0 viewM (coerce $ modelViewArr vc)
     return vc
         { curState = cs
             { vView      = viewM
-            , vSunDir    = Vector3 sx' sy' sz'
+            , vSunDir    = vector3 sx' sy' sz'
             , vTime      = t
             }
         }
     where viewM = viewMatrix cam
-          Vector4 sx' sy' sz' _ = viewM `prod` Vector4 sx sy sz 0
+          (sx', sy', sz', _) = unpackV4 $ viewM `prod` vector4 sx sy sz 0
 
 
 applySelector :: (Selectable a)=> ViewContext -> Camera -> a -> View a -> IO ViewContext
@@ -190,10 +196,10 @@ applySelector vc'@ViewContext
     viewport gl 0 0 vpWidth vpHeight
     clear gl (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
     selectArea vc obj view
-    bindFramebuffer gl gl_FRAMEBUFFER jsNull
+    bindFramebuffer gl gl_FRAMEBUFFER (pFromJSVal jsNull)
     viewport gl 0 0 vpWidth vpHeight
     return vc
-    where Vector2 vpWidth vpHeight = round <$> viewportSize cam
+    where (vpWidth, vpHeight) = round *** round $ viewportSize cam
           vc = vc'{curState = updateSelectState obj view (curState vc')}
 
 
@@ -209,44 +215,44 @@ getSelection ViewContext
         { sbuffer   = sbuf
         , pixProber = pcarr
         }
-    } cam (Vector2 x y) = do
+    } cam (unpackV2 -> (x, y)) = do
     bindFramebuffer gl gl_FRAMEBUFFER sbuf
     viewport gl 0 0 w h
     readPixels gl (round x) (fromIntegral h - round y) 1 1 gl_RGBA gl_UNSIGNED_BYTE pcarr
-    r <- liftM fromIntegral $ getIdx pcarr 0
-    g <- liftM fromIntegral $ getIdx pcarr 1
-    b <- liftM fromIntegral $ getIdx pcarr 2
-    bindFramebuffer gl gl_FRAMEBUFFER jsNull
+    r <- fromIntegral <$> index 0 pcarr
+    g <- fromIntegral <$> index 1 pcarr
+    b <- fromIntegral <$> index 2 pcarr
+    bindFramebuffer gl gl_FRAMEBUFFER (pFromJSVal jsNull)
     viewport gl 0 0 w h
     return . SelectionEvent $ r + shift g 8 + shift b 16
-    where Vector2 w h = round <$> viewportSize cam
+    where (w,h) = round *** round $ viewportSize cam
 
 
 
 -- | Apply current transform of an object (including perspective) and save shader uniforms
-applyTransform :: (SpaceTransform s GLfloat)
-               => ViewContext -> STransform s GLfloat a -> IO a
+applyTransform :: (SpaceTransform s 3 GLfloat)
+               => ViewContext -> s a -> IO a
 applyTransform vc@(ViewContext{glctx = gl, curState = cs}) tr = do
         let MTransform matrix x = mergeSecond (MTransform (vView cs) id) tr
-        fillTypedArray (modelViewArr vc) matrix
+        setIndex 0 matrix (coerce $ modelViewArr vc)
         uniformMatrix4fv gl (vGLViewLoc cs) False (modelViewArr vc)
         return x
 
 
 
-initSelectorFramebuffer :: Ctx -> Vector2 GLsizei -> IO FrameBuffer
-initSelectorFramebuffer gl (Vector2 width height) = do
+initSelectorFramebuffer :: WebGLRenderingContext -> (GLsizei, GLsizei) -> IO WebGLFramebuffer
+initSelectorFramebuffer gl (width,height) = do
     fb <- createFramebuffer gl
     bindFramebuffer gl gl_FRAMEBUFFER fb
     tex <- createTexture gl
     bindTexture gl gl_TEXTURE_2D tex
-    texImage2D gl gl_TEXTURE_2D 0 gl_RGBA width height 0 gl_RGBA gl_UNSIGNED_BYTE jsNull
+    texImage2D gl gl_TEXTURE_2D 0 gl_RGBA width height 0 gl_RGBA gl_UNSIGNED_BYTE (pFromJSVal jsNull)
     texParameteri gl gl_TEXTURE_2D gl_TEXTURE_WRAP_S $ fromIntegral gl_CLAMP_TO_EDGE
     texParameteri gl gl_TEXTURE_2D gl_TEXTURE_WRAP_T $ fromIntegral gl_CLAMP_TO_EDGE
     texParameteri gl gl_TEXTURE_2D gl_TEXTURE_MAG_FILTER $ fromIntegral gl_NEAREST
     texParameteri gl gl_TEXTURE_2D gl_TEXTURE_MIN_FILTER $ fromIntegral gl_NEAREST
     framebufferTexture2D gl gl_FRAMEBUFFER gl_COLOR_ATTACHMENT0 gl_TEXTURE_2D tex 0
-    bindTexture gl gl_TEXTURE_2D jsNull
+    bindTexture gl gl_TEXTURE_2D (pFromJSVal jsNull)
 --    rbc <- createRenderbuffer gl
 --    bindRenderbuffer gl gl_RENDERBUFFER rbc
 --    renderbufferStorage gl gl_RENDERBUFFER gl_RGBA4 width height
@@ -255,12 +261,12 @@ initSelectorFramebuffer gl (Vector2 width height) = do
     bindRenderbuffer gl gl_RENDERBUFFER rbd
     renderbufferStorage gl gl_RENDERBUFFER gl_DEPTH_COMPONENT16 width height
     framebufferRenderbuffer gl gl_FRAMEBUFFER gl_DEPTH_ATTACHMENT gl_RENDERBUFFER rbd
-    bindRenderbuffer gl gl_RENDERBUFFER jsNull
-    bindFramebuffer gl gl_FRAMEBUFFER jsNull
+    bindRenderbuffer gl gl_RENDERBUFFER (pFromJSVal jsNull)
+    bindFramebuffer gl gl_FRAMEBUFFER (pFromJSVal jsNull)
     return fb
 
 
-initTexture :: Ctx -> Either TexImageSource (TypedArray GLubyte, Vector2 GLsizei) -> IO Texture
+initTexture :: WebGLRenderingContext -> Either TexImageSource (TypedArray GLubyte, Vector2 GLsizei) -> IO WebGLTexture
 initTexture gl texdata = do
     tex <- createTexture gl
     bindTexture gl gl_TEXTURE_2D tex
@@ -268,19 +274,19 @@ initTexture gl texdata = do
         Left img -> do
             pixelStorei gl gl_UNPACK_FLIP_Y_WEBGL 1
             texImage2DImg gl gl_TEXTURE_2D 0 gl_RGBA gl_RGBA gl_UNSIGNED_BYTE img
-        Right (arr, Vector2 w h) -> do
+        Right (arr, unpackV2 -> (w,h)) -> do
             pixelStorei gl gl_UNPACK_FLIP_Y_WEBGL 0
             texImage2D gl gl_TEXTURE_2D 0 gl_RGBA w h 0 gl_RGBA gl_UNSIGNED_BYTE arr
     texParameteri gl gl_TEXTURE_2D gl_TEXTURE_WRAP_S $ fromIntegral gl_CLAMP_TO_EDGE
     texParameteri gl gl_TEXTURE_2D gl_TEXTURE_WRAP_T $ fromIntegral gl_CLAMP_TO_EDGE
     texParameteri gl gl_TEXTURE_2D gl_TEXTURE_MAG_FILTER $ fromIntegral gl_NEAREST
     texParameteri gl gl_TEXTURE_2D gl_TEXTURE_MIN_FILTER $ fromIntegral gl_NEAREST
-    bindTexture gl gl_TEXTURE_2D jsNull
+    bindTexture gl gl_TEXTURE_2D (pFromJSVal jsNull)
     return tex
 
-updateTexture :: Ctx
+updateTexture :: WebGLRenderingContext
               -> Either TexImageSource (TypedArray GLubyte, Vector2 GLsizei)
-              -> Texture
+              -> WebGLTexture
               -> IO ()
 updateTexture gl texdata tex = do
     bindTexture gl gl_TEXTURE_2D tex
@@ -288,7 +294,7 @@ updateTexture gl texdata tex = do
         Left img -> do
             pixelStorei gl gl_UNPACK_FLIP_Y_WEBGL 1
             texImage2DImg gl gl_TEXTURE_2D 0 gl_RGBA gl_RGBA gl_UNSIGNED_BYTE img
-        Right (arr, Vector2 w h) -> do
+        Right (arr, unpackV2 -> (w,h)) -> do
             pixelStorei gl gl_UNPACK_FLIP_Y_WEBGL 0
             texImage2D gl gl_TEXTURE_2D 0 gl_RGBA w h 0 gl_RGBA gl_UNSIGNED_BYTE arr
-    bindTexture gl gl_TEXTURE_2D jsNull
+    bindTexture gl gl_TEXTURE_2D (pFromJSVal jsNull)

@@ -15,6 +15,8 @@
 
 module Program.Reactions.ViewRendering () where
 
+import JavaScript.Web.AnimationFrame
+
 import Reactive
 
 import Program
@@ -31,12 +33,12 @@ import Program.Reactions.ServiceFinish
 renderScene :: Program -> PView -> IO (Either PView (EventBox Program PView))
 renderScene program view = do
     -- prepare rendering
-    ctime <- getTime
+    ctime <- waitForAnimationFrame
     ctx <- prepareRenderState (context view) (camera program) ctime
     -- render
     clearScreen ctx
     draw ctx (decGrid program) (dgView view)
-    draw ctx (city program) (cityView view)
+--    draw ctx (city program) (cityView view)
     -- done!
     return $ Left view{context = ctx}
 
@@ -58,8 +60,8 @@ instance Reaction Program PView ResizeEvent "Resize & Render" 1 where
         renderScene p v{context = ctx'}
 
 
-instance Reaction Program PView SelectionEvent "Render" 9 where
-    response _ _ _ = renderScene
+--instance Reaction Program PView SelectionEvent "Render" 9 where
+--    response _ _ _ = renderScene
 
 
 instance Reaction Program PView ServiceRunFinish "Render" 9 where

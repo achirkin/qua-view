@@ -20,19 +20,20 @@ author: Artem Chirkin
 executable ghcjs-modeler
     main-is: Main.hs
     build-depends:
-        geojson >=1.3,
-        primitive >=0.5.4.0,
-        base >=4.2 && <5,
-        fgeom >=0.2.2,
-        ghc-prim >=0.4 && <1,
-        ghcjs-base >=0.1.0.0,
-        ghcjs-webgl >=0.2 && <2,
-        geojson >=1.3,
-        aeson >=0.9.0.1 && <0.10,
-        template-haskell >=2.10.0.0 && <2.11,
-        containers >=0.5.6.3 && <0.6,
-        text >=1.2.0.4 && <1.3
+        fastvec ==0.1.*,
+        base >=4.8 && <5,
+        ghc-prim >=0.4,
+        ghcjs-base ==0.2.*,
+        ghcjs-prim ==0.1.*,
+        ghcjs-webgl ==0.3.*,
+        template-haskell >=2.10,
+        containers >=0.5.6.3,
+        text >=1.2.0.4
     cpp-options: -DGHCJS_BROWSER
+    js-sources:
+        jsbits/PointSet.js
+        jsbits/numeric.js
+        jsbits/earcut.js
     default-language: Haskell2010
     hs-source-dirs: src
     other-modules:
@@ -41,14 +42,13 @@ executable ghcjs-modeler
         Controllers.GeoJSONFileImport
         Controllers.LuciClient
         Controllers.Pointer
+        Data.Geometry.Structure
+        Data.Geometry.Structure.LinearRing
+        Data.Geometry.Structure.PointSet
+        Data.Geometry.Structure.Polygon
         GHCJS.Useful
         Program
         Program.Model.Camera
-        Program.Model.City
-        Program.Model.CityGround
-        Program.Model.CityObject
-        Program.Model.GeoJSON
-        Program.Model.ScalarField
         Program.Model.WiredGeometry
         Program.Reactions
         Program.Reactions.CameraBehavior
@@ -61,16 +61,7 @@ executable ghcjs-modeler
         Program.Reactions.ViewRendering
         Program.Reactions.ViewSubmitPopup
         Program.View
-        Program.View.CityGroundView
-        Program.View.CityObjectView
-        Program.View.CityView
         Program.View.WiredGeometryView
         Reactive
-        Services
-        Services.Isovist
-        Services.RadianceService
-        SmallGL.Helpers
-        SmallGL.Shader
-        SmallGL.WritableVectors
     ghc-options: -Wall -O2 -ddump-splices
 
