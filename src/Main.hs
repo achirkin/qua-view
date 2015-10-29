@@ -102,13 +102,14 @@ main = do
                         (vector4 1 2 50 0)
                         (vector4 0 1 40 20)
                         [ vector4 0 0 50 60
-                        , vector4 (-15) 1 35 (-20)
-                        , vector4 0 1 0 (-30)]
+                        , vector4 (-15) 1 (-20) 35
+                        , vector4 0 1 (-10) (-30)]
     let lrh = linearRing (vector4 0 3 10 20)
                          (vector4 1 0 30 5)
                          (vector4 4 0 40 10)
                          []
         poly1 = polygon [lr,lrh]
+        mpoly1 = multiPolygon [poly1, polygon [lr]]
     let ar1 = PSet.pointArray
                [ vector3 1 2 (3::Float)
                , vector3 2 3 4
@@ -130,6 +131,10 @@ main = do
     printVal . jsval $ (projectND (pcaVectors lr) lr :: PSet.PointArray 4 Double)
     printVal . jsval $ poly1
     print $ triangulate poly1
+
+    printVal . jsval $ mpoly1
+    printVal . jsval $ PSet.toPointArray mpoly1
+
 
     -- hide everything that is not related to the full profile
     if userProfile /= Full

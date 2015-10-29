@@ -18,6 +18,8 @@ module Data.Geometry.Structure.Polygon
     ( Polygon ()
     , polygon, numRings, index, rings
     , triangulate, triangulate'
+    , MultiPolygon ()
+    , multiPolygon, polygons
     ) where
 
 import Prelude hiding (length)
@@ -34,7 +36,7 @@ import qualified Data.Geometry.Structure.PointSet as PS
 import Data.Geometry.Structure.LinearRing (LinearRing)
 --import qualified Data.Geometry.Structure.LinearRing as LRing
 
--- | GeoJSON LinearRing
+-- | GeoJSON Polygon
 newtype Polygon (n::Nat) x = Polygon JSVal
 instance IsJSVal (Polygon n x)
 instance PFromJSVal (Polygon n x) where
@@ -56,7 +58,7 @@ instance PS.PointSet (Polygon n x) n x where
 -- | Create a Polygon
 polygon :: [LinearRing n x] -- ^ All remaining points (without duplicate of the first one)
            -> Polygon n x
-polygon xs = js_createPolygon  . unsafeCoerce . seqList $ xs
+polygon = js_createPolygon  . unsafeCoerce . seqList
 
 -- | Get list of points from Polygon (without repeatative last point)
 rings :: Polygon n x -> [LinearRing n x]
@@ -71,6 +73,58 @@ triangulate' poly = triangulate'' projset rinds
           rinds = js_ringIndices poly
           v = PS.pcaVectors set
           projset = PS.projectND v set
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+-- | GeoJSON MultiPolygon
+newtype MultiPolygon (n::Nat) x = MultiPolygon JSVal
+instance IsJSVal (MultiPolygon n x)
+instance PFromJSVal (MultiPolygon n x) where
+    pFromJSVal = MultiPolygon
+
+instance PS.PointSet (MultiPolygon n x) n x where
+    {-# INLINE flatten #-}
+    flatten = PS.flatten . js_MPtoPA
+    {-# INLINE toPointArray #-}
+    toPointArray = js_MPtoPA
+    {-# INLINE fromPointArray #-}
+    fromPointArray = multiPolygon .  (:[]) . PS.fromPointArray
+    {-# INLINE mean #-}
+    mean = PS.mean . js_MPtoPA
+    {-# INLINE var #-}
+    var = PS.var . js_MPtoPA
+
+
+-- | Create a MultiPolygon
+multiPolygon :: [Polygon n x] -- ^ All remaining points (without duplicate of the first one)
+             -> MultiPolygon n x
+multiPolygon = js_createMultiPolygon  . unsafeCoerce . seqList
+
+-- | Get list of points from Polygon (without repeatative last point)
+polygons :: MultiPolygon n x -> [Polygon n x]
+polygons = unsafeCoerce . js_MPtoPList
+
+
+
+
+
+
 
 triangulate'' :: PS.PointArray 2 x -> JSVal -> JSVal
 triangulate'' set rinds = js_triangulate (PS.flatten set) rinds
@@ -89,9 +143,25 @@ foreign import javascript unsafe "$2['coordinates'][$1]"
 foreign import javascript unsafe "$r = {}; $r['type'] = 'Polygon'; $r['coordinates'] = h$listToArray($1);"
     js_createPolygon :: Any -> Polygon n x
 
+{-# INLINE js_createMultiPolygon #-}
+foreign import javascript unsafe "$r = {}; $r['type'] = 'MultiPolygon';\
+                                 \$r['coordinates'] = h$listToArray($1).map(function(e){return e['coordinates'];});"
+    js_createMultiPolygon :: Any -> MultiPolygon n x
+
 {-# INLINE js_PtoLRList #-}
 foreign import javascript unsafe "h$toHsListJSVal($1['coordinates'])"
     js_PtoLRList:: Polygon n x -> Any
+
+{-# INLINE js_MPtoPList #-}
+foreign import javascript unsafe "h$toHsListJSVal($1['coordinates'].map(function(e){\
+                                    \ var r = {}; r['type'] = 'Polygon'; r['coordinates'] = e;\
+                                    \ return r; }))"
+    js_MPtoPList:: MultiPolygon n x -> Any
+
+{-# INLINE js_MPtoPA #-}
+foreign import javascript unsafe "[].concat.apply([], [].concat.apply([], $1['coordinates'])\
+                                  \.map(function(a){return a.slice(0,a.length-1);}))"
+    js_MPtoPA :: MultiPolygon n x -> PS.PointArray n x
 
 {-# INLINE js_PtoPA #-}
 foreign import javascript unsafe "[].concat.apply([], $1['coordinates'].map(function(a){return a.slice(0,a.length-1);}))"
