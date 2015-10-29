@@ -43,6 +43,45 @@ function gm$cov(arr) {
     return rez;
 }
 
+// find a convex hull for 2-dimensional array
+// https://en.wikipedia.org/wiki/Graham_scan
+function gm$GrahamScan(arr) {
+    'use strict';
+    var n = arr.length;
+    // triangles are always convex
+    if(n <= 3){return arr;}
+    // from here we start an inplace algorithm
+    var hull = arr.slice();
+    // closure to swap two elements in array
+    var swap = function(i, j) { var t = hull[i]; hull[i] = hull[j]; hull[j] = t; };
+    // check if three points are counter-clockwise (ccw > 0), clockwise (ccw < 0), or collinear (ccw == 0)
+    var ccw = function (i1,i2,i3) {return (hull[i2][0] - hull[i1][0])*(hull[i3][1] - hull[i1][1]) - (hull[i2][1] - hull[i1][1])*(hull[i3][0] - hull[i1][0]);};
+    // get the point with the lowest y-coordinate
+    var start = hull.splice(hull.reduce(function(r,e,i){return (hull[r][1] > e[1] || (hull[r][1] === e[1] && hull[r][0] > e[0] )) ? i : r; }, 0), 1)[0];
+    // sort by angle to starting point
+    hull.sort(function(a,b){return Math.atan2(a[1]-start[1],a[0]-start[0]) - Math.atan2(b[1]-start[1],b[0]-start[0]);});
+    // two beginning points are last and first ones
+    var end = hull[hull.length-1].slice();
+    hull.splice(0,0,end,start);
+    // number of points in the convex hull
+    var m = 1;
+    for(var i = 2; i <= n; i++) {
+        while (ccw(m-1,m,i) <= 0) { // Find next valid point on convex hull
+            if (m > 1) {
+                m--;
+            } else if (i === n) { // All points are collinear
+                break;
+            } else {
+                i++;
+            }
+        }
+        m++;
+        swap( m, i );
+    }
+    return hull.slice(1,m+1);
+}
+
+
 /*
 Numeric Javascript
 Copyright (C) 2011 by Sébastien Loisel
