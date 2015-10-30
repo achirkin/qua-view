@@ -19,7 +19,7 @@ module Data.Geometry.Structure.PointSet
     ( PointSet (..)
     , PointArray ()
     , length, pointArray, toList, index, unflatten
-    , pcaVectors
+    , pcaVectors, boundingRectangle
     , project1D, projectND
     ) where
 
@@ -158,6 +158,21 @@ projectND vs s = rez
 {-# INLINE js_projectND #-}
 foreign import javascript unsafe "var vs = h$listToArray($1).slice(0,$2); $r = $3.map(function (v){ return vs.map( function(e){ return dotJSVec(v,e); }); });"
     js_projectND :: Any -> Int -> PointArray m x -> PointArray n x
+
+
+-- | Find a center and axes of bounding rectangle (flat) for a point set
+boundingRectangle :: (KnownNat n, PointSet s n x, Fractional x, JSNum x)
+             => s -> (Vector n x, Vector n x, Vector n x)
+boundingRectangle s = (unproj center, unproj x, unproj y)
+    where set = toPointArray s
+          v@(px:py:_) = pcaVectors set
+          projset = projectND v set
+          (_,_,center, x, y) = js_minRectAngle projset
+          unproj p2d = case unpackV2 p2d of (i,j) -> broadcastVector i * px + broadcastVector j * py
+
+{-# INLINE js_minRectAngle #-}
+foreign import javascript unsafe "var rez = gm$minRectAngle(gm$GrahamScan($1)); $r1 = rez[0]; $r2 = rez[1]; $r3 = rez[2]; $r4 = rez[3]; $r5 = rez[4];"
+    js_minRectAngle :: PointArray 2 x -> (Double,Double, Vector2 x, Vector2 x, Vector2 x)
 
 
 

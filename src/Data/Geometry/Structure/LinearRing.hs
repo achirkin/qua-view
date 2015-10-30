@@ -16,6 +16,7 @@
 module Data.Geometry.Structure.LinearRing
     ( LinearRing ()
     , linearRing, length, index, toList
+    , convexPolygonHull
     ) where
 
 import Prelude hiding (length)
@@ -28,6 +29,7 @@ import GHCJS.Types
 import GHCJS.Marshal.Pure (PFromJSVal(..))
 
 import Data.Geometry
+import Data.Geometry.Structure.PointSet (PointSet, PointArray)
 import qualified Data.Geometry.Structure.PointSet as PS
 
 -- | GeoJSON LinearRing
@@ -71,6 +73,28 @@ foreign import javascript unsafe "$2[$1]"
     index :: Int -> LinearRing n x -> Vector n x
 
 
+-- | create a convex polygon that bounds given point set (in projection of most variance plane)
+convexPolygonHull :: (KnownNat n, PointSet s n x, Fractional x, JSNum x)
+             => s -> LinearRing n x
+convexPolygonHull s = js_RingFromIds set pointIds
+    where set = PS.toPointArray s
+          v = PS.pcaVectors set
+          projset = PS.projectND v set
+          pointIds = js_GrahamScanIds projset
+
+
+
+{-# INLINE js_RingFromIds #-}
+foreign import javascript unsafe "$r = new Array($2.length+1); $2.forEach(function(e,i){$r[i] = $1[e];}); $r[$2.length] = $r[0];"
+    js_RingFromIds :: PointArray n x -> JSVal -> LinearRing n x
+
+{-# INLINE js_GrahamScanIds #-}
+foreign import javascript unsafe "gm$GrahamScanIds($1)"
+    js_GrahamScanIds :: PointArray 2 x -> JSVal
+
+
+
+
 {-# INLINE js_createLinearRing #-}
 foreign import javascript unsafe "$r = h$listToArray($1); $r.push($r[0]);"
     js_createLinearRing :: Any -> LinearRing n x
@@ -81,11 +105,11 @@ foreign import javascript unsafe "h$toHsListJSVal($1.slice(0,$1.length-1))"
 
 {-# INLINE js_LRtoPA #-}
 foreign import javascript unsafe "$1.slice(0,$1.length-1)"
-    js_LRtoPA :: LinearRing n x -> PS.PointArray n x
+    js_LRtoPA :: LinearRing n x -> PointArray n x
 
 {-# INLINE js_PAtoLR #-}
 foreign import javascript unsafe "$r = Array.from($1); $r.push($1[0]);"
-    js_PAtoLR :: PS.PointArray n x -> LinearRing n x
+    js_PAtoLR :: PointArray n x -> LinearRing n x
 
 seqList :: [a] -> [a]
 seqList xs = foldr seq () xs `seq` xs

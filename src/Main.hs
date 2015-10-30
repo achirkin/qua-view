@@ -135,6 +135,9 @@ main = do
     printVal . jsval $ mpoly1
     printVal . jsval $ PSet.toPointArray mpoly1
 
+    printVal . jsval $ convexPolygonHull mpoly1
+    print $ boundingRectangle mpoly1
+
 
     -- hide everything that is not related to the full profile
     if userProfile /= Full

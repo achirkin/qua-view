@@ -81,6 +81,135 @@ function gm$GrahamScan(arr) {
     return hull.slice(1,m+1);
 }
 
+function gm$GrahamScanIds(arr) {
+    'use strict';
+    var n = arr.length;
+    // triangles are always convex
+    if(n <= 3){return arr;}
+    // from here we start an inplace algorithm
+    var hull = arr.map(function(e,i){return e.concat([i]);});
+    // closure to swap two elements in array
+    var swap = function(i, j) { var t = hull[i]; hull[i] = hull[j]; hull[j] = t;};
+    // check if three points are counter-clockwise (ccw > 0), clockwise (ccw < 0), or collinear (ccw == 0)
+    var ccw = function (i1,i2,i3) {return (hull[i2][0] - hull[i1][0])*(hull[i3][1] - hull[i1][1]) - (hull[i2][1] - hull[i1][1])*(hull[i3][0] - hull[i1][0]);};
+    // get the point with the lowest y-coordinate
+    var start = hull.splice(hull.reduce(function(r,e,i){return (hull[r][1] > e[1] || (hull[r][1] === e[1] && hull[r][0] > e[0] )) ? i : r; }, 0), 1)[0];
+    // sort by angle to starting point
+    hull.sort(function(a,b){return Math.atan2(a[1]-start[1],a[0]-start[0]) - Math.atan2(b[1]-start[1],b[0]-start[0]);});
+    // two beginning points are last and first ones
+    var end = hull[hull.length-1].slice();
+    hull.splice(0,0,end,start);
+    // number of points in the convex hull
+    var m = 1;
+    for(var i = 2; i <= n; i++) {
+        while (ccw(m-1,m,i) <= 0) { // Find next valid point on convex hull
+            if (m > 1) {
+                m--;
+            } else if (i === n) { // All points are collinear
+                break;
+            } else {
+                i++;
+            }
+        }
+        m++;
+        swap( m, i );
+    }
+    return hull.slice(1,m+1).map(function(e){return e[2];});
+}
+
+// calculate minimum bounding rectangle for convex ccw polygon (output of gm$GrahamScan)
+// output: [angle, area, center point, dir1*w/2, dir2*h/2]
+// height of the rectangle is always not less then width
+function gm$minRectAngle(arr) {
+    'use strict';
+    var n = arr.length;
+    // empty
+    if(n === 0){return [0,0,[0,0],[0,0],[0,0]];}
+    // just a point
+    if(n <= 1){return [0,0,arr[0].slice(),[0,0],[0,0]];}
+    // line segment, area = 0
+    var d;
+    if(n === 2){d = [arr[1][1] - arr[0][1],arr[1][0] - arr[0][0]];
+                return [ Math.atan2(d[1],d[0])
+                       , 0
+                       , arr[0].slice()
+                       , d, [0,0] ];}
+    // precompute angle of a segment for each point
+    var points = [[],[],[],[]];
+    var PI2 = Math.PI/2;
+    arr.forEach(function(e,i){
+        var j = i+1 === n ? 0 : i+1;
+        var a = Math.atan2( arr[j][1] - e[1], arr[j][0] - e[0]);
+        if (a < - PI2) { points[0].push(e.concat([a+Math.PI]));}
+        else if (a < 0) { points[1].push(e.concat([a+PI2]));}
+        else if (a < PI2) { points[2].push(e.concat([a]));}
+        else { points[3].push(e.concat([a-PI2]));}
+    });
+    // add last point to each side (a beginning point of a nest side)
+    points.forEach(function(e,i){
+        var j = i === 3 ? 0 : i + 1;
+        var k = 1;
+        while(points[j].length === 0) {
+            j = j === 3 ? 0 : j + 1;
+            k++;
+        }
+        var x = points[j][0];
+        e.push([x[0],x[1],x[2]+PI2*k]);
+    });
+    // starting indices
+    var ids = [0,0,0,0];
+    // state[0] is current aligned side
+    // state[1] is current rotation
+    var state = [0,-1];
+    // find minimum angle and corresponding side index
+    var nextstate = function(){
+        return points.reduce(function(r,e,i){
+                   return r[1] > e[ids[i]][2] ? [i,e[ids[i]][2]] : r;
+               }, [0,points[0][ids[0]][2]]);
+    };
+    var dot = function(a,b1,b0){return a[0]*(b1[0] - b0[0]) + a[1]*(b1[1] - b0[1]);};
+    var oangle;
+    var nw = [1,0];
+    var nh = [0,1];
+    var w = Infinity, h = Infinity;
+    var rez = [0,Infinity,[0,0],[Infinity,0],[0,Infinity]];
+    // rotate bounding rectangle from 0 to pi/2
+    while ( state[1] < PI2 ) {
+        oangle = state[1];
+        // find an angle that corresponds to next aligned edge
+        do {
+            state = nextstate();
+            ids[state[0]]++;
+        } while (state[1] === oangle);
+        if (state[1] >= PI2) {break;}
+        // normals of the bounding rectangle
+        nw = [Math.cos(state[1]),Math.sin(state[1])];
+        nh = [-nw[1],nw[0]];
+        // calculating width
+        w = dot(nw, points[3][ids[3]], points[1][ids[1]]);
+        // calculating height
+        h = dot(nh, points[0][ids[0]], points[2][ids[2]]);
+        // if the area is reduced, recalculate the result
+        if (w*h < rez[1] ) {
+            d = dot(nw, points[2][ids[2]], points[1][ids[1]]);
+            if (h >= w) {
+                rez = [ state[1]
+                      , w*h
+                      , [ points[2][ids[2]][0] + (w*0.5 - d)*nw[0] + h*0.5*nh[0], points[2][ids[2]][1] + (w*0.5 - d)*nw[1] + h*0.5*nh[1] ]
+                      , [nw[0]*w/2,nw[1]*w/2]
+                      , [nh[0]*h/2,nh[1]*h/2] ];
+            } else {
+                rez = [ state[1] - PI2
+                      , w*h
+                      , [ points[2][ids[2]][0] + (w*0.5 - d)*nw[0] + h*0.5*nh[0], points[2][ids[2]][1] + (w*0.5 - d)*nw[1] + h*0.5*nh[1] ]
+                      , [-nh[0]*h/2,-nh[1]*h/2]
+                      , [nw[0]*w/2,nw[1]*w/2] ];
+            }
+        }
+    }
+    return rez;
+}
+
 
 /*
 Numeric Javascript
