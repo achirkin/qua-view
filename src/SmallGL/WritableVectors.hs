@@ -6,6 +6,11 @@
 {-# LANGUAGE CPP, UnboxedTuples, MagicHash #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE BangPatterns #-}
+
+{-# LANGUAGE ScopedTypeVariables, FlexibleInstances, FlexibleContexts #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# LANGUAGE MagicHash, UnboxedTuples, PolyKinds #-}
+{-# LANGUAGE ViewPatterns #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  SmallGL.WritableVectors
@@ -21,7 +26,172 @@
 
 module SmallGL.WritableVectors
     ( Vertex20CNT
+    , writePoint, writePoints
     ) where
+
+import Data.Foldable (foldlM)
+import Data.Coerce (coerce)
+import GHC.TypeLits (KnownNat)
+--import GHCJS.Marshal
+--import GHCJS.Types
+import Unsafe.Coerce (unsafeCoerce)
+
+import Control.Monad (void)
+
+import JavaScript.TypedArray
+import qualified JavaScript.TypedArray.IO as IO
+import Control.Monad.ST (ST)
+import qualified Control.Monad.ST as ST
+--import JavaScript.TypedArray.ST (STTypedArray, STArrayBuffer, STDataView)
+import qualified JavaScript.TypedArray.ST as ST
+
+import GHCJS.WebGL.Types
+
+--import Data.Geometry.Prim.JSNum
+import Data.Geometry
+
+
+-- | Coordinate + normal + texture buffer pack
+type Vertex20CNT = (Vector3 GLfloat, Vector3 GLbyte, Vector2 GLushort)
+
+-- | write a point into ArrayBuffer
+writePoint :: Int -> Vertex20CNT -> STArrayBuffer s -> ST s ()
+writePoint offset ( unpackV3 -> (px,py,pz)
+           , unpackV3 -> (nx,ny,nz)
+           , unpackV2 -> (tx,ty)) buf = do
+    ST.unsafeWriteFloat 0 px dv
+    ST.unsafeWriteFloat 4 py dv
+    ST.unsafeWriteFloat 8 pz dv
+    ST.unsafeWriteInt8 12 nx dv
+    ST.unsafeWriteInt8 13 ny dv
+    ST.unsafeWriteInt8 14 nz dv
+    ST.unsafeWriteInt8 15 0 dv
+    ST.unsafeWriteWord16 16 tx dv
+    ST.unsafeWriteWord16 18 ty dv
+    where dv = unsafeDataView' (offset*20) Nothing buf
+
+-- | write a number of points into ArrayBuffer
+writePoints :: Foldable f => Int -> f Vertex20CNT -> STArrayBuffer s -> ST s ()
+writePoints start ps buf = void $ foldlM f start ps
+    where floatView  = arrayView buf
+          word16View = arrayView buf
+          int8View   = arrayView buf
+          f i ( unpackV3 -> (px,py,pz)
+              , unpackV3 -> (nx,ny,nz)
+              , unpackV2 -> (tx,ty) ) = do
+            ST.setIndex (5*i) px floatView
+            ST.setIndex (5*i + 1) py floatView
+            ST.setIndex (5*i + 2) pz floatView
+            ST.setIndex (20*i + 12) nx int8View
+            ST.setIndex (20*i + 13) ny int8View
+            ST.setIndex (20*i + 14) nz int8View
+            ST.setIndex (20*i + 15) 0 int8View
+            ST.setIndex (10*i + 8) tx word16View
+            ST.setIndex (10*i + 9) ty word16View
+            return (i+1)
+
+
+
+--              n1 = indexByteArray# arr (unI# 20 *# i +# unI# 12)
+--              n2 = indexByteArray# arr (unI# 20 *# i +# unI# 13)
+--              n3 = indexByteArray# arr (unI# 20 *# i +# unI# 14)
+--              t1 = indexByteArray# arr (unI# 10 *# i +# unI# 8)
+--              t2 = indexByteArray# arr (unI# 10 *# i +# unI# 9)
+--instance ImmutableArrayBufferPrim (TypedArray Vertex20CNT) where
+--    {-# INLINE fromByteArrayPrim #-}
+--    fromByteArrayPrim ba = coerce (fromByteArrayPrim ba :: TypedArray t)
+--    {-# INLINE toByteArrayPrim #-}
+--    toByteArrayPrim arr = toByteArrayPrim (coerce arr :: TypedArray t)
+--
+--instance MutableArrayBufferPrim (SomeTypedArray m Vertex20CNT) where
+--    {-# INLINE fromMutableByteArrayPrim #-}
+--    fromMutableByteArrayPrim mba s = case fromMutableByteArrayPrim mba s of
+--        (# s1, arr0 :: SomeTypedArray m t #) -> (# s1, coerce arr0 #)
+--    {-# INLINE toMutableByteArrayPrim #-}
+--    toMutableByteArrayPrim arr = toMutableByteArrayPrim (coerce arr :: SomeTypedArray m t)
+--
+--instance ArrayBufferData (SomeTypedArray m Vertex20CNT) where
+--    {-# INLINE byteLength #-}
+--    byteLength arr = byteLength (coerce arr :: SomeTypedArray m t)
+--    {-# INLINE sliceImmutable #-}
+--    sliceImmutable i0 Nothing arr = coerce $ sliceImmutable
+--        (i0* dim (undefined :: Vector n t))
+--        Nothing (coerce arr :: SomeTypedArray m t)
+--    sliceImmutable i0 (Just i1) arr = coerce $ sliceImmutable
+--        (i0*m) (Just $ i1*m) (coerce arr :: SomeTypedArray m t)
+--        where m = i0* dim (undefined :: Vector n t)
+--
+--instance TypedArrayOperations Vertex20CNT where
+--    {-# INLINE typedArray #-}
+--    typedArray n = coerce (typedArray $ n * dim (undefined :: Vector n t) :: TypedArray t)
+--    {-# INLINE fillNewTypedArray #-}
+--    fillNewTypedArray n v = js_fillJSArray (coerce v) n (typedArray n :: TypedArray (Vector n t))
+--    {-# INLINE fromList #-}
+--    fromList vs = js_fillListJSArray 0 (unsafeCoerce $ seqList vs) ar0
+--        where ar0 = typedArray (length vs) :: TypedArray (Vector n t)
+--    {-# INLINE fromArray #-}
+--    fromArray arr = coerce (fromArray arr :: TypedArray t)
+--    {-# INLINE arrayView #-}
+--    arrayView buf = f $ arrayView buf
+--        where f :: SomeTypedArray m t -> SomeTypedArray m (Vector n t)
+--              f = coerce
+--    {-# INLINE (!) #-}
+--    arr ! i = coerce $ js_indexVecArray arr i (dim (undefined :: Vector n t))
+--    {-# INLINE elemSize #-}
+--    elemSize _ = elemSize (undefined :: TypedArray t) * dim (undefined :: Vector n t)
+--    {-# INLINE indexOf #-}
+--    indexOf = undefined
+--    {-# INLINE lastIndexOf #-}
+--    lastIndexOf = undefined
+--
+--instance IO.IOTypedArrayOperations Vertex20CNT where
+--    {-# INLINE newIOTypedArray #-}
+--    newIOTypedArray n = coerce
+--        <$> (IO.newIOTypedArray $ n * dim (undefined :: Vector n t) :: IO (IOTypedArray t))
+--    {-# INLINE fillNewIOTypedArray #-}
+--    fillNewIOTypedArray n v = js_fillJSArray (coerce v) n
+--        <$> (IO.newIOTypedArray n :: IO (IOTypedArray (Vector n t)))
+--    {-# INLINE newFromList #-}
+--    newFromList vs = js_fillListJSArray 0 (unsafeCoerce $ seqList vs)
+--        <$> (IO.newIOTypedArray (length vs) :: IO (IOTypedArray (Vector n t)))
+--    {-# INLINE newFromArray #-}
+--    newFromArray arr = coerce <$> (IO.newFromArray arr :: IO (IOTypedArray t))
+--    {-# INLINE index #-}
+--    index i arr = return . coerce $ js_indexVecArray arr i (dim (undefined :: Vector n t))
+--    {-# INLINE setIndex #-}
+--    setIndex i vec arr = js_setVecArray i (coerce vec) arr `seq` return ()
+--    {-# INLINE setList #-}
+--    setList i vecs arr = js_fillListJSArray i (unsafeCoerce $ seqList vecs) arr `seq` return ()
+--    {-# INLINE setArray #-}
+--    setArray i ar0 arr = IO.setArray (i* dim (undefined :: Vector n t)) ar0 (f arr)
+--        where f :: SomeTypedArray m (Vector n t) -> SomeTypedArray m t
+--              f = coerce
+--
+--instance ST.STTypedArrayOperations Vertex20CNT where
+--    {-# INLINE newSTTypedArray #-}
+--    newSTTypedArray n = coerce
+--        <$> (ST.newSTTypedArray $ n * dim (undefined :: Vector n t) :: ST.ST s (STTypedArray s t))
+--    {-# INLINE fillNewSTTypedArray #-}
+--    fillNewSTTypedArray n v = js_fillJSArray (coerce v) n
+--        <$> (ST.newSTTypedArray n :: ST.ST s (STTypedArray s (Vector n t)))
+--    {-# INLINE newFromList #-}
+--    newFromList vs = js_fillListJSArray 0 (unsafeCoerce $ seqList vs)
+--        <$> (ST.newSTTypedArray (length vs) :: ST.ST  s (STTypedArray s (Vector n t)))
+--    {-# INLINE newFromArray #-}
+--    newFromArray arr = coerce <$> (ST.newFromArray arr :: ST.ST s (STTypedArray s t))
+--    {-# INLINE index #-}
+--    index i arr = return . coerce $ js_indexVecArray arr i (dim (undefined :: Vector n t))
+--    {-# INLINE setIndex #-}
+--    setIndex i vec arr = js_setVecArray i (coerce vec) arr `seq` return ()
+--    {-# INLINE setList #-}
+--    setList i vecs arr = js_fillListJSArray i (unsafeCoerce $ seqList vecs) arr `seq` return ()
+--    {-# INLINE setArray #-}
+--    setArray i ar0 arr = ST.setArray (i* dim (undefined :: Vector n t)) ar0 (f arr)
+--        where f :: SomeTypedArray m (Vector n t) -> SomeTypedArray m t
+--              f = coerce
+
+
+
 
 --import GHCJS.WebGL
 --import Data.Primitive
@@ -89,8 +259,6 @@ module SmallGL.WritableVectors
 --              writ st = foldl' (\(SIB# (# s, i #)) x -> SIB# (# writeOffAddr# arr i x s, i +# unI# 1 #)) st v
 --
 
--- | Coordinate + normal + texture buffer pack
-type Vertex20CNT = (Vector3 GLfloat, Vector3 GLbyte, Vector2 GLushort)
 
 --instance Prim (Vector3 GLfloat, Vector3 GLbyte, Vector2 GLushort) where
 --    sizeOf# _ = unI# 20

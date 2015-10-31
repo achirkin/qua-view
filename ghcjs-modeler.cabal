@@ -47,6 +47,9 @@ executable ghcjs-modeler
         Data.Geometry.Structure.PointSet
         Data.Geometry.Structure.Polygon
         GHCJS.Useful
+        SmallGL.Helpers
+        SmallGL.Shader
+        SmallGL.WritableVectors
         Program
         Program.Model.Camera
         Program.Model.WiredGeometry
