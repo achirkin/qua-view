@@ -43,6 +43,8 @@ import Data.Geometry.Structure.LinearRing as LRing
 import Data.Geometry.Structure.PointSet as PSet
 import Data.Geometry.Structure.Polygon as Poly
 
+import SmallGL.WritableVectors
+
 main :: IO ()
 main = do
     logText "Hello!"
