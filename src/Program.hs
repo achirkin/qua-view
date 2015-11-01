@@ -28,7 +28,7 @@ import Data.Geometry
 --
 import Program.Model.Camera
 --import Program.Model.City
---import Program.Model.CityObject
+import Program.Model.CityObject
 import Program.Model.WiredGeometry
 --import Program.View.CityView ()
 import Program.View.WiredGeometryView ()
