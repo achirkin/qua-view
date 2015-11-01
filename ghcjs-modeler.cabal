@@ -53,6 +53,7 @@ executable ghcjs-modeler
         Program
         Program.Model.Camera
         Program.Model.WiredGeometry
+        Program.Model.CityObject
         Program.Reactions
         Program.Reactions.CameraBehavior
         Program.Reactions.CitySelection

@@ -17,7 +17,7 @@
 
 module Data.Geometry.Structure.PointSet
     ( PointSet (..)
-    , PointArray ()
+    , PointArray (), fillPointArray
     , length, pointArray, toList, index, unflatten
     , pcaVectors, boundingRectangle
     , project1D, projectND
@@ -62,6 +62,10 @@ foreign import javascript unsafe "$1.length"
 foreign import javascript unsafe "$2[$1]"
     index :: Int -> PointArray n x -> Vector n x
 
+
+{-# INLINE fillPointArray #-}
+foreign import javascript unsafe "Array.apply(null, Array($1)).map(function(){return $2;})"
+    fillPointArray :: Int -> Vector n x -> PointArray n x
 
 {-# INLINE js_fromList #-}
 foreign import javascript unsafe "h$listToArray($1)"

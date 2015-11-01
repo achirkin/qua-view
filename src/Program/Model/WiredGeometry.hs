@@ -17,12 +17,9 @@ module Program.Model.WiredGeometry
     , createLineSet, appendLineSet
     ) where
 
---import Data.Primitive.ByteArray
---import Data.Primitive (sizeOf)
 import Control.Monad.ST
 import JavaScript.TypedArray
 import JavaScript.TypedArray.ST
---import Control.Monad (foldM, foldM_)
 
 import GHCJS.WebGL
 import Data.Geometry

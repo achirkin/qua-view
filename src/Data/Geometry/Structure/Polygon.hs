@@ -17,15 +17,17 @@
 module Data.Geometry.Structure.Polygon
     ( Polygon ()
     , polygon, numRings, index, rings
-    , triangulate, triangulate'
+    , triangulate, triangulate', triangulatePolygon3D, triangulateMultiPolygon3D
     , MultiPolygon ()
     , multiPolygon, polygons
     ) where
 
 import Prelude hiding (length)
+import Data.List (foldl')
 
 import GHC.Exts (Any)
 import Unsafe.Coerce (unsafeCoerce)
+import Data.Coerce (coerce)
 import GHC.TypeLits
 
 import GHCJS.Types
@@ -64,26 +66,65 @@ polygon = js_createPolygon  . unsafeCoerce . seqList
 rings :: Polygon n x -> [LinearRing n x]
 rings = unsafeCoerce . js_PtoLRList
 
+-- | Calculate indices of triangulation and put them into Haskell list
 triangulate :: (KnownNat n, Fractional x, JSNum x) => Polygon n x -> [Int]
-triangulate = unsafeCoerce .  js_indicesListPrim . triangulate'
+triangulate p = unsafeCoerce $ js_indicesListPrim arr
+    where (_,_,arr) = triangulate' p
 
-triangulate' :: (KnownNat n, Fractional x, JSNum x) => Polygon n x -> JSVal
-triangulate' poly = triangulate'' projset rinds
+-- | Calculate indices of triangulation and keep them in JS array
+--   First return is array of points
+--   Second return is normals to the polygon (remaining PCA vectors)
+triangulate' :: (KnownNat n, Fractional x, JSNum x)
+             => Polygon n x -> (PS.PointArray n x, [Vector n x], JSVal)
+triangulate' poly = (set, vs, triangulate'' projset rinds)
     where set = PS.toPointArray poly
           rinds = js_ringIndices poly
-          v = PS.pcaVectors set
-          projset = PS.projectND v set
+          (v1:v2:vs) = PS.pcaVectors set
+          projset = PS.projectND [v1,v2] set
+
+triangulatePolygon3D :: (KnownNat n, Fractional x, JSNum x)
+                        => Polygon n x -> (PS.PointArray 3 x, PS.PointArray 3 x, JSVal)
+triangulatePolygon3D poly = (points, PS.fillPointArray (PS.length points) normal, indsx)
+    where (points, normal, indsx) = f $ triangulate' poly
+          f (p, [n], inds) = (coerce p        , coerce n      , inds)
+          f (p, [] , inds) = (enlargeVectors p, vector3 0 1 0 , inds)
+          f (p, n:_, inds) = (shrinkVectors  p, resizeVector n, inds)
+
+
+triangulateMultiPolygon3D :: (KnownNat n, Fractional x, JSNum x)
+                        => MultiPolygon n x -> (PS.PointArray 3 x, PS.PointArray 3 x, JSVal)
+triangulateMultiPolygon3D mpoly = triags
+    where triags = foldl' concatTriags startTriags . map (f . triangulate') $ polygons mpoly
+          f (p, [n], inds) = (coerce p        , coerce n      , inds)
+          f (p, [] , inds) = (enlargeVectors p, vector3 0 1 0 , inds)
+          f (p, n:_, inds) = (shrinkVectors  p, resizeVector n, inds)
 
 
 
+concatTriags :: (PS.PointArray 3 x, PS.PointArray 3 x, JSVal)
+             -> (PS.PointArray 3 x, Vector 3 x, JSVal)
+             -> (PS.PointArray 3 x, PS.PointArray 3 x, JSVal)
+concatTriags (a,b,c) (d,e,f) = concatTriags' a b c d e f
 
+{-# INLINE concatTriags' #-}
+foreign import javascript unsafe "$r1 = $1.concat($4);\
+                                 \$r2 = $2.concat(Array.apply(null, Array($4.length)).map(function(){return $5;}));\
+                                 \$r3 = $3.concat($6.map(function(e){return e + $4.length;}));"
+    concatTriags' :: PS.PointArray 3 x -> PS.PointArray 3 x -> JSVal
+                  -> PS.PointArray 3 x -> Vector 3 x -> JSVal
+                  -> (PS.PointArray 3 x, PS.PointArray 3 x, JSVal)
 
+{-# INLINE startTriags #-}
+foreign import javascript unsafe "$r1 = []; $r2 = []; $r3 = [];"
+    startTriags :: (PS.PointArray 3 x, PS.PointArray 3 x, JSVal)
 
+{-# INLINE enlargeVectors #-}
+foreign import javascript unsafe "$1.map(function(e){return e.concat([0]);})"
+    enlargeVectors :: PS.PointArray n x -> PS.PointArray 3 x
 
-
-
-
-
+{-# INLINE shrinkVectors #-}
+foreign import javascript unsafe "$1.map(function(e){return e.slice(0,3);})"
+    shrinkVectors :: PS.PointArray n x -> PS.PointArray 3 x
 
 
 
@@ -125,9 +166,15 @@ polygons = unsafeCoerce . js_MPtoPList
 
 
 
-
+-- | takes a polygon with holes and ring indices
+--   (it assumes that point array is a polygon)
 triangulate'' :: PS.PointArray 2 x -> JSVal -> JSVal
 triangulate'' set rinds = js_triangulate (PS.flatten set) rinds
+
+{-# INLINE js_triangulate #-}
+foreign import javascript unsafe "earcut($1,$2)"
+    js_triangulate :: JSVal -> JSVal -> JSVal
+
 
 
 {-# INLINE numRings #-}
@@ -171,10 +218,6 @@ foreign import javascript unsafe "[].concat.apply([], $1['coordinates'].map(func
 foreign import javascript unsafe "$1['coordinates'].slice(0,$1['coordinates'].length-1)\
                                         \.reduce(function(r,e){return r.concat([e.length-1]);},[])"
     js_ringIndices :: Polygon n x -> JSVal
-
-{-# INLINE js_triangulate #-}
-foreign import javascript unsafe "earcut($1,$2)"
-    js_triangulate :: JSVal -> JSVal -> JSVal
 
 {-# INLINE js_indicesListPrim #-}
 foreign import javascript unsafe "h$fromArrayNoWrap($1)"
