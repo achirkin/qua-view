@@ -46,6 +46,7 @@ executable ghcjs-modeler
         Data.Geometry.Structure.LinearRing
         Data.Geometry.Structure.PointSet
         Data.Geometry.Structure.Polygon
+        Data.Geometry.Transform.JSQTransform
         GHCJS.Useful
         SmallGL.Helpers
         SmallGL.Shader
