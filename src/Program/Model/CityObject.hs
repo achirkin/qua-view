@@ -2,6 +2,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE OverloadedStrings #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Program.Model.CityObject
@@ -25,46 +26,55 @@ module Program.Model.CityObject
 --    )
     where
 
+import GHCJS.Foreign
+import GHCJS.Marshal.Pure
+import GHCJS.Types
+
 import GHCJS.WebGL
 
 import SmallGL.WritableVectors
 
 import Data.Geometry
 import Data.Geometry.Transform
+import Data.Geometry.Transform.JSQTransform
 import Data.Geometry.Structure.Polygon
 
-
 --type LocatedCityObject = QFTransform CityObject
---
----- | Whether one could interact with an object or not
---data ObjectBehavior = Static | Dynamic deriving (Eq,Show)
---
-----instance ToJSVal where
-----    toJSVal = return $ unsafeCoerce jsTrue
-----    toJSVal = return $ unsafeCoerce jsFalse
---
-----instance FromJSVal where
-----    fromJSVal = return . Just $  if fromJSBool' jr
-----        then Static
-----        else Dynamic
---
---data ScenarioLayer = SLbuildings | SLfootprints
---    deriving Show
---
-----instance ToJSVal where
-----    toJSVal = return . unsafeCoerce $ toJSString "buildings"
-----    toJSVal = return . unsafeCoerce $ toJSString "footprints"
-------    toJSVal = return . unsafeCoerce $ toJSString "clutter"
-----
-----instance FromJSVal where
-----    fromJSVal = return $ case fromJSString $ unsafeCoerce l of
-----        "buildings" -> Just SLbuildings
-----        "footprints" -> Just SLfootprints
-----        _ -> Nothing
---
---
---type GeomID = Int
---
+
+-- | Id of geometry in Luci
+type GeomID = Int
+
+-- | Whether one could interact with an object or not
+data ObjectBehavior = Static | Dynamic deriving (Eq,Show)
+
+instance PToJSVal ObjectBehavior where
+    pToJSVal Static = jsTrue
+    pToJSVal Dynamic = jsFalse
+
+instance PFromJSVal ObjectBehavior where
+    pFromJSVal js = if isTruthy js
+        then Static
+        else Dynamic
+
+-- | what is the type of object content
+data ScenarioLayer = Objects3D | Footprints | Objects2D
+    deriving (Eq, Show)
+
+instance PToJSVal ScenarioLayer where
+    pToJSVal Objects3D  = jsval ("objects3D"  :: JSString)
+    pToJSVal Footprints = jsval ("footprints" :: JSString)
+    pToJSVal Objects2D  = jsval ("objects2D"  :: JSString)
+
+instance PFromJSVal (Maybe ScenarioLayer) where
+    pFromJSVal js = if not (isTruthy js)
+        then Nothing
+        else case pFromJSVal js :: JSString of
+            "objects3D"  -> Just Objects3D
+            "footprints" -> Just Footprints
+            "objects2D"  -> Just Objects2D
+            _            -> Nothing
+
+
 --data ScenarioObject = ScenarioObject ScenarioLayer GeomID (Maybe GeomID) LocatedCityObject
 --    deriving Show
 --
