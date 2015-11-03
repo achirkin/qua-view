@@ -1,4 +1,5 @@
 {-# LANGUAGE JavaScriptFFI #-}
+{-# LANGUAGE OverloadedStrings #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Controllers.GeoJSONFileImport
@@ -14,15 +15,15 @@
 
 module Controllers.GeoJSONFileImport
     ( onGeoJSONFileImport
-    , loadGeoJSONFromLink
+--    , loadGeoJSONFromLink
     ) where
 
-import qualified Data.Aeson as A
+--import qualified Data.Aeson as A
 import Control.Monad (liftM)
 
 import GHCJS.Types
 import GHCJS.Marshal
-import GHCJS.Foreign
+import GHCJS.Foreign.Callback
 
 import GHCJS.Useful
 import Controllers.GUIEvents
@@ -32,28 +33,35 @@ onGeoJSONFileImport :: JSElement -> GeoJSONLoadCallBack -> IO ()
 onGeoJSONFileImport importButton callback = elementOnChange importButton $ do
     programInProgress
     logText "Trying to parse GeoJSON FeatureCollection..."
-    c <- getElementFiles importButton >>= fromJSRef_aeson
-    case c of
-        Nothing -> logText "Could not read geometry"
-        Just gfc -> do
-            isBehChecked <- isElementChecked $ toJSString "dynamicstaticswitcher"
-            logText "GeoJSON FeatureCollection is imported."
-            callback GeoJSONLoaded
-                { isDynamic          = isBehChecked
-                , featureCollection  = gfc
-                }
+    gfc <- getElementFiles importButton
+    isBehChecked <- isElementChecked  "dynamicstaticswitcher"
+    logText "GeoJSON FeatureCollection is imported."
+    callback GeoJSONLoaded
+        { isDynamic          = isBehChecked
+        , featureCollection  = gfc
+        }
+--    c <- getElementFiles importButton >>= fromJSRef_aeson
+--    case c of
+--        Nothing -> logText "Could not read geometry"
+--        Just gfc -> do
+--            isBehChecked <- isElementChecked  "dynamicstaticswitcher"
+--            logText "GeoJSON FeatureCollection is imported."
+--            callback GeoJSONLoaded
+--                { isDynamic          = isBehChecked
+--                , featureCollection  = gfc
+--                }
     programIdle
 
-loadGeoJSONFromLink :: String -> Bool -> GeoJSONLoadCallBack -> IO ()
-loadGeoJSONFromLink url isDyn callback = do
-    c <- getUrlJSON url >>= fromJSRef_aeson
-    case c of
-        Nothing -> logText "Could not read geometry"
-        Just gfc -> do
-            callback GeoJSONLoaded
-                { isDynamic          = isDyn
-                , featureCollection  = gfc
-                }
+--loadGeoJSONFromLink :: String -> Bool -> GeoJSONLoadCallBack -> IO ()
+--loadGeoJSONFromLink url isDyn callback = do
+--    c <- getUrlJSON url >>= fromJSRef_aeson
+--    case c of
+--        Nothing -> logText "Could not read geometry"
+--        Just gfc -> do
+--            callback GeoJSONLoaded
+--                { isDynamic          = isDyn
+--                , featureCollection  = gfc
+--                }
 
 
 foreign import javascript unsafe "$r = document.getElementById($1).checked;"
@@ -70,16 +78,16 @@ foreign import javascript interruptible "var r = new FileReader(); \
     \   $c(json); }}; \
     \ r.onloadend = load;  \
     \ r.readAsText($1.files[0]);"
-    getElementFiles :: JSVal -> IO (JSVal)
+    getElementFiles :: JSElement -> IO (JSVal)
 
--- | Convert JSON object in JavaScript back to Haskell data that implements fromJSON a class
-fromJSRef_aeson :: A.FromJSON a => JSVal -> IO (Maybe a)
-fromJSRef_aeson = liftM (>>= f . A.fromJSON) . fromJSRef . castRef
-    where f (A.Error _) = Nothing
-          f (A.Success x) = Just x
-
-getUrlJSON :: String -> IO (JSVal)
-getUrlJSON = getUrlJSON' . toJSString
+---- | Convert JSON object in JavaScript back to Haskell data that implements fromJSON a class
+--fromJSRef_aeson :: A.FromJSON a => JSVal -> IO (Maybe a)
+--fromJSRef_aeson = liftM (>>= f . A.fromJSON) . fromJSRef . castRef
+--    where f (A.Error _) = Nothing
+--          f (A.Success x) = Just x
+--
+--getUrlJSON :: String -> IO (JSVal)
+--getUrlJSON = getUrlJSON' . toJSString
 
 foreign import javascript interruptible "var xmlHttp = new XMLHttpRequest(); \
     \ var json = null; \
@@ -101,7 +109,7 @@ foreign import javascript interruptible "var xmlHttp = new XMLHttpRequest(); \
 -- | Simple event when JSElement is changed (e.g. one picked file in "file" button)
 elementOnChange :: JSElement -> IO () -> IO ()
 elementOnChange element clickFun = do
-    clickCallBack <- asyncCallback AlwaysRetain clickFun
+    clickCallBack <- asyncCallback clickFun
     elementOnChange' element clickCallBack
 foreign import javascript unsafe "\
     \ $1.addEventListener('change', function(event){ \
@@ -111,4 +119,4 @@ foreign import javascript unsafe "\
     \     $2(); \
     \     return false; \
     \ });"
-    elementOnChange' :: JSElement -> JSFun (IO ()) -> IO ()
+    elementOnChange' :: JSElement -> Callback (IO ()) -> IO ()

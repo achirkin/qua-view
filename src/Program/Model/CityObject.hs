@@ -1,8 +1,10 @@
+{-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ViewPatterns #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Program.Model.CityObject
@@ -26,9 +28,16 @@ module Program.Model.CityObject
 --    )
     where
 
+import GHC.TypeLits
+import Data.Proxy (Proxy(..))
+import Data.Coerce (coerce)
+import Data.JSString (unpack', append)
+
 import GHCJS.Foreign
 import GHCJS.Marshal.Pure
 import GHCJS.Types
+import JavaScript.TypedArray
+
 
 import GHCJS.WebGL
 
@@ -36,13 +45,28 @@ import SmallGL.WritableVectors
 
 import Data.Geometry
 import Data.Geometry.Transform
-import Data.Geometry.Transform.JSQTransform
+import Data.Geometry.Structure.LinearRing (toList', linearRing)
 import Data.Geometry.Structure.Polygon
+import Data.Geometry.Structure.PointSet (PointArray)
+
+--defaultHeightDynamic :: GLfloat
+--defaultHeightDynamic = 3
+--
+--defaultHeightStatic :: GLfloat
+--defaultHeightStatic = 3
 
 --type LocatedCityObject = QFTransform CityObject
 
 -- | Id of geometry in Luci
-type GeomID = Int
+newtype GeomID = GeomID JSVal
+instance Eq GeomID where
+    (==) = cmpIDs
+instance Show GeomID where
+    show (GeomID jv) = unpack' (pFromJSVal jv)
+{-# INLINE cmpIDs #-}
+foreign import javascript unsafe "$1 === $2" cmpIDs :: GeomID -> GeomID -> Bool
+
+
 
 -- | Whether one could interact with an object or not
 data ObjectBehavior = Static | Dynamic deriving (Eq,Show)
@@ -74,6 +98,155 @@ instance PFromJSVal (Maybe ScenarioLayer) where
             "objects2D"  -> Just Objects2D
             _            -> Nothing
 
+
+-- | Unprocessed Feature object
+newtype ScenarioObject = ScenarioObject JSVal
+
+-- | Basic entity in the program; Defines the logic of the interaction and visualization
+newtype CityObject = CityObject JSVal
+
+processScenarioObject :: GLfloat -> ScenarioObject -> Either JSString CityObject
+processScenarioObject defHeight sObj = if isSlave sObj then Left "Skipping a slave scenario object." else
+    pFromJSVal (getGeoJSONGeometry $ coerce sObj) >>= \(ND geom) ->
+    toBuildingMultiPolygon defHeight geom >>= \mpoly ->
+    let pdata = buildingPointData mpoly
+    in Right $ js_ScenarioObjectToCityObject sObj pdata mpoly
+
+
+{-# INLINE behavior #-}
+behavior :: CityObject -> ObjectBehavior
+behavior = pFromJSVal . behavior'
+{-# INLINE behavior' #-}
+foreign import javascript unsafe "$1['properties']['static']"
+    behavior' :: CityObject -> JSVal
+{-# INLINE isSlave #-}
+foreign import javascript unsafe "$1['properties']['isSlave']"
+    isSlave :: ScenarioObject -> Bool
+
+
+data GeoJsonGeometryND = forall n . KnownNat n => ND (GeoJsonGeometry n)
+
+data GeoJsonGeometry n = GeoPoint JSVal -- coordinates (Vector n GLfloat)
+                       | GeoMultiPoint JSVal -- coordinates (PointArray n GLfloat)
+                       | GeoLineString JSVal -- coordinates LineString
+                       | GeoMultiLineString JSVal -- coordinates MultiLineString
+                       | GeoPolygon (Polygon n GLfloat)
+                       | GeoMultiPolygon (MultiPolygon n GLfloat)
+
+instance PFromJSVal (Either JSString (GeoJsonGeometry n)) where
+    pFromJSVal js = if not (isTruthy js)
+        then Left "Could parse GeoJsonGeometry: it is falsy!"
+        else case getGeoJSONType js of
+            "Polygon"      -> Right . GeoPolygon $ pFromJSVal js
+            "MultiPolygon" -> Right . GeoMultiPolygon $ pFromJSVal js
+            t              -> Left $ "Could parse GeoJsonGeometry: type " `append` t `append` " is not supported currently."
+
+instance PFromJSVal (Either JSString GeoJsonGeometryND) where
+    pFromJSVal js = if not (isTruthy js)
+        then Left "Could parse GeoJsonGeometryND: it is falsy!"
+        else let mdims = someNatVal . toInteger $ getDimensionality js
+             in case mdims of
+                 Nothing -> Left "Could parse GeoJsonGeometryND: failed to find dimensionality of the data"
+                 Just (SomeNat proxy) -> pFromJSVal js >>= Right . ND . dimensionalize proxy
+
+{-# INLINE dimensionalize #-}
+dimensionalize :: KnownNat n => Proxy n -> GeoJsonGeometry n -> GeoJsonGeometry n
+dimensionalize _ = id
+
+{-# INLINE getDim2 #-}
+getDim2 :: KnownNat n => a n x -> Proxy n
+getDim2 _ = Proxy
+
+
+{-# INLINE getGeoJSONType #-}
+foreign import javascript unsafe "$1['type']"
+    getGeoJSONType :: JSVal -> JSString
+{-# INLINE getGeoJSONGeometry #-}
+foreign import javascript unsafe "$1['geometry']"
+    getGeoJSONGeometry :: JSVal -> JSVal
+{-# INLINE getGeoJSONProperties #-}
+foreign import javascript unsafe "$1['properties']"
+    getGeoJSONProperties :: JSVal -> JSVal
+
+foreign import javascript unsafe "$r = {}; $r['properties'] = $1['properties']; $r['type'] = $1['type']; $r['geometry'] = $3; $r['pointData'] = $2;"
+    js_ScenarioObjectToCityObject :: ScenarioObject -> PointData -> MultiPolygon 3 GLfloat -> CityObject
+
+{-# INLINE getDimensionality #-}
+-- | Get length of the coordinates in GeoJSON object.
+--   Default length is 3.
+foreign import javascript unsafe "var dims = $1['coordinates'] ? gm$GeometryDims($1['coordinates']) : 3; $r = dims === 0 ? 3 : dims;"
+    getDimensionality :: JSVal -> Int
+
+
+toBuildingMultiPolygon :: KnownNat n => GLfloat -> GeoJsonGeometry n -> (Either JSString (MultiPolygon 3 GLfloat))
+toBuildingMultiPolygon _ (GeoPoint _) = Left "toBuildingMultiPolygon: GeoJSON Point is not convertible to MultiPolygon"
+toBuildingMultiPolygon _ (GeoMultiPoint _) = Left "toBuildingMultiPolygon: GeoJSON MultiPoint is not convertible to MultiPolygon"
+toBuildingMultiPolygon _ (GeoLineString _) = Left "toBuildingMultiPolygon: GeoJSON LineString is not convertible to MultiPolygon"
+toBuildingMultiPolygon _ (GeoMultiLineString _) = Left "toBuildingMultiPolygon: GeoJSON MultiLineString is not convertible to MultiPolygon"
+toBuildingMultiPolygon defHeight (GeoPolygon p) = toBuildingMultiPolygon defHeight . GeoMultiPolygon $ multiPolygon [p]
+toBuildingMultiPolygon defHeight (GeoMultiPolygon mp) =
+    let dims = natVal $ getDim2 mp
+    in fmap (completeBuilding . polygons ) $
+        case dims of
+         0 -> Left "toBuildingMultiPolygon: 0 is wrong dimensionality for points."
+         1 -> Left "toBuildingMultiPolygon: 1 is wrong dimensionality for points."
+         3 -> Right $ coerce mp
+         _ -> Right $ toMultiPolygon3D defHeight mp
+
+completeBuilding :: [Polygon 3 GLfloat] -> MultiPolygon 3 GLfloat
+completeBuilding xs@(_:_:_) = multiPolygon xs
+completeBuilding [] = multiPolygon []
+completeBuilding [roof] = multiPolygon $ roof : map buildWall wallLines
+    where wallLines :: [(Vector3 GLfloat, Vector3 GLfloat)]
+          wallLines = rings roof >>= toLines . toList'
+          toLines (p1:p2:pts) = (p1,p2) : toLines (p2:pts)
+          toLines _ = []
+          buildWall (p1, p2) = polygon [linearRing p1 p2 (flat p2)  [flat p1]]
+          flat (unpackV3 -> (x,y,_)) = vector3 x y 0
+
+
+newtype PointData = PointData JSVal
+instance IsJSVal (PointData)
+
+{-# INLINE vertexArray #-}
+foreign import javascript unsafe "$1.vertexArray"
+    vertexArray :: PointData -> ArrayBuffer
+{-# INLINE indexArray #-}
+foreign import javascript unsafe "$1.indexArray"
+    indexArray :: PointData -> ArrayBuffer
+{-# INLINE vertexArrayLength #-}
+foreign import javascript unsafe "$1.vertexArray.length / 20 | 0"
+    vertexArrayLength :: PointData -> GLsizei
+{-# INLINE indexArrayLength #-}
+foreign import javascript unsafe "$1.indexArray.length / 2 | 0"
+    indexArrayLength :: PointData -> GLsizei
+
+
+buildingPointData :: MultiPolygon 3 GLfloat -> PointData
+buildingPointData mp = packPointData vertices indices
+    where (points, normals', indices) = triangulateMultiPolygon3D mp
+          (normals, texcoords) = hackyNormalsTexcoords normals'
+          vertices = packPoints points normals texcoords
+
+-- | TODO: Here I create texture coordinates incorrectly
+foreign import javascript unsafe "$r1 = $1.map(function(p){return p.map(function(x){return Math.min(127, Math.max(-128, x*128 | 0));});});\
+                                 \$r2 = $1.map(function(p){return [0,0]});"
+    hackyNormalsTexcoords :: PointArray 3 GLfloat -> (PointArray 3 GLbyte, PointArray 2 GLushort)
+
+
+foreign import javascript unsafe "{ vertexArray: $1, indexArray: Uint16Array.from($2).buffer }"
+    packPointData :: ArrayBuffer -> JSVal -> PointData
+
+--norm = fmap (round . max (-128) . min 127)
+----            $ ((if c then 1 else -1) * 127 / normL2 nr') ..* nr' :: Vector3 GLbyte
+
+--{-# INLINE wrapInJSQTransform #-}
+--foreign import javascript unsafe "if (! $1['properties']){ $1['properties'] = {}; }\
+--                                 \if (! $1['properties']['transform']){ $1['properties']['transform'] = {}; }\
+--                                 \$1['properties']['transform']['shift'] = [0,0,0];\
+--                                 \$1['properties']['transform']['rotScale'] = [0,0,0,1];\
+--                                 \$r = $1;"
+--    wrapInJSQTransform :: JSVal -> JSQTransform x
 
 --data ScenarioObject = ScenarioObject ScenarioLayer GeomID (Maybe GeomID) LocatedCityObject
 --    deriving Show

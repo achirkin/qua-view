@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleContexts #-}
+
 {-# LANGUAGE DataKinds, FlexibleInstances, MultiParamTypeClasses #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 -----------------------------------------------------------------------------
@@ -27,13 +29,18 @@ import Controllers.GUIEvents
 
 import Program
 --import Program.Model.City
---import Program.Model.CityObject
+import Program.Model.CityObject
 --import Program.Model.GeoJSON
 --import Program.View
 
 --import Debug.Trace
 --import Geometry.Structure
 --import Control.Monad
+
+import GHCJS.Foreign.Callback
+import GHCJS.Types
+import GHCJS.Prim
+import Data.Coerce
 
 --updateProgramView :: String -> Program -> PView -> IO (Either PView e)
 --updateProgramView msg program pview = do
@@ -51,6 +58,15 @@ instance Reaction Program PView ClearingGeometry "Clearing City Geometry" 0 wher
 
 
 instance Reaction Program PView GeoJSONLoaded "Updating City Geometry after GeoJSON is loaded" 0 where
+    response _ GeoJSONLoaded
+        { isDynamic = dyn
+        , featureCollection = col } _ _ view = do
+            printVal col
+            features' <- getProp col "features"
+            (errors, features) <- mapJSArray (processScenarioObject 3) features'
+            printVal errors
+            printVal features
+            return $ Left view
 --    react _ geoJSONI program@Program{controls = c@Controls{placeTransform = Nothing}}
 --        = program{controls = c{placeTransform = Just (scal, shift)}}
 --        { city = addCityStaticWires lns $ addCityObjects geoms (city program)
@@ -68,3 +84,26 @@ instance Reaction Program PView GeoJSONLoaded "Updating City Geometry after GeoJ
 --    response _ _ _ = updateProgramView "Updated geometry."
 
 
+mapJSArray :: (Coercible a JSVal, Coercible b JSVal)
+           => (a -> Either JSString b) -> JSVal -> IO (JSVal,JSVal)
+mapJSArray f arr = do
+    call <- syncCallback1' $ \jsx ->
+        case f (coerce jsx) of
+            Right v  -> setRight (coerce v)
+            Left str -> setLeft str
+    rez <- mapJSArray' call arr
+    releaseCallback call
+    return rez
+
+{-# INLINE setLeft #-}
+foreign import javascript unsafe "[false, $1]"
+    setLeft :: JSString -> IO JSVal
+{-# INLINE setRight #-}
+foreign import javascript unsafe "[true, $1]"
+    setRight :: JSVal -> IO JSVal
+
+{-# INLINE mapJSArray' #-}
+foreign import javascript unsafe "var rez = $2.map(function(e){ return $1(e);});\
+                                 \$r1 = rez.filter(function(e){return !e[0];}).map(function(e){ return e[1];});\
+                                 \$r2 = rez.filter(function(e){return e[0];}).map(function(e){ return e[1];});"
+    mapJSArray' :: (Callback (JSVal -> IO JSVal)) -> JSVal -> IO (JSVal, JSVal)

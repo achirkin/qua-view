@@ -43,6 +43,17 @@ function gm$cov(arr) {
     return rez;
 }
 
+function gm$GeometryDims(x) {
+    'use strict';
+    if (x.length === 0) { return 0; }
+    if (x[0].constructor === Number) { return x.length; }
+    var rez = 0, i = 0;
+    while (rez === 0 && i < x.length) {
+        rez = gm$GeometryDims(x[i++]);
+    }
+    return rez;
+}
+
 // find a convex hull for 2-dimensional array
 // https://en.wikipedia.org/wiki/Graham_scan
 function gm$GrahamScan(arr) {

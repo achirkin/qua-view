@@ -15,7 +15,7 @@
 
 module Data.Geometry.Structure.LinearRing
     ( LinearRing ()
-    , linearRing, length, index, toList
+    , linearRing, length, index, toList, toList'
     , convexPolygonHull
     ) where
 
@@ -63,6 +63,10 @@ linearRing a b c xs = js_createLinearRing  . unsafeCoerce . seqList $ a:b:c:xs
 toList :: LinearRing n x -> [Vector n x]
 toList = unsafeCoerce . js_LRtoList
 
+-- | Get list of points from LinearRing (with repeatative last point)
+toList' :: LinearRing n x -> [Vector n x]
+toList' = unsafeCoerce . js_LRtoList'
+
 
 {-# INLINE length #-}
 foreign import javascript unsafe "$1.length - 1"
@@ -102,6 +106,10 @@ foreign import javascript unsafe "$r = h$listToArray($1); $r.push($r[0]);"
 {-# INLINE js_LRtoList #-}
 foreign import javascript unsafe "h$toHsListJSVal($1.slice(0,$1.length-1))"
     js_LRtoList:: LinearRing n x -> Any
+
+{-# INLINE js_LRtoList' #-}
+foreign import javascript unsafe "h$toHsListJSVal($1)"
+    js_LRtoList':: LinearRing n x -> Any
 
 {-# INLINE js_LRtoPA #-}
 foreign import javascript unsafe "$1.slice(0,$1.length-1)"

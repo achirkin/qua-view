@@ -20,6 +20,7 @@ module Data.Geometry.Structure.Polygon
     , triangulate, triangulate', triangulatePolygon3D, triangulateMultiPolygon3D
     , MultiPolygon ()
     , multiPolygon, polygons
+    , toPolygon3D, toMultiPolygon3D
     ) where
 
 import Prelude hiding (length)
@@ -92,13 +93,24 @@ triangulatePolygon3D poly = (points, PS.fillPointArray (PS.length points) normal
 
 
 triangulateMultiPolygon3D :: (KnownNat n, Fractional x, JSNum x)
-                        => MultiPolygon n x -> (PS.PointArray 3 x, PS.PointArray 3 x, JSVal)
+                          => MultiPolygon n x -> (PS.PointArray 3 x, PS.PointArray 3 x, JSVal)
 triangulateMultiPolygon3D mpoly = triags
     where triags = foldl' concatTriags startTriags . map (f . triangulate') $ polygons mpoly
           f (p, [n], inds) = (coerce p        , coerce n      , inds)
           f (p, [] , inds) = (enlargeVectors p, vector3 0 1 0 , inds)
           f (p, n:_, inds) = (shrinkVectors  p, resizeVector n, inds)
 
+{-# INLINE toMultiPolygon3D #-}
+foreign import javascript unsafe "var nc = $2['coordinates'].map(function(p){\
+                                                \   return p.map(function(r){return r.map(function(x){ return x.length === 2 ? x.concat([$1]) : x.slice(0,3);});});\
+                                                \ });\
+                                 \$r = {}; $r['type'] = 'MultiPolygon'; $r['coordinates'] = nc;"
+    toMultiPolygon3D :: Float -> MultiPolygon n x -> MultiPolygon 3 x
+
+{-# INLINE toPolygon3D #-}
+foreign import javascript unsafe "var nc = $2['coordinates'].map(function(r){return r.map(function(x){ return x.length === 2 ? x.concat([$1]) : x.slice(0,3);});});\
+                                 \$r = {}; $r['type'] = 'Polygon'; $r['coordinates'] = nc;"
+    toPolygon3D :: Float -> Polygon n x -> Polygon 3 x
 
 
 concatTriags :: (PS.PointArray 3 x, PS.PointArray 3 x, JSVal)
