@@ -16,7 +16,7 @@ module Controllers.GUIEvents where
 
 --import Data.Geospatial
 --import qualified Data.Aeson as A
---import GHCJS.Types
+import GHCJS.Types
 
 -- | Reaction on this event should be starting evaluation of current service
 data ServiceRunBegin = ServiceRunBegin
@@ -28,7 +28,8 @@ data ClearServiceResults = ClearServiceResults
 
 -- | When valid GeoJSON comes from somewhere
 data GeoJSONLoaded = GeoJSONLoaded
-    { isDynamic          :: Bool
+    { isDynamic         :: Bool
+    , featureCollection :: JSVal
 --    , featureCollection  :: GeoFeatureCollection A.Value
     }
 type GeoJSONLoadCallBack = GeoJSONLoaded -> IO ()

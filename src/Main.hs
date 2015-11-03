@@ -30,7 +30,7 @@ import Program.Model.Camera (CState(..))
 import Controllers.Pointer
 import Controllers.ElementResizing
 import Controllers.GUIEvents
---import Controllers.GeoJSONFileImport
+import Controllers.GeoJSONFileImport
 --
 ---- Get EventSense instances so that we can pass events into processing cycle
 import Program.Reactions ()
@@ -151,17 +151,17 @@ main = do
         getElementById "tabGeometry" >>= hideElement
         getElementById "tabServices" >>= hideElement
         getElementById "tabLuci" >>= hideElement
-    else return () -- do
+    else do
         -- "evaluate" button runs current service
 --        evaluateButton <- getElementById "evaluatebutton"
 --        elementOnClick evaluateButton . const $ reqEvent eventHole $ EBox ServiceRunBegin
 --        clearServiceButton <- getElementById "clearbutton"
 --        elementOnClick clearServiceButton . const $ reqEvent eventHole $ EBox ClearServiceResults
---
---        -- "import geometry" button converts GeoJSON into internal representation
---        importButton <- getElementById "jsonfileinput"
---        onGeoJSONFileImport importButton (reqEvent eventHole . EBox)
---
+
+        -- "import geometry" button converts GeoJSON into internal representation
+        importButton <- getElementById "jsonfileinput"
+        onGeoJSONFileImport importButton (reqEvent eventHole . EBox)
+
 --        -- "clear geometry" button removes all buildings from the city
 --        clearGeomButton <- getElementById "cleargeombutton"
 --        elementOnClick clearGeomButton . const $ reqEvent eventHole $ EBox ClearingGeometry
