@@ -27,10 +27,10 @@ import Data.Geometry
 --import Controllers.LuciClient
 --
 import Program.Model.Camera
---import Program.Model.City
+import Program.Model.City
 import Program.Model.CityObject
 import Program.Model.WiredGeometry
---import Program.View.CityView ()
+import Program.View.CityView ()
 import Program.View.WiredGeometryView ()
 import Program.View
 
@@ -46,7 +46,7 @@ data Program = Program
 --    --, info     :: !Info
     { camera   :: !Camera
     , decGrid  :: !WiredGeometry
---    , city     :: !City
+    , city     :: !City
     , userRole :: !Profile
     , controls :: !Controls
     }
@@ -84,7 +84,7 @@ initProgram :: GLfloat -- ^ width of the viewport
 initProgram vw vh cstate userProfile = Program
     { camera = initCamera vw vh cstate
     , decGrid = createDecorativeGrid 500 100 (vector4 0.6 0.6 0.8 1)
---    , city = smallCity -- buildCity [] [] [] []
+    , city = emptyCity -- buildCity [] [] [] []
     , controls = Controls
         { selectedObject = 0
 --        , activeService = radService
@@ -103,7 +103,7 @@ initProgram vw vh cstate userProfile = Program
 data PView = PView
     { context      :: !ViewContext
     , dgView       :: !(View WiredGeometry)
---    , cityView     :: !(View City)
+    , cityView     :: !(View City)
 --    , luciClient   :: !(Maybe LuciClient)
 --    , luciScenario :: !(Maybe Scenario)
 --    , scUpToDate   :: !Bool
@@ -122,13 +122,13 @@ initView prog@Program
     ctx <- setupViewContext gl cam ctime (vector3 (-0.5) (-1) 0.6)
     -- init object views
     dgview <- createView gl (decGrid prog)
---    cview <- createView gl (city prog)
+    cview <- createView gl (city prog)
 --    toJSRef (decGrid prog) >>= printRef
     -- done!
     return PView
         { context      = ctx
         , dgView       = dgview
---        , cityView     = cview
+        , cityView     = cview
 --        , luciClient   = Nothing
 --        , luciScenario = Nothing
 --        , scUpToDate   = False

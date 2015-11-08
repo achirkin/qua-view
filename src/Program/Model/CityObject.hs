@@ -19,19 +19,27 @@
 -----------------------------------------------------------------------------
 
 module Program.Model.CityObject
+    ( CityObject (), LocatedCityObject, behavior, objPolygons, objPoints
+    , ScenarioObject (..)
+    , GeoJsonGeometry (..)
+    , PointData (), vertexArray, indexArray, vertexArrayLength, indexArrayLength
+    , processScenarioObject
+    , ObjectBehavior (..)
 --    ( CityObject (..)
 --    , ObjectBehavior (..)
 --    , PointData (..)
 --    , LocatedCityObject
 --    , building
 --    , ScenarioObject (..), GeomID, ScenarioLayer (..), ImportedScenarioObject (..)
---    )
+    )
     where
+
+import GHCJS.Foreign.Callback (Callback)
 
 import GHC.TypeLits
 import Data.Proxy (Proxy(..))
 import Data.Coerce (coerce)
-import Data.JSString (unpack', append)
+import Data.JSString (unpack', append, pack)
 
 import GHCJS.Foreign
 import GHCJS.Marshal.Pure
@@ -44,10 +52,10 @@ import GHCJS.WebGL
 import SmallGL.WritableVectors
 
 import Data.Geometry
-import Data.Geometry.Transform
+import qualified Data.Geometry.Transform as T
 import Data.Geometry.Structure.LinearRing (toList', linearRing)
 import Data.Geometry.Structure.Polygon
-import Data.Geometry.Structure.PointSet (PointArray)
+import Data.Geometry.Structure.PointSet (PointArray, PointSet (..), shrinkVectors, boundingRectangle)
 
 --defaultHeightDynamic :: GLfloat
 --defaultHeightDynamic = 3
@@ -55,7 +63,8 @@ import Data.Geometry.Structure.PointSet (PointArray)
 --defaultHeightStatic :: GLfloat
 --defaultHeightStatic = 3
 
---type LocatedCityObject = QFTransform CityObject
+
+
 
 -- | Id of geometry in Luci
 newtype GeomID = GeomID JSVal
@@ -99,18 +108,48 @@ instance PFromJSVal (Maybe ScenarioLayer) where
             _            -> Nothing
 
 
+
 -- | Unprocessed Feature object
 newtype ScenarioObject = ScenarioObject JSVal
 
 -- | Basic entity in the program; Defines the logic of the interaction and visualization
 newtype CityObject = CityObject JSVal
 
-processScenarioObject :: GLfloat -> ScenarioObject -> Either JSString CityObject
-processScenarioObject defHeight sObj = if isSlave sObj then Left "Skipping a slave scenario object." else
+processScenarioObject :: GLfloat -- ^ default height in camera space
+                      -> GLfloat -- ^ scale objects before processing
+                      -> Vector2 GLfloat -- ^ shift objects before processing
+                      -> ScenarioObject -> Either JSString CityObject
+processScenarioObject defHeight scale shift sObj | scale <= 0 = Left . pack $ "processScenarioObject: Scale is wrong possible (" ++ show scale ++ ")"
+                                                 | otherwise  = if isSlave sObj then Left "Skipping a slave scenario object." else
     pFromJSVal (getGeoJSONGeometry $ coerce sObj) >>= \(ND geom) ->
-    toBuildingMultiPolygon defHeight geom >>= \mpoly ->
-    let pdata = buildingPointData mpoly
-    in Right $ js_ScenarioObjectToCityObject sObj pdata mpoly
+    toBuildingMultiPolygon (defHeight / scale) geom >>= \mpoly ->
+    let T.QFTransform trotScale tshift locMPoly = locateMultiPolygon scale shift mpoly
+        pdata = buildingPointData locMPoly
+    in Right $ js_ScenarioObjectToCityObject sObj pdata locMPoly tshift trotScale
+
+locateMultiPolygon :: GLfloat
+                   -> Vector2 GLfloat
+                   -> MultiPolygon 3 GLfloat
+                   -> T.QFTransform (MultiPolygon 3 GLfloat)
+locateMultiPolygon scale shift mpoly = T.QFTransform (axisRotation (vector3 0 0 1) a) center $ mapCallbackSet f mpoly
+    where points = shrinkVectors $ toPointArray mpoly :: PointArray 2 GLfloat
+          (center', vx, vy) = boundingRectangle points
+          a = atan2 (indexVector 1 vx) (indexVector 0 vx)
+          scalev = broadcastVector scale
+          center = resizeVector (center' - shift) * scalev
+          xdir = resizeVector (unit vx) * scalev
+          ydir = resizeVector (unit vy) * scalev
+          zdir = vector3 0 0 scale
+          f = getLocatingCallback (resizeVector center') xdir ydir zdir
+
+
+
+foreign import javascript unsafe "$r = function(v){var t = [v[0]-$1[0],v[1]-$1[1],v[2]-$1[2]]; return [dotJSVec($2,t),dotJSVec($3,t),dotJSVec($4,t)];}"
+    getLocatingCallback :: Vector3 GLfloat -- ^ shift
+                        -> Vector3 GLfloat -- ^ x dir
+                        -> Vector3 GLfloat -- ^ y dir
+                        -> Vector3 GLfloat -- ^ z dir
+                        -> Callback (Vector3 GLfloat -> Vector3 GLfloat)
 
 
 {-# INLINE behavior #-}
@@ -119,9 +158,18 @@ behavior = pFromJSVal . behavior'
 {-# INLINE behavior' #-}
 foreign import javascript unsafe "$1['properties']['static']"
     behavior' :: CityObject -> JSVal
+{-# INLINE objPolygons #-}
+foreign import javascript unsafe "$1['geometry']"
+    objPolygons :: CityObject -> MultiPolygon 3 GLfloat
+{-# INLINE objPoints #-}
+foreign import javascript unsafe "$1['pointData']"
+    objPoints :: CityObject -> PointData
+
+
 {-# INLINE isSlave #-}
 foreign import javascript unsafe "$1['properties']['isSlave']"
     isSlave :: ScenarioObject -> Bool
+
 
 
 data GeoJsonGeometryND = forall n . KnownNat n => ND (GeoJsonGeometry n)
@@ -149,6 +197,7 @@ instance PFromJSVal (Either JSString GeoJsonGeometryND) where
                  Nothing -> Left "Could parse GeoJsonGeometryND: failed to find dimensionality of the data"
                  Just (SomeNat proxy) -> pFromJSVal js >>= Right . ND . dimensionalize proxy
 
+
 {-# INLINE dimensionalize #-}
 dimensionalize :: KnownNat n => Proxy n -> GeoJsonGeometry n -> GeoJsonGeometry n
 dimensionalize _ = id
@@ -164,12 +213,49 @@ foreign import javascript unsafe "$1['type']"
 {-# INLINE getGeoJSONGeometry #-}
 foreign import javascript unsafe "$1['geometry']"
     getGeoJSONGeometry :: JSVal -> JSVal
-{-# INLINE getGeoJSONProperties #-}
-foreign import javascript unsafe "$1['properties']"
-    getGeoJSONProperties :: JSVal -> JSVal
+--{-# INLINE getGeoJSONProperties #-}
+--foreign import javascript unsafe "$1['properties']"
+--    getGeoJSONProperties :: JSVal -> JSVal
 
-foreign import javascript unsafe "$r = {}; $r['properties'] = $1['properties']; $r['type'] = $1['type']; $r['geometry'] = $3; $r['pointData'] = $2;"
-    js_ScenarioObjectToCityObject :: ScenarioObject -> PointData -> MultiPolygon 3 GLfloat -> CityObject
+type LocatedCityObject = T.QFTransform CityObject
+
+
+
+instance PFromJSVal (Maybe LocatedCityObject) where
+    pFromJSVal js = if not (isTruthy jv)
+        then Nothing
+        else Just $ T.QFTransform rs sh (coerce jv)
+        where (jv, sh, rs) = js_locateCityObject js
+
+foreign import javascript unsafe "if($1['properties']['transform'] && $1['properties']['transform']['shift'] && $1['properties']['transform']['rotScale']\
+                                 \ && $1['pointData']){\
+                                 \   $r1 = $1;\
+                                 \   $r2 = $1['properties']['transform']['shift'];\
+                                 \   $r3 = $1['properties']['transform']['rotScale'];}\
+                                 \else{$r1 = null; $r2 = null; $r3 = null;}"
+    js_locateCityObject :: JSVal
+                        -> (JSVal, Vector3 GLfloat, QFloat)
+
+
+
+foreign import javascript unsafe "$r = gm$cloneCityObject($1); $r['properties']['transform']['shift'] = $2; $r['properties']['transform']['rotScale'] = $3;"
+    js_delocateCityObject :: CityObject
+                          -> Vector3 GLfloat
+                          -> QFloat
+                          -> JSVal
+
+instance PToJSVal LocatedCityObject where
+    pToJSVal (T.QFTransform rs sh obj) = js_delocateCityObject obj sh rs
+
+
+foreign import javascript unsafe "$r = {}; $r['properties'] = $1['properties']; $r['type'] = $1['type']; $r['geometry'] = $3; $r['pointData'] = $2;\
+                                 \$r['properties']['transform'] = {}; $r['properties']['transform']['shift'] = $4; $r['properties']['transform']['rotScale'] = $5;"
+    js_ScenarioObjectToCityObject :: ScenarioObject
+                                  -> PointData
+                                  -> MultiPolygon 3 GLfloat
+                                  -> Vector3 GLfloat
+                                  -> QFloat
+                                  -> CityObject
 
 {-# INLINE getDimensionality #-}
 -- | Get length of the coordinates in GeoJSON object.

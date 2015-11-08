@@ -21,6 +21,11 @@ module Data.Geometry.Structure.LinearRing
 
 import Prelude hiding (length)
 
+
+import GHCJS.Foreign.Callback (Callback (), syncCallback1', releaseCallback)
+import System.IO.Unsafe (unsafePerformIO)
+import Data.Coerce (coerce)
+
 import GHC.Exts (Any)
 import Unsafe.Coerce (unsafeCoerce)
 import GHC.TypeLits
@@ -49,6 +54,14 @@ instance PS.PointSet (LinearRing n x) n x where
     mean = PS.mean . js_LRtoPA
     {-# INLINE var #-}
     var = PS.var . js_LRtoPA
+    {-# NOINLINE mapSet #-}
+    mapSet f arr = unsafePerformIO $ do
+        call <- syncCallback1' $ return . coerce . f . coerce
+        rez <- mapLinearRing' call arr
+        releaseCallback call
+        return rez
+    {-# NOINLINE mapCallbackSet #-}
+    mapCallbackSet = mapLinearRing''
 
 
 -- | Create a LinearRing
@@ -121,3 +134,10 @@ foreign import javascript unsafe "$r = Array.from($1); $r.push($1[0]);"
 
 seqList :: [a] -> [a]
 seqList xs = foldr seq () xs `seq` xs
+
+{-# INLINE mapLinearRing' #-}
+foreign import javascript unsafe "$2.map(function(e){ return $1(e);})"
+    mapLinearRing' :: (Callback (JSVal -> IO JSVal)) -> LinearRing n x -> IO (LinearRing n x)
+{-# INLINE mapLinearRing'' #-}
+foreign import javascript unsafe "$2.map(function(e){ return $1(e);})"
+    mapLinearRing'' :: (Callback a) -> LinearRing n x -> LinearRing n x

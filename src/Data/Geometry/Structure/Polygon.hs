@@ -23,12 +23,16 @@ module Data.Geometry.Structure.Polygon
     , toPolygon3D, toMultiPolygon3D
     ) where
 
+
+import GHCJS.Foreign.Callback (Callback (), syncCallback1', releaseCallback)
+import System.IO.Unsafe (unsafePerformIO)
+import Data.Coerce (coerce)
+
 import Prelude hiding (length)
 import Data.List (foldl')
 
 import GHC.Exts (Any)
 import Unsafe.Coerce (unsafeCoerce)
-import Data.Coerce (coerce)
 import GHC.TypeLits
 
 import GHCJS.Types
@@ -56,6 +60,14 @@ instance PS.PointSet (Polygon n x) n x where
     mean = PS.mean . js_PtoPA
     {-# INLINE var #-}
     var = PS.var . js_PtoPA
+    {-# NOINLINE mapSet #-}
+    mapSet f arr = unsafePerformIO $ do
+        call <- syncCallback1' $ return . coerce . f . coerce
+        rez <- mapPolygon' call arr
+        releaseCallback call
+        return rez
+    {-# NOINLINE mapCallbackSet #-}
+    mapCallbackSet = mapPolygon''
 
 
 -- | Create a Polygon
@@ -87,18 +99,18 @@ triangulatePolygon3D :: (KnownNat n, Fractional x, JSNum x)
                         => Polygon n x -> (PS.PointArray 3 x, PS.PointArray 3 x, JSVal)
 triangulatePolygon3D poly = (points, PS.fillPointArray (PS.length points) normal, indsx)
     where (points, normal, indsx) = f $ triangulate' poly
-          f (p, [n], inds) = (coerce p        , coerce n      , inds)
-          f (p, [] , inds) = (enlargeVectors p, vector3 0 1 0 , inds)
-          f (p, n:_, inds) = (shrinkVectors  p, resizeVector n, inds)
+          f (p, [n], inds) = (coerce p           , coerce n      , inds)
+          f (p, [] , inds) = (PS.enlargeVectors p, vector3 0 0 1 , inds)
+          f (p, n:_, inds) = (PS.shrinkVectors  p, resizeVector n, inds)
 
 
 triangulateMultiPolygon3D :: (KnownNat n, Fractional x, JSNum x)
                           => MultiPolygon n x -> (PS.PointArray 3 x, PS.PointArray 3 x, JSVal)
 triangulateMultiPolygon3D mpoly = triags
     where triags = foldl' concatTriags startTriags . map (f . triangulate') $ polygons mpoly
-          f (p, [n], inds) = (coerce p        , coerce n      , inds)
-          f (p, [] , inds) = (enlargeVectors p, vector3 0 1 0 , inds)
-          f (p, n:_, inds) = (shrinkVectors  p, resizeVector n, inds)
+          f (p, [n], inds) = (coerce p           , coerce n      , inds)
+          f (p, [] , inds) = (PS.enlargeVectors p, vector3 0 0 1 , inds)
+          f (p, n:_, inds) = (PS.shrinkVectors  p, resizeVector n, inds)
 
 {-# INLINE toMultiPolygon3D #-}
 foreign import javascript unsafe "var nc = $2['coordinates'].map(function(p){\
@@ -130,13 +142,7 @@ foreign import javascript unsafe "$r1 = $1.concat($4);\
 foreign import javascript unsafe "$r1 = []; $r2 = []; $r3 = [];"
     startTriags :: (PS.PointArray 3 x, PS.PointArray 3 x, JSVal)
 
-{-# INLINE enlargeVectors #-}
-foreign import javascript unsafe "$1.map(function(e){return e.concat([0]);})"
-    enlargeVectors :: PS.PointArray n x -> PS.PointArray 3 x
 
-{-# INLINE shrinkVectors #-}
-foreign import javascript unsafe "$1.map(function(e){return e.slice(0,3);})"
-    shrinkVectors :: PS.PointArray n x -> PS.PointArray 3 x
 
 
 
@@ -162,6 +168,14 @@ instance PS.PointSet (MultiPolygon n x) n x where
     mean = PS.mean . js_MPtoPA
     {-# INLINE var #-}
     var = PS.var . js_MPtoPA
+    {-# NOINLINE mapSet #-}
+    mapSet f arr = unsafePerformIO $ do
+        call <- syncCallback1' $ return . coerce . f . coerce
+        rez <- mapMultiPolygon' call arr
+        releaseCallback call
+        return rez
+    {-# NOINLINE mapCallbackSet #-}
+    mapCallbackSet = mapMultiPolygon''
 
 
 -- | Create a MultiPolygon
@@ -237,3 +251,24 @@ foreign import javascript unsafe "h$fromArrayNoWrap($1)"
 
 seqList :: [a] -> [a]
 seqList xs = foldr seq () xs `seq` xs
+
+
+
+{-# INLINE mapPolygon' #-}
+foreign import javascript unsafe "$r = {}; $r['type'] = 'Polygon';\
+                                 \$r['coordinates'] = $2['coordinates'].map(function(r){return r.map(function(x){  return $1(x);});});"
+    mapPolygon' :: (Callback (JSVal -> IO JSVal)) -> Polygon n x -> IO (Polygon n x)
+{-# INLINE mapPolygon'' #-}
+foreign import javascript unsafe "$r = {}; $r['type'] = 'Polygon';\
+                                 \$r['coordinates'] = $2['coordinates'].map(function(r){return r.map(function(x){  return $1(x);});});"
+    mapPolygon'' :: (Callback a) -> Polygon n x -> Polygon n x
+
+
+{-# INLINE mapMultiPolygon' #-}
+foreign import javascript unsafe "$r = {}; $r['type'] = 'MultiPolygon';\
+                                 \$r['coordinates'] = $2['coordinates'].map(function(p){return p.map(function(r){return r.map(function(x){  return $1(x);});});});"
+    mapMultiPolygon' :: (Callback (JSVal -> IO JSVal)) -> MultiPolygon n x -> IO (MultiPolygon n x)
+{-# INLINE mapMultiPolygon'' #-}
+foreign import javascript unsafe "$r = {}; $r['type'] = 'MultiPolygon';\
+                                 \$r['coordinates'] = $2['coordinates'].map(function(p){return p.map(function(r){return r.map(function(x){  return $1(x);});});});"
+    mapMultiPolygon'' :: (Callback a) -> MultiPolygon n x -> MultiPolygon n x

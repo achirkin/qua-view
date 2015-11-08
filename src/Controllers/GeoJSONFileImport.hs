@@ -27,13 +27,13 @@ import GHCJS.Foreign.Callback
 
 import GHCJS.Useful
 import Controllers.GUIEvents
-
+import Data.Coerce (coerce)
 
 onGeoJSONFileImport :: JSElement -> GeoJSONLoadCallBack -> IO ()
 onGeoJSONFileImport importButton callback = elementOnChange importButton $ do
     programInProgress
     logText "Trying to parse GeoJSON FeatureCollection..."
-    gfc <- getElementFiles importButton
+    gfc <- coerce <$> getElementFiles importButton
     isBehChecked <- isElementChecked  "dynamicstaticswitcher"
     logText "GeoJSON FeatureCollection is imported."
     callback GeoJSONLoaded

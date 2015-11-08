@@ -15,10 +15,9 @@
 
 module Program.View.CityGroundView where
 
-import Control.Monad (liftM)
 
 import GHCJS.WebGL
-import Geometry.Space
+import Data.Geometry
 
 import Program.Model.CityObject
 import Program.Model.CityGround

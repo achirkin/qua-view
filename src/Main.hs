@@ -133,6 +133,7 @@ main = do
     printVal . jsval $ (projectND (pcaVectors lr) lr :: PSet.PointArray 4 Double)
     printVal . jsval $ poly1
     print $ triangulate poly1
+    print $ boundSet poly1
 
     printVal . jsval $ mpoly1
     printVal . jsval $ PSet.toPointArray mpoly1

@@ -26,10 +26,13 @@ data ClearingGeometry = ClearingGeometry
 
 data ClearServiceResults = ClearServiceResults
 
+-- | Unprocessed Feature collection
+newtype Scenario = Scenario JSVal
+
 -- | When valid GeoJSON comes from somewhere
 data GeoJSONLoaded = GeoJSONLoaded
     { isDynamic         :: Bool
-    , featureCollection :: JSVal
+    , featureCollection :: Scenario
 --    , featureCollection  :: GeoFeatureCollection A.Value
     }
 type GeoJSONLoadCallBack = GeoJSONLoaded -> IO ()

@@ -1,6 +1,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# LANGUAGE ViewPatterns, DataKinds #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Program.View.CityView
@@ -17,31 +18,40 @@
 module Program.View.CityView where
 
 
-import qualified Data.IntMap.Strict as IM
-import Control.Monad (liftM)
+import GHCJS.Marshal.Pure
+import GHCJS.Foreign.Callback ( Callback (), OnBlocked (..)
+                              , syncCallback1', syncCallback3, releaseCallback)
+import Data.Coerce (coerce)
+import Unsafe.Coerce (unsafeCoerce)
 
+import GHCJS.Types
 import GHCJS.WebGL
 import SmallGL.Shader
-import Geometry.Space
-import Geometry.Space.Transform
+import Data.Geometry
+import Data.Geometry.Transform
+--import Geometry.Space
+--import Geometry.Space.Transform
 
 import Program.Model.City
 import Program.Model.CityObject
-import Program.Model.CityGround
-import Program.Model.WiredGeometry
+--import Program.Model.CityGround
+--import Program.Model.WiredGeometry
 import Program.View
 import Program.View.CityObjectView
-import Program.View.CityGroundView
-import Program.View.WiredGeometryView ()
+--import Program.View.CityGroundView
+--import Program.View.WiredGeometryView ()
 import Data.Bits (Bits(..))
 
+import GHCJS.Useful
+
+newtype COViewCollection = COViewCollection JSVal
 
 data CityView = CityView
     { viewShader   :: !ShaderProgram
     , selectShader :: !ShaderProgram
-    , viewsIn      :: !(IM.IntMap (View CityObject))
-    , groundView   :: !(View CityGround)
-    , clutterView  :: !(View WiredGeometry)
+    , viewsIn      :: !COViewCollection
+--    , groundView   :: !(View CityGround)
+--    , clutterView  :: !(View WiredGeometry)
     }
 
 
@@ -52,20 +62,20 @@ instance Drawable City where
                                     ,(gl_VERTEX_SHADER, vertBuilding)]
         seProgram <- initShaders gl [(gl_FRAGMENT_SHADER, fragSelector)
                                     ,(gl_VERTEX_SHADER, vertSelector)]
-        objs <- mapM (createView gl . unwrap) (objectsIn city)
-        gr <- createView gl (ground city)
-        clview <- createView gl (clutter city)
+        objs <- createObjViewCollection gl (objectsIn city)
+--        gr <- createView gl (ground city)
+--        clview <- createView gl (clutter city)
         return CityView
             { viewShader   = buProgram
             , selectShader = seProgram
             , viewsIn      = objs
-            , groundView   = gr
-            , clutterView  = clview
+--            , groundView   = gr
+--            , clutterView  = clview
             }
     drawInCurrContext vc@ViewContext
         { glctx = gl
-        , curState = cs@ViewState{vSunDir = Vector3 sx sy sz}
-        } city@City{activeObj = ai} cview@CityView{viewShader = prog} = do
+        , curState = cs@ViewState{vSunDir = unpackV3 -> (sx,sy,sz)}
+        } city@City{activeObjId = ai} cview@CityView{viewShader = prog} = do
         enableVertexAttribArray gl ploc
         enableVertexAttribArray gl nloc
         enableVertexAttribArray gl tloc
@@ -77,17 +87,16 @@ instance Drawable City where
         -- draw ground
         uniform1f gl userLoc 1
         uniform4f gl colLoc 1 1 1 1
-        applyTransform vc (return () :: MTransform GLfloat ())
-        drawCityGround gl (ploc,nloc,tloc) (ground city) (groundView cview)
+        applyTransform vc (return () :: MTransform 3 GLfloat ())
+--        drawCityGround gl (ploc,nloc,tloc) (ground city) (groundView cview)
         -- draw buildings
         uniform1f gl userLoc 0 -- disable textures for now
         uniform4f gl colLoc 0.5 0.5 0.55 1
-        IM.foldMapWithKey drawObject buildings :: IO ()
+        zipIObuildings drawObject (objectsIn city) (viewsIn cview)
         disableVertexAttribArray gl tloc
         disableVertexAttribArray gl nloc
         disableVertexAttribArray gl ploc
-        where buildings = IM.intersectionWith (,) (objectsIn city) (viewsIn cview)
-              drawObject i (tobj, oview) = applyTransform vc tobj >>= \obj -> do
+        where drawObject i tobj oview = applyTransform vc tobj >>= \obj -> do
                 case behavior obj of
                     Static  -> uniform4f gl colLoc 0.5 0.5 0.55 1
                     Dynamic -> if i == ai
@@ -104,28 +113,29 @@ instance Drawable City where
         { vGLProjLoc = unifLoc prog "uProjM"
         , vGLViewLoc = unifLoc prog "uModelViewM"
         }
-    updateView gl city@City{objectsIn = objs} cv@CityView{ viewsIn = views } = do
-        mviews' <- sequence $ IM.mergeWithKey updateFunc addFunc deleteFunc objs views
-        gr <- updateView gl (ground city) (groundView cv)
-        cl <- updateView gl (clutter city) (clutterView cv)
-        return cv
-            { groundView = gr
-            , clutterView = cl
-            , viewsIn = IM.mapMaybe id mviews'
-            } where updateFunc _ o = Just . liftM Just . updateView gl o
-                    addFunc = fmap (liftM Just . createView gl)
-                    deleteFunc = fmap ( liftM (const Nothing)
-                                      . deleteView gl (undefined :: LocatedCityObject)
-                                      )
-    deleteView gl _ CityView
-            { viewsIn      = views
-            , groundView   = gr
-            , clutterView  = clutterv
-            } = do -- TODO :: delete shaders
-        mapM_ (deleteView gl (undefined :: LocatedCityObject)) views
-        deleteView gl (undefined :: CityGround) gr
-        deleteView gl (undefined :: WiredGeometry) clutterv
-    draw vc city view = draw vc (clutter city) (clutterView view) >> drawInCurrContext vc' city view
+--    updateView gl city@City{objectsIn = objs} cv@CityView{ viewsIn = views } = do
+--        mviews' <- sequence $ IM.mergeWithKey updateFunc addFunc deleteFunc objs views
+----        gr <- updateView gl (ground city) (groundView cv)
+----        cl <- updateView gl (clutter city) (clutterView cv)
+--        return cv
+--            { viewsIn = IM.mapMaybe id mviews'
+----            , groundView = gr
+----            , clutterView = cl
+--            } where updateFunc _ o = Just . liftM Just . updateView gl o
+--                    addFunc = fmap (liftM Just . createView gl)
+--                    deleteFunc = fmap ( liftM (const Nothing)
+--                                      . deleteView gl (undefined :: LocatedCityObject)
+--                                      )
+--    deleteView gl _ CityView
+--            { viewsIn      = views
+----            , groundView   = gr
+----            , clutterView  = clutterv
+--            } = do -- TODO :: delete shaders
+--        mapM_ (deleteView gl (undefined :: LocatedCityObject)) views
+----        deleteView gl (undefined :: CityGround) gr
+----        deleteView gl (undefined :: WiredGeometry) clutterv
+    draw vc city view = -- draw vc (clutter city) (clutterView view) >>
+                        drawInCurrContext vc' city view
         where vc' = vc{ curState = updateDrawState city view $ curState vc}
 
 -- City selectable means one can select objects in a city
@@ -137,11 +147,10 @@ instance Selectable City where
         enableVertexAttribArray gl ploc
         useProgram gl . programId $ prog
         uniformMatrix4fv gl (vGLProjLoc cs) False (projectArr vc)
-        IM.foldMapWithKey drawObject buildings :: IO ()
+        zipIObuildings drawObject (objectsIn city) (viewsIn cview)
         disableVertexAttribArray gl ploc
-        where buildings = IM.intersectionWith (,) (objectsIn city) (viewsIn cview)
-              drawObject i (tobj, oview) | behavior (unwrap tobj) == Static = return ()
-                                         | otherwise = applyTransform vc tobj >>= \obj -> do
+        where drawObject i tobj oview | behavior (unwrap tobj) == Static = return ()
+                                      | otherwise = applyTransform vc tobj >>= \obj -> do
                 uniform4f gl selValLoc
                             (fromIntegral (i .&. 0x000000FF) / 255)
                             (fromIntegral (i .&. 0x0000FF00) / 65280)
@@ -156,12 +165,41 @@ instance Selectable City where
         , vGLViewLoc = unifLoc prog "uModelViewM"
         }
 
+createObjViewCollection :: WebGLRenderingContext -> CityObjectCollection -> IO COViewCollection
+createObjViewCollection gl objs = do
+        call <- syncCallback1' (\x -> coerce <$> createView gl (unsafeCoerce x :: CityObject))
+        rez <- js_createObjViewCollection call objs
+        releaseCallback call
+        return rez
+
+foreign import javascript unsafe "$2.map($1)"
+    js_createObjViewCollection :: Callback (JSVal -> IO JSVal) -> CityObjectCollection -> IO COViewCollection
 
 
-instance (Monoid m) => Monoid (IO m) where
-    mempty = return mempty
-    mappend a b = mappend <$> a <*> b
-    mconcat as = mconcat <$> sequence as
+zipIObuildings :: (Int -> LocatedCityObject -> CityObjectView -> IO ())
+               -> CityObjectCollection
+               -> COViewCollection
+               -> IO ()
+zipIObuildings f objs views = do
+        call <- syncCallback3 ContinueAsync
+                (\i o v -> case pFromJSVal o of
+                            Nothing  -> return ()
+                            Just obj -> f (toNum i) obj (coerce v))
+        js_zipIObuildings call objs views
+        releaseCallback call
+
+foreign import javascript unsafe "$2.forEach(function(e,i){$1(i,e,$3[i]);})"
+    js_zipIObuildings :: Callback (JSVal -> JSVal -> JSVal -> IO ())
+                      -> CityObjectCollection
+                      -> COViewCollection
+                      -> IO ()
+
+
+
+--instance (Monoid m) => Monoid (IO m) where
+--    mempty = return mempty
+--    mappend a b = mappend <$> a <*> b
+--    mconcat as = mconcat <$> sequence as
 
 --instance (Monoid m, Monad mm) => Monoid (mm m) where
 --    mempty = return mempty

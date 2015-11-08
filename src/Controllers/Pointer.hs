@@ -212,7 +212,7 @@ data Interaction = Interaction !InteractionType !Time ![(Vector2 GLfloat, Vector
 instance FromJSVal Interaction where
     fromJSVal val = fromJSArray val >>= \vals ->
       case vals of
-        mode:dt:ar:_ -> Just . Interaction (toEnum $ fromJSNum mode) (fromJSNum dt) . f <$> fromJSArray ar
+        mode:dt:ar:_ -> Just . Interaction (toEnum $ toNum mode) (toNum dt) . f <$> fromJSArray ar
         _            -> pure Nothing
       where f :: [JSVal] -> [(Vector2 GLfloat, Vector2 GLfloat)]
             f (n:o:xs) = (coerce n, coerce o) : f xs
