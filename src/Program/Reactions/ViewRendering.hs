@@ -38,7 +38,7 @@ renderScene program view = do
     -- render
     clearScreen ctx
     draw ctx (decGrid program) (dgView view)
---    draw ctx (city program) (cityView view)
+    draw ctx (city program) (cityView view)
     -- done!
     return $ Left view{context = ctx}
 

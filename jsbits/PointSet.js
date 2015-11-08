@@ -250,9 +250,12 @@ function gm$principalEigenvectors(mat,n) {
     for(var i = 0; i < n; i++) {
         A[i] = mat.slice(i*n,(i+1)*n);
     }
-    var eigs = numeric.eig(A);
+    var eigs = numeric['eig'](A);
     return eigs.lambda.x
         .map(function(e,i){return [e,eigs.E.x[i]];})
         .sort(function(a,b){return b[0]-a[0];})
         .map(function(e){return e[1];});
 }
+
+
+

@@ -16,11 +16,12 @@
 -----------------------------------------------------------------------------
 
 module Data.Geometry.Structure.PointSet
-    ( PointSet (..)
+    ( PointSet (..), boundSet
     , PointArray (), fillPointArray
     , length, pointArray, toList, index, unflatten
     , pcaVectors, boundingRectangle
     , project1D, projectND
+    , shrinkVectors, enlargeVectors
     ) where
 
 
@@ -33,6 +34,9 @@ import Data.Typeable (Proxy (..))
 
 import GHCJS.Types
 import GHCJS.Marshal.Pure (PFromJSVal(..))
+import GHCJS.Foreign.Callback
+import System.IO.Unsafe (unsafePerformIO)
+import Data.Coerce (coerce)
 
 import Data.Geometry
 
@@ -101,6 +105,10 @@ class PointSet s n x | s -> n, s -> x where
     mean :: s -> Vector n x
     -- | variance of the set
     var :: s -> Matrix n x
+    -- | map a function on points
+    mapSet :: (Vector n x -> Vector n x) -> s -> s
+    -- | map a function on points
+    mapCallbackSet :: (Callback (Vector n x -> Vector n x)) -> s -> s
 
 
 instance PointSet (PointArray n x) n x where
@@ -114,7 +122,27 @@ instance PointSet (PointArray n x) n x where
     mean = js_mean
     {-# INLINE var #-}
     var = js_var
+    {-# NOINLINE mapSet #-}
+    mapSet f arr = unsafePerformIO $ do
+        call <- syncCallback1' $ return . coerce . f . coerce
+        rez <- mapPointArray' call arr
+        releaseCallback call
+        return rez
+    {-# NOINLINE mapCallbackSet #-}
+    mapCallbackSet = mapPointArray''
 
+
+boundSet :: ( PointSet s n x
+            , KnownNat n)
+         => s -> (Vector n x, Vector n x)
+boundSet s = (l, u)
+    where (l,u) = js_boundSet (unsafeCoerce s) (dim l)
+
+foreign import javascript unsafe "var r = gm$boundNestedArray($1['coordinates'] ? $1['coordinates'] : $1);\
+                          \if(!r){ $r1 = Array.apply(null, Array($2)).map(Number.prototype.valueOf,Infinity);\
+                          \        $r2 = Array.apply(null, Array($2)).map(Number.prototype.valueOf,-Infinity);}\
+                          \else { $r1 = r[0]; $r2 = r[1]; }"
+    js_boundSet :: JSVal -> Int -> (Vector n x, Vector n x)
 
 {-# INLINE js_flatten #-}
 foreign import javascript unsafe "[].concat.apply([], $1)"
@@ -133,7 +161,24 @@ foreign import javascript unsafe "gm$mean($1)"
 foreign import javascript unsafe "gm$cov($1)"
     js_var :: PointArray n x -> Matrix n x
 
+enlargeVectors :: (KnownNat n, KnownNat m) => PointArray n x -> PointArray m x
+enlargeVectors v = r
+    where r = enlargeVectors' n m v
+          n = dim' v Proxy
+          m = dim' r Proxy
 
+shrinkVectors :: (KnownNat n, KnownNat m) => PointArray n x -> PointArray m x
+shrinkVectors v = r
+    where r = shrinkVectors' m v
+          m = dim' r Proxy
+
+{-# INLINE enlargeVectors' #-}
+foreign import javascript unsafe "var z = Array.apply(null, Array($2-$1)).map(Number.prototype.valueOf,0); $r = $3.map(function(e){return e.concat(z);});"
+    enlargeVectors' :: Int -> Int -> PointArray n x -> PointArray m x
+
+{-# INLINE shrinkVectors' #-}
+foreign import javascript unsafe "$2.map(function(e){return e.slice(0,$1);})"
+    shrinkVectors' :: Int -> PointArray n x -> PointArray m x
 
 
 -- | Calculate principal components in order of reducing eigenvalues
@@ -179,10 +224,13 @@ foreign import javascript unsafe "var rez = gm$minRectAngle(gm$GrahamScan($1)); 
     js_minRectAngle :: PointArray 2 x -> (Double,Double, Vector2 x, Vector2 x, Vector2 x)
 
 
+{-# INLINE mapPointArray' #-}
+foreign import javascript unsafe "$2.map(function(e){ return $1(e);})"
+    mapPointArray' :: (Callback (JSVal -> IO JSVal)) -> PointArray n x -> IO (PointArray n x)
 
-
-
-
+{-# INLINE mapPointArray'' #-}
+foreign import javascript unsafe "$2.map(function(e){ return $1(e);})"
+    mapPointArray'' :: Callback a -> PointArray n x -> PointArray n x
 
 
 

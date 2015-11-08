@@ -122,15 +122,15 @@ foreign import javascript unsafe "$r = httpArgs[$1];"
     getHtmlArg :: JSString -> JSString
 
 
-class JSNum a where
-    fromJSNum :: JSVal -> a
-    toJSNum :: a -> JSVal
-
-#define JSNUM(T) \
-foreign import javascript unsafe "$r = $1" js_to/**/T :: JSVal -> T; {-# INLINE js_to/**/T #-};\
-foreign import javascript unsafe "$r = $1" js_from/**/T :: T -> JSVal; {-# INLINE js_from/**/T #-};\
-instance JSNum T where { fromJSNum = js_to/**/T; {-# INLINE fromJSNum #-}; toJSNum = js_from/**/T; {-# INLINE toJSNum #-}}
-
-JSNUM(Int)
-JSNUM(Float)
-JSNUM(Double)
+--class JSNum a where
+--    fromJSNum :: JSVal -> a
+--    toJSNum :: a -> JSVal
+--
+-- #define JSNUM(T) \
+--foreign import javascript unsafe "$r = $1" js_to/**/T :: JSVal -> T; {-# INLINE js_to/**/T #-};\
+--foreign import javascript unsafe "$r = $1" js_from/**/T :: T -> JSVal; {-# INLINE js_from/**/T #-};\
+--instance JSNum T where { fromJSNum = js_to/**/T; {-# INLINE fromJSNum #-}; toJSNum = js_from/**/T; {-# INLINE toJSNum #-}}
+--
+--JSNUM(Int)
+--JSNUM(Float)
+--JSNUM(Double)
