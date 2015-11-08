@@ -21,8 +21,9 @@ import GHCJS.Types
 import Program.Model.CityObject
 import Program.View
 
-
-
+--import Unsafe.Coerce (unsafeCoerce)
+--import GHCJS.Useful
+--import JavaScript.TypedArray
 
 newtype CityObjectView = CityObjectView JSVal
 
@@ -49,6 +50,12 @@ drawSurface :: WebGLRenderingContext
             -> CityObject
             -> View CityObject -> IO ()
 drawSurface gl (ploc,olocs) obj cov = do
+--    print olocs
+--    print ploc
+--    printVal (unsafeCoerce obj)
+--    printVal (unsafeCoerce cov)
+--    printVal (unsafeCoerce $ pointBuffer cov )
+--    printVal (unsafeCoerce $ indexBuffer cov)
     bindBuffer gl gl_ARRAY_BUFFER (pointBuffer cov)
     vertexAttribPointer gl ploc 3 gl_FLOAT False 20 0
     case olocs of

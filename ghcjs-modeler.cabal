@@ -69,6 +69,7 @@ executable ghcjs-modeler
         Program.Reactions.ViewSubmitPopup
         Program.View
         Program.View.CityView
+        Program.View.CityObjectView
         Program.View.WiredGeometryView
         Reactive
     ghc-options: -Wall -O2 -ddump-splices
