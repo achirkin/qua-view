@@ -102,6 +102,8 @@ instance Drawable City where
                     Dynamic -> if i == ai
                                then uniform4f gl colLoc 1 0.6 0.6 1
                                else uniform4f gl colLoc 0.75 0.75 0.7 1
+--                printVal $ unsafeCoerce obj
+--                printVal . unsafeCoerce . vertexArray $ objPoints obj
                 drawSurface gl alocs obj oview
               colLoc = unifLoc prog "uVertexColor"
               userLoc = unifLoc prog "uTexUser"

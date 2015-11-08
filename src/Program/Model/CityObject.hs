@@ -301,10 +301,10 @@ foreign import javascript unsafe "$1.vertexArray"
 foreign import javascript unsafe "$1.indexArray"
     indexArray :: PointData -> ArrayBuffer
 {-# INLINE vertexArrayLength #-}
-foreign import javascript unsafe "$1.vertexArray.length / 20 | 0"
+foreign import javascript unsafe "$r = ($1.vertexArray.byteLength / 20) | 0;"
     vertexArrayLength :: PointData -> GLsizei
 {-# INLINE indexArrayLength #-}
-foreign import javascript unsafe "$1.indexArray.length / 2 | 0"
+foreign import javascript unsafe "$r = ($1.indexArray.byteLength / 2) | 0;"
     indexArrayLength :: PointData -> GLsizei
 
 
