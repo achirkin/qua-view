@@ -133,7 +133,7 @@ concatTriags (a,b,c) (d,e,f) = concatTriags' a b c d e f
 {-# INLINE concatTriags' #-}
 foreign import javascript unsafe "$r1 = $1.concat($4);\
                                  \$r2 = $2.concat(Array.apply(null, Array($4.length)).map(function(){return $5;}));\
-                                 \$r3 = $3.concat($6.map(function(e){return e + $4.length;}));"
+                                 \$r3 = $3.concat($6.map(function(e){return e + $1.length;}));"
     concatTriags' :: PS.PointArray 3 x -> PS.PointArray 3 x -> JSVal
                   -> PS.PointArray 3 x -> Vector 3 x -> JSVal
                   -> (PS.PointArray 3 x, PS.PointArray 3 x, JSVal)
