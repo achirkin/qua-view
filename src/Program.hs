@@ -119,7 +119,7 @@ initView prog@Program
     -- init GL
     gl <- getWebGLContext canvas
     -- init Context
-    ctx <- setupViewContext gl cam ctime (vector3 (-0.5) (-1) 0.6)
+    ctx <- setupViewContext gl cam ctime (vector3 (-0.5) (-0.6) (-1))
     -- init object views
     dgview <- createView gl (decGrid prog)
     cview <- createView gl (city prog)

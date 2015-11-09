@@ -34,6 +34,8 @@ module Program.Model.CityObject
     )
     where
 
+import Debug.Trace (traceShow)
+
 import GHCJS.Foreign.Callback (Callback)
 
 import GHC.TypeLits
@@ -55,7 +57,7 @@ import Data.Geometry
 import qualified Data.Geometry.Transform as T
 import Data.Geometry.Structure.LinearRing (toList', linearRing)
 import Data.Geometry.Structure.Polygon
-import Data.Geometry.Structure.PointSet (PointArray, PointSet (..), shrinkVectors, boundingRectangle)
+import Data.Geometry.Structure.PointSet (PointArray, PointSet (..), shrinkVectors, boundingRectangle2D)
 
 --defaultHeightDynamic :: GLfloat
 --defaultHeightDynamic = 3
@@ -131,9 +133,12 @@ locateMultiPolygon :: GLfloat
                    -> Vector2 GLfloat
                    -> MultiPolygon 3 GLfloat
                    -> T.QFTransform (MultiPolygon 3 GLfloat)
-locateMultiPolygon scale shift mpoly = T.QFTransform (axisRotation (vector3 0 0 1) a) center $ mapCallbackSet f mpoly
+locateMultiPolygon scale shift mpoly = T.QFTransform (
+        -- getRotScale (vector3 1 0 0) (unit xdir)
+        axisRotation (vector3 0 0 1) (a)
+        ) center $ mapCallbackSet f mpoly
     where points = shrinkVectors $ toPointArray mpoly :: PointArray 2 GLfloat
-          (center', vx, vy) = boundingRectangle points
+          (center', vx, vy) = boundingRectangle2D points
           a = atan2 (indexVector 1 vx) (indexVector 0 vx)
           scalev = broadcastVector scale
           center = resizeVector (center' - shift) * scalev

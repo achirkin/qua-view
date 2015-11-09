@@ -64,7 +64,7 @@ main = do
     customGreetings userProfile
     -- create program and view
     let program = initProgram viewWidth viewHeight
-            CState { viewPoint  = vector3 (-3) 0 2,
+            CState { viewPoint  = vector3 (-3) (-2) 0,
                      viewAngles = (-pi/5, pi/12),
                      viewDist   = 40 }
             userProfile
@@ -99,47 +99,6 @@ main = do
                 $ SubmitScenario "http://www.archevolve.com/process.php"
         Full -> elementOnClick submitButton . const . reqEvent eventHole . EBox
                 $ SubmitScenario "http://httpbin.org/post"
-
-    let lr = linearRing (vector4 0 0 (-10) (2::Double))
-                        (vector4 1 2 50 0)
-                        (vector4 0 1 40 20)
-                        [ vector4 0 0 50 60
-                        , vector4 (-15) 1 (-20) 35
-                        , vector4 0 1 (-10) (-30)]
-    let lrh = linearRing (vector4 0 3 10 20)
-                         (vector4 1 0 30 5)
-                         (vector4 4 0 40 10)
-                         []
-        poly1 = polygon [lr,lrh]
-        mpoly1 = multiPolygon [poly1, polygon [lr]]
-    let ar1 = PSet.pointArray
-               [ vector3 1 2 (3::Float)
-               , vector3 2 3 4
-               , vector3 10 2.5 3
-               ]
-    print (LRing.length lr)
-    printVal (jsval lr)
-    printVal (jsval ar1)
-    print (mean ar1)
-    print (var ar1)
-    print (PSet.toList ar1)
-    print (LRing.toList lr)
-    print (mean lr)
-    print (var lr)
-    putStrLn "Eigs!"
-    print $ pcaVectors lr
-    print $ pcaVectors ar1
-    printVal . jsval $ (projectND ([vector4 15 0 0 0, vector4 0 2 0 1]) lr :: PSet.PointArray 2 Double)
-    printVal . jsval $ (projectND (pcaVectors lr) lr :: PSet.PointArray 4 Double)
-    printVal . jsval $ poly1
-    print $ triangulate poly1
-    print $ boundSet poly1
-
-    printVal . jsval $ mpoly1
-    printVal . jsval $ PSet.toPointArray mpoly1
-
-    printVal . jsval $ convexPolygonHull mpoly1
-    print $ boundingRectangle mpoly1
 
 
     -- hide everything that is not related to the full profile

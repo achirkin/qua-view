@@ -35,8 +35,8 @@ createDecorativeGrid :: GLfloat -- size of the grid (width and length)
                      -> Vector4 GLfloat -- ^ color of the mesh
                      -> WiredGeometry
 createDecorativeGrid size cells color = WiredGeometry Nothing color n . arrayBuffer . fromList $
-   (grid >>= \x -> [vector3 x h (-size/2), vector3 x h (size/2)]) ++
-   (grid >>= \z -> [vector3 (-size/2) h z, vector3 ( size/2) h z])
+   (grid >>= \x -> [vector3 x (-size/2) h, vector3 x (size/2) h]) ++
+   (grid >>= \y -> [vector3 (-size/2) y h, vector3 ( size/2) y h])
     where grid = map (\k -> size*((fromIntegral k / fromIntegral cells) - 0.5)) [1..cells-1]
           n = fromIntegral $ 4*(cells-1) :: GLsizei
           h = 0
