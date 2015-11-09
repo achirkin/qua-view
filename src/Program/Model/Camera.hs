@@ -30,6 +30,7 @@ import Data.Geometry.Transform
 --import Geometry.Space.Transform
 --import Geometry.Space.Quaternion
 
+import Debug.Trace
 
 ----------------------------------------------------------------------------------------------
 -- Definitions -------------------------------------------------------------------------------
@@ -80,8 +81,8 @@ stateToView CState {
         viewPoint  = v,
         viewAngles = (φ, theta),
         viewDist   = ρ
-    } = lookAtMatrix (vector3 0 1 0) (v + dv) v
-        where dv = vector3 (t * cos φ) (ρ * sin theta) (t * sin φ)
+    } = lookAtMatrix (vector3 0 0 1) (v + dv) v
+        where dv = vector3 (t * cos φ) (t * sin φ)  (ρ * sin theta)
               t = ρ * cos theta
 
 ----------------------------------------------------------------------------------------------
@@ -97,7 +98,7 @@ dragHorizontal (unpackV2 -> (ox,oy) ) (unpackV2 -> (x,y)) camera@Camera {
         viewportSize = (width, height),
         projMatrix = projmat,
         oldState   = ostate@CState {
-            viewPoint = v@(unpackV3 -> (_, py, _))
+            viewPoint = v@(unpackV3 -> (_, _, pz))
         }
     } = camera {
         newState = ostate {
@@ -107,13 +108,13 @@ dragHorizontal (unpackV2 -> (ox,oy) ) (unpackV2 -> (x,y)) camera@Camera {
             campos = fromHom $ imat `prod` vector4 0 0 0 1
             oldpos = fromHom $ imat `prod` vector4
                 (2 * ox / width - 1)
-                (1 - 2 * oy / height) 1 1
+                (1 - 2 * oy / height) (-1) 1
             newpos = fromHom $ imat `prod` vector4
                 (2 * x / width - 1)
-                (1 - 2 * y / height) 1 1
-            oldPoint = findPos campos (oldpos - campos) py
-            newPoint = findPos campos (newpos - campos) py
-            dv = oldPoint - newPoint
+                (1 - 2 * y / height) (-1) 1
+            oldPoint = findPos campos (oldpos - campos) pz
+            newPoint = findPos campos (newpos - campos) pz
+            dv =  newPoint - oldPoint
 
 -- | Dragging - pan world on xy plane
 dragVertical :: Vector2 GLfloat -- ^ Old screen coordinates
@@ -133,9 +134,9 @@ dragVertical (unpackV2 -> (ox,oy) ) (unpackV2 -> (x,y)) camera@Camera {
         }
     } where imat = inverse (projmat `prod` stateToView ostate) :: Matrix4 GLfloat
             sdx = ρ * (x-ox) / width
-            dy = ρ * (y-oy) / height
-            (dx, _, dz) = unpackV3 $ broadcastVector sdx *
-                (unit . fromHom $ imat `prod` vector4 0 0 1 1 - imat `prod` vector4 1 0 1 1)
+            dz = ρ * (y-oy) / height
+            (dx, dy, _) = unpackV3 $ broadcastVector sdx *
+                (unit . resizeVector $ imat `prod` vector4 (-1) 0 0 0 )-- 0 0 1 1 - imat `prod` vector4 1 0 1 1)
             dv = vector3 dx dy dz
 
 
@@ -153,7 +154,7 @@ rotateCentered (unpackV2 -> (ox,oy) ) (unpackV2 -> (x,y)) camera@Camera {
         newState = ostate {
             viewAngles = (φ', theta')
         }
-    } where dφ = 2*pi*(x-ox) / width
+    } where dφ = 2*pi*(ox-x) / width
             dtheta = pi*(y-oy) / height
             φ' = DF.mod' (φ+dφ+pi) (2*pi) - pi
             theta' = max (-0.35*pi) . min (0.45*pi) $ theta + dtheta
@@ -182,7 +183,7 @@ twoFingerControl (unpackV2 -> (ox1,oy1), unpackV2 -> (ox2,oy2))
                     viewportSize = (width, height),
                     projMatrix   = projmat,
                     oldState     = ostate@CState {
-                        viewPoint  = ovp@(indexVector 1 -> h),
+                        viewPoint  = ovp@(indexVector 2 -> h),
                         viewAngles = (φ, theta),
                         viewDist   = ρ
                     }
@@ -207,22 +208,27 @@ twoFingerControl (unpackV2 -> (ox1,oy1), unpackV2 -> (ox2,oy2))
             -- rotating
             oangle = atan2 (ox1 - ox2) (oy1 - oy2)
             nangle = atan2 (x1 - x2) (y1 - y2)
-            dφ = if abs (nangle-oangle) < 0.05 then 0 else nangle-oangle
+            dφ = if abs (oangle-nangle) < 0.05 then 0 else oangle-nangle
             φ' = DF.mod' (φ+dφ+pi) (2*pi) - pi
             -- panning
             campos = fromHom $ imat `prod` vector4 0 0 0 1
             oldpos = fromHom $ imat `prod` vector4
                 (2 * ox / width - 1)
-                (1 - 2 * oy / height) 1 1
+                (1 - 2 * oy / height) (-1) 1
             newpos = fromHom $ imat `prod` vector4
                 (2 * x / width - 1)
-                (1 - 2 * y / height) 1 1
+                (1 - 2 * y / height) (-1) 1
             oldPoint = findPos campos (oldpos - campos) h
             newPoint = findPos campos (newpos - campos) h
-            vpdiff = ovp - newPoint
+            -- combine actions
+            vpdiff = newPoint - ovp
             dvp = rotScale (realToFrac dlen
-                    * axisRotation (vector3 0 1 0) (φ-φ')) vpdiff
-                - vpdiff + oldPoint - newPoint
+                    * axisRotation (vector3 0 0 1) (φ'-φ)) vpdiff
+                 - vpdiff - oldPoint + newPoint
+--            vpdiff = ovp - newPoint
+--            dvp = rotScale (realToFrac dlen
+--                    * axisRotation (vector3 0 0 1) (φ'-φ)) vpdiff
+--                + vpdiff + newPoint - oldPoint
 
 
 
@@ -324,7 +330,8 @@ findPos :: Vector3 GLfloat -- ^ camera position
         -> Vector3 GLfloat -- ^ camera sight vector
         -> GLfloat -- ^ height level of the point
         -> Vector3 GLfloat -- ^ position of the point in 3D
-findPos (unpackV3 -> (c1, c2, c3)) (unpackV3 -> (v1, v2, v3)) h = vector3 x h z
-    where l = (h - c2)/v2
+findPos (unpackV3 -> (c1, c2, c3)) (unpackV3 -> (v1, v2, v3)) h = vector3 x y h
+    where l = (h - c3)/v3'
           x = c1 + v1*l
-          z = c3 + v3*l
+          y = c2 + v2*l
+          v3' = if abs v3 < 0.01 then signum v3 * 0.01 else v3

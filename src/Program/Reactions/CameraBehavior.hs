@@ -55,7 +55,7 @@ instance Reaction Program PView PointerMoveEvent "Move Camera" 0 where
     react _ (PMove MiddleButton _ ((npos,opos):_))   = transformCamera (dragVertical   opos npos)
     react _ (PMove Touches      _ [(npos,opos)]  )   = transformCamera (dragHorizontal opos npos)
     react _ (PMove Touches      _ [(n1,o1),(n2,o2)]) = transformCamera (twoFingerControl (o1,o2) (n1,n2))
-    react _ (PMove Touches      _ ((n1,o1):_:_:_))   = transformCamera (rotateCentered o1   n1)
+    react _ (PMove Touches      _ ((n1,o1):_:_:_))   = transformCamera (rotateCentered o1 n1)
 --    response _ ev _ _ view = logText ("Move: " ++ show ev) >> return (Left view)
 
 instance Reaction Program PView ResizeEvent "Resize viewport" 0 where

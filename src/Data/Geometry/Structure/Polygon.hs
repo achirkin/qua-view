@@ -232,8 +232,8 @@ foreign import javascript unsafe "h$toHsListJSVal($1['coordinates'].map(function
     js_MPtoPList:: MultiPolygon n x -> Any
 
 {-# INLINE js_MPtoPA #-}
-foreign import javascript unsafe "[].concat.apply([], [].concat.apply([], $1['coordinates'])\
-                                  \.map(function(a){return a.slice(0,a.length-1);}))"
+foreign import javascript unsafe "$r = [].concat.apply([], [].concat.apply([], $1['coordinates'])\
+                                  \.map(function(a){return a.slice(0,a.length-1);}));"
     js_MPtoPA :: MultiPolygon n x -> PS.PointArray n x
 
 {-# INLINE js_PtoPA #-}

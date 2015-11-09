@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -19,12 +20,12 @@ module Data.Geometry.Structure.PointSet
     ( PointSet (..), boundSet
     , PointArray (), fillPointArray
     , length, pointArray, toList, index, unflatten
-    , pcaVectors, boundingRectangle
+    , pcaVectors, boundingRectangle, boundingRectangle2D
     , project1D, projectND
     , shrinkVectors, enlargeVectors
     ) where
 
-
+import Debug.Trace
 import Prelude hiding (length)
 
 import GHC.Exts (Any)
@@ -208,6 +209,12 @@ projectND vs s = rez
 foreign import javascript unsafe "var vs = h$listToArray($1).slice(0,$2); $r = $3.map(function (v){ return vs.map( function(e){ return dotJSVec(v,e); }); });"
     js_projectND :: Any -> Int -> PointArray m x -> PointArray n x
 
+-- | Get ND javaScript array by projecting set on vector
+projectND' :: (KnownNat n, KnownNat m, PointSet s m x, Fractional x, JSNum x)
+          => [Vector m x] -> s -> PointArray n x
+projectND' vs s = rez
+    where rez = js_projectND (unsafeCoerce (seqList vs)) (dim' rez Proxy) (toPointArray s)
+
 
 -- | Find a center and axes of bounding rectangle (flat) for a point set
 boundingRectangle :: (KnownNat n, PointSet s n x, Fractional x, JSNum x)
@@ -215,9 +222,16 @@ boundingRectangle :: (KnownNat n, PointSet s n x, Fractional x, JSNum x)
 boundingRectangle s = (unproj center, unproj x, unproj y)
     where set = toPointArray s
           v@(px:py:_) = pcaVectors set
-          projset = projectND v set
+          projset = projectND' (map unit v) set
           (_,_,center, x, y) = js_minRectAngle projset
           unproj p2d = case unpackV2 p2d of (i,j) -> broadcastVector i * px + broadcastVector j * py
+
+
+-- | Find a center and axes of bounding rectangle (flat) for a point set
+boundingRectangle2D :: (PointSet s 2 x, Fractional x, JSNum x)
+                    => s -> (Vector 2 x, Vector 2 x, Vector 2 x)
+boundingRectangle2D s = (center, x, y)
+    where (_,_,center, x, y) = js_minRectAngle $ toPointArray s
 
 {-# INLINE js_minRectAngle #-}
 foreign import javascript unsafe "var rez = gm$minRectAngle(gm$GrahamScan($1)); $r1 = rez[0]; $r2 = rez[1]; $r3 = rez[2]; $r4 = rez[3]; $r5 = rez[4];"
