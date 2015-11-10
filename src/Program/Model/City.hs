@@ -19,6 +19,7 @@ module Program.Model.City
     ( City (..), buildCity, updateCity, isEmptyCity, emptyCity
     , CityObjectCollection (), mapCityObjects, foldCityObjects
     , processScenario, scenarioViewScaling
+    , getObject, setObject
 --    , buildCity
 --    , addCityObjects
 --    , clearCity
@@ -26,7 +27,7 @@ module Program.Model.City
     --, cityToJS
     ) where
 
-import GHCJS.Foreign.Callback (Callback (), syncCallback1', syncCallback2', releaseCallback)
+import GHCJS.Foreign.Callback (Callback (), releaseCallback)
 import System.IO.Unsafe (unsafePerformIO)
 import Data.Coerce (coerce, Coercible)
 import Unsafe.Coerce (unsafeCoerce)
@@ -39,6 +40,8 @@ import GHC.Exts (Any)
 import GHCJS.Types
 import GHCJS.WebGL
 import GHCJS.Marshal.Pure
+import GHCJS.Useful
+import GHCJS.Concurrent
 
 import Data.Geometry
 import Data.Geometry.Transform
@@ -67,11 +70,11 @@ data City = City
 
 
 buildCity :: GLfloat -- ^ default height of objects represented as footprints
-          -> GLfloat -- ^ desired diagonal length of the city
+          -> (Int -> GLfloat) -- ^ desired diagonal length of the city
           -> Scenario -- ^ scenario to build city of
           -> ([JSString], City) -- ^ Errors and the city itself
 buildCity defHeight diam scenario = (,) errors City
-    { activeObjId = -1
+    { activeObjId = 0
     , activeObjSnapshot = Nothing
     , objectsIn = objects
     , cityTransform = (cscale, cshift)
@@ -90,17 +93,30 @@ updateCity defHeight scenario
 
 emptyCity :: City
 emptyCity = City
-    { activeObjId = -1
+    { activeObjId = 0
     , activeObjSnapshot = Nothing
     , objectsIn = emptyCollection
     , cityTransform = (0, 0)
     }
 
-foreign import javascript "[]"
+foreign import javascript unsafe "[]"
     emptyCollection :: CityObjectCollection
 
 foreign import javascript "$1.length"
     collectionLength :: CityObjectCollection -> Int
+
+getObject :: Int -> City -> Maybe LocatedCityObject
+getObject i City{objectsIn=objects} = pFromJSVal $ js_getObject (i-1) objects
+
+setObject :: Int -> LocatedCityObject -> City -> City
+setObject i obj city@City{objectsIn=objects} = city{objectsIn = js_setObject (i-1) (pToJSVal obj) objects}
+
+
+foreign import javascript unsafe "$2[$1]"
+    js_getObject :: Int -> CityObjectCollection -> JSVal
+
+foreign import javascript unsafe "$r = $3.slice(); $r[$1] = $2;"
+    js_setObject :: Int-> JSVal -> CityObjectCollection -> CityObjectCollection
 
 isEmptyCity :: City -> Bool
 isEmptyCity c = collectionLength (objectsIn c) == 0
@@ -123,11 +139,11 @@ isEmptyCity c = collectionLength (objectsIn c) == 0
 foldCityObjects :: (Coercible a JSVal)
                 => (a -> LocatedCityObject -> a) -> a ->  CityObjectCollection -> a
 foldCityObjects f x0 objs = unsafePerformIO $ do
-        call <- syncCallback2' $ \x jsv -> case pFromJSVal jsv of
+        call <- syncCallbackUnsafe2 $ \x jsv -> case pFromJSVal jsv of
                                             Nothing  -> return $ coerce x
                                             Just obj -> return . coerce $ f (coerce x) obj
         rez <- foldCityObjects' call (coerce x0) objs
-        releaseCallback call
+        rez `seq` releaseCallback call
         return $ coerce rez
 
 
@@ -140,11 +156,11 @@ foreign import javascript unsafe "$3.reduce($1, $2)"
 
 mapCityObjects :: (LocatedCityObject -> LocatedCityObject) -> City -> City
 mapCityObjects f city@City{objectsIn=objs} = unsafePerformIO $ do
-        call <- syncCallback1' $ \jsv -> case pFromJSVal jsv of
+        call <- syncCallbackUnsafe1 $ \jsv -> case pFromJSVal jsv of
                                             Nothing  -> return jsv
                                             Just obj -> return . pToJSVal $ f obj
         rez <- mapCityObjects' call objs
-        releaseCallback call
+        rez `seq` releaseCallback call
         return city{objectsIn = rez}
 
 
@@ -163,12 +179,12 @@ processScenario h sc sh scenario =
 mapScenarioObjects :: (ScenarioObject -> Either JSString CityObject)
                    -> Scenario -> IO ([JSString],CityObjectCollection)
 mapScenarioObjects f arr = do
-    call <- syncCallback1' $ \jsx ->
-        case f (coerce jsx) of
+    call <- syncCallbackUnsafe1 $ \jsx ->
+        case f (unsafeCoerce jsx) of
             Right v  -> setRight (unsafeCoerce v)
             Left str -> setLeft str
     (sarr, city) <- mapScenarioObjects' call arr
-    releaseCallback call
+    sarr `seq` city `seq` releaseCallback call
     return (unsafeCoerce sarr, city)
 
 {-# INLINE setLeft #-}
@@ -186,23 +202,25 @@ foreign import javascript unsafe "var rez = $2['features'].map($1);\
 
 -- | Calculate scale and shift coefficients for scenario
 --   dependent on desired diameter of the scene
-scenarioViewScaling :: GLfloat -- ^ desired diameter of a scenario
+scenarioViewScaling :: (Int->GLfloat) -- ^ desired diameter of a scenario based on number of objects
                     -> Scenario
                     -> (GLfloat, Vector2 GLfloat) -- ^ scale and shift coefficients
-scenarioViewScaling diam scenario = ( diam / normL2 (h-l) , (l + h) / 2)
-    where (l,h) = js_boundScenario scenario
+scenarioViewScaling diam scenario = ( diam n / normL2 (h-l) , (l + h) / 2)
+    where (n,l,h) = js_boundScenario scenario
 
 
 {-# INLINE js_boundScenario #-}
 foreign import javascript unsafe "var r = gm$boundNestedArray($1['features'].map(function(co){return co['geometry']['coordinates'];}));\
-                          \if(!r){ $r1 = [Infinity,Infinity];\
-                          \        $r2 = [-Infinity,-Infinity];}\
-                          \else { $r1 = r[0].slice(0,2); $r2 = r[1].slice(0,2); }"
-    js_boundScenario :: Scenario -> (Vector2 x, Vector2 x)
+                          \if(!r){ $r2 = [Infinity,Infinity];\
+                          \        $r3 = [-Infinity,-Infinity];}\
+                          \else { $r2 = r[0].slice(0,2); $r3 = r[1].slice(0,2); } $r1 = $1['features'].length;"
+    js_boundScenario :: Scenario -> (Int, Vector2 x, Vector2 x)
 
 {-# INLINE js_concatObjectCollections #-}
 foreign import javascript unsafe "$1.concat($2)"
     js_concatObjectCollections :: CityObjectCollection -> CityObjectCollection -> CityObjectCollection
+
+
 
 
 

@@ -170,15 +170,13 @@ scroll s camera@Camera {
         oldState = nstate
     } where nstate = ostate { viewDist = max 0.1 (ρ * (1 + min (9 / (1 + ρ)) (max (max (-0.9) (- 9 / (1 + ρ))) s))) }
 
-
-
 -- | Rotate, scale, and pan with two fingers
 twoFingerControl :: (Vector2 GLfloat, Vector2 GLfloat) -- ^ Old screen coordinates
                  -> (Vector2 GLfloat, Vector2 GLfloat) -- ^ New screen coordinates
                  -> Camera -- ^ Modify the camera state
                  -> Camera
-twoFingerControl (unpackV2 -> (ox1,oy1), unpackV2 -> (ox2,oy2))
-                 (unpackV2 -> (x1,y1)  , unpackV2 -> (x2,y2)  )
+twoFingerControl (ov1@(unpackV2 -> (opx1,opy1)),ov2@(unpackV2 -> (opx2,opy2)))
+                 (nv1@(unpackV2 -> (npx1,npy1)),nv2@(unpackV2 -> (npx2,npy2)))
                  camera@Camera {
                     viewportSize = (width, height),
                     projMatrix   = projmat,
@@ -189,46 +187,107 @@ twoFingerControl (unpackV2 -> (ox1,oy1), unpackV2 -> (ox2,oy2))
                     }
     } = camera {
         newState = ostate {
-            viewPoint  = ovp + dvp,
+            viewPoint  = nvp, -- ovp + dvp,
             viewAngles = (φ', theta),
             viewDist   = max 0.1 (ρ*dlen)
         }
-    } where imat = inverse (projmat `prod` stateToView ostate)
-            ox = (ox1 + ox2) / 2
-            oy = (oy1 + oy2) / 2
-            x = (x1 + x2) / 2
-            y = (y1 + y2) / 2
+    } where pmat = projmat `prod` stateToView ostate
+            imat = inverse pmat
+            screenO1 = vector4 (2 * opx1 / width - 1) (1 - 2 * opy1 / height) 1 1
+            screenO2 = vector4 (2 * opx2 / width - 1) (1 - 2 * opy2 / height) 1 1
+            screenN1 = vector4 (2 * npx1 / width - 1) (1 - 2 * npy1 / height) 1 1
+            screenN2 = vector4 (2 * npx2 / width - 1) (1 - 2 * npy2 / height) 1 1
+            up = vector3 0 0 1
+            campos = fromHom $ imat `prod` vector4 0 0 0 1
+            realO1 = findPos campos (fromHom (imat `prod` screenO1) - campos) h
+            realO2 = findPos campos (fromHom (imat `prod` screenO2) - campos) h
+            realN1 = findPos campos (fromHom (imat `prod` screenN1) - campos) h
+            realN2 = findPos campos (fromHom (imat `prod` screenN2) - campos) h
+            dOld = realO2 - realO1
+            dNew = realN2 - realN1
             -- scaling
-            olen = sqrt $ (ox1-ox2)^(2:: Int) + (oy1-oy2)^(2:: Int)
-            len = sqrt $ (x1-x2)^(2:: Int) + (y1-y2)^(2:: Int)
-            dlen = if abs (olen/len - 1) < 0.05
+            olen = normL2 dOld
+            nlen = normL2 dNew
+            dlen = if abs (olen/nlen - 1) < 0.05
                 then 1
-                else let dl0 = olen/len
+                else let dl0 = olen/nlen
                      in 1 + (dl0 - 1) * min 1 (50 / (1 + ρ)) -- prevent going too far away on large distances
             -- rotating
-            oangle = atan2 (ox1 - ox2) (oy1 - oy2)
-            nangle = atan2 (x1 - x2) (y1 - y2)
-            dφ = if abs (oangle-nangle) < 0.05 then 0 else oangle-nangle
+            dφ = let da = atan2 (indexVector 2 $ cross dNew dOld) (dot dNew dOld)
+                 in if abs da < 0.05 then 0 else da
             φ' = DF.mod' (φ+dφ+pi) (2*pi) - pi
             -- panning
-            campos = fromHom $ imat `prod` vector4 0 0 0 1
-            oldpos = fromHom $ imat `prod` vector4
-                (2 * ox / width - 1)
-                (1 - 2 * oy / height) (-1) 1
-            newpos = fromHom $ imat `prod` vector4
-                (2 * x / width - 1)
-                (1 - 2 * y / height) (-1) 1
-            oldPoint = findPos campos (oldpos - campos) h
-            newPoint = findPos campos (newpos - campos) h
             -- combine actions
-            vpdiff = newPoint - ovp
-            dvp = rotScale (realToFrac dlen
-                    * axisRotation (vector3 0 0 1) (φ'-φ)) vpdiff
-                 - vpdiff - oldPoint + newPoint
---            vpdiff = ovp - newPoint
---            dvp = rotScale (realToFrac dlen
---                    * axisRotation (vector3 0 0 1) (φ'-φ)) vpdiff
---                + vpdiff + newPoint - oldPoint
+            nvp = rotScale (realToFrac dlen * axisRotation up (φ' - φ)) (ovp-realN1)
+                  + realO1 -- + 2*newPoint
+
+
+---- | Rotate, scale, and pan with two fingers
+--twoFingerControl :: (Vector2 GLfloat, Vector2 GLfloat) -- ^ Old screen coordinates
+--                 -> (Vector2 GLfloat, Vector2 GLfloat) -- ^ New screen coordinates
+--                 -> Camera -- ^ Modify the camera state
+--                 -> Camera
+--twoFingerControl (ov1@(unpackV2 -> (ox1,oy1)),ov2@( unpackV2 -> (ox2,oy2)))
+--                 (nv1@( unpackV2 -> (x1,y1)  ),nv2@( unpackV2 -> (x2,y2)  ))
+--                 camera@Camera {
+--                    viewportSize = (width, height),
+--                    projMatrix   = projmat,
+--                    oldState     = ostate@CState {
+--                        viewPoint  = ovp@(indexVector 2 -> h),
+--                        viewAngles = (φ, theta),
+--                        viewDist   = ρ
+--                    }
+--    } = camera {
+--        newState = traceShow "twoFinger:" $ traceShow ovp $ traceShow oldPoint $
+--                traceShow newPoint ostate {
+--            viewPoint  = nvp, -- ovp + dvp,
+--            viewAngles = (φ', theta),
+--            viewDist   = max 0.1 (ρ*dlen)
+--        }
+--    } where pmat = projmat `prod` stateToView ostate
+--            imat = inverse pmat
+--            ox = (ox1 + ox2) / 2
+--            oy = (oy1 + oy2) / 2
+--            x = (x1 + x2) / 2
+--            y = (y1 + y2) / 2
+--            -- scaling
+--            olen = sqrt $ (ox1-ox2)^(2:: Int) + (oy1-oy2)^(2:: Int)
+--            len = sqrt $ (x1-x2)^(2:: Int) + (y1-y2)^(2:: Int)
+--            dlen = if abs (olen/len - 1) < 0.05
+--                then 1
+--                else let dl0 = olen/len
+--                     in 1 + (dl0 - 1) * min 1 (50 / (1 + ρ)) -- prevent going too far away on large distances
+--            -- rotating
+--            oangle = atan2 (oy1 - oy2) (ox1 - ox2)
+--            nangle = atan2 (y1 - y2) (x1 - x2)
+--            dφ = if abs (nangle-oangle) < 0.05 then 0 else nangle-oangle
+--            φ' = DF.mod' (φ+dφ+pi) (2*pi) - pi
+--            -- panning
+--            campos = fromHom $ imat `prod` vector4 0 0 0 1
+--            oldpos = fromHom $ imat `prod` vector4
+--                (2 * ox / width - 1)
+--                (1 - 2 * oy / height) 1 1
+--            newpos = fromHom $ imat `prod` vector4
+--                (2 * x / width - 1)
+--                (1 - 2 * y / height) 1 1
+--            oldPoint = findPos campos (oldpos - campos) h
+--            newPoint = findPos campos (newpos - campos) h
+--            -- combine actions
+----            nvp = fromHom . prod imat . toHom1 . rotScale (realToFrac dlen * axisRotation (vector3 0 0 1) (φ'-φ)) . fromHom $ pmat `prod` toHom1 ovp
+----            toHom1 (unpackV3 -> (ax,ay,az)) = vector4 ax ay az 1
+--            nvp = rotScale (realToFrac dlen * axisRotation (vector3 0 0 1) (φ - φ')) (ovp-newPoint)
+--                  + oldPoint -- + 2*newPoint
+--                  -- q = rs (p - o) + n => p = rsi (q-n) + o
+----            vpdiff = ovp - newPoint
+----            rs = getRotScale (resizeVector . prod imat . resizeVector $ ov2-ov1) (resizeVector . prod imat . resizeVector $ nv2 - nv1)
+----            dvp = rotScale (realToFrac dlen
+----                            * axisRotation (vector3 0 0 1) (φ-φ')) vpdiff
+--                  -- rotScale rs (oldPoint - ovp)
+----                  - ovp + oldPoint-- + vpdiff - newPoint + oldPoint
+----            vpdiff = ovp - newPoint
+----            dvp = rotScale (realToFrac dlen
+----                    * axisRotation (vector3 0 0 1) (φ'-φ)) vpdiff
+----                + vpdiff + newPoint - oldPoint
 
 
 
@@ -279,12 +338,11 @@ rotateObject (unpackV2 -> (ox,oy) ) (unpackV2 -> (x,y)) camera = f
                 (1 - 2 * y / height) 1 1
           oldPoint = findPos campos (oldpos - campos) 0
           newPoint = findPos campos (newpos - campos) 0
-          f t = t >>= rotateY a
+          f t = t >>= rotateZ a
                 where dv1 = unit $ newPoint - p
                       dv0 = unit $ oldPoint - p
                       p = transform $ wrap 0 t
-                      sina = indexVector 1 $ cross dv0 dv1
-                      a = atan2 sina (dot dv1 dv0)
+                      a = atan2 (indexVector 2 $ cross dv0 dv1) (dot dv1 dv0)
 
 
 -- | Rotate, scale, and pan with two fingers
@@ -319,7 +377,7 @@ twoFingerObject (unpackV2 -> (ox1,oy1), unpackV2 -> (ox2,oy2))
           oldPoint = findPos campos (oldpos - campos) 0
           newPoint = findPos campos (newpos - campos) 0
           dv = newPoint - oldPoint
-          f t = translate dv id <*> (t >>= rotateY dφ)
+          f t = translate dv id <*> (t >>= rotateZ dφ)
 
 ----------------------------------------------------------------------------------------------
 -- Helpers  ----------------------------------------------------------------------------------

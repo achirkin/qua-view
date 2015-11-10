@@ -24,7 +24,8 @@ module Data.Geometry.Structure.Polygon
     ) where
 
 
-import GHCJS.Foreign.Callback (Callback (), syncCallback1', releaseCallback)
+import GHCJS.Foreign.Callback (Callback, releaseCallback)
+import GHCJS.Useful
 import System.IO.Unsafe (unsafePerformIO)
 import Data.Coerce (coerce)
 
@@ -62,7 +63,7 @@ instance PS.PointSet (Polygon n x) n x where
     var = PS.var . js_PtoPA
     {-# NOINLINE mapSet #-}
     mapSet f arr = unsafePerformIO $ do
-        call <- syncCallback1' $ return . coerce . f . coerce
+        call <- syncCallbackUnsafe1 $ return . coerce . f . coerce
         rez <- mapPolygon' call arr
         releaseCallback call
         return rez
@@ -170,7 +171,7 @@ instance PS.PointSet (MultiPolygon n x) n x where
     var = PS.var . js_MPtoPA
     {-# NOINLINE mapSet #-}
     mapSet f arr = unsafePerformIO $ do
-        call <- syncCallback1' $ return . coerce . f . coerce
+        call <- syncCallbackUnsafe1 $ return . coerce . f . coerce
         rez <- mapMultiPolygon' call arr
         releaseCallback call
         return rez

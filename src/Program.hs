@@ -106,7 +106,7 @@ data PView = PView
     , cityView     :: !(View City)
 --    , luciClient   :: !(Maybe LuciClient)
 --    , luciScenario :: !(Maybe Scenario)
---    , scUpToDate   :: !Bool
+    , scUpToDate   :: !Bool
     }
 
 
@@ -131,7 +131,7 @@ initView prog@Program
         , cityView     = cview
 --        , luciClient   = Nothing
 --        , luciScenario = Nothing
---        , scUpToDate   = False
+        , scUpToDate   = False
         }
 
 --
