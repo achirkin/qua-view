@@ -35,7 +35,8 @@ import Data.Typeable (Proxy (..))
 
 import GHCJS.Types
 import GHCJS.Marshal.Pure (PFromJSVal(..))
-import GHCJS.Foreign.Callback
+import GHCJS.Foreign.Callback (Callback, releaseCallback)
+import GHCJS.Useful
 import System.IO.Unsafe (unsafePerformIO)
 import Data.Coerce (coerce)
 
@@ -125,7 +126,7 @@ instance PointSet (PointArray n x) n x where
     var = js_var
     {-# NOINLINE mapSet #-}
     mapSet f arr = unsafePerformIO $ do
-        call <- syncCallback1' $ return . coerce . f . coerce
+        call <- syncCallbackUnsafe1 $ return . coerce . f . coerce
         rez <- mapPointArray' call arr
         releaseCallback call
         return rez

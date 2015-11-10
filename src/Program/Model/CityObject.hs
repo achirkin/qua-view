@@ -235,15 +235,15 @@ instance PFromJSVal (Maybe LocatedCityObject) where
 foreign import javascript unsafe "if($1['properties']['transform'] && $1['properties']['transform']['shift'] && $1['properties']['transform']['rotScale']\
                                  \ && $1['pointData']){\
                                  \   $r1 = $1;\
-                                 \   $r2 = $1['properties']['transform']['shift'];\
-                                 \   $r3 = $1['properties']['transform']['rotScale'];}\
+                                 \   $r2 = $1['properties']['transform']['shift'].slice();\
+                                 \   $r3 = $1['properties']['transform']['rotScale'].slice();}\
                                  \else{$r1 = null; $r2 = null; $r3 = null;}"
     js_locateCityObject :: JSVal
                         -> (JSVal, Vector3 GLfloat, QFloat)
 
 
 
-foreign import javascript unsafe "$r = gm$cloneCityObject($1); $r['properties']['transform']['shift'] = $2; $r['properties']['transform']['rotScale'] = $3;"
+foreign import javascript unsafe "$r = gm$cloneCityObject($1); $r['properties']['transform']['shift'] = $2.slice(); $r['properties']['transform']['rotScale'] = $3.slice();"
     js_delocateCityObject :: CityObject
                           -> Vector3 GLfloat
                           -> QFloat

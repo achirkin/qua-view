@@ -1,4 +1,4 @@
-{-# LANGUAGE JavaScriptFFI #-}
+{-# LANGUAGE ForeignFunctionInterface,  JavaScriptFFI, GHCForeignImportPrim, UnliftedFFITypes #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE CPP #-}
 -----------------------------------------------------------------------------
@@ -16,6 +16,9 @@
 
 module GHCJS.Useful where
 
+import GHC.Exts (Any)
+import Unsafe.Coerce (unsafeCoerce)
+
 import Prelude hiding (lines)
 --import qualified Data.Aeson as A
 import Data.JSString
@@ -23,6 +26,7 @@ import Data.JSString
 import Control.Concurrent (threadDelay)
 --import Control.Monad (liftM)
 import GHCJS.Foreign
+import GHCJS.Foreign.Callback (Callback)
 import GHCJS.Marshal
 import GHCJS.Types
 import GHCJS.WebGL.Types (GLfloat)
@@ -134,3 +138,28 @@ foreign import javascript unsafe "$r = httpArgs[$1];"
 --JSNUM(Int)
 --JSNUM(Float)
 --JSNUM(Double)
+
+-- Home-made callbacks
+
+foreign import javascript unsafe "h$makeCallback(h$runSyncReturnUnsafe, [false], $1)"
+  js_syncCallbackReturnUnsafe :: Any -> IO (Callback (IO JSVal))
+
+foreign import javascript unsafe
+  "h$makeCallbackApply($1, h$runSyncReturnUnsafe, [false], $2)"
+  js_syncCallbackApplyReturnUnsafe :: Int -> Any -> IO (Callback b)
+
+syncCallbackUnsafe :: IO JSVal
+                   -> IO (Callback (IO JSVal))
+syncCallbackUnsafe x = js_syncCallbackReturnUnsafe (unsafeCoerce x)
+
+syncCallbackUnsafe1 :: (JSVal -> IO JSVal)
+                    -> IO (Callback (JSVal -> IO JSVal))
+syncCallbackUnsafe1 x = js_syncCallbackApplyReturnUnsafe 1 (unsafeCoerce x)
+
+syncCallbackUnsafe2 :: (JSVal -> JSVal -> IO JSVal)
+                    -> IO (Callback (JSVal -> JSVal -> IO JSVal))
+syncCallbackUnsafe2 x = js_syncCallbackApplyReturnUnsafe 2 (unsafeCoerce x)
+
+syncCallbackUnsafe3 :: (JSVal -> JSVal -> JSVal -> IO JSVal)
+                    -> IO (Callback (JSVal -> JSVal -> JSVal -> IO JSVal))
+syncCallbackUnsafe3 x = js_syncCallbackApplyReturnUnsafe 3 (unsafeCoerce x)

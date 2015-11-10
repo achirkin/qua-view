@@ -22,7 +22,8 @@ module Data.Geometry.Structure.LinearRing
 import Prelude hiding (length)
 
 
-import GHCJS.Foreign.Callback (Callback (), syncCallback1', releaseCallback)
+import GHCJS.Foreign.Callback (Callback, releaseCallback)
+import GHCJS.Useful
 import System.IO.Unsafe (unsafePerformIO)
 import Data.Coerce (coerce)
 
@@ -56,7 +57,7 @@ instance PS.PointSet (LinearRing n x) n x where
     var = PS.var . js_LRtoPA
     {-# NOINLINE mapSet #-}
     mapSet f arr = unsafePerformIO $ do
-        call <- syncCallback1' $ return . coerce . f . coerce
+        call <- syncCallbackUnsafe1 $ return . coerce . f . coerce
         rez <- mapLinearRing' call arr
         releaseCallback call
         return rez

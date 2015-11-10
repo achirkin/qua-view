@@ -67,7 +67,7 @@ instance Reaction Program PView GeoJSONLoaded "Updating City Geometry after GeoJ
         { isDynamic = dyn
         , featureCollection = col }
         program@Program{city = ci} = if isEmptyCity ci
-            then program {city = snd $ buildCity 3 100 col}
+            then program {city = snd $ buildCity 3 ((*20) . sqrt . fromIntegral) col}
             else program
     response _ GeoJSONLoaded
         { isDynamic = dyn

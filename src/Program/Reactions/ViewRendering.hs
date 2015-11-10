@@ -25,7 +25,6 @@ import Controllers.Pointer
 import Controllers.ElementResizing
 import Controllers.GUIEvents
 
-import GHCJS.Useful
 import Program.View
 
 import Program.Reactions.ServiceFinish
@@ -60,8 +59,8 @@ instance Reaction Program PView ResizeEvent "Resize & Render" 1 where
         renderScene p v{context = ctx'}
 
 
---instance Reaction Program PView SelectionEvent "Render" 9 where
---    response _ _ _ = renderScene
+instance Reaction Program PView SelectionEvent "Render" 9 where
+    response _ _ _ = renderScene
 
 
 instance Reaction Program PView ServiceRunFinish "Render" 9 where

@@ -188,7 +188,7 @@ zipIObuildings f objs views = do
         js_zipIObuildings call objs views
         releaseCallback call
 
-foreign import javascript unsafe "$2.forEach(function(e,i){$1(i,e,$3[i]);})"
+foreign import javascript unsafe "$2.forEach(function(e,i){$1(i+1,e,$3[i]);})"
     js_zipIObuildings :: Callback (JSVal -> JSVal -> JSVal -> IO ())
                       -> CityObjectCollection
                       -> COViewCollection
