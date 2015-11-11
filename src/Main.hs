@@ -5,12 +5,12 @@ module Main (
     main
 ) where
 
-import GHCJS.Types
+--import GHCJS.Types
 --import GHCJS.Marshal
 --import GHCJS.Foreign
 --import Unsafe.Coerce
 --import Data.Coerce (coerce)
-import Data.JSString
+import Data.JSString (JSString, append)
 
 import Data.Geometry
 
@@ -39,15 +39,14 @@ import Program.Reactions ()
 --import Program.Model.CityObject
 --import Program.Model.GeoJSON
 
-import Data.Geometry.Structure.LinearRing as LRing
-import Data.Geometry.Structure.PointSet as PSet
-import Data.Geometry.Structure.Polygon as Poly
-
-import SmallGL.WritableVectors
+--import Data.Geometry.Structure.LinearRing as LRing
+--import Data.Geometry.Structure.PointSet as PSet
+--import Data.Geometry.Structure.Polygon as Poly
+--
+--import SmallGL.WritableVectors
 
 main :: IO ()
 main = do
-    logText "Hello!"
     -- whole document
     body <- documentBody
     viewWidth <- getElementWidth body
@@ -60,19 +59,17 @@ main = do
                     "edit" -> ExternalEditor
                     "view" -> ExternalViewer
                     _      -> Full
-    logShowable userProfile
     customGreetings userProfile
     -- create program and view
     let program = initProgram viewWidth viewHeight
-            CState { viewPoint  = vector3 (-3) (-2) 0,
+            CState { viewPoint  = vector3 3 0 0,
                      viewAngles = (-pi/5, pi/12),
-                     viewDist   = 40 }
+                     viewDist   = 30 }
             userProfile
     canv <- getCanvasById "glcanvas"
     view <- initView program canv
     -- run main reactive programming cycle and get event submission functions (in EventHole)
     eventHole <- reactiveCycle program view
-    print $ userRole program
 
     -- mouse/touch events
     addEventlisteners canvas (reqEvent eventHole . EBox)
@@ -113,39 +110,31 @@ main = do
         getElementById "tabLuci" >>= hideElement
     else do
         -- "evaluate" button runs current service
---        evaluateButton <- getElementById "evaluatebutton"
---        elementOnClick evaluateButton . const $ reqEvent eventHole $ EBox ServiceRunBegin
---        clearServiceButton <- getElementById "clearbutton"
---        elementOnClick clearServiceButton . const $ reqEvent eventHole $ EBox ClearServiceResults
+        evaluateButton <- getElementById "evaluatebutton"
+        elementOnClick evaluateButton . const $ reqEvent eventHole $ EBox ServiceRunBegin
+        clearServiceButton <- getElementById "clearbutton"
+        elementOnClick clearServiceButton . const $ reqEvent eventHole $ EBox ClearServiceResults
 
         -- "import geometry" button converts GeoJSON into internal representation
         importButton <- getElementById "jsonfileinput"
         onGeoJSONFileImport importButton (reqEvent eventHole . EBox)
 
---        -- "clear geometry" button removes all buildings from the city
---        clearGeomButton <- getElementById "cleargeombutton"
---        elementOnClick clearGeomButton . const $ reqEvent eventHole $ EBox ClearingGeometry
---
---        -- Connect to Luci
---        luciConnectButton <- getElementById "loginbutton"
---        elementOnClick luciConnectButton . const $ do
---            host <- getElementById "inputip" >>= getInputValue
---            name <- getElementById "inputlogin" >>= getInputValue
---            pass <- getElementById "inputpass" >>= getInputValue
---            reqEvent eventHole $ EBox LuciConnect
---                { cHost = host
---                , cUser = name
---                , cPass = pass
---                }
---
---
---    let vec = Vector3 0.3 0.2 0.1 :: Vector3 Double
---    vecRef <- toJSVal
---    mvec <- fromJSVal
---    print vec
---    printRef vecRef
---    print mvec
---
+        -- "clear geometry" button removes all buildings from the city
+        clearGeomButton <- getElementById "cleargeombutton"
+        elementOnClick clearGeomButton . const $ reqEvent eventHole $ EBox ClearingGeometry
+
+        -- Connect to Luci
+        luciConnectButton <- getElementById "loginbutton"
+        elementOnClick luciConnectButton . const $ do
+            host <- getElementById "inputip" >>= getInputValue
+            name <- getElementById "inputlogin" >>= getInputValue
+            pass <- getElementById "inputpass" >>= getInputValue
+            reqEvent eventHole $ EBox LuciConnect
+                { cHost = host
+                , cUser = name
+                , cPass = pass
+                }
+
 ----    toJSRef (Vector4 0.8 0.4 0.4 1) >>= printRef
 ----    toJSRef (Vector3 0.3 0.2 0.1) >>= printRef
 --    mapM toJSRef [Vector3 0.1 0.2 1, Vector3 0.2 4 0, Vector3 1 5 (0::Double)] >>= toArray >>= printRef
@@ -213,8 +202,8 @@ main = do
 --    mb2 <- fromJSRef . unsafeCoerce $ b2 :: IO (Maybe ImportedScenarioObject)
 --    print mb2
 --
---    -- experiments
---    logText $ "Started " ++ show userProfile ++ " session of modeler."
+    -- experiments
+    logText $ "Started " ++ show userProfile ++ " session of modeler."
 ----    loadGeoJSONFromLink "lines.js" False (reqEvent eventHole . EBox)
 ------    loadGeoJSONFromLink "outsidePolys.js" False (reqEvent eventHole . EBox)
 ----    loadGeoJSONFromLink "insidePolys.js" True  (reqEvent eventHole . EBox)
@@ -226,7 +215,7 @@ main = do
     programIdle
 
 
-customGreetingHTML :: Profile -> String
+customGreetingHTML :: Profile -> JSString
 customGreetingHTML profile = wrapf $ case profile of
     Full ->
         " You are in a standard Luci-enabled mode. Use control panel on the right hand-side to \
@@ -240,11 +229,11 @@ customGreetingHTML profile = wrapf $ case profile of
         \ You can browse and change geometry locally, but no changes would be saved on our server."
     where thead = "<hr><div style=\"font-size: 125%; text-align: justify;\">"
           ttail = "</div>"
-          wrapf t = thead ++ t ++ ttail
+          wrapf t = thead `append` t `append` ttail
 
 customGreetings :: Profile -> IO ()
 customGreetings profile = getElementById "greetings"
-    >>= flip insertAfterHTML (pack $ customGreetingHTML profile)
+    >>= flip insertAfterHTML (customGreetingHTML profile)
 
 --
 --foreign import javascript safe "console.log({ \

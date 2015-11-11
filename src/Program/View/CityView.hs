@@ -20,10 +20,11 @@ module Program.View.CityView where
 
 import GHCJS.Marshal.Pure
 import GHCJS.Foreign.Callback ( Callback (), OnBlocked (..)
-                              , syncCallback1', syncCallback3, releaseCallback)
+                              , syncCallback1, syncCallback3, releaseCallback)
 import Data.Coerce (coerce)
 import Unsafe.Coerce (unsafeCoerce)
 
+import GHCJS.Foreign
 import GHCJS.Types
 import GHCJS.WebGL
 import SmallGL.Shader
@@ -113,27 +114,26 @@ instance Drawable City where
         { vGLProjLoc = unifLoc prog "uProjM"
         , vGLViewLoc = unifLoc prog "uModelViewM"
         }
---    updateView gl city@City{objectsIn = objs} cv@CityView{ viewsIn = views } = do
---        mviews' <- sequence $ IM.mergeWithKey updateFunc addFunc deleteFunc objs views
-----        gr <- updateView gl (ground city) (groundView cv)
-----        cl <- updateView gl (clutter city) (clutterView cv)
---        return cv
---            { viewsIn = IM.mapMaybe id mviews'
-----            , groundView = gr
-----            , clutterView = cl
---            } where updateFunc _ o = Just . liftM Just . updateView gl o
---                    addFunc = fmap (liftM Just . createView gl)
---                    deleteFunc = fmap ( liftM (const Nothing)
---                                      . deleteView gl (undefined :: LocatedCityObject)
---                                      )
---    deleteView gl _ CityView
---            { viewsIn      = views
-----            , groundView   = gr
-----            , clutterView  = clutterv
---            } = do -- TODO :: delete shaders
---        mapM_ (deleteView gl (undefined :: LocatedCityObject)) views
-----        deleteView gl (undefined :: CityGround) gr
-----        deleteView gl (undefined :: WiredGeometry) clutterv
+    updateView gl city@City{objectsIn = objs} cv@CityView{ viewsIn = views } = do
+        mviews' <- zipIOMaybeBuildings f objs views
+--        gr <- updateView gl (ground city) (groundView cv)
+--        cl <- updateView gl (clutter city) (clutterView cv)
+        return cv
+            { viewsIn = mviews'
+--            , groundView = gr
+--            , clutterView = cl
+            } where f _ Nothing  Nothing  = return Nothing
+                    f _ Nothing  (Just v) = deleteView gl (undefined :: LocatedCityObject) v >> return Nothing
+                    f _ (Just o) Nothing  = Just <$> createView gl o
+                    f _ (Just o) (Just v) = Just <$> updateView gl o v
+    deleteView gl _ CityView
+            { viewsIn      = views
+--            , groundView   = gr
+--            , clutterView  = clutterv
+            } = do -- TODO :: delete shaders
+        mapIOViews (deleteView gl (undefined :: LocatedCityObject)) views
+--        deleteView gl (undefined :: CityGround) gr
+--        deleteView gl (undefined :: WiredGeometry) clutterv
     draw vc city view = -- draw vc (clutter city) (clutterView view) >>
                         drawInCurrContext vc' city view
         where vc' = vc{ curState = updateDrawState city view $ curState vc}
@@ -167,7 +167,7 @@ instance Selectable City where
 
 createObjViewCollection :: WebGLRenderingContext -> CityObjectCollection -> IO COViewCollection
 createObjViewCollection gl objs = do
-        call <- syncCallback1' (\x -> coerce <$> createView gl (unsafeCoerce x :: CityObject))
+        call <- syncCallbackUnsafe1 (\x -> coerce <$> createView gl (unsafeCoerce x :: CityObject))
         rez <- js_createObjViewCollection call objs
         releaseCallback call
         return rez
@@ -188,13 +188,48 @@ zipIObuildings f objs views = do
         js_zipIObuildings call objs views
         releaseCallback call
 
-foreign import javascript unsafe "$2.forEach(function(e,i){$1(i+1,e,$3[i]);})"
+foreign import javascript unsafe "$2.forEach(function(e,i){if(e && $3[i]){$1(i+1,e,$3[i]);}})"
     js_zipIObuildings :: Callback (JSVal -> JSVal -> JSVal -> IO ())
                       -> CityObjectCollection
                       -> COViewCollection
                       -> IO ()
 
 
+zipIOMaybeBuildings :: (Int -> Maybe CityObject -> Maybe CityObjectView -> IO (Maybe CityObjectView))
+                    -> CityObjectCollection
+                    -> COViewCollection
+                    -> IO COViewCollection
+zipIOMaybeBuildings f objs views = do
+        call <- syncCallbackUnsafe3
+                (\i o v -> maybeCoerce <$>
+                            f (toNum i) (if isTruthy o then Just (unsafeCoerce o) else Nothing)
+                                        (if isTruthy v then Just (coerce v) else Nothing)
+                            )
+        rez <- js_zipIOMaybeBuildings call objs views
+        releaseCallback call
+        return rez
+        where maybeCoerce Nothing = jsNull
+              maybeCoerce (Just r) = coerce r
+
+
+foreign import javascript unsafe "$2.map(function(e,i){if(e && $3[i]){return $1(i+1,e,$3[i]);}else{return null;}})"
+    js_zipIOMaybeBuildings :: Callback (JSVal -> JSVal -> JSVal -> IO JSVal)
+                           -> CityObjectCollection
+                           -> COViewCollection
+                           -> IO COViewCollection
+
+mapIOViews :: (CityObjectView -> IO ())
+           -> COViewCollection
+           -> IO ()
+mapIOViews f views = do
+        call <- syncCallback1 ContinueAsync (f . coerce)
+        js_mapIOViews call views
+        releaseCallback call
+
+foreign import javascript unsafe "$2.forEach(function(e){if(e){$1(e);}})"
+    js_mapIOViews :: Callback (JSVal -> IO ())
+                  -> COViewCollection
+                  -> IO COViewCollection
 
 --instance (Monoid m) => Monoid (IO m) where
 --    mempty = return mempty

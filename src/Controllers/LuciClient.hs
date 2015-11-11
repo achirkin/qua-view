@@ -1,4 +1,5 @@
-{-# LANGUAGE JavaScriptFFI #-}
+{-# LANGUAGE FlexibleContexts, OverloadedStrings #-}
+{-# LANGUAGE ForeignFunctionInterface,  JavaScriptFFI, GHCForeignImportPrim, UnliftedFFITypes #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 -----------------------------------------------------------------------------
 -- |
@@ -13,216 +14,212 @@
 --
 -----------------------------------------------------------------------------
 
-module Controllers.LuciClient where
---    ( LuciClient (), hostOf, portOf, localPathOf, connectionString
---    , connectToLuci
---    , authenticate
---    , getServicesList
---    , getServiceInfo
---    , Scenario (), createScenario
---    , scenarioId, scenarioName, scenarioMqttTopic, scenarioTimestamp
---    , runLuciService
---    ) where
+module Controllers.LuciClient
+    ( LuciClient (), hostOf, portOf, localPathOf, connectionString
+    , connectToLuci
+    , authenticate
+    , getServicesList
+    , getServiceInfo
+    , Scenario (), createLuciScenario
+    , scenarioId, scenarioName, scenarioMqttTopic, scenarioTimestamp
+    , runLuciService
+    , LuciServiceInput (), LuciServiceOutput ()
+    ) where
 
-import Data.Int
+import GHC.Exts (Any)
+import Unsafe.Coerce (unsafeCoerce)
+
+import Data.Int (Int64)
+import Data.Coerce (Coercible (), coerce)
+import Data.JSString (JSString (..), append,unpack',pack)
 
 import GHCJS.Foreign
 import GHCJS.Marshal
+import GHCJS.Marshal.Pure (PFromJSVal (), pFromJSVal)
 import GHCJS.Types
+import Data.Geometry (JSNum (..))
 
 import Control.Arrow (first)
---import Control.Monad (liftM)
---import System.IO.Unsafe (unsafePerformIO)
---import Data.Aeson (Value, ToJSON)
---import Data.Geospatial
+
+import Controllers.GUIEvents (Scenario)
+
+newtype LuciServiceInput = LuciServiceInput JSVal
+
+newtype LuciServiceOutput = LuciServiceOutput JSVal
+
+newtype LuciServiceInfo = LuciServiceInfo JSVal
+instance Show LuciServiceInfo where
+    show (LuciServiceInfo val) = unpack' $ jsonStringify val
 
 -- | Object for Luci connection
 newtype LuciClient = LuciClient JSVal
-instance IsJSVal LuciClient
+--instance IsJSVal LuciClient
 
 -- | Scenario Object
-newtype Scenario = Scenario JSVal
-instance IsJSVal Scenario
+newtype LuciScenario = LuciScenario JSVal
+--instance IsJSVal LuciScenario
 
----- | Full string passed into WebSocket constructor
---connectionString :: LuciClient -> String
---connectionString lc = "ws://" ++ hostOf lc ++ ":" ++ show (portOf lc) ++ "/" ++ localPathOf lc
---
---
----- | Local path of the connection on server
---localPathOf :: LuciClient -> String
---{-# NOINLINE localPathOf #-}
---localPathOf lc = unsafePerformIO (liftM fromJSString $ localPathOf' lc)
---foreign import javascript unsafe "$r = $1['localpath'];"
---    localPathOf' :: LuciClient -> IO JSString
---
---
----- | Port of the connection on server
---portOf :: LuciClient -> Int
---{-# NOINLINE portOf #-}
---portOf lc = unsafePerformIO (portOf' lc)
---foreign import javascript unsafe "$r = $1['port'];"
---    portOf' :: LuciClient -> IO Int
---
---
----- | Connection server
---hostOf :: LuciClient -> String
---{-# NOINLINE hostOf #-}
---hostOf lc = unsafePerformIO (liftM fromJSString $ hostOf' lc)
---foreign import javascript unsafe "$r = $1['host'];"
---    hostOf' :: LuciClient -> IO JSString
---
---
----- | ScID
---scenarioId :: Scenario -> Int
---{-# NOINLINE scenarioId #-}
---scenarioId sc = unsafePerformIO (scenarioId' sc)
---foreign import javascript unsafe "$r = $1['ScID'];"
---    scenarioId' :: Scenario -> IO Int
---
---
----- | Name of the scenario
---scenarioName :: Scenario -> String
---{-# NOINLINE scenarioName #-}
---scenarioName sc = fromJSString $ unsafePerformIO (scenarioName' sc)
---foreign import javascript unsafe "$r = $1['name'];"
---    scenarioName' :: Scenario -> IO JSString
---
----- | Name of the scenario
---scenarioMqttTopic :: Scenario -> String
---{-# NOINLINE scenarioMqttTopic #-}
---scenarioMqttTopic sc = fromJSString $ unsafePerformIO (scenarioMqttTopic' sc)
---foreign import javascript unsafe "$r = $1['mqtt_topic'];"
---    scenarioMqttTopic' :: Scenario -> IO JSString
---
----- | Timestamp of the scenario
---scenarioTimestamp:: Scenario -> Int64
---{-# NOINLINE scenarioTimestamp #-}
---scenarioTimestamp sc = unsafePerformIO (scenarioTimestamp' sc)
---foreign import javascript unsafe "$r = $1['timestamp'];"
---    scenarioTimestamp' :: Scenario -> IO Int64
---
---
----- | Open WebSocket and connect to Luci
---connectToLuci :: String -> IO (Either String LuciClient)
---connectToLuci address = connectToLuci' (toJSString host) port (toJSString path) >>= liftEitherRef
---    where splitOn _ [] = ([],[])
---          splitOn c (x:xs) | c == x = ([], xs)
---                           | otherwise = first (x:) $ splitOn c xs
---          (addr, path) = splitOn '/' address
---          (host, port') = splitOn ':' addr
---          port = case filter (\x -> x >= '0' && x <= '9') port' of
---            [] -> 80
---            pp -> read pp
---foreign import javascript interruptible "try{var lc = new LuciClient($1, $2, $3, function(){$c({right: lc});} \
---    \ , function(ev){$c({left: 'Closed with code ' + ev.code});} \
---    \ , function(){logText(document.getElementById('consolecontent'),'Error occured on the WebSocket side.');} \
---    \ ); \
---    \ lc.host = $1;lc.port = $2;lc.localpath = $3;}catch(err){$c({left: 'Error occured while trying to create Luci client: ' + JSON.stringify(err)});}"
---    connectToLuci' :: JSString -> Int -> JSString -> IO (JSRef (Either String LuciClient_))
---
---
---runLuciService :: LuciClient -> String -> Value -> Scenario -> IO (Either String Value)
---runLuciService lc service inputs scenario = liftM eitherJustOrError
---    $ toJSRef_aeson inputs >>= runService' lc
---                  (toJSString service)
---                  (scenarioId scenario) >>= fromJSRef
---foreign import javascript interruptible  "var req = {}; \
---    \ req['action'] = 'run'; req['service'] = {}; \
---    \ req['service']['classname'] = $2; \
---    \ req['service']['ScID'] = $3; \
---    \ req['service']['inputs'] = $4; \
---    \ $1.sendAndReceive(req,[function(){ \
---    \ var m = $1.getMessage(); \
---    \ if(m['result']) {$c({right: m['result']});} \
---    \ else if(m['error']) {$c({left: 'Luci says: ' + m['error']});} \
---    \ else {$c({left: \"Message contains neither a result nor an error. MSG: \" + JSON.stringify(m)});}}]);"
---    runService' :: LuciClient -> JSString -> Int -> JSVal -> IO (JSRef (Either String Value))
---
----- | Authenticate in Luci
---authenticate :: LuciClient
---             -> String -- ^ login
---             -> String -- ^ password
---             -> IO (Either String String)
---authenticate lc login pass = liftM eitherJustOrError $ authenticate' lc  (toJSString login) (toJSString pass) >>= fromJSRef
---foreign import javascript interruptible "$1.authenticate($2,$3, function(){ \
---    \ var m = $1.getMessage(); \
---    \ if(m['result']) {$c({right: m['result']});} \
---    \ else if(m['error']) {$c({left: 'Luci says: ' + m['error']});} \
---    \ else {$c({left: \"Message contains neither result message nor an error. MSG: \" + JSON.stringify(m)});}});"
---    authenticate' :: LuciClient -> JSString -> JSString -> IO (JSRef (Either String String))
---
---
----- | Get list of names of available services in Luci
---getServicesList :: LuciClient -> IO (Either String [String])
---getServicesList lc = liftM eitherJustOrError $ getServicesList' lc >>= fromJSRef
---foreign import javascript interruptible "var req = {}; req['action'] = 'get_list'; req['of'] = ['services']; $1.sendAndReceive(req,[function(){ \
---    \ var m = $1.getMessage(); \
---    \ if(m['result'] && m['result']['services']) {$c({right: m['result']['services']});} \
---    \ else if(m['error']) {$c({left: 'Luci says: ' + m['error']});} \
---    \ else {$c({left: \"Message contains neither services list nor an error. MSG: \" + JSON.stringify(m)});}}]);"
---    getServicesList' :: LuciClient -> IO (JSRef (Either String [String]))
---
---
---getServiceInfo :: LuciClient -> String -> IO (Either String Value)
---getServiceInfo lc sname = liftM eitherJustOrError $ getServiceInfo' lc (toJSString sname) >>= fromJSRef
---foreign import javascript interruptible "var req = {}; req['action'] = 'get_infos_about'; req['servicename'] = $2; $1.sendAndReceive(req,[function(){ \
---    \ var m = $1.getMessage(); \
---    \ if(m['result'] && m['result'][$2]) {$c({right: m['result'][$2]});} \
---    \ else if(m['error']) {$c({left: 'Luci says: ' + m['error']});} \
---    \ else {$c({left: \"Message contains neither service info nor an error. MSG: \" + JSON.stringify(m)});}}]);"
---    getServiceInfo' :: LuciClient -> JSString -> IO (JSRef (Either String Value))
---
---
---createScenario :: ToJSON a => LuciClient -> String -> GeoFeatureCollection a -> IO (Either String Scenario)
---createScenario lc sname geom = do
---    geomref <- toJSRef_aeson geom
---    liftM eitherJustOrError $ createScenario' lc (toJSString sname) geomref >>= fromJSRef
---foreign import javascript interruptible "var req = {}; \
---    \ req['action'] = 'create_scenario'; req['name'] = $2; \
---    \ req['geometry']= {}; \
---    \ req['geometry']['ghcjs-modeler-scenario'] = {}; \
---    \ req['geometry']['ghcjs-modeler-scenario']['format'] = 'GeoJSON'; \
---    \ req['geometry']['ghcjs-modeler-scenario']['geometry'] = $3; \
---    \ $1.sendAndReceive(req,[function(){ \
---    \ var m = $1.getMessage(); \
---    \ if(m['result']) {$c({right: m['result']});} \
---    \ else if(m['error']) {$c({left: 'Luci says: ' + m['error']});} \
---    \ else {$c({left: \"Message contains neither a result nor an error. MSG: \" + JSON.stringify(m)});}}]);"
---    createScenario' :: LuciClient -> JSString -> JSVal -> IO (JSRef (Either String Scenario))
---
---
---
------ EITHER instance
---
---
---foreign import javascript unsafe "if($1.right){$r = $1.right;} else {$r = null;}"
---    rightOrNullRef :: JSRef (Either a b) -> IO (JSVal)
---
---foreign import javascript unsafe "if($1.left){$r = $1.left;} else {$r = null;}"
---    leftOrNullRef :: JSRef (Either a b) -> IO (JSVal)
---
---
---instance (FromJSVal, FromJSVal) => FromJSRef (Either a b) where
---    fromJSVal = do
---        mrr <- rightOrNullRef ref
---        if isNull mrr
---        then leftR
---        else do
---            mr <- fromJSRef $ mrr
---            case mr of
---                Nothing -> leftR
---                Just r -> return . Just $ Right r
---        where leftR = leftOrNullRef ref >>= liftM (liftM Left) . fromJSRef
---
---liftEitherRef :: JSRef (Either String b) -> IO (Either String (JSVal))
---liftEitherRef ref = do
---    mrr <- rightOrNullRef ref
---    if isNull mrr
---    then leftOrNullRef ref >>= liftM (eitherJustOrError . liftM Left) . fromJSRef
---    else return $ Right mrr
---
---
---eitherJustOrError :: Maybe (Either String a) -> Either String a
---eitherJustOrError Nothing = Left "Could not read javascript object."
---eitherJustOrError (Just x) = x
+-- | Full string passed into WebSocket constructor
+connectionString :: LuciClient -> JSString
+connectionString lc = "ws://" `append` hostOf lc `append` ":" `append` pack (show (portOf lc)) `append` "/" `append` localPathOf lc
+
+
+-- | Local path of the connection on server
+{-# NOINLINE localPathOf #-}
+foreign import javascript unsafe "$r = $1['localpath'];"
+    localPathOf :: LuciClient -> JSString
+
+
+-- | Port of the connection on server
+{-# NOINLINE portOf #-}
+foreign import javascript unsafe "$r = $1['port'];"
+    portOf :: LuciClient -> Int
+
+
+-- | Connection server
+{-# NOINLINE hostOf #-}
+foreign import javascript unsafe "$r = $1['host'];"
+    hostOf :: LuciClient -> JSString
+
+
+-- | ScID
+{-# NOINLINE scenarioId #-}
+foreign import javascript unsafe "$r = $1['ScID'];"
+    scenarioId :: LuciScenario -> Int
+
+
+-- | Name of the scenario
+{-# NOINLINE scenarioName #-}
+foreign import javascript unsafe "$r = $1['name'];"
+    scenarioName :: LuciScenario -> JSString
+
+-- | Name of the scenario
+{-# NOINLINE scenarioMqttTopic #-}
+foreign import javascript unsafe "$r = $1['mqtt_topic'];"
+    scenarioMqttTopic :: LuciScenario -> JSString
+
+-- | Timestamp of the scenario
+{-# NOINLINE scenarioTimestamp #-}
+foreign import javascript unsafe "$r = $1['timestamp'];"
+    scenarioTimestamp :: LuciScenario -> Int64
+
+
+-- | Open WebSocket and connect to Luci
+connectToLuci :: JSString -> IO (Either JSString LuciClient)
+connectToLuci address = eitherError "LuciClient" <$> connectToLuci' (pack host) port (pack path)
+    where splitOn _ [] = ([],[])
+          splitOn c (x:xs) | c == x = ([], xs)
+                           | otherwise = first (x:) $ splitOn c xs
+          (addr, path) = splitOn '/' $ unpack' address
+          (host, port') = splitOn ':' addr
+          port = case filter (\x -> x >= '0' && x <= '9') port' of
+            [] -> 80
+            pp -> read pp
+foreign import javascript interruptible "try{\
+    \   var lc = new LuciClient($1, $2, $3, function(){$c({right: lc});} \
+    \       , function(ev){$c({left: 'Closed with code ' + ev.code});} \
+    \       , function(){logText(document.getElementById('consolecontent'),'Error occured on the WebSocket side.');} \
+    \   ); \
+    \   lc.host = $1;lc.port = $2;lc.localpath = $3; \
+    \ }\
+    \ catch(err){$c({left: 'Error occured while trying to create Luci client: ' + JSON.stringify(err)});}"
+    connectToLuci' :: JSString -> Int -> JSString -> IO JSVal
+
+
+runLuciService :: LuciClient -> JSString -> LuciServiceInput -> LuciScenario -> IO (Either JSString LuciServiceOutput)
+runLuciService lc service inputs scenario = eitherError "service output" <$>
+                                            runService' lc service (scenarioId scenario) inputs
+foreign import javascript interruptible  "var req = {}; \
+    \ req['action'] = 'run'; req['service'] = {}; \
+    \ req['service']['classname'] = $2; \
+    \ req['service']['ScID'] = $3; \
+    \ req['service']['inputs'] = $4; \
+    \ $1.sendAndReceive(req,[function(){ \
+    \ var m = $1.getMessage(); \
+    \ if(m['result']) {$c({right: m['result']});} \
+    \ else if(m['error']) {$c({left: 'Luci says: ' + m['error']});} \
+    \ else {$c({left: \"Message contains neither a result nor an error. MSG: \" + JSON.stringify(m)});}}]);"
+    runService' :: LuciClient -> JSString -> Int -> LuciServiceInput -> IO JSVal
+
+-- | Authenticate in Luci
+authenticate :: LuciClient
+             -> JSString -- ^ login
+             -> JSString -- ^ password
+             -> IO (Either JSString JSString)
+authenticate lc login pass = eitherErrorJSString "Luci answer" <$> authenticate' lc  login pass
+foreign import javascript interruptible "$1.authenticate($2,$3, function(){ \
+    \ var m = $1.getMessage(); \
+    \ if(m['result']) {$c({right: m['result']});} \
+    \ else if(m['error']) {$c({left: 'Luci says: ' + m['error']});} \
+    \ else {$c({left: \"Message contains neither result message nor an error. MSG: \" + JSON.stringify(m)});}});"
+    authenticate' :: LuciClient -> JSString -> JSString -> IO JSVal
+
+
+-- | Get list of names of available services in Luci
+getServicesList :: LuciClient -> IO (Either JSString [JSString])
+getServicesList lc = eitherErrorAny "Luci answer" <$> getServicesList' lc
+foreign import javascript interruptible "var req = {}; req['action'] = 'get_list'; req['of'] = ['services']; $1.sendAndReceive(req,[function(){ \
+    \ var m = $1.getMessage(); \
+    \ if(m['result'] && m['result']['services']) {$c({right: h$fromArray(m['result']['services'])});} \
+    \ else if(m['error']) {$c({left: 'Luci says: ' + m['error']});} \
+    \ else {$c({left: \"Message contains neither services list nor an error. MSG: \" + JSON.stringify(m)});}}]);"
+    getServicesList' :: LuciClient -> IO JSVal
+
+
+getServiceInfo :: LuciClient -> JSString -> IO (Either JSString LuciServiceInfo)
+getServiceInfo lc sname = eitherError "LuciServiceInfo" <$> getServiceInfo' lc sname
+foreign import javascript interruptible "var req = {}; req['action'] = 'get_infos_about'; req['servicename'] = $2; $1.sendAndReceive(req,[function(){ \
+    \ var m = $1.getMessage(); \
+    \ if(m['result'] && m['result'][$2]) {$c({right: m['result'][$2]});} \
+    \ else if(m['error']) {$c({left: 'Luci says: ' + m['error']});} \
+    \ else {$c({left: \"Message contains neither service info nor an error. MSG: \" + JSON.stringify(m)});}}]);"
+    getServiceInfo' :: LuciClient -> JSString -> IO JSVal
+
+
+createLuciScenario :: LuciClient -> JSString -> Scenario -> IO (Either JSString LuciScenario)
+createLuciScenario lc sname geom = eitherError "Luci Scenario" <$>  createScenario' lc sname geom
+foreign import javascript interruptible "var req = {}; \
+    \ req['action'] = 'create_scenario'; req['name'] = $2; \
+    \ req['geometry']= {}; \
+    \ req['geometry']['ghcjs-modeler-scenario'] = {}; \
+    \ req['geometry']['ghcjs-modeler-scenario']['format'] = 'GeoJSON'; \
+    \ req['geometry']['ghcjs-modeler-scenario']['geometry'] = $3; \
+    \ $1.sendAndReceive(req,[function(){ \
+    \ var m = $1.getMessage(); \
+    \ if(m['result']) {$c({right: m['result']});} \
+    \ else if(m['error']) {$c({left: 'Luci says: ' + m['error']});} \
+    \ else {$c({left: \"Message contains neither a result nor an error. MSG: \" + JSON.stringify(m)});}}]);"
+    createScenario' :: LuciClient -> JSString -> Scenario -> IO JSVal
+
+-- | Either treatment
+eitherError :: (Coercible JSVal a) => JSString -> JSVal -> Either JSString a
+eitherError = eitherError' coerce
+eitherErrorPF :: (PFromJSVal a) => JSString -> JSVal -> Either JSString a
+eitherErrorPF = eitherError' pFromJSVal
+eitherErrorJSString :: JSString -> JSVal -> Either JSString JSString
+eitherErrorJSString = eitherError' val2str
+eitherErrorJSNum :: (JSNum a) => JSString -> JSVal -> Either JSString a
+eitherErrorJSNum = eitherError' toNum
+eitherErrorAny :: JSString -> JSVal -> Either JSString a
+eitherErrorAny = eitherError' (unsafeCoerce . val2Any)
+
+eitherError' :: (JSVal -> a) -> JSString -> JSVal -> Either JSString a
+eitherError' f s val = let rval = rightOrNullVal val
+                           lval = leftOrErrVal val $ "Something bad has just happened: " `append` s `append` "is falsy."
+                       in if isTruthy rval
+                          then Right $ f rval
+                          else Left $ lval
+
+foreign import javascript unsafe "if($1 && $1.right){$r = $1.right;} else {$r = null;}"
+    rightOrNullVal :: JSVal -> JSVal
+foreign import javascript unsafe "$r = $1;"
+    val2Any :: JSVal -> Any
+
+foreign import javascript unsafe "$r = $1;"
+    val2str :: JSVal -> JSString
+
+foreign import javascript unsafe "if($1 && $1.left){$r = $1.left;} else {$r = $2;}"
+    leftOrErrVal :: JSVal -> JSString -> JSString
+
+foreign import javascript unsafe "JSON.stringify($1)"
+    jsonStringify :: JSVal -> JSString

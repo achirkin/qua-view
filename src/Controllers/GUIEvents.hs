@@ -1,4 +1,3 @@
--- {-# LANGUAGE ExistentialQuantification #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Controllers.GUIEvents
@@ -14,8 +13,6 @@
 
 module Controllers.GUIEvents where
 
---import Data.Geospatial
---import qualified Data.Aeson as A
 import GHCJS.Types
 
 -- | Reaction on this event should be starting evaluation of current service
@@ -33,19 +30,18 @@ newtype Scenario = Scenario JSVal
 data GeoJSONLoaded = GeoJSONLoaded
     { isDynamic         :: Bool
     , featureCollection :: Scenario
---    , featureCollection  :: GeoFeatureCollection A.Value
     }
 type GeoJSONLoadCallBack = GeoJSONLoaded -> IO ()
 
 -- | When trying to connect to Luci
 data LuciConnect = LuciConnect
-    { cHost :: String
-    , cUser :: String
-    , cPass :: String
+    { cHost :: JSString
+    , cUser :: JSString
+    , cPass :: JSString
     }
 
 
 
-type SubmitURL = String
+type SubmitURL = JSString
 -- | Get the geometry and its preview image
 newtype SubmitScenario = SubmitScenario SubmitURL

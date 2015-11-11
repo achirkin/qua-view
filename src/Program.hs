@@ -22,10 +22,9 @@ import JavaScript.Web.Canvas (Canvas)
 import GHCJS.WebGL
 import GHCJS.Useful
 import Data.Geometry
-----import Geometry.Structure (Polygon(..))
---
---import Controllers.LuciClient
---
+
+import Controllers.LuciClient
+
 import Program.Model.Camera
 import Program.Model.City
 import Program.Model.CityObject
@@ -34,16 +33,15 @@ import Program.View.CityView ()
 import Program.View.WiredGeometryView ()
 import Program.View
 
---import Services
---import Services.RadianceService
---import Services.Isovist
+import Services
+import Services.Radius
+import Services.Isovist
+import qualified Services.Isovist as Isovist
 
 data Profile = Full | ExternalEditor | ExternalViewer deriving (Show, Eq)
 
 -- | Data type representing the whole program state
 data Program = Program
---    {
---    --, info     :: !Info
     { camera   :: !Camera
     , decGrid  :: !WiredGeometry
     , city     :: !City
@@ -53,29 +51,10 @@ data Program = Program
 
 data Controls = Controls
     { selectedObject     :: !Int
---    , activeService      :: !ServiceBox
---    , availableServices  :: ![ServiceBox]
---    , placeTransform     :: !(Maybe (GLfloat, Vector2 GLfloat))
+    , activeService      :: !ServiceBox
+    , availableServices  :: ![ServiceBox]
     }
---
-----data Info = Info
-----    { geomUpdateTime   :: !GLfloat
-----    , geomUpdateAmount :: !Int
-----    }
-----
-----infoDef :: Info
-----infoDef = Info
-----    { geomUpdateTime   = 0
-----    , geomUpdateAmount = 0
-----    }
---
---initProgram userProfile = Program
---    { controls = Controls
---        { selectedObject = 0
---        }
---    --, info = infoDef
---    , userRole = userProfile
---    }
+
 initProgram :: GLfloat -- ^ width of the viewport
             -> GLfloat -- ^ height of the viewport
             -> CState -- ^ initial camera state
@@ -87,14 +66,12 @@ initProgram vw vh cstate userProfile = Program
     , city = emptyCity -- buildCity [] [] [] []
     , controls = Controls
         { selectedObject = 0
---        , activeService = radService
---        , availableServices = [radService, isovistService]
---        , placeTransform = Nothing
+        , activeService = radService
+        , availableServices = [radService, isovistService]
         }
-    --, info = infoDef
     , userRole = userProfile
-    } where -- radService = ServiceBox . RadianceService $ Vector3 0 3 5
-            -- isovistService = ServiceBox (Isovist IMArea)
+    } where radService = ServiceBox . RadianceService $ vector3 0 3 5
+            isovistService = ServiceBox (Isovist Isovist.Area)
 
 
 
@@ -104,8 +81,8 @@ data PView = PView
     { context      :: !ViewContext
     , dgView       :: !(View WiredGeometry)
     , cityView     :: !(View City)
---    , luciClient   :: !(Maybe LuciClient)
---    , luciScenario :: !(Maybe Scenario)
+    , luciClient   :: !(Maybe LuciClient)
+    , luciScenario :: !(Maybe Scenario)
     , scUpToDate   :: !Bool
     }
 
@@ -123,14 +100,13 @@ initView prog@Program
     -- init object views
     dgview <- createView gl (decGrid prog)
     cview <- createView gl (city prog)
---    toJSRef (decGrid prog) >>= printRef
     -- done!
     return PView
         { context      = ctx
         , dgView       = dgview
         , cityView     = cview
---        , luciClient   = Nothing
---        , luciScenario = Nothing
+        , luciClient   = Nothing
+        , luciScenario = Nothing
         , scUpToDate   = False
         }
 

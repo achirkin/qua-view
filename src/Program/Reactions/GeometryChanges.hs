@@ -1,5 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
-
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DataKinds, FlexibleInstances, MultiParamTypeClasses #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 -----------------------------------------------------------------------------
@@ -47,19 +47,19 @@ import Data.Coerce
 
 import Unsafe.Coerce
 
---updateProgramView :: String -> Program -> PView -> IO (Either PView e)
---updateProgramView msg program pview = do
---        getElementById "clearbutton" >>= elementParent >>= hideElement
---        cityView' <- updateView (glctx $ context pview) (city program) (cityView pview)
---        logText msg
---        return $ Left pview{cityView = cityView', scUpToDate = False}
+updateProgramView :: String -> Program -> PView -> IO (Either PView e)
+updateProgramView msg program pview = do
+        getElementById "clearbutton" >>= elementParent >>= hideElement
+        cityView' <- updateView (glctx $ context pview) (city program) (cityView pview)
+        logText msg
+        return $ Left pview{cityView = cityView', scUpToDate = False}
 
 instance Reaction Program PView ClearingGeometry "Clearing City Geometry" 0 where
---    react _ ClearingGeometry program = program
---        { city = clearCity (city program)
+    react _ ClearingGeometry program = program
+        { city = clearCity (city program)
 --        , controls = (controls program){placeTransform = Nothing}
---        }
---    response _ _ _ = updateProgramView "Cleared geometry."
+        }
+    response _ _ _ = updateProgramView "Cleared geometry."
 
 
 instance Reaction Program PView GeoJSONLoaded "Updating City Geometry after GeoJSON is loaded" 0 where
@@ -67,15 +67,12 @@ instance Reaction Program PView GeoJSONLoaded "Updating City Geometry after GeoJ
         { isDynamic = dyn
         , featureCollection = col }
         program@Program{city = ci} = if isEmptyCity ci
-            then program {city = snd $ buildCity 3 ((*20) . sqrt . fromIntegral) col}
-            else program
+            then program {city = snd $ buildCity 1 ((*5) . sqrt . fromIntegral) col}
+            else program {city = snd $ updateCity 1 col ci}
     response _ GeoJSONLoaded
         { isDynamic = dyn
         , featureCollection = col } _ prog view = do
-            print "Starting response"
-            printVal (unsafeCoerce .  objectsIn $ city prog)
             cview <- createView (glctx $ context view) (city prog)
-            print "Finishing response"
 --            let (errors, city) = buildCity 3 200 col
 --            let (scale,shift) = scenarioViewScaling 200 col
 --                (errors, cityObjs) = processScenario 3 scale shift col

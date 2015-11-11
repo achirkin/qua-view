@@ -47,16 +47,19 @@ executable ghcjs-modeler
         Data.Geometry.Structure.LinearRing
         Data.Geometry.Structure.PointSet
         Data.Geometry.Structure.Polygon
-        Data.Geometry.Transform.JSQTransform
         GHCJS.Useful
         SmallGL.Helpers
         SmallGL.Shader
         SmallGL.WritableVectors
+        Services
+        Services.Isovist
+        Services.Radius
         Program
         Program.Model.Camera
         Program.Model.WiredGeometry
         Program.Model.City
         Program.Model.CityObject
+        Program.Model.ScalarField
         Program.Reactions
         Program.Reactions.CameraBehavior
         Program.Reactions.CitySelection

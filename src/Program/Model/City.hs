@@ -22,7 +22,7 @@ module Program.Model.City
     , getObject, setObject
 --    , buildCity
 --    , addCityObjects
---    , clearCity
+    , clearCity
 --    , addCityStaticWires
     --, cityToJS
     ) where
@@ -120,6 +120,17 @@ foreign import javascript unsafe "$r = $3.slice(); $r[$1] = $2;"
 
 isEmptyCity :: City -> Bool
 isEmptyCity c = collectionLength (objectsIn c) == 0
+
+-- | Remove all geometry from city
+clearCity :: City -> City
+clearCity city = city
+    { activeObjId = 0
+    , activeObjSnapshot = Nothing
+    , objectsIn = emptyCollection
+    , cityTransform = (0, 0)
+--    , ground = rebuildGround (boundingBox zeros zeros) (ground city)
+--    , clutter = createLineSet (Vector4 0.8 0.4 0.4 1) []
+    } -- where objs' = IM.empty :: IM.IntMap LocatedCityObject
 
 ----------------------------------------------------------------------------------------------------
 -- City properties
