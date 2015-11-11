@@ -1,5 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE DataKinds, FlexibleInstances, MultiParamTypeClasses #-}
+{-# LANGUAGE DataKinds, FlexibleInstances, MultiParamTypeClasses, OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 -----------------------------------------------------------------------------
 -- |
@@ -16,7 +16,10 @@
 
 module Program.Reactions.LuciProcesses () where
 
+import Prelude hiding (unwords)
+
 import GHCJS.Useful
+import Data.JSString (append, unwords)
 
 import Reactive
 import Controllers.GUIEvents
@@ -25,23 +28,27 @@ import Controllers.LuciClient
 import Program
 
 instance Reaction Program PView LuciConnect "Connecting to Luci" 1 where
---    response _ LuciConnect{..} _ _ pview = do
---        programInProgress
---        elc <- connectToLuci cHost
---        mlc <- case elc of
---            Left err -> logText err >> return Nothing
---            Right lc -> do
---                logText $ "Connected to Luci on " ++ cHost
---                ans <- authenticate lc cUser cPass
---                getElementById "ipaddressinfo" >>= flip setElementInnerHTML (hostOf lc)
---                logText $ show ans
---                getElementById "loginform" >>= hideElement
---                getElementById "logondiv" >>= showElement
---                logText "Getting list of services"
---                liftM (liftM unwords) (getServicesList lc) >>= logText . show
---                logText "Getting info about service fibonacci"
---                getServiceInfo lc "fibonacci" >>= logText . show
---                return $ Just lc
---        programIdle
---        return $ Left pview{luciClient = mlc}
+    response _ LuciConnect{..} _ _ pview = do
+        programInProgress
+        elc <- connectToLuci cHost
+        mlc <- case elc of
+            Left err -> logText' err >> return Nothing
+            Right lc -> do
+                logText' $ "Connected to Luci on " `append` cHost
+                ans <- authenticate lc cUser cPass
+                getElementById "ipaddressinfo" >>= flip setElementInnerHTML (hostOf lc)
+                logText $ show ans
+                getElementById "loginform" >>= hideElement
+                getElementById "logondiv" >>= showElement
+                logText "Getting list of services"
+                fmap (fmap unwords) (getServicesList lc) >>= \r -> case r of
+                                                                    Right l -> logText' $ "List of services in LUCI: " `append` l
+                                                                    Left e -> logText' e
+                logText "Getting info about service fibonacci"
+                getServiceInfo lc "fibonacci" >>= \r -> case r of
+                                                          Right l -> logText $ "Info about fibonacci: "  ++ show l
+                                                          Left e -> logText' e
+                return $ Just lc
+        programIdle
+        return $ Left pview{luciClient = mlc}
 

@@ -29,7 +29,7 @@ import Data.Coerce
 data ScalarField = ScalarField
     { cellSize  :: !GLfloat -- ^ desired size of computed cell
     , sfPoints  :: ![Vector3 GLfloat] -- ^ set of points to compute values on
-    , sfRange   :: !(Vector2 GLfloat) -- ^ min and max of the field values
+    , sfRange   :: !(GLfloat, GLfloat) -- ^ min and max of the field values
     , sfValues  :: ![GLfloat] -- ^ set of values
     }
 
@@ -63,9 +63,8 @@ v = coerce
 
 normalized :: ScalarField -> [Vector4 GLfloat]
 normalized ScalarField
-    { sfRange  = range
+    { sfRange  = (xmin, xmax)
     , sfValues = vals
     } = map f vals
     where f x = realToFrac . min 1 . max 0 $ (x - xmin)/xspan
           xspan = max 10e-5 $ xmax - xmin
-          (xmin, xmax) = unpackV2 range

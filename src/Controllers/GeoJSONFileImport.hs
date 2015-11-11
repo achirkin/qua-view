@@ -15,15 +15,14 @@
 
 module Controllers.GeoJSONFileImport
     ( onGeoJSONFileImport
---    , loadGeoJSONFromLink
+    , loadGeoJSONFromLink
     ) where
 
---import qualified Data.Aeson as A
-import Control.Monad (liftM)
 
 import GHCJS.Types
 import GHCJS.Marshal
 import GHCJS.Foreign.Callback
+import GHCJS.Foreign (isTruthy)
 
 import GHCJS.Useful
 import Controllers.GUIEvents
@@ -52,16 +51,15 @@ onGeoJSONFileImport importButton callback = elementOnChange importButton $ do
 --                }
     programIdle
 
---loadGeoJSONFromLink :: String -> Bool -> GeoJSONLoadCallBack -> IO ()
---loadGeoJSONFromLink url isDyn callback = do
---    c <- getUrlJSON url >>= fromJSRef_aeson
---    case c of
---        Nothing -> logText "Could not read geometry"
---        Just gfc -> do
---            callback GeoJSONLoaded
---                { isDynamic          = isDyn
---                , featureCollection  = gfc
---                }
+loadGeoJSONFromLink :: JSString -> Bool -> GeoJSONLoadCallBack -> IO ()
+loadGeoJSONFromLink url isDyn callback = do
+    c <- getUrlJSON url
+    if not (isTruthy $ coerce c)
+    then logText "Could not read geometry"
+    else callback GeoJSONLoaded
+          { isDynamic         = isDyn
+          , featureCollection = c
+          }
 
 
 foreign import javascript unsafe "$r = document.getElementById($1).checked;"
@@ -78,7 +76,7 @@ foreign import javascript interruptible "var r = new FileReader(); \
     \   $c(json); }}; \
     \ r.onloadend = load;  \
     \ r.readAsText($1.files[0]);"
-    getElementFiles :: JSElement -> IO (JSVal)
+    getElementFiles :: JSElement -> IO Scenario
 
 ---- | Convert JSON object in JavaScript back to Haskell data that implements fromJSON a class
 --fromJSRef_aeson :: A.FromJSON a => JSVal -> IO (Maybe a)
@@ -103,7 +101,7 @@ foreign import javascript interruptible "var xmlHttp = new XMLHttpRequest(); \
     \     xmlHttp.open( 'GET', $1, true ); \
     \     xmlHttp.send( ); \
     \ } catch (err) { logText(err); if(i == 0){i++;$c(null);}} "
-    getUrlJSON' :: JSString -> IO (JSVal)
+    getUrlJSON :: JSString -> IO Scenario
 
 
 -- | Simple event when JSElement is changed (e.g. one picked file in "file" button)

@@ -50,7 +50,7 @@ transformCity f program@Program
     { city = c@City{activeObjSnapshot = Just obj}
     , controls = Controls{ selectedObject = i }
     } = program
-    { city = setObject i (f (camera program) obj) c -- c{objectsIn = insert i (f (camera program) obj) (objectsIn c) }
+    { city = setObject i (f (camera program) obj) c
     }
 transformCity _ program = program
 
