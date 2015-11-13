@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE DataKinds, KindSignatures, GHCForeignImportPrim #-}
@@ -16,10 +17,8 @@
 
 module Data.Geometry.Structure.Polygon
     ( Polygon ()
-    , polygon, numRings, index, rings
     , triangulate, triangulate', triangulatePolygon3D, triangulateMultiPolygon3D
     , MultiPolygon ()
-    , multiPolygon, polygons
     , toPolygon3D, toMultiPolygon3D
     ) where
 
@@ -39,6 +38,7 @@ import GHC.TypeLits
 import GHCJS.Types
 import GHCJS.Marshal.Pure (PFromJSVal(..))
 
+import Data.JSArray
 import Data.Geometry
 import qualified Data.Geometry.Structure.PointSet as PS
 import Data.Geometry.Structure.LinearRing (LinearRing)
@@ -49,6 +49,13 @@ newtype Polygon (n::Nat) x = Polygon JSVal
 instance IsJSVal (Polygon n x)
 instance PFromJSVal (Polygon n x) where
     pFromJSVal = Polygon
+instance LikeJS (Polygon n x)
+instance LikeJSArray (Polygon n x) where
+    type JSArrayElem (Polygon n x) = LinearRing n x
+    {-# INLINE toJSArray #-}
+    toJSArray = js_PolygonToRingArray
+    {-# INLINE fromJSArray #-}
+    fromJSArray = js_RingArrayToPolygon
 
 instance PS.PointSet (Polygon n x) n x where
     {-# INLINE flatten #-}
@@ -76,9 +83,13 @@ polygon :: [LinearRing n x] -- ^ All remaining points (without duplicate of the 
            -> Polygon n x
 polygon = js_createPolygon  . unsafeCoerce . seqList
 
--- | Get list of points from Polygon (without repeatative last point)
-rings :: Polygon n x -> [LinearRing n x]
-rings = unsafeCoerce . js_PtoLRList
+{-# INLINE js_RingArrayToPolygon #-}
+foreign import javascript unsafe "$r = {}; $r['type'] = 'Polygon'; $r['coordinates'] = $1;"
+    js_RingArrayToPolygon :: JSArray (LinearRing n x) -> Polygon n x
+
+{-# INLINE js_PolygonToRingArray #-}
+foreign import javascript unsafe "$1['coordinates']"
+    js_PolygonToRingArray ::  Polygon n x -> JSArray (LinearRing n x)
 
 -- | Calculate indices of triangulation and put them into Haskell list
 triangulate :: (KnownNat n, Fractional x, JSNum x) => Polygon n x -> [Int]
@@ -98,7 +109,7 @@ triangulate' poly = (set, vs, triangulate'' projset rinds)
 
 triangulatePolygon3D :: (KnownNat n, Fractional x, JSNum x)
                         => Polygon n x -> (PS.PointArray 3 x, PS.PointArray 3 x, JSVal)
-triangulatePolygon3D poly = (points, PS.fillPointArray (PS.length points) normal, indsx)
+triangulatePolygon3D poly = (points, PS.fillPointArray (jslength points) normal, indsx)
     where (points, normal, indsx) = f $ triangulate' poly
           f (p, [n], inds) = (coerce p           , coerce n      , inds)
           f (p, [] , inds) = (PS.enlargeVectors p, vector3 0 0 1 , inds)
@@ -157,6 +168,15 @@ newtype MultiPolygon (n::Nat) x = MultiPolygon JSVal
 instance IsJSVal (MultiPolygon n x)
 instance PFromJSVal (MultiPolygon n x) where
     pFromJSVal = MultiPolygon
+instance LikeJS (MultiPolygon n x)
+instance LikeJSArray (MultiPolygon n x) where
+    type JSArrayElem (MultiPolygon n x) = Polygon n x
+    {-# INLINE toJSArray #-}
+    toJSArray = js_MPToPArr
+    {-# INLINE fromJSArray #-}
+    fromJSArray = js_PArrToMP
+
+
 
 instance PS.PointSet (MultiPolygon n x) n x where
     {-# INLINE flatten #-}
@@ -189,7 +209,16 @@ polygons :: MultiPolygon n x -> [Polygon n x]
 polygons = unsafeCoerce . js_MPtoPList
 
 
+{-# INLINE js_PArrToMP #-}
+foreign import javascript unsafe "$r = {}; $r['type'] = 'MultiPolygon';\
+                                 \$r['coordinates'] = $1.map(function(e){return e['coordinates'];});"
+    js_PArrToMP :: JSArray (Polygon n x) -> MultiPolygon n x
 
+{-# INLINE js_MPToPArr #-}
+foreign import javascript unsafe "$1['coordinates'].map(function(e){\
+                                    \ var r = {}; r['type'] = 'Polygon'; r['coordinates'] = e;\
+                                    \ return r; })"
+    js_MPToPArr ::  MultiPolygon n x -> JSArray (Polygon n x)
 
 
 
@@ -202,11 +231,6 @@ triangulate'' set rinds = js_triangulate (PS.flatten set) rinds
 foreign import javascript unsafe "earcut($1,$2)"
     js_triangulate :: JSVal -> JSVal -> JSVal
 
-
-
-{-# INLINE numRings #-}
-foreign import javascript unsafe "$1['coordinates'].length"
-    numRings :: Polygon n x -> Int
 
 {-# INLINE index #-}
 foreign import javascript unsafe "$2['coordinates'][$1]"
@@ -257,19 +281,19 @@ seqList xs = foldr seq () xs `seq` xs
 
 {-# INLINE mapPolygon' #-}
 foreign import javascript unsafe "$r = {}; $r['type'] = 'Polygon';\
-                                 \$r['coordinates'] = $2['coordinates'].map(function(r){return r.map(function(x){  return $1(x);});});"
+                                 \$r['coordinates'] = $2['coordinates'].map(function(r){return r.map($1);});"
     mapPolygon' :: (Callback (JSVal -> IO JSVal)) -> Polygon n x -> IO (Polygon n x)
 {-# INLINE mapPolygon'' #-}
 foreign import javascript unsafe "$r = {}; $r['type'] = 'Polygon';\
-                                 \$r['coordinates'] = $2['coordinates'].map(function(r){return r.map(function(x){  return $1(x);});});"
+                                 \$r['coordinates'] = $2['coordinates'].map(function(r){return r.map($1);});"
     mapPolygon'' :: (Callback a) -> Polygon n x -> Polygon n x
 
 
 {-# INLINE mapMultiPolygon' #-}
 foreign import javascript unsafe "$r = {}; $r['type'] = 'MultiPolygon';\
-                                 \$r['coordinates'] = $2['coordinates'].map(function(p){return p.map(function(r){return r.map(function(x){  return $1(x);});});});"
+                                 \$r['coordinates'] = $2['coordinates'].map(function(p){return p.map(function(r){return r.map($1);});});"
     mapMultiPolygon' :: (Callback (JSVal -> IO JSVal)) -> MultiPolygon n x -> IO (MultiPolygon n x)
 {-# INLINE mapMultiPolygon'' #-}
 foreign import javascript unsafe "$r = {}; $r['type'] = 'MultiPolygon';\
-                                 \$r['coordinates'] = $2['coordinates'].map(function(p){return p.map(function(r){return r.map(function(x){  return $1(x);});});});"
+                                 \$r['coordinates'] = $2['coordinates'].map(function(p){return p.map(function(r){return r.map($1);});});"
     mapMultiPolygon'' :: (Callback a) -> MultiPolygon n x -> MultiPolygon n x

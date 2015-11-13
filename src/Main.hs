@@ -8,9 +8,9 @@ module Main (
 --import GHCJS.Types
 --import GHCJS.Marshal
 --import GHCJS.Foreign
---import Unsafe.Coerce
+import Unsafe.Coerce
 --import Data.Coerce (coerce)
-import Data.JSString (JSString, append)
+import Data.JSString (JSString, append, pack)
 
 import Data.Geometry
 

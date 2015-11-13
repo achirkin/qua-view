@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE DataKinds, KindSignatures, GHCForeignImportPrim #-}
@@ -15,7 +16,9 @@
 
 module Data.Geometry.Structure.LinearRing
     ( LinearRing ()
-    , linearRing, length, index, toList, toList'
+    , linearRing, lrlength
+    , toList -- ^ Get list of points from LinearRing (without repeatative last point)
+    , toList'
     , convexPolygonHull
     ) where
 
@@ -34,6 +37,7 @@ import GHC.TypeLits
 import GHCJS.Types
 import GHCJS.Marshal.Pure (PFromJSVal(..))
 
+import Data.JSArray
 import Data.Geometry
 import Data.Geometry.Structure.PointSet (PointSet, PointArray)
 import qualified Data.Geometry.Structure.PointSet as PS
@@ -43,6 +47,13 @@ newtype LinearRing (n::Nat) x = LinearRing JSVal
 instance IsJSVal (LinearRing n x)
 instance PFromJSVal (LinearRing n x) where
     pFromJSVal = LinearRing
+instance LikeJS (LinearRing n x)
+instance LikeJSArray (LinearRing n x) where
+    type JSArrayElem (LinearRing n x) = Vector n x
+    {-# INLINE toJSArray #-}
+    toJSArray = js_LRRtoPoints
+    {-# INLINE fromJSArray #-}
+    fromJSArray = js_PointsToLR
 
 instance PS.PointSet (LinearRing n x) n x where
     {-# INLINE flatten #-}
@@ -56,11 +67,7 @@ instance PS.PointSet (LinearRing n x) n x where
     {-# INLINE var #-}
     var = PS.var . js_LRtoPA
     {-# NOINLINE mapSet #-}
-    mapSet f arr = unsafePerformIO $ do
-        call <- syncCallbackUnsafe1 $ return . coerce . f . coerce
-        rez <- mapLinearRing' call arr
-        releaseCallback call
-        return rez
+    mapSet = jsmapSame
     {-# NOINLINE mapCallbackSet #-}
     mapCallbackSet = mapLinearRing''
 
@@ -73,23 +80,15 @@ linearRing :: Vector n x -- ^ First (and last) point of the LinearRing
            -> LinearRing n x
 linearRing a b c xs = js_createLinearRing  . unsafeCoerce . seqList $ a:b:c:xs
 
--- | Get list of points from LinearRing (without repeatative last point)
-toList :: LinearRing n x -> [Vector n x]
-toList = unsafeCoerce . js_LRtoList
 
 -- | Get list of points from LinearRing (with repeatative last point)
 toList' :: LinearRing n x -> [Vector n x]
 toList' = unsafeCoerce . js_LRtoList'
 
 
-{-# INLINE length #-}
+{-# INLINE lrlength #-}
 foreign import javascript unsafe "$1.length - 1"
-    length :: LinearRing n x -> Int
-
-{-# INLINE index #-}
-foreign import javascript unsafe "$2[$1]"
-    index :: Int -> LinearRing n x -> Vector n x
-
+    lrlength :: LinearRing n x -> Int
 
 -- | create a convex polygon that bounds given point set (in projection of most variance plane)
 convexPolygonHull :: (KnownNat n, PointSet s n x, Fractional x, JSNum x)
@@ -117,10 +116,6 @@ foreign import javascript unsafe "gm$GrahamScanIds($1)"
 foreign import javascript unsafe "$r = h$listToArray($1); $r.push($r[0]);"
     js_createLinearRing :: Any -> LinearRing n x
 
-{-# INLINE js_LRtoList #-}
-foreign import javascript unsafe "h$toHsListJSVal($1.slice(0,$1.length-1))"
-    js_LRtoList:: LinearRing n x -> Any
-
 {-# INLINE js_LRtoList' #-}
 foreign import javascript unsafe "h$toHsListJSVal($1)"
     js_LRtoList':: LinearRing n x -> Any
@@ -133,12 +128,18 @@ foreign import javascript unsafe "$1.slice(0,$1.length-1)"
 foreign import javascript unsafe "$r = Array.from($1); $r.push($1[0]);"
     js_PAtoLR :: PointArray n x -> LinearRing n x
 
+{-# INLINE js_LRRtoPoints #-}
+foreign import javascript unsafe "$1.slice(0,$1.length-1)"
+    js_LRRtoPoints :: LinearRing n x -> JSArray (Vector n x)
+
+{-# INLINE js_PointsToLR #-}
+foreign import javascript unsafe "$r = Array.from($1); $r.push($1[0]);"
+    js_PointsToLR :: JSArray (Vector n x) -> LinearRing n x
+
 seqList :: [a] -> [a]
 seqList xs = foldr seq () xs `seq` xs
 
-{-# INLINE mapLinearRing' #-}
-foreign import javascript unsafe "$2.map(function(e){ return $1(e);})"
-    mapLinearRing' :: (Callback (JSVal -> IO JSVal)) -> LinearRing n x -> IO (LinearRing n x)
+
 {-# INLINE mapLinearRing'' #-}
-foreign import javascript unsafe "$2.map(function(e){ return $1(e);})"
+foreign import javascript unsafe "$2.map($1)"
     mapLinearRing'' :: (Callback a) -> LinearRing n x -> LinearRing n x

@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DataKinds, KindSignatures, GHCForeignImportPrim #-}
@@ -19,7 +20,7 @@
 module Data.Geometry.Structure.PointSet
     ( PointSet (..), boundSet
     , PointArray (), fillPointArray
-    , length, pointArray, toList, index, unflatten
+    , pointArray, index, unflatten
     , pcaVectors, boundingRectangle, boundingRectangle2D
     , project1D, projectND
     , shrinkVectors, enlargeVectors
@@ -41,7 +42,7 @@ import System.IO.Unsafe (unsafePerformIO)
 import Data.Coerce (coerce)
 
 import Data.Geometry
-
+import Data.JSArray
 
 
 -- | Array of points
@@ -49,25 +50,19 @@ newtype PointArray (n::Nat) x = PointArray JSVal
 instance IsJSVal (PointArray n x)
 instance PFromJSVal (PointArray n x) where
     pFromJSVal = PointArray
+instance LikeJS (PointArray n x)
+instance LikeJSArray (PointArray n x) where
+    type JSArrayElem (PointArray n x) = Vector n x
 
 -- | Create a PointArray
 pointArray :: [Vector n x]
            -> PointArray n x
 pointArray xs = js_fromList  . unsafeCoerce . seqList $ xs
 
--- | Get list of points from LinearRing (without repeatative last point)
-toList :: PointArray n x -> [Vector n x]
-toList = unsafeCoerce . js_toList
-
-
-{-# INLINE length #-}
-foreign import javascript unsafe "$1.length"
-    length :: PointArray n x -> Int
 
 {-# INLINE index #-}
-foreign import javascript unsafe "$2[$1]"
-    index :: Int -> PointArray n x -> Vector n x
-
+index :: Int -> PointArray n x -> Vector n x
+index = flip (!)
 
 {-# INLINE fillPointArray #-}
 foreign import javascript unsafe "Array.apply(null, Array($1)).map(function(){return $2;})"
@@ -125,11 +120,7 @@ instance PointSet (PointArray n x) n x where
     {-# INLINE var #-}
     var = js_var
     {-# NOINLINE mapSet #-}
-    mapSet f arr = unsafePerformIO $ do
-        call <- syncCallbackUnsafe1 $ return . coerce . f . coerce
-        rez <- mapPointArray' call arr
-        releaseCallback call
-        return rez
+    mapSet = jsmapSame
     {-# NOINLINE mapCallbackSet #-}
     mapCallbackSet = mapPointArray''
 
@@ -238,16 +229,9 @@ boundingRectangle2D s = (center, x, y)
 foreign import javascript unsafe "var rez = gm$minRectAngle(gm$GrahamScan($1)); $r1 = rez[0]; $r2 = rez[1]; $r3 = rez[2]; $r4 = rez[3]; $r5 = rez[4];"
     js_minRectAngle :: PointArray 2 x -> (Double,Double, Vector2 x, Vector2 x, Vector2 x)
 
-
-{-# INLINE mapPointArray' #-}
-foreign import javascript unsafe "$2.map(function(e){ return $1(e);})"
-    mapPointArray' :: (Callback (JSVal -> IO JSVal)) -> PointArray n x -> IO (PointArray n x)
-
 {-# INLINE mapPointArray'' #-}
-foreign import javascript unsafe "$2.map(function(e){ return $1(e);})"
+foreign import javascript unsafe "$2.map($1)"
     mapPointArray'' :: Callback a -> PointArray n x -> PointArray n x
-
-
 
 
 
