@@ -31,6 +31,7 @@ executable ghcjs-modeler
         text >=1.2.0.4
     cpp-options: -DGHCJS_BROWSER
     js-sources:
+        jsbits/JSArray.js
         jsbits/PointSet.js
         jsbits/numeric.js
         jsbits/earcut.js
@@ -47,6 +48,7 @@ executable ghcjs-modeler
         Data.Geometry.Structure.LinearRing
         Data.Geometry.Structure.PointSet
         Data.Geometry.Structure.Polygon
+        Data.JSArray
         GHCJS.Useful
         SmallGL.Helpers
         SmallGL.Shader

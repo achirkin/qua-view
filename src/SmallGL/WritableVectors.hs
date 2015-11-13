@@ -19,7 +19,6 @@ module SmallGL.WritableVectors
     , writePoint, writePoints, packPoints
     ) where
 
-import Prelude hiding (length)
 import GHC.ST (ST(..))
 import GHC.Exts (State#)
 
@@ -33,6 +32,7 @@ import Control.Monad.ST
 
 import GHCJS.WebGL.Types
 
+import Data.JSArray
 import Data.Geometry
 import Data.Geometry.Structure.PointSet
 
@@ -81,7 +81,7 @@ packPoints :: PointArray 3 GLfloat  -- ^ Points
            -> PointArray 2 GLushort -- ^ Texture Coords
            -> ArrayBuffer
 packPoints points normals texcoords = runST $ do
-    buf <- newSTArrayBuffer (length points * 20)
+    buf <- newSTArrayBuffer (jslength points * 20)
     setPoints 5  0  points    (arrayView buf)
     setPoints 20 12 normals   (arrayView buf)
     setPoints 10 8  texcoords (arrayView buf)

@@ -53,6 +53,7 @@ import GHCJS.WebGL
 
 import SmallGL.WritableVectors
 
+import qualified Data.JSArray as JSArray
 import Data.Geometry
 import qualified Data.Geometry.Transform as T
 import Data.Geometry.Structure.LinearRing (toList', linearRing)
@@ -274,10 +275,10 @@ toBuildingMultiPolygon _ (GeoPoint _) = Left "toBuildingMultiPolygon: GeoJSON Po
 toBuildingMultiPolygon _ (GeoMultiPoint _) = Left "toBuildingMultiPolygon: GeoJSON MultiPoint is not convertible to MultiPolygon"
 toBuildingMultiPolygon _ (GeoLineString _) = Left "toBuildingMultiPolygon: GeoJSON LineString is not convertible to MultiPolygon"
 toBuildingMultiPolygon _ (GeoMultiLineString _) = Left "toBuildingMultiPolygon: GeoJSON MultiLineString is not convertible to MultiPolygon"
-toBuildingMultiPolygon defHeight (GeoPolygon p) = toBuildingMultiPolygon defHeight . GeoMultiPolygon $ multiPolygon [p]
+toBuildingMultiPolygon defHeight (GeoPolygon p) = toBuildingMultiPolygon defHeight . GeoMultiPolygon $ JSArray.fromList [p]
 toBuildingMultiPolygon defHeight (GeoMultiPolygon mp) =
     let dims = natVal $ getDim2 mp
-    in fmap (completeBuilding . polygons ) $
+    in fmap (completeBuilding . JSArray.toList ) $
         case dims of
          0 -> Left "toBuildingMultiPolygon: 0 is wrong dimensionality for points."
          1 -> Left "toBuildingMultiPolygon: 1 is wrong dimensionality for points."
@@ -285,14 +286,15 @@ toBuildingMultiPolygon defHeight (GeoMultiPolygon mp) =
          _ -> Right $ toMultiPolygon3D defHeight mp
 
 completeBuilding :: [Polygon 3 GLfloat] -> MultiPolygon 3 GLfloat
-completeBuilding xs@(_:_:_) = multiPolygon xs
-completeBuilding [] = multiPolygon []
-completeBuilding [roof] = multiPolygon $ roof : map buildWall wallLines
+completeBuilding xs@(_:_:_) = JSArray.fromList xs
+completeBuilding [] = JSArray.fromList []
+completeBuilding [roof] = JSArray.fromList $ roof : map buildWall wallLines
     where wallLines :: [(Vector3 GLfloat, Vector3 GLfloat)]
-          wallLines = rings roof >>= toLines . toList'
+          wallLines = JSArray.toList roof >>= toLines . toList'
           toLines (p1:p2:pts) = (p1,p2) : toLines (p2:pts)
           toLines _ = []
-          buildWall (p1, p2) = polygon [linearRing p1 p2 (flat p2)  [flat p1]]
+          buildWall :: (Vector3 GLfloat, Vector3 GLfloat) -> Polygon 3 GLfloat
+          buildWall (p1, p2) = JSArray.fromList [linearRing p1 p2 (flat p2)  [flat p1]]
           flat (unpackV3 -> (x,y,_)) = vector3 x y 0
 
 
