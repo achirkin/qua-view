@@ -28,11 +28,11 @@ module Program.Model.City
     --, cityToJS
     ) where
 
-import GHCJS.Foreign.Callback (Callback (), releaseCallback)
-import System.IO.Unsafe (unsafePerformIO)
-import Data.Coerce (coerce, Coercible)
-import Unsafe.Coerce (unsafeCoerce)
-import GHC.Exts (Any)
+--import GHCJS.Foreign.Callback (Callback (), releaseCallback)
+--import System.IO.Unsafe (unsafePerformIO)
+--import Data.Coerce (coerce, Coercible)
+--import Unsafe.Coerce (unsafeCoerce)
+--import GHC.Exts (Any)
 
 --import qualified Control.Monad as M
 --import qualified Data.IntMap.Strict as IM
@@ -41,11 +41,12 @@ import Control.Arrow ((***))
 import GHCJS.Types
 import GHCJS.WebGL
 import GHCJS.Marshal.Pure
-import GHCJS.Useful
+--import GHCJS.Useful
 --import GHCJS.Concurrent
 
 import Data.JSArray
 import Data.Geometry
+import Data.Geometry.Structure.Feature (FeatureCollection)
 --import Data.Geometry.Transform
 --import Geometry.Structure
 
@@ -54,30 +55,11 @@ import Program.Model.CityObject
 --import Program.Model.WiredGeometry
 
 
-import Controllers.GUIEvents
-
-
-
-instance LikeJS Scenario
-instance LikeJSArray Scenario where
-    type JSArrayElem Scenario = ScenarioObject
-    {-# INLINE toJSArray #-}
-    toJSArray = js_ScenarioToJSArray
-    {-# INLINE fromJSArray #-}
-    fromJSArray = js_JSArrayToScenario
-
-{-# INLINE js_ScenarioToJSArray #-}
-foreign import javascript unsafe "$1['features']"
-    js_ScenarioToJSArray :: Scenario -> JSArray ScenarioObject
-{-# INLINE js_JSArrayToScenario #-}
-foreign import javascript unsafe "$r = {}; $r['type'] = 'FeatureCollection'; $r['features'] = $1"
-    js_JSArrayToScenario :: JSArray ScenarioObject -> Scenario
-
 -- | Basic entity in the program; Defines the logic of the interaction and visualization
 newtype CityObjectCollection = CityObjectCollection JSVal
 instance LikeJS CityObjectCollection
 instance LikeJSArray CityObjectCollection where
-    type JSArrayElem CityObjectCollection = CityObject
+    type JSArrayElem CityObjectCollection = LocatedCityObject
 
 
 -- | Map of all city objects (buildings, roads, etc).
@@ -96,7 +78,7 @@ data City = City
 
 buildCity :: GLfloat -- ^ default height of objects represented as footprints
           -> (Int -> GLfloat) -- ^ desired diagonal length of the city
-          -> Scenario -- ^ scenario to build city of
+          -> FeatureCollection -- ^ scenario to build city of
           -> ([JSString], City) -- ^ Errors and the city itself
 buildCity defHeight diam scenario = (,) errors City
     { activeObjId = 0
@@ -108,7 +90,7 @@ buildCity defHeight diam scenario = (,) errors City
           (errors,objects) = processScenario defHeight cscale cshift scenario
 
 updateCity :: GLfloat -- ^ default height of builginds
-           -> Scenario -> City -> ([JSString], City)
+           -> FeatureCollection -> City -> ([JSString], City)
 updateCity defHeight scenario
            city@City{cityTransform = (cscale, cshift)} = (,)
         errors
@@ -207,7 +189,7 @@ clearCity city = city
 processScenario :: GLfloat -- ^ default height in camera space
                 -> GLfloat -- ^ scale objects before processing
                 -> Vector2 GLfloat -- ^ shift objects before processing
-                -> Scenario -> ([JSString],CityObjectCollection)
+                -> FeatureCollection -> ([JSString],CityObjectCollection)
 processScenario h sc sh = (toList *** fromJSArray)
         . jsmapEither (processScenarioObject h sc sh)
 
@@ -222,13 +204,13 @@ processScenario h sc sh = (toList *** fromJSArray)
 --    (sarr, city) <- mapScenarioObjects' call arr
 --    sarr `seq` city `seq` releaseCallback call
 --    return (unsafeCoerce sarr, city)
-
-{-# INLINE setLeft #-}
-foreign import javascript unsafe "[false, $1]"
-    setLeft :: JSString -> IO JSVal
-{-# INLINE setRight #-}
-foreign import javascript unsafe "[true, $1]"
-    setRight :: JSVal -> IO JSVal
+--
+--{-# INLINE setLeft #-}
+--foreign import javascript unsafe "[false, $1]"
+--    setLeft :: JSString -> IO JSVal
+--{-# INLINE setRight #-}
+--foreign import javascript unsafe "[true, $1]"
+--    setRight :: JSVal -> IO JSVal
 
 --{-# INLINE mapScenarioObjects' #-}
 --foreign import javascript unsafe "var rez = $2['features'].map($1);\
@@ -239,7 +221,7 @@ foreign import javascript unsafe "[true, $1]"
 -- | Calculate scale and shift coefficients for scenario
 --   dependent on desired diameter of the scene
 scenarioViewScaling :: (Int->GLfloat) -- ^ desired diameter of a scenario based on number of objects
-                    -> Scenario
+                    -> FeatureCollection
                     -> (GLfloat, Vector2 GLfloat) -- ^ scale and shift coefficients
 scenarioViewScaling diam scenario = ( diam n / normL2 (h-l) , (l + h) / 2)
     where (n,l,h) = js_boundScenario scenario
@@ -250,7 +232,7 @@ foreign import javascript unsafe "var r = gm$boundNestedArray($1['features'].map
                           \if(!r){ $r2 = [Infinity,Infinity];\
                           \        $r3 = [-Infinity,-Infinity];}\
                           \else { $r2 = r[0].slice(0,2); $r3 = r[1].slice(0,2); } $r1 = $1['features'].length;"
-    js_boundScenario :: Scenario -> (Int, Vector2 x, Vector2 x)
+    js_boundScenario :: FeatureCollection -> (Int, Vector2 x, Vector2 x)
 
 {-# INLINE js_concatObjectCollections #-}
 foreign import javascript unsafe "$1.concat($2)"

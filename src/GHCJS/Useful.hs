@@ -16,8 +16,7 @@
 
 module GHCJS.Useful where
 
-import GHC.Exts (Any)
-import Unsafe.Coerce (unsafeCoerce)
+--import Unsafe.Coerce (unsafeCoerce)
 
 import Prelude hiding (lines)
 --import qualified Data.Aeson as A
@@ -25,9 +24,9 @@ import Data.JSString
 --import Data.List (intercalate)
 import Control.Concurrent (threadDelay)
 --import Control.Monad (liftM)
-import GHCJS.Foreign
-import GHCJS.Foreign.Callback (Callback)
-import GHCJS.Marshal
+--import GHCJS.Foreign
+--import GHCJS.Foreign.Callback (Callback)
+--import GHCJS.Marshal
 import GHCJS.Types
 import GHCJS.WebGL.Types (GLfloat)
 import JavaScript.Web.Canvas (Canvas)

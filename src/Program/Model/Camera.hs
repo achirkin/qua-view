@@ -30,7 +30,7 @@ import Data.Geometry.Transform
 --import Geometry.Space.Transform
 --import Geometry.Space.Quaternion
 
-import Debug.Trace
+--import Debug.Trace
 
 ----------------------------------------------------------------------------------------------
 -- Definitions -------------------------------------------------------------------------------
@@ -175,8 +175,8 @@ twoFingerControl :: (Vector2 GLfloat, Vector2 GLfloat) -- ^ Old screen coordinat
                  -> (Vector2 GLfloat, Vector2 GLfloat) -- ^ New screen coordinates
                  -> Camera -- ^ Modify the camera state
                  -> Camera
-twoFingerControl (ov1@(unpackV2 -> (opx1,opy1)),ov2@(unpackV2 -> (opx2,opy2)))
-                 (nv1@(unpackV2 -> (npx1,npy1)),nv2@(unpackV2 -> (npx2,npy2)))
+twoFingerControl (unpackV2 -> (opx1,opy1),unpackV2 -> (opx2,opy2))
+                 (unpackV2 -> (npx1,npy1),unpackV2 -> (npx2,npy2))
                  camera@Camera {
                     viewportSize = (width, height),
                     projMatrix   = projmat,

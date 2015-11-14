@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE JavaScriptFFI, GHCForeignImportPrim #-}
 {-# LANGUAGE CPP #-}
@@ -420,11 +421,7 @@ instance (Show a, LikeJS a) => Show (JSArray a) where
 
 
 
-instance LikeJS String where
-    {-# INLINE asJSVal #-}
-    asJSVal = js_toJSString . unsafeCoerce . seqList
-    {-# INLINE asLikeJS #-}
-    asLikeJS = unsafeCoerce . js_fromJSString
+
 
 instance (LikeJS a, LikeJS b) => LikeJS (Either a b) where
     {-# INLINE asJSVal #-}
@@ -463,7 +460,16 @@ foreign import javascript unsafe "[$1]" js_ToJust :: JSVal -> JSVal
 {-# INLINE js_FromJust #-}
 foreign import javascript unsafe "$1[0]" js_FromJust :: JSVal -> JSVal
 
+instance LikeJS a => LikeJS [a] where
+    {-# INLINE [1] asJSVal #-}
+    asJSVal = asJSVal . (fromList :: [a] -> JSArray a)
+    {-# INLINE [1] asLikeJS #-}
+    asLikeJS = (toList :: JSArray a -> [a]) . asLikeJS
 
+{-# RULES
+"asJSVal/String"   asJSVal = js_toJSString . unsafeCoerce . seqList
+"asLikeJS/String" asLikeJS = unsafeCoerce . js_fromJSString
+    #-}
 
 -- convert to / from JSVal
 #define LIKEJS(T) \
@@ -477,6 +483,7 @@ foreign import javascript unsafe "$1[0]" js_FromJust :: JSVal -> JSVal
 
 LIKEJS(JSString)
 LIKEJS(Bool)
+LIKEJS(Char)
 
 LIKEJS(Int)
 LIKEJS(Int32)

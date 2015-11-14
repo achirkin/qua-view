@@ -18,12 +18,6 @@
 module Program.View.CityView where
 
 
-import GHCJS.Marshal.Pure
-import GHCJS.Foreign.Callback ( Callback (), OnBlocked (..)
-                              , syncCallback1, syncCallback3, releaseCallback)
-import Data.Coerce (coerce)
-import Unsafe.Coerce (unsafeCoerce)
-
 import GHCJS.Foreign
 import GHCJS.Types
 import GHCJS.WebGL
@@ -44,7 +38,7 @@ import Program.View.CityObjectView
 --import Program.View.WiredGeometryView ()
 import Data.Bits (Bits(..))
 
-import GHCJS.Useful
+--import GHCJS.Useful
 
 newtype COViewCollection = COViewCollection JSVal
 instance LikeJS COViewCollection
@@ -97,14 +91,14 @@ instance Drawable City where
         -- draw buildings
         uniform1f gl userLoc 0 -- disable textures for now
         uniform4f gl colLoc 0.5 0.5 0.55 1
-        zipIObuildings drawObject (objectsIn city) (viewsIn cview)
+        jszipiIO_ drawObject (objectsIn city) (viewsIn cview)
         disableVertexAttribArray gl tloc
         disableVertexAttribArray gl nloc
         disableVertexAttribArray gl ploc
         where drawObject i tobj oview = applyTransform vc tobj >>= \obj -> do
                 case behavior obj of
                     Static  -> uniform4f gl colLoc 0.5 0.5 0.55 1
-                    Dynamic -> if i == ai
+                    Dynamic -> if i+1 == ai
                                then uniform4f gl colLoc 1 0.6 0.6 1
                                else uniform4f gl colLoc 0.75 0.75 0.7 1
                 drawSurface gl alocs obj oview
@@ -135,7 +129,7 @@ instance Drawable City where
 --            , groundView   = gr
 --            , clutterView  = clutterv
             } = do -- TODO :: delete shaders
-        mapIOViews (deleteView gl (undefined :: LocatedCityObject)) views
+        jsmapIO_ (deleteView gl (undefined :: LocatedCityObject)) views
 --        deleteView gl (undefined :: CityGround) gr
 --        deleteView gl (undefined :: WiredGeometry) clutterv
     draw vc city view = -- draw vc (clutter city) (clutterView view) >>
@@ -151,14 +145,14 @@ instance Selectable City where
         enableVertexAttribArray gl ploc
         useProgram gl . programId $ prog
         uniformMatrix4fv gl (vGLProjLoc cs) False (projectArr vc)
-        zipIObuildings drawObject (objectsIn city) (viewsIn cview)
+        jszipiIO_ drawObject (objectsIn city) (viewsIn cview)
         disableVertexAttribArray gl ploc
         where drawObject i tobj oview | behavior (unwrap tobj) == Static = return ()
                                       | otherwise = applyTransform vc tobj >>= \obj -> do
                 uniform4f gl selValLoc
-                            (fromIntegral (i .&. 0x000000FF) / 255)
-                            (fromIntegral (i .&. 0x0000FF00) / 65280)
-                            (fromIntegral (i .&. 0x00FF0000) / 16711680)
+                            (fromIntegral ((i+1) .&. 0x000000FF) / 255)
+                            (fromIntegral ((i+1) .&. 0x0000FF00) / 65280)
+                            (fromIntegral ((i+1) .&. 0x00FF0000) / 16711680)
                             1
                 drawSurface gl alocs obj oview
               selValLoc = unifLoc prog "uSelector"
@@ -171,40 +165,8 @@ instance Selectable City where
 
 createObjViewCollection :: WebGLRenderingContext -> CityObjectCollection -> IO COViewCollection
 createObjViewCollection gl objs = fromJSArray <$>
-            jsmapIO (createView gl :: CityObject -> IO CityObjectView) objs
+            jsmapIO (createView gl :: LocatedCityObject -> IO CityObjectView) objs
 
-
-zipIObuildings :: (Int -> LocatedCityObject -> CityObjectView -> IO ())
-               -> CityObjectCollection
-               -> COViewCollection
-               -> IO ()
-zipIObuildings f objs views = do
-        call <- syncCallback3 ContinueAsync
-                (\i o v -> case pFromJSVal o of
-                            Nothing  -> return ()
-                            Just obj -> f (toNum i) obj (coerce v))
-        js_zipIObuildings call objs views
-        releaseCallback call
-
-foreign import javascript unsafe "$2.forEach(function(e,i){if(e && $3[i]){$1(i+1,e,$3[i]);}})"
-    js_zipIObuildings :: Callback (JSVal -> JSVal -> JSVal -> IO ())
-                      -> CityObjectCollection
-                      -> COViewCollection
-                      -> IO ()
-
-
-mapIOViews :: (CityObjectView -> IO ())
-           -> COViewCollection
-           -> IO ()
-mapIOViews f views = do
-        call <- syncCallback1 ContinueAsync (f . coerce)
-        js_mapIOViews call views
-        releaseCallback call
-
-foreign import javascript unsafe "$2.forEach(function(e){if(e){$1(e);}})"
-    js_mapIOViews :: Callback (JSVal -> IO ())
-                  -> COViewCollection
-                  -> IO ()
 
 -- Render shader
 

@@ -1,49 +1,29 @@
 {-# LANGUAGE JavaScriptFFI #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE DataKinds #-}
 module Main (
     main
 ) where
 
---import GHCJS.Types
---import GHCJS.Marshal
---import GHCJS.Foreign
---import Unsafe.Coerce
---import Data.Coerce (coerce)
-import Data.JSString (JSString, append)
-
-import Data.Geometry
 
 -- Various thins I use
+import Data.Geometry
+import Data.JSString (JSString, append)
 import Control.Monad (void)
 import GHCJS.Useful
 
---import Geometry.Space
-----import GHCJS.Instances
---
----- Program Logic
+-- Program Logic
 import Reactive
 import Program
 import Program.Model.Camera (CState(..))
---
+
 -- Events
 import Controllers.Pointer
 import Controllers.ElementResizing
 import Controllers.GUIEvents
 import Controllers.GeoJSONFileImport
---
----- Get EventSense instances so that we can pass events into processing cycle
-import Program.Reactions ()
---import Geometry.Structure
---
---import Program.Model.CityObject
---import Program.Model.GeoJSON
 
---import Data.Geometry.Structure.LinearRing as LRing
---import Data.Geometry.Structure.PointSet as PSet
---import Data.Geometry.Structure.Polygon as Poly
---
---import SmallGL.WritableVectors
+-- Get EventSense instances so that we can pass events into processing cycle
+import Program.Reactions ()
 
 main :: IO ()
 main = do
@@ -135,78 +115,11 @@ main = do
                 , cPass = pass
                 }
 
-----    toJSRef (Vector4 0.8 0.4 0.4 1) >>= printRef
-----    toJSRef (Vector3 0.3 0.2 0.1) >>= printRef
---    mapM toJSRef [Vector3 0.1 0.2 1, Vector3 0.2 4 0, Vector3 1 5 (0::Double)] >>= toArray >>= printRef
-----    toArray (unsafeCoerce [1,23,5,2::Float] :: [JSElement]) >>= printRef
-----    jsrMultiPolygon1 1
---    let poly = SimplePolygon
---                             [ Vector3 (-1) 2   (-1)
---                             , Vector3   1  1.5 (-1)
---                             , Vector3   1  2     1
---                             , Vector3 (-1) 1.5   (1:: Double)
---                             ]
---    polyRef <- toJSVal
---    mpoly <- fromJSVal
---
---    print poly
---    printRef polyRef
---    print mpoly
---
---    let poly1 = SimpleConvexPolygon
---                             [ Vector3 (-1) 2   (-1.5)
---                             , Vector3   1  2     1
---                             , Vector3 (-1) 1.5   (2.1:: Float)
---                             ]
---    polyRef1 <- toJSVal
---    mpoly1 <- fromJSVal
---
---    print poly1
---    printRef polyRef1
---    print mpoly1
---
---    let poly2 = GenericPolygon
---                             [SimplePolygon [ Vector3 (-1) 2   (-1)
---                             , Vector3   1  1.5 (-1)
---                             , Vector3   1  2     1
---                             , Vector3 (-1) 1.5   (1:: Double)
---                             ]]
---    polyRef2 <- toJSVal
---    mpoly2 <- fromJSVal
---
---    print poly2
---    printRef polyRef2
---    print mpoly2
---
---
---    let poly3 = GenericPolygon
---                             [SimplePolygon [
---                               Vector3 (-1) 1.5   (1:: Double)
---                             ], SimplePolygon [ Vector3 (-1) 2 (-1)
---                             , Vector3 (-1) 1.5   (2.1:: Double)
---                             ]]
---    polyRef3 <- toJSVal
---    mpoly3 <- fromJSVal
---
---    print poly3
---    printRef polyRef3
---    print mpoly3
---
---    b <- toJSRef $ ScenarioObject SLbuildings 162 Nothing (pure $ building Dynamic poly1 )
---    b2 <- toJSRef $ ScenarioObject SLfootprints 162 Nothing (pure $ building Dynamic poly1 )
---    printRef b
---    printRef b2
---
---    mb <- fromJSRef . unsafeCoerce $ b :: IO (Maybe ImportedScenarioObject)
---    print mb
---    mb2 <- fromJSRef . unsafeCoerce $ b2 :: IO (Maybe ImportedScenarioObject)
---    print mb2
---
     -- experiments
     logText $ "Started " ++ show userProfile ++ " session of modeler."
-----    loadGeoJSONFromLink "lines.js" False (reqEvent eventHole . EBox)
-------    loadGeoJSONFromLink "outsidePolys.js" False (reqEvent eventHole . EBox)
-----    loadGeoJSONFromLink "insidePolys.js" True  (reqEvent eventHole . EBox)
+--    loadGeoJSONFromLink "lines.js" False (reqEvent eventHole . EBox)
+--    loadGeoJSONFromLink "outsidePolys.js" False (reqEvent eventHole . EBox)
+--    loadGeoJSONFromLink "insidePolys.js" True  (reqEvent eventHole . EBox)
 
     -- done!
     -- simulate an event to force render picture
@@ -234,13 +147,4 @@ customGreetingHTML profile = wrapf $ case profile of
 customGreetings :: Profile -> IO ()
 customGreetings profile = getElementById "greetings"
     >>= flip insertAfterHTML (customGreetingHTML profile)
-
---
---foreign import javascript safe "console.log({ \
---    \ 'type': 'Feature', properties: { Layer: 'buildings', 'SubClasses': $1, 'ExtendedEn': null, \
---    \ 'Linetype': null, 'EntityHand': '6F', 'Text': null }, 'geometry': { 'type': 'Polygon', 'coordinates': \
---    \[ [ [ 17093338.071588061749935, 39302064.126328192651272 ], [ 17093698.622214030474424, 39298130.289272576570511 ],
---     [ 17083208.390065658837557, 39297168.820936642587185 ], [ 17082847.839439678937197, 39301102.657992236316204 ],
---     [ 17093338.071588061749935, 39302064.126328192651272 ] ] ] } });"
---    jsrMultiPolygon1 :: Int -> IO ()
 
