@@ -30,6 +30,7 @@ module Data.JSArray
     , jsunionZip, jsunionZipIO, jsunionZipIO_
     , fromList, toList
     , jslength, (!), jsslice, jstake, jsdrop, jsconcat
+    , jsfilter, jsmapEither
     ) where
 
 -- for instances of LikeJS
@@ -425,6 +426,44 @@ instance LikeJS String where
     {-# INLINE asLikeJS #-}
     asLikeJS = unsafeCoerce . js_fromJSString
 
+instance (LikeJS a, LikeJS b) => LikeJS (Either a b) where
+    {-# INLINE asJSVal #-}
+    asJSVal (Left  x) = js_ToLeft $ asJSVal x
+    asJSVal (Right x) = js_ToRight $ asJSVal x
+    {-# INLINE asLikeJS #-}
+    asLikeJS jsv = if js_IsEitherRight jsv
+                   then Right . asLikeJS $ js_EitherVal jsv
+                   else Left  . asLikeJS $ js_EitherVal jsv
+
+{-# INLINE js_ToLeft #-}
+foreign import javascript unsafe "[false,$1]" js_ToLeft :: JSVal -> JSVal
+{-# INLINE js_ToRight #-}
+foreign import javascript unsafe "[true,$1]" js_ToRight :: JSVal -> JSVal
+{-# INLINE js_IsEitherRight #-}
+foreign import javascript unsafe "$1[0]" js_IsEitherRight :: JSVal -> Bool
+{-# INLINE js_EitherVal #-}
+foreign import javascript unsafe "$1[1]" js_EitherVal :: JSVal -> JSVal
+
+instance LikeJS a => LikeJS (Maybe a) where
+    {-# INLINE asJSVal #-}
+    asJSVal Nothing = js_ToNothing
+    asJSVal (Just x) = js_ToJust $ asJSVal x
+    {-# INLINE asLikeJS #-}
+    asLikeJS jsv = if js_IsNothing jsv
+                   then Nothing
+                   else Just . asLikeJS $ js_FromJust jsv
+
+{-# INLINE js_ToNothing #-}
+foreign import javascript unsafe "[]" js_ToNothing :: JSVal
+{-# INLINE js_IsNothing #-}
+foreign import javascript unsafe "$r = ($1 != null && $1.length == 1) ? true : false"
+    js_IsNothing :: JSVal -> Bool
+{-# INLINE js_ToJust #-}
+foreign import javascript unsafe "[$1]" js_ToJust :: JSVal -> JSVal
+{-# INLINE js_FromJust #-}
+foreign import javascript unsafe "$1[0]" js_FromJust :: JSVal -> JSVal
+
+
 
 -- convert to / from JSVal
 #define LIKEJS(T) \
@@ -510,6 +549,41 @@ foreign import javascript unsafe "var le = $2 || [], ri = $3 || []; var n = Math
 {-# INLINE js_unionZipJSArray_ #-}
 foreign import javascript unsafe "var le = $2 || [], ri = $3 || []; var n = Math.max(le.length, ri.length); for(var i = 0; i < n; i++){$1(le[i],ri[i],i);}"
     js_unionZipJSArray_ :: Callback f -> JSArray a -> JSArray b -> IO ()
+
+-- filtering
+
+{-# NOINLINE jsfilter #-}
+jsfilter :: ( LikeJSArray a )
+         => (JSArrayElem a -> Bool)
+         -> a -> a
+jsfilter f arr = unsafePerformIO $ do
+        call <- syncCallbackUnsafe1 $ asJSVal . f . asLikeJS
+        r <- fromJSArray <$> js_filter call (toJSArray arr)
+        r `seq` releaseCallback call
+        return r
+
+{-# NOINLINE jsmapEither #-}
+jsmapEither :: ( LikeJSArray a
+               , LikeJS x
+               , LikeJS y)
+            => (JSArrayElem a -> Either x y)
+            -> a -> (JSArray x, JSArray y)
+jsmapEither f arr = unsafePerformIO $ do
+        call <- syncCallbackUnsafe1 $ asJSVal . f . asLikeJS
+        r <- js_mapEither call (toJSArray arr)
+        r `seq` releaseCallback call
+        return r
+
+
+
+{-# INLINE js_filter #-}
+foreign import javascript unsafe "$2.filter($1)"
+    js_filter :: (Callback (a -> Bool)) -> JSArray a -> IO (JSArray a)
+
+{-# INLINE js_mapEither #-}
+foreign import javascript unsafe "var rez = $2.map($1); $r1 = rez.filter(function(e){return !e[0];}).map(function(e){return e[1];}); $r2 = rez.filter(function(e){return  e[0];}).map(function(e){return e[1];});"
+    js_mapEither :: (Callback (a -> Either b c)) -> JSArray a -> IO (JSArray b, JSArray c)
+
 
 -- callbacks
 

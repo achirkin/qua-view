@@ -232,9 +232,9 @@ foreign import javascript unsafe "earcut($1,$2)"
     js_triangulate :: JSVal -> JSVal -> JSVal
 
 
-{-# INLINE index #-}
-foreign import javascript unsafe "$2['coordinates'][$1]"
-    index :: Int -> Polygon n x -> LinearRing n x
+-- {-# INLINE index #-}
+--foreign import javascript unsafe "$2['coordinates'][$1]"
+--    index :: Int -> Polygon n x -> LinearRing n x
 
 
 {-# INLINE js_createPolygon #-}
@@ -246,9 +246,9 @@ foreign import javascript unsafe "$r = {}; $r['type'] = 'MultiPolygon';\
                                  \$r['coordinates'] = h$listToArray($1).map(function(e){return e['coordinates'];});"
     js_createMultiPolygon :: Any -> MultiPolygon n x
 
-{-# INLINE js_PtoLRList #-}
-foreign import javascript unsafe "h$toHsListJSVal($1['coordinates'])"
-    js_PtoLRList:: Polygon n x -> Any
+-- {-# INLINE js_PtoLRList #-}
+--foreign import javascript unsafe "h$toHsListJSVal($1['coordinates'])"
+--    js_PtoLRList:: Polygon n x -> Any
 
 {-# INLINE js_MPtoPList #-}
 foreign import javascript unsafe "h$toHsListJSVal($1['coordinates'].map(function(e){\
@@ -267,7 +267,7 @@ foreign import javascript unsafe "[].concat.apply([], $1['coordinates'].map(func
 
 {-# INLINE js_ringIndices #-}
 foreign import javascript unsafe "$1['coordinates'].slice(0,$1['coordinates'].length-1)\
-                                        \.reduce(function(r,e){return r.concat([e.length-1]);},[])"
+                                        \.reduce(function(r,e){return r.concat([e.length-1 + r[r.length-1]]);},[0]).slice(1)"
     js_ringIndices :: Polygon n x -> JSVal
 
 {-# INLINE js_indicesListPrim #-}
@@ -297,3 +297,22 @@ foreign import javascript unsafe "$r = {}; $r['type'] = 'MultiPolygon';\
 foreign import javascript unsafe "$r = {}; $r['type'] = 'MultiPolygon';\
                                  \$r['coordinates'] = $2['coordinates'].map(function(p){return p.map(function(r){return r.map($1);});});"
     mapMultiPolygon'' :: (Callback a) -> MultiPolygon n x -> MultiPolygon n x
+
+
+
+{-# INLINE syncCallbackUnsafe1 #-}
+syncCallbackUnsafe1 :: (a -> b) -> IO (Callback (a -> b))
+syncCallbackUnsafe1 x = js_syncCallbackApplyReturnUnsafe 1 (unsafeCoerce x)
+
+{-# INLINE syncCallbackUnsafe2 #-}
+syncCallbackUnsafe2 :: (a -> b -> c) -> IO (Callback (a -> b -> c))
+syncCallbackUnsafe2 x = js_syncCallbackApplyReturnUnsafe 2 (unsafeCoerce x)
+
+{-# INLINE syncCallbackUnsafe3 #-}
+syncCallbackUnsafe3 :: (a -> b -> c -> d) -> IO (Callback (a -> b -> c -> d))
+syncCallbackUnsafe3 x = js_syncCallbackApplyReturnUnsafe 3 (unsafeCoerce x)
+
+{-# INLINE js_syncCallbackApplyReturnUnsafe #-}
+foreign import javascript unsafe
+  "h$makeCallbackApply($1, h$runSyncReturnUnsafe, [false], $2)"
+  js_syncCallbackApplyReturnUnsafe :: Int -> Any -> IO (Callback f)

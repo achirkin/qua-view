@@ -26,7 +26,7 @@ module Data.Geometry.Structure.PointSet
     , shrinkVectors, enlargeVectors
     ) where
 
-import Debug.Trace
+--import Debug.Trace
 import Prelude hiding (length)
 
 import GHC.Exts (Any)
@@ -36,10 +36,10 @@ import Data.Typeable (Proxy (..))
 
 import GHCJS.Types
 import GHCJS.Marshal.Pure (PFromJSVal(..))
-import GHCJS.Foreign.Callback (Callback, releaseCallback)
-import GHCJS.Useful
-import System.IO.Unsafe (unsafePerformIO)
-import Data.Coerce (coerce)
+import GHCJS.Foreign.Callback (Callback) --, releaseCallback)
+--import GHCJS.Useful
+--import System.IO.Unsafe (unsafePerformIO)
+--import Data.Coerce (coerce)
 
 import Data.Geometry
 import Data.JSArray
@@ -57,7 +57,7 @@ instance LikeJSArray (PointArray n x) where
 -- | Create a PointArray
 pointArray :: [Vector n x]
            -> PointArray n x
-pointArray xs = js_fromList  . unsafeCoerce . seqList $ xs
+pointArray = fromJSArray . fromList
 
 
 {-# INLINE index #-}
@@ -67,17 +67,6 @@ index = flip (!)
 {-# INLINE fillPointArray #-}
 foreign import javascript unsafe "Array.apply(null, Array($1)).map(function(){return $2;})"
     fillPointArray :: Int -> Vector n x -> PointArray n x
-
-{-# INLINE js_fromList #-}
-foreign import javascript unsafe "h$listToArray($1)"
-    js_fromList :: Any -> PointArray n x
-
-{-# INLINE js_toList #-}
-foreign import javascript unsafe "h$toHsListJSVal($1)"
-    js_toList:: PointArray n x -> Any
-
-seqList :: [a] -> [a]
-seqList xs = foldr seq () xs `seq` xs
 
 
 -- | convert an array to the point set
@@ -104,8 +93,12 @@ class PointSet s n x | s -> n, s -> x where
     var :: s -> Matrix n x
     -- | map a function on points
     mapSet :: (Vector n x -> Vector n x) -> s -> s
-    -- | map a function on points
+    -- | map a JS callback on points
     mapCallbackSet :: (Callback (Vector n x -> Vector n x)) -> s -> s
+    -- | fold a function on points
+    foldSet :: LikeJS a => (a -> Vector n x -> a) -> a -> s -> a
+    -- | fold a JS callback on points
+    foldCallbackSet :: LikeJS a => (Callback (a -> Vector n x -> a)) -> a -> s -> a
 
 
 instance PointSet (PointArray n x) n x where
@@ -122,7 +115,11 @@ instance PointSet (PointArray n x) n x where
     {-# NOINLINE mapSet #-}
     mapSet = jsmapSame
     {-# NOINLINE mapCallbackSet #-}
-    mapCallbackSet = mapPointArray''
+    mapCallbackSet = js_mapPointArray
+    {-# NOINLINE foldSet #-}
+    foldSet = jsfoldl
+    {-# NOINLINE foldCallbackSet #-}
+    foldCallbackSet f a = asLikeJS . js_foldPointArray f (asJSVal a)
 
 
 boundSet :: ( PointSet s n x
@@ -178,6 +175,7 @@ foreign import javascript unsafe "$2.map(function(e){return e.slice(0,$1);})"
 pcaVectors :: (KnownNat n, PointSet s n x) => s -> [Vector n x]
 pcaVectors s = unsafeCoerce $ js_eigs m (dim m)
     where m = var s
+
 {-# INLINE js_eigs #-}
 foreign import javascript unsafe "h$toHsListJSVal(gm$principalEigenvectors($1,$2))"
     js_eigs :: Matrix n x -> Int -> Any
@@ -195,17 +193,17 @@ foreign import javascript unsafe "$2.map(function (v){ return dotJSVec($1,v); })
 projectND :: (KnownNat n, KnownNat m, PointSet s m x, Fractional x, JSNum x)
           => [Vector m x] -> s -> PointArray n x
 projectND vs s = rez
-    where rez = js_projectND (unsafeCoerce . seqList $ map (\v -> v / (v .*. v)) vs ) (dim' rez Proxy) (toPointArray s)
+    where rez = js_projectND (fromList $ map (\v -> v / (v .*. v)) vs ) (dim' rez Proxy) (toPointArray s)
 
 {-# INLINE js_projectND #-}
-foreign import javascript unsafe "var vs = h$listToArray($1).slice(0,$2); $r = $3.map(function (v){ return vs.map( function(e){ return dotJSVec(v,e); }); });"
-    js_projectND :: Any -> Int -> PointArray m x -> PointArray n x
+foreign import javascript unsafe "var vs = $1.slice(0,$2); $r = $3.map(function (v){ return vs.map( function(e){ return dotJSVec(v,e); }); });"
+    js_projectND :: JSArray (Vector m x) -> Int -> PointArray m x -> PointArray n x
 
 -- | Get ND javaScript array by projecting set on vector
 projectND' :: (KnownNat n, KnownNat m, PointSet s m x, Fractional x, JSNum x)
           => [Vector m x] -> s -> PointArray n x
 projectND' vs s = rez
-    where rez = js_projectND (unsafeCoerce (seqList vs)) (dim' rez Proxy) (toPointArray s)
+    where rez = js_projectND (fromList vs) (dim' rez Proxy) (toPointArray s)
 
 
 -- | Find a center and axes of bounding rectangle (flat) for a point set
@@ -229,10 +227,13 @@ boundingRectangle2D s = (center, x, y)
 foreign import javascript unsafe "var rez = gm$minRectAngle(gm$GrahamScan($1)); $r1 = rez[0]; $r2 = rez[1]; $r3 = rez[2]; $r4 = rez[3]; $r5 = rez[4];"
     js_minRectAngle :: PointArray 2 x -> (Double,Double, Vector2 x, Vector2 x, Vector2 x)
 
-{-# INLINE mapPointArray'' #-}
+{-# INLINE js_mapPointArray #-}
 foreign import javascript unsafe "$2.map($1)"
-    mapPointArray'' :: Callback a -> PointArray n x -> PointArray n x
+    js_mapPointArray :: Callback (Vector n x -> Vector n x) -> PointArray n x -> PointArray n x
 
+{-# INLINE js_foldPointArray #-}
+foreign import javascript unsafe "$3.reduce($1,$2)"
+    js_foldPointArray :: Callback (a -> Vector n x -> a) -> JSVal -> PointArray n x -> JSVal
 
 
 

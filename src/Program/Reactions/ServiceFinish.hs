@@ -15,11 +15,11 @@
 
 module Program.Reactions.ServiceFinish where
 
-import GHCJS.WebGL
+--import GHCJS.WebGL
 --import Geometry.Space
 
 --import GHCJS.Marshal
-import GHCJS.Useful
+----import GHCJS.Useful
 
 import Reactive
 import Controllers.GUIEvents

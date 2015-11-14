@@ -29,23 +29,23 @@ import Controllers.GUIEvents
 
 import Program
 import Program.Model.City
-import Program.Model.CityObject
+--import Program.Model.CityObject
 --import Program.Model.GeoJSON
 import Program.View
 
-import Data.Geometry
-import Data.Geometry.Transform
-import Data.Geometry.Structure.PointSet
+--import Data.Geometry
+--import Data.Geometry.Transform
+--import Data.Geometry.Structure.PointSet
 --import Debug.Trace
 --import Geometry.Structure
 --import Control.Monad
 
-import GHCJS.Foreign.Callback
-import GHCJS.Types
-import GHCJS.Prim
-import Data.Coerce
+--import GHCJS.Foreign.Callback
+--import GHCJS.Types
+--import GHCJS.Prim
+--import Data.Coerce
 
-import Unsafe.Coerce
+--import Unsafe.Coerce
 
 updateProgramView :: String -> Program -> PView -> IO (Either PView e)
 updateProgramView msg program pview = do
@@ -64,14 +64,19 @@ instance Reaction Program PView ClearingGeometry "Clearing City Geometry" 0 wher
 
 instance Reaction Program PView GeoJSONLoaded "Updating City Geometry after GeoJSON is loaded" 0 where
     react _ GeoJSONLoaded
-        { isDynamic = dyn
-        , featureCollection = col }
+        {
+        -- isDynamic = dyn
+        --,
+        featureCollection = col }
         program@Program{city = ci} = if isEmptyCity ci
             then program {city = snd $ buildCity 1 ((*5) . sqrt . fromIntegral) col}
             else program {city = snd $ updateCity 1 col ci}
     response _ GeoJSONLoaded
-        { isDynamic = dyn
-        , featureCollection = col } _ prog view = do
+        {
+        -- isDynamic = dyn
+        -- ,
+        -- featureCollection = col
+         } _ prog view = do
             cview <- createView (glctx $ context view) (city prog)
 --            let (errors, city) = buildCity 3 200 col
 --            let (scale,shift) = scenarioViewScaling 200 col

@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -17,7 +18,7 @@
 -----------------------------------------------------------------------------
 module Program.Model.City
     ( City (..), buildCity, updateCity, isEmptyCity, emptyCity
-    , CityObjectCollection (), mapCityObjects, foldCityObjects
+    , CityObjectCollection ()
     , processScenario, scenarioViewScaling
     , getObject, setObject
 --    , buildCity
@@ -35,27 +36,49 @@ import GHC.Exts (Any)
 
 --import qualified Control.Monad as M
 --import qualified Data.IntMap.Strict as IM
-
+import Control.Arrow ((***))
 --import GHCJS.Foreign
 import GHCJS.Types
 import GHCJS.WebGL
 import GHCJS.Marshal.Pure
 import GHCJS.Useful
-import GHCJS.Concurrent
+--import GHCJS.Concurrent
 
+import Data.JSArray
 import Data.Geometry
-import Data.Geometry.Transform
+--import Data.Geometry.Transform
 --import Geometry.Structure
 
 import Program.Model.CityObject
 --import Program.Model.CityGround
-import Program.Model.WiredGeometry
+--import Program.Model.WiredGeometry
 
 
 import Controllers.GUIEvents
 
+
+
+instance LikeJS Scenario
+instance LikeJSArray Scenario where
+    type JSArrayElem Scenario = ScenarioObject
+    {-# INLINE toJSArray #-}
+    toJSArray = js_ScenarioToJSArray
+    {-# INLINE fromJSArray #-}
+    fromJSArray = js_JSArrayToScenario
+
+{-# INLINE js_ScenarioToJSArray #-}
+foreign import javascript unsafe "$1['features']"
+    js_ScenarioToJSArray :: Scenario -> JSArray ScenarioObject
+{-# INLINE js_JSArrayToScenario #-}
+foreign import javascript unsafe "$r = {}; $r['type'] = 'FeatureCollection'; $r['features'] = $1"
+    js_JSArrayToScenario :: JSArray ScenarioObject -> Scenario
+
 -- | Basic entity in the program; Defines the logic of the interaction and visualization
 newtype CityObjectCollection = CityObjectCollection JSVal
+instance LikeJS CityObjectCollection
+instance LikeJSArray CityObjectCollection where
+    type JSArrayElem CityObjectCollection = CityObject
+
 
 -- | Map of all city objects (buildings, roads, etc).
 data City = City
@@ -67,6 +90,8 @@ data City = City
 --    , clutter           :: !WiredGeometry
     --, drawTextures      :: !Bool
     }
+
+
 
 
 buildCity :: GLfloat -- ^ default height of objects represented as footprints
@@ -147,56 +172,56 @@ clearCity city = city
 --foreign import javascript unsafe "$1['properties']['activeObjSnapshot']"
 --    activeObjSnapshot' :: City -> JSVal
 
-foldCityObjects :: (Coercible a JSVal)
-                => (a -> LocatedCityObject -> a) -> a ->  CityObjectCollection -> a
-foldCityObjects f x0 objs = unsafePerformIO $ do
-        call <- syncCallbackUnsafe2 $ \x jsv -> case pFromJSVal jsv of
-                                            Nothing  -> return $ coerce x
-                                            Just obj -> return . coerce $ f (coerce x) obj
-        rez <- foldCityObjects' call (coerce x0) objs
-        rez `seq` releaseCallback call
-        return $ coerce rez
+--foldCityObjects :: (Coercible a JSVal)
+--                => (a -> LocatedCityObject -> a) -> a ->  CityObjectCollection -> a
+--foldCityObjects f x0 objs = unsafePerformIO $ do
+--        call <- syncCallbackUnsafe2 $ \x jsv -> case pFromJSVal jsv of
+--                                            Nothing  -> return $ coerce x
+--                                            Just obj -> return . coerce $ f (coerce x) obj
+--        rez <- foldCityObjects' call (coerce x0) objs
+--        rez `seq` releaseCallback call
+--        return $ coerce rez
 
 
 
-{-# INLINE foldCityObjects' #-}
-foreign import javascript unsafe "$3.reduce($1, $2)"
-    foldCityObjects' :: (Callback (JSVal -> JSVal -> IO JSVal)) -> JSVal -> CityObjectCollection -> IO JSVal
+--{-# INLINE foldCityObjects' #-}
+--foreign import javascript unsafe "$3.reduce($1, $2)"
+--    foldCityObjects' :: (Callback (JSVal -> JSVal -> IO JSVal)) -> JSVal -> CityObjectCollection -> IO JSVal
 
 
 
-mapCityObjects :: (LocatedCityObject -> LocatedCityObject) -> City -> City
-mapCityObjects f city@City{objectsIn=objs} = unsafePerformIO $ do
-        call <- syncCallbackUnsafe1 $ \jsv -> case pFromJSVal jsv of
-                                            Nothing  -> return jsv
-                                            Just obj -> return . pToJSVal $ f obj
-        rez <- mapCityObjects' call objs
-        rez `seq` releaseCallback call
-        return city{objectsIn = rez}
+--mapCityObjects :: (LocatedCityObject -> LocatedCityObject) -> City -> City
+--mapCityObjects f city@City{objectsIn=objs} = unsafePerformIO $ do
+--        call <- syncCallbackUnsafe1 $ \jsv -> case pFromJSVal jsv of
+--                                            Nothing  -> return jsv
+--                                            Just obj -> return . pToJSVal $ f obj
+--        rez <- mapCityObjects' call objs
+--        rez `seq` releaseCallback call
+--        return city{objectsIn = rez}
 
 
-{-# INLINE mapCityObjects' #-}
-foreign import javascript unsafe "$2.map($1)"
-    mapCityObjects' :: (Callback (JSVal -> IO JSVal)) -> CityObjectCollection -> IO CityObjectCollection
+--{-# INLINE mapCityObjects' #-}
+--foreign import javascript unsafe "$2.map($1)"
+--    mapCityObjects' :: (Callback (JSVal -> IO JSVal)) -> CityObjectCollection -> IO CityObjectCollection
 
 processScenario :: GLfloat -- ^ default height in camera space
                 -> GLfloat -- ^ scale objects before processing
                 -> Vector2 GLfloat -- ^ shift objects before processing
                 -> Scenario -> ([JSString],CityObjectCollection)
-processScenario h sc sh scenario =
-    unsafePerformIO (mapScenarioObjects (processScenarioObject h sc sh) scenario)
+processScenario h sc sh = (toList *** fromJSArray)
+        . jsmapEither (processScenarioObject h sc sh)
 
 
-mapScenarioObjects :: (ScenarioObject -> Either JSString CityObject)
-                   -> Scenario -> IO ([JSString],CityObjectCollection)
-mapScenarioObjects f arr = do
-    call <- syncCallbackUnsafe1 $ \jsx ->
-        case f (unsafeCoerce jsx) of
-            Right v  -> setRight (unsafeCoerce v)
-            Left str -> setLeft str
-    (sarr, city) <- mapScenarioObjects' call arr
-    sarr `seq` city `seq` releaseCallback call
-    return (unsafeCoerce sarr, city)
+--mapScenarioObjects :: (ScenarioObject -> Either JSString CityObject)
+--                   -> Scenario -> IO ([JSString],CityObjectCollection)
+--mapScenarioObjects f arr = do
+--    call <- syncCallbackUnsafe1 $ \jsx ->
+--        case f (unsafeCoerce jsx) of
+--            Right v  -> setRight (unsafeCoerce v)
+--            Left str -> setLeft str
+--    (sarr, city) <- mapScenarioObjects' call arr
+--    sarr `seq` city `seq` releaseCallback call
+--    return (unsafeCoerce sarr, city)
 
 {-# INLINE setLeft #-}
 foreign import javascript unsafe "[false, $1]"
@@ -205,11 +230,11 @@ foreign import javascript unsafe "[false, $1]"
 foreign import javascript unsafe "[true, $1]"
     setRight :: JSVal -> IO JSVal
 
-{-# INLINE mapScenarioObjects' #-}
-foreign import javascript unsafe "var rez = $2['features'].map($1);\
-                                 \$r1 = h$fromArray(rez.filter(function(e){return !e[0];}).map(function(e){ return e[1];}));\
-                                 \$r2 = rez.filter(function(e){return e[0];}).map(function(e){ return e[1];});"
-    mapScenarioObjects' :: (Callback (JSVal -> IO JSVal)) -> Scenario -> IO (Any, CityObjectCollection)
+--{-# INLINE mapScenarioObjects' #-}
+--foreign import javascript unsafe "var rez = $2['features'].map($1);\
+--                                 \$r1 = h$fromArray(rez.filter(function(e){return !e[0];}).map(function(e){ return e[1];}));\
+--                                 \$r2 = rez.filter(function(e){return e[0];}).map(function(e){ return e[1];});"
+--    mapScenarioObjects' :: (Callback (JSVal -> IO JSVal)) -> Scenario -> IO (Any, CityObjectCollection)
 
 -- | Calculate scale and shift coefficients for scenario
 --   dependent on desired diameter of the scene

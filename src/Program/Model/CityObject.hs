@@ -34,7 +34,7 @@ module Program.Model.CityObject
     )
     where
 
-import Debug.Trace (traceShow)
+--import Debug.Trace (traceShow)
 
 import GHCJS.Foreign.Callback (Callback)
 
@@ -49,6 +49,7 @@ import GHCJS.Types
 import JavaScript.TypedArray
 
 
+import Data.JSArray
 import GHCJS.WebGL
 
 import SmallGL.WritableVectors
@@ -114,9 +115,11 @@ instance PFromJSVal (Maybe ScenarioLayer) where
 
 -- | Unprocessed Feature object
 newtype ScenarioObject = ScenarioObject JSVal
+instance LikeJS ScenarioObject
 
 -- | Basic entity in the program; Defines the logic of the interaction and visualization
 newtype CityObject = CityObject JSVal
+instance LikeJS CityObject
 
 processScenarioObject :: GLfloat -- ^ default height in camera space
                       -> GLfloat -- ^ scale objects before processing

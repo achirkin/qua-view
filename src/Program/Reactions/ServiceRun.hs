@@ -16,13 +16,13 @@
 
 module Program.Reactions.ServiceRun where
 
-import Data.Maybe (isJust)
+--import Data.Maybe (isJust)
 --import Control.Concurrent (forkIO)
 --import Control.Monad (liftM)
 --import Geometry.Space
 --import Geometry.Structure
 
-import GHCJS.Useful
+--import GHCJS.Useful
 import Reactive
 import Program
 --import Program.Model.City
@@ -31,11 +31,11 @@ import Program
 --import Program.Model.GeoJSON
 
 import Controllers.GUIEvents
-import Controllers.LuciClient
+--import Controllers.LuciClient
 
 
 
-import Services
+--import Services
 
 
 import Program.Reactions.ServiceFinish
