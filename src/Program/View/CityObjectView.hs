@@ -15,6 +15,8 @@
 
 module Program.View.CityObjectView where
 
+import Data.JSArray
+
 import GHCJS.WebGL
 import GHCJS.Types
 
@@ -26,6 +28,7 @@ import Program.View
 --import JavaScript.TypedArray
 
 newtype CityObjectView = CityObjectView JSVal
+instance LikeJS CityObjectView
 
 
 {-# INLINE cityObjectView #-}

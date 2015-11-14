@@ -32,6 +32,7 @@ import Data.Geometry
 import Data.Geometry.Transform
 --import Geometry.Space
 --import Geometry.Space.Transform
+import Data.JSArray
 
 import Program.Model.City
 import Program.Model.CityObject
@@ -46,6 +47,9 @@ import Data.Bits (Bits(..))
 import GHCJS.Useful
 
 newtype COViewCollection = COViewCollection JSVal
+instance LikeJS COViewCollection
+instance LikeJSArray COViewCollection where
+    type JSArrayElem COViewCollection = CityObjectView
 
 data CityView = CityView
     { viewShader   :: !ShaderProgram
@@ -114,18 +118,18 @@ instance Drawable City where
         { vGLProjLoc = unifLoc prog "uProjM"
         , vGLViewLoc = unifLoc prog "uModelViewM"
         }
-    updateView gl city@City{objectsIn = objs} cv@CityView{ viewsIn = views } = do
-        mviews' <- zipIOMaybeBuildings f objs views
+    updateView gl City{objectsIn = objs} cv@CityView{ viewsIn = views } = do
+        mviews' <- fromJSArray <$> jsunionZipIO f objs views
 --        gr <- updateView gl (ground city) (groundView cv)
 --        cl <- updateView gl (clutter city) (clutterView cv)
         return cv
             { viewsIn = mviews'
 --            , groundView = gr
 --            , clutterView = cl
-            } where f _ Nothing  Nothing  = return Nothing
-                    f _ Nothing  (Just v) = deleteView gl (undefined :: LocatedCityObject) v >> return Nothing
-                    f _ (Just o) Nothing  = Just <$> createView gl o
-                    f _ (Just o) (Just v) = Just <$> updateView gl o v
+            } where f _ Nothing  Nothing  = return (asLikeJS jsNull)
+                    f _ Nothing  (Just v) = deleteView gl (undefined :: LocatedCityObject) v >> return (asLikeJS jsNull)
+                    f _ (Just o) Nothing  = createView gl o
+                    f _ (Just o) (Just v) = updateView gl o v
     deleteView gl _ CityView
             { viewsIn      = views
 --            , groundView   = gr
@@ -166,14 +170,8 @@ instance Selectable City where
         }
 
 createObjViewCollection :: WebGLRenderingContext -> CityObjectCollection -> IO COViewCollection
-createObjViewCollection gl objs = do
-        call <- syncCallbackUnsafe1 (\x -> coerce <$> createView gl (unsafeCoerce x :: CityObject))
-        rez <- js_createObjViewCollection call objs
-        releaseCallback call
-        return rez
-
-foreign import javascript unsafe "$2.map($1)"
-    js_createObjViewCollection :: Callback (JSVal -> IO JSVal) -> CityObjectCollection -> IO COViewCollection
+createObjViewCollection gl objs = fromJSArray <$>
+            jsmapIO (createView gl :: CityObject -> IO CityObjectView) objs
 
 
 zipIObuildings :: (Int -> LocatedCityObject -> CityObjectView -> IO ())
@@ -195,29 +193,6 @@ foreign import javascript unsafe "$2.forEach(function(e,i){if(e && $3[i]){$1(i+1
                       -> IO ()
 
 
-zipIOMaybeBuildings :: (Int -> Maybe CityObject -> Maybe CityObjectView -> IO (Maybe CityObjectView))
-                    -> CityObjectCollection
-                    -> COViewCollection
-                    -> IO COViewCollection
-zipIOMaybeBuildings f objs views = do
-        call <- syncCallbackUnsafe3
-                (\i o v -> maybeCoerce <$>
-                            f (toNum i) (if isTruthy o then Just (unsafeCoerce o) else Nothing)
-                                        (if isTruthy v then Just (coerce v) else Nothing)
-                            )
-        rez <- js_zipIOMaybeBuildings call objs views
-        releaseCallback call
-        return rez
-        where maybeCoerce Nothing = jsNull
-              maybeCoerce (Just r) = coerce r
-
-
-foreign import javascript unsafe "$2.map(function(e,i){if(e && $3[i]){return $1(i+1,e,$3[i]);}else{return null;}})"
-    js_zipIOMaybeBuildings :: Callback (JSVal -> JSVal -> JSVal -> IO JSVal)
-                           -> CityObjectCollection
-                           -> COViewCollection
-                           -> IO COViewCollection
-
 mapIOViews :: (CityObjectView -> IO ())
            -> COViewCollection
            -> IO ()
@@ -229,17 +204,7 @@ mapIOViews f views = do
 foreign import javascript unsafe "$2.forEach(function(e){if(e){$1(e);}})"
     js_mapIOViews :: Callback (JSVal -> IO ())
                   -> COViewCollection
-                  -> IO COViewCollection
-
---instance (Monoid m) => Monoid (IO m) where
---    mempty = return mempty
---    mappend a b = mappend <$> a <*> b
---    mconcat as = mconcat <$> sequence as
-
---instance (Monoid m, Monad mm) => Monoid (mm m) where
---    mempty = return mempty
---    mappend a b = mappend <$> a <*> b
---    mconcat as = mconcat <$> sequence as
+                  -> IO ()
 
 -- Render shader
 

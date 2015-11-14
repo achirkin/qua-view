@@ -25,10 +25,10 @@ module Data.Geometry.Structure.LinearRing
 import Prelude hiding (length)
 
 
-import GHCJS.Foreign.Callback (Callback, releaseCallback)
-import GHCJS.Useful
-import System.IO.Unsafe (unsafePerformIO)
-import Data.Coerce (coerce)
+import GHCJS.Foreign.Callback (Callback) --, releaseCallback)
+--import GHCJS.Useful
+--import System.IO.Unsafe (unsafePerformIO)
+--import Data.Coerce (coerce)
 
 import GHC.Exts (Any)
 import Unsafe.Coerce (unsafeCoerce)
@@ -69,7 +69,11 @@ instance PS.PointSet (LinearRing n x) n x where
     {-# NOINLINE mapSet #-}
     mapSet = jsmapSame
     {-# NOINLINE mapCallbackSet #-}
-    mapCallbackSet = mapLinearRing''
+    mapCallbackSet = js_mapLinearRing
+    {-# NOINLINE foldSet #-}
+    foldSet = jsfoldl
+    {-# NOINLINE foldCallbackSet #-}
+    foldCallbackSet f a = asLikeJS . js_foldLinearRing f (asJSVal a)
 
 
 -- | Create a LinearRing
@@ -140,6 +144,11 @@ seqList :: [a] -> [a]
 seqList xs = foldr seq () xs `seq` xs
 
 
-{-# INLINE mapLinearRing'' #-}
+{-# INLINE js_mapLinearRing #-}
 foreign import javascript unsafe "$2.map($1)"
-    mapLinearRing'' :: (Callback a) -> LinearRing n x -> LinearRing n x
+    js_mapLinearRing :: Callback (Vector n x -> Vector n x) -> LinearRing n x -> LinearRing n x
+
+{-# INLINE js_foldLinearRing #-}
+foreign import javascript unsafe "$3.reduce($1,$2)"
+    js_foldLinearRing :: Callback (a -> Vector n x -> a) -> JSVal -> LinearRing n x -> JSVal
+
