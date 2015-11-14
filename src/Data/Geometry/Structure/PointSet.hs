@@ -71,7 +71,7 @@ foreign import javascript unsafe "Array.apply(null, Array($1)).map(function(){re
 
 -- | convert an array to the point set
 {-# INLINE unflatten #-}
-unflatten :: (KnownNat n) => JSVal -> PointArray n x
+unflatten :: (KnownNat n) => JSArray x -> PointArray n x
 unflatten val = arr
     where arr = js_unflatten (dim' arr Proxy) val
 
@@ -82,7 +82,7 @@ dim' _ = fromInteger . natVal
 
 class PointSet s n x | s -> n, s -> x where
     -- | make a flat JSArrayout of the point set
-    flatten :: s -> JSVal
+    flatten :: s -> JSArray x
     -- | make a JSArray of coordinates out of the point set
     toPointArray :: s -> PointArray (n::Nat) x
     -- | convert an array to the point set
@@ -136,12 +136,12 @@ foreign import javascript unsafe "var r = gm$boundNestedArray($1['coordinates'] 
 
 {-# INLINE js_flatten #-}
 foreign import javascript unsafe "[].concat.apply([], $1)"
-    js_flatten :: PointArray n x -> JSVal
+    js_flatten :: PointArray n x -> JSArray x
 
 
 {-# INLINE js_unflatten #-}
 foreign import javascript unsafe "$r = []; for (var i=0; i < $2.length; i+=$1){$r.push($2.slice(i,i+chunkSize));}"
-    js_unflatten :: Int -> JSVal -> PointArray n x
+    js_unflatten :: Int -> JSArray x -> PointArray n x
 
 {-# INLINE js_mean #-}
 foreign import javascript unsafe "gm$mean($1)"

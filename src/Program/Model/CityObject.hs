@@ -20,7 +20,6 @@
 
 module Program.Model.CityObject
     ( CityObject (), LocatedCityObject, behavior, objPolygons, objPoints
-    , ScenarioObject (..)
     , GeoJsonGeometry (..)
     , PointData (), vertexArray, indexArray, vertexArrayLength, indexArrayLength
     , processScenarioObject
@@ -60,6 +59,7 @@ import qualified Data.Geometry.Transform as T
 import Data.Geometry.Structure.LinearRing (toList', linearRing)
 import Data.Geometry.Structure.Polygon
 import Data.Geometry.Structure.PointSet (PointArray, PointSet (..), shrinkVectors, boundingRectangle2D)
+import Data.Geometry.Structure.Feature
 
 --defaultHeightDynamic :: GLfloat
 --defaultHeightDynamic = 3
@@ -112,11 +112,6 @@ instance PFromJSVal (Maybe ScenarioLayer) where
             _            -> Nothing
 
 
-
--- | Unprocessed Feature object
-newtype ScenarioObject = ScenarioObject JSVal
-instance LikeJS ScenarioObject
-
 -- | Basic entity in the program; Defines the logic of the interaction and visualization
 newtype CityObject = CityObject JSVal
 instance LikeJS CityObject
@@ -124,14 +119,14 @@ instance LikeJS CityObject
 processScenarioObject :: GLfloat -- ^ default height in camera space
                       -> GLfloat -- ^ scale objects before processing
                       -> Vector2 GLfloat -- ^ shift objects before processing
-                      -> ScenarioObject -> Either JSString CityObject
+                      -> Feature -> Either JSString LocatedCityObject
 processScenarioObject defHeight scale shift sObj | scale <= 0 = Left . pack $ "processScenarioObject: Scale is wrong possible (" ++ show scale ++ ")"
                                                  | otherwise  = if isSlave sObj then Left "Skipping a slave scenario object." else
-    pFromJSVal (getGeoJSONGeometry $ coerce sObj) >>= \(ND geom) ->
+    pFromJSVal (getGeoJSONGeometry sObj) >>= \(ND geom) ->
     toBuildingMultiPolygon (defHeight / scale) geom >>= \mpoly ->
-    let T.QFTransform trotScale tshift locMPoly = locateMultiPolygon scale shift mpoly
+    let qt@(T.QFTransform trotScale tshift locMPoly) = locateMultiPolygon scale shift mpoly
         pdata = buildingPointData locMPoly
-    in Right $ js_ScenarioObjectToCityObject sObj pdata locMPoly tshift trotScale
+    in Right . flip T.wrap qt $ js_ScenarioObjectToCityObject sObj pdata locMPoly tshift trotScale
 
 locateMultiPolygon :: GLfloat
                    -> Vector2 GLfloat
@@ -177,7 +172,7 @@ foreign import javascript unsafe "$1['pointData']"
 
 {-# INLINE isSlave #-}
 foreign import javascript unsafe "$1['properties']['isSlave']"
-    isSlave :: ScenarioObject -> Bool
+    isSlave :: Feature -> Bool
 
 
 
@@ -221,13 +216,17 @@ foreign import javascript unsafe "$1['type']"
     getGeoJSONType :: JSVal -> JSString
 {-# INLINE getGeoJSONGeometry #-}
 foreign import javascript unsafe "$1['geometry']"
-    getGeoJSONGeometry :: JSVal -> JSVal
+    getGeoJSONGeometry :: Feature -> JSVal
 --{-# INLINE getGeoJSONProperties #-}
 --foreign import javascript unsafe "$1['properties']"
 --    getGeoJSONProperties :: JSVal -> JSVal
 
 type LocatedCityObject = T.QFTransform CityObject
 
+instance LikeJS LocatedCityObject where
+    asJSVal (T.QFTransform rs sh obj) = js_delocateCityObject obj sh rs
+    asLikeJS js = T.QFTransform rs sh (coerce jv)
+        where (jv, sh, rs) = js_locateCityObject js
 
 
 instance PFromJSVal (Maybe LocatedCityObject) where
@@ -259,7 +258,7 @@ instance PToJSVal LocatedCityObject where
 
 foreign import javascript unsafe "$r = {}; $r['properties'] = $1['properties']; $r['type'] = $1['type']; $r['geometry'] = $3; $r['pointData'] = $2;\
                                  \$r['properties']['transform'] = {}; $r['properties']['transform']['shift'] = $4; $r['properties']['transform']['rotScale'] = $5;"
-    js_ScenarioObjectToCityObject :: ScenarioObject
+    js_ScenarioObjectToCityObject :: Feature
                                   -> PointData
                                   -> MultiPolygon 3 GLfloat
                                   -> Vector3 GLfloat
@@ -331,7 +330,7 @@ foreign import javascript unsafe "$r1 = $1.map(function(p){return p.map(function
 
 
 foreign import javascript unsafe "{ vertexArray: $1, indexArray: Uint16Array.from($2).buffer }"
-    packPointData :: ArrayBuffer -> JSVal -> PointData
+    packPointData :: ArrayBuffer -> JSArray Int -> PointData
 
 --norm = fmap (round . max (-128) . min 127)
 ----            $ ((if c then 1 else -1) * 127 / normL2 nr') ..* nr' :: Vector3 GLbyte

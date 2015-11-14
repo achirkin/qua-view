@@ -1,6 +1,5 @@
 {-# LANGUAGE FlexibleContexts, OverloadedStrings #-}
 {-# LANGUAGE ForeignFunctionInterface,  JavaScriptFFI, GHCForeignImportPrim, UnliftedFFITypes #-}
-{-# OPTIONS_GHC -fno-warn-orphans #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Controllers.LuciClient
@@ -20,44 +19,41 @@ module Controllers.LuciClient
     , authenticate
     , getServicesList
     , getServiceInfo
-    , Scenario (), createLuciScenario
+    , LuciScenario (), createLuciScenario
     , scenarioId, scenarioName, scenarioMqttTopic, scenarioTimestamp
     , runLuciService
-    , LuciServiceInput (), LuciServiceOutput ()
+    , LuciServiceInput (..), LuciServiceOutput (..)
     ) where
 
-import GHC.Exts (Any)
-import Unsafe.Coerce (unsafeCoerce)
 
 import Data.Int (Int64)
-import Data.Coerce (Coercible (), coerce)
-import Data.JSString (JSString (..), append,unpack',pack)
+import Data.JSString (JSString, append,unpack',pack)
 
 import GHCJS.Foreign
-import GHCJS.Marshal
-import GHCJS.Marshal.Pure (PFromJSVal (), pFromJSVal)
-import GHCJS.Types
-import Data.Geometry (JSNum (..))
+import GHCJS.Types (JSVal)
+import Data.Geometry.Structure.Feature (FeatureCollection)
+import Data.JSArray (LikeJS (..))
 
 import Control.Arrow (first)
 
-import Controllers.GUIEvents (Scenario)
-
 newtype LuciServiceInput = LuciServiceInput JSVal
+instance LikeJS LuciServiceInput
 
 newtype LuciServiceOutput = LuciServiceOutput JSVal
+instance LikeJS LuciServiceOutput
 
 newtype LuciServiceInfo = LuciServiceInfo JSVal
+instance LikeJS LuciServiceInfo
 instance Show LuciServiceInfo where
     show (LuciServiceInfo val) = unpack' $ jsonStringify val
 
 -- | Object for Luci connection
 newtype LuciClient = LuciClient JSVal
---instance IsJSVal LuciClient
+instance LikeJS LuciClient
 
 -- | Scenario Object
 newtype LuciScenario = LuciScenario JSVal
---instance IsJSVal LuciScenario
+instance LikeJS LuciScenario
 
 -- | Full string passed into WebSocket constructor
 connectionString :: LuciClient -> JSString
@@ -116,13 +112,13 @@ connectToLuci address = eitherError "LuciClient" <$> connectToLuci' (pack host) 
             [] -> 80
             pp -> read pp
 foreign import javascript interruptible "try{\
-    \   var lc = new LuciClient($1, $2, $3, function(){$c({right: lc});} \
-    \       , function(ev){$c({left: 'Closed with code ' + ev.code});} \
+    \   var lc = new LuciClient($1, $2, $3, function(){$c([true, lc]);} \
+    \       , function(ev){$c([false, 'Closed with code ' + ev.code]);} \
     \       , function(){logText(document.getElementById('consolecontent'),'Error occured on the WebSocket side.');} \
     \   ); \
     \   lc.host = $1;lc.port = $2;lc.localpath = $3; \
     \ }\
-    \ catch(err){$c({left: 'Error occured while trying to create Luci client: ' + JSON.stringify(err)});}"
+    \ catch(err){$c([false, 'Error occured while trying to create Luci client: ' + JSON.stringify(err)]);}"
     connectToLuci' :: JSString -> Int -> JSString -> IO JSVal
 
 
@@ -136,9 +132,9 @@ foreign import javascript interruptible  "var req = {}; \
     \ req['service']['inputs'] = $4; \
     \ $1.sendAndReceive(req,[function(){ \
     \ var m = $1.getMessage(); \
-    \ if(m['result']) {$c({right: m['result']});} \
-    \ else if(m['error']) {$c({left: 'Luci says: ' + m['error']});} \
-    \ else {$c({left: \"Message contains neither a result nor an error. MSG: \" + JSON.stringify(m)});}}]);"
+    \ if(m['result']) {$c([true, m['result']]);} \
+    \ else if(m['error']) {$c([false, 'Luci says: ' + m['error']]);} \
+    \ else {$c([false, \"Message contains neither a result nor an error. MSG: \" + JSON.stringify(m)]);}}]);"
     runService' :: LuciClient -> JSString -> Int -> LuciServiceInput -> IO JSVal
 
 -- | Authenticate in Luci
@@ -146,23 +142,23 @@ authenticate :: LuciClient
              -> JSString -- ^ login
              -> JSString -- ^ password
              -> IO (Either JSString JSString)
-authenticate lc login pass = eitherErrorJSString "Luci answer" <$> authenticate' lc  login pass
+authenticate lc login pass = eitherError "Luci answer" <$> authenticate' lc  login pass
 foreign import javascript interruptible "$1.authenticate($2,$3, function(){ \
     \ var m = $1.getMessage(); \
-    \ if(m['result']) {$c({right: m['result']});} \
-    \ else if(m['error']) {$c({left: 'Luci says: ' + m['error']});} \
-    \ else {$c({left: \"Message contains neither result message nor an error. MSG: \" + JSON.stringify(m)});}});"
+    \ if(m['result']) {$c([true, m['result']]);} \
+    \ else if(m['error']) {$c([false, 'Luci says: ' + m['error']]);} \
+    \ else {$c([false, \"Message contains neither result message nor an error. MSG: \" + JSON.stringify(m)]);}});"
     authenticate' :: LuciClient -> JSString -> JSString -> IO JSVal
 
 
 -- | Get list of names of available services in Luci
 getServicesList :: LuciClient -> IO (Either JSString [JSString])
-getServicesList lc = eitherErrorAny "Luci answer" <$> getServicesList' lc
+getServicesList lc = eitherError "Luci answer" <$> getServicesList' lc
 foreign import javascript interruptible "var req = {}; req['action'] = 'get_list'; req['of'] = ['services']; $1.sendAndReceive(req,[function(){ \
     \ var m = $1.getMessage(); \
     \ if(m['result'] && m['result']['services']) {$c({right: h$fromArray(m['result']['services'])});} \
-    \ else if(m['error']) {$c({left: 'Luci says: ' + m['error']});} \
-    \ else {$c({left: \"Message contains neither services list nor an error. MSG: \" + JSON.stringify(m)});}}]);"
+    \ else if(m['error']) {$c([false, 'Luci says: ' + m['error']]);} \
+    \ else {$c([false, \"Message contains neither services list nor an error. MSG: \" + JSON.stringify(m)]);}}]);"
     getServicesList' :: LuciClient -> IO JSVal
 
 
@@ -170,13 +166,13 @@ getServiceInfo :: LuciClient -> JSString -> IO (Either JSString LuciServiceInfo)
 getServiceInfo lc sname = eitherError "LuciServiceInfo" <$> getServiceInfo' lc sname
 foreign import javascript interruptible "var req = {}; req['action'] = 'get_infos_about'; req['servicename'] = $2; $1.sendAndReceive(req,[function(){ \
     \ var m = $1.getMessage(); \
-    \ if(m['result'] && m['result'][$2]) {$c({right: m['result'][$2]});} \
-    \ else if(m['error']) {$c({left: 'Luci says: ' + m['error']});} \
-    \ else {$c({left: \"Message contains neither service info nor an error. MSG: \" + JSON.stringify(m)});}}]);"
+    \ if(m['result'] && m['result'][$2]) {$c([true, m['result'][$2]]);} \
+    \ else if(m['error']) {$c([false, 'Luci says: ' + m['error']]);} \
+    \ else {$c([false, \"Message contains neither service info nor an error. MSG: \" + JSON.stringify(m)]);}}]);"
     getServiceInfo' :: LuciClient -> JSString -> IO JSVal
 
 
-createLuciScenario :: LuciClient -> JSString -> Scenario -> IO (Either JSString LuciScenario)
+createLuciScenario :: LuciClient -> JSString -> FeatureCollection -> IO (Either JSString LuciScenario)
 createLuciScenario lc sname geom = eitherError "Luci Scenario" <$>  createScenario' lc sname geom
 foreign import javascript interruptible "var req = {}; \
     \ req['action'] = 'create_scenario'; req['name'] = $2; \
@@ -186,40 +182,45 @@ foreign import javascript interruptible "var req = {}; \
     \ req['geometry']['ghcjs-modeler-scenario']['geometry'] = $3; \
     \ $1.sendAndReceive(req,[function(){ \
     \ var m = $1.getMessage(); \
-    \ if(m['result']) {$c({right: m['result']});} \
-    \ else if(m['error']) {$c({left: 'Luci says: ' + m['error']});} \
-    \ else {$c({left: \"Message contains neither a result nor an error. MSG: \" + JSON.stringify(m)});}}]);"
-    createScenario' :: LuciClient -> JSString -> Scenario -> IO JSVal
+    \ if(m['result']) {$c([true, m['result']]);} \
+    \ else if(m['error']) {$c([false, 'Luci says: ' + m['error']]);} \
+    \ else {$c([false, \"Message contains neither a result nor an error. MSG: \" + JSON.stringify(m)]);}}]);"
+    createScenario' :: LuciClient -> JSString -> FeatureCollection -> IO JSVal
 
--- | Either treatment
-eitherError :: (Coercible JSVal a) => JSString -> JSVal -> Either JSString a
-eitherError = eitherError' coerce
-eitherErrorPF :: (PFromJSVal a) => JSString -> JSVal -> Either JSString a
-eitherErrorPF = eitherError' pFromJSVal
-eitherErrorJSString :: JSString -> JSVal -> Either JSString JSString
-eitherErrorJSString = eitherError' val2str
-eitherErrorJSNum :: (JSNum a) => JSString -> JSVal -> Either JSString a
-eitherErrorJSNum = eitherError' toNum
-eitherErrorAny :: JSString -> JSVal -> Either JSString a
-eitherErrorAny = eitherError' (unsafeCoerce . val2Any)
-
-eitherError' :: (JSVal -> a) -> JSString -> JSVal -> Either JSString a
-eitherError' f s val = let rval = rightOrNullVal val
-                           lval = leftOrErrVal val $ "Something bad has just happened: " `append` s `append` "is falsy."
-                       in if isTruthy rval
-                          then Right $ f rval
-                          else Left $ lval
-
-foreign import javascript unsafe "if($1 && $1.right){$r = $1.right;} else {$r = null;}"
-    rightOrNullVal :: JSVal -> JSVal
-foreign import javascript unsafe "$r = $1;"
-    val2Any :: JSVal -> Any
-
-foreign import javascript unsafe "$r = $1;"
-    val2str :: JSVal -> JSString
-
-foreign import javascript unsafe "if($1 && $1.left){$r = $1.left;} else {$r = $2;}"
-    leftOrErrVal :: JSVal -> JSString -> JSString
+eitherError :: LikeJS a => JSString -> JSVal -> Either JSString a
+eitherError s val = if isTruthy val
+                    then asLikeJS val
+                    else Left $ "Something bad has just happened: " `append` s `append` "is falsy."
+--
+---- | Either treatment
+--eitherError :: (Coercible JSVal a) => JSString -> JSVal -> Either JSString a
+--eitherError = eitherError' coerce
+--eitherErrorPF :: (PFromJSVal a) => JSString -> JSVal -> Either JSString a
+--eitherErrorPF = eitherError' pFromJSVal
+--eitherErrorJSString :: JSString -> JSVal -> Either JSString JSString
+--eitherErrorJSString = eitherError' val2str
+--eitherErrorJSNum :: (JSNum a) => JSString -> JSVal -> Either JSString a
+--eitherErrorJSNum = eitherError' toNum
+--eitherErrorAny :: JSString -> JSVal -> Either JSString a
+--eitherErrorAny = eitherError' (unsafeCoerce . val2Any)
+--
+--eitherError' :: (JSVal -> a) -> JSString -> JSVal -> Either JSString a
+--eitherError' f s val = let rval = rightOrNullVal val
+--                           lval = leftOrErrVal val $ "Something bad has just happened: " `append` s `append` "is falsy."
+--                       in if isTruthy rval
+--                          then Right $ f rval
+--                          else Left $ lval
+--
+--foreign import javascript unsafe "if($1 && $1.right){$r = $1.right;} else {$r = null;}"
+--    rightOrNullVal :: JSVal -> JSVal
+--foreign import javascript unsafe "$r = $1;"
+--    val2Any :: JSVal -> Any
+--
+--foreign import javascript unsafe "$r = $1;"
+--    val2str :: JSVal -> JSString
+--
+--foreign import javascript unsafe "if($1 && $1.left){$r = $1.left;} else {$r = $2;}"
+--    leftOrErrVal :: JSVal -> JSString -> JSString
 
 foreign import javascript unsafe "JSON.stringify($1)"
     jsonStringify :: JSVal -> JSString

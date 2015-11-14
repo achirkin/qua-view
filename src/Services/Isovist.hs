@@ -18,9 +18,9 @@ module Services.Isovist where
 
 --import Control.Monad (mzero)
 
-import Data.List (foldl')
-import Data.Foldable (toList)
-import Data.Text.Encoding
+--import Data.List (foldl')
+--import Data.Foldable (toList)
+--import Data.Text.Encoding
 --import Data.Aeson
 --import Data.Geospatial (GeoMultiPoint (..))
 
@@ -32,9 +32,9 @@ import GHCJS.Useful
 
 --import Geometry.Space
 
-import Controllers.LuciClient
+--import Controllers.LuciClient
 --import Program.Model.GeoJSON
-import Program.Model.ScalarField
+--import Program.Model.ScalarField
 
 import Services
 
@@ -102,9 +102,10 @@ getIsovistValues (IR irs) Perimeter = map ipPerimeter irs
 instance ComputingService Isovist where
     runService _ Nothing _ _ = logText "Can not run Isovist without Luci" >> return Nothing
     runService _ _ Nothing _ = logText "Can not run Isovist without Scenario on Luci" >> return Nothing
-    runService (Isovist mode) (Just luci) (Just scenario) sf@ScalarField{ sfPoints = pnts} = do
+    runService _ _ _ _ = return Nothing
+--    runService (Isovist mode) (Just luci) (Just scenario) sf@ScalarField{ sfPoints = pnts} = do
 --      mresult <- runLuciService luci "Isovist" inputs scenario
-      return Nothing
+--      return Nothing
 --      case mresult of
 --        Left err -> logText err >> return Nothing
 --        Right result -> case fromJSON result of

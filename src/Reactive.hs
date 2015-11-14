@@ -33,7 +33,7 @@ module Reactive
     , createEventSense
     ) where
 
-import GHCJS.Useful
+--import GHCJS.Useful
 --import GHCJS.Marshal
 
 import Language.Haskell.TH
@@ -224,16 +224,7 @@ pIteration senseRef [] pv = pv `seq` do
 
 pProcessIteration :: (EventSense program view event)
                   => event -> (program, view) -> IO (program, view, [EventBox program view])
-pProcessIteration event (program, view) = event `seq` program `seq` view `seq` do
-    t0 <- getTime
-    (nprog, t1) <- t0 `seq` case processAllReactions event program of
-        prog -> prog `seq` getTime >>= \t -> return (prog, t)
-    (nview, nevs) <- processAllResponses event program nprog view
---    r <- inNextFrame $ return ()
---    t2 <- t1 `seq` getTime
---    let dt1 = t1-t0
---        dt2 = t2-t1
---    if dt1 < 0.05 && dt2 < 0.05 then return ()
---       else toJSRef ("react: " ++ show (t1-t0) ++ "; response: " ++ show (t2-t1)) >>= printRef
---    r `seq` nview `seq` nevs `seq`
-    return (nprog, nview, nevs)
+pProcessIteration event (program, view) = event `seq` program `seq` view `seq`
+    case processAllReactions event program of
+        nprog -> (\(nview, nevs) -> (nprog, nview, nevs))
+            <$> processAllResponses event program nprog view

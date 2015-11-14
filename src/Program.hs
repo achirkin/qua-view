@@ -82,7 +82,7 @@ data PView = PView
     , dgView       :: !(View WiredGeometry)
     , cityView     :: !(View City)
     , luciClient   :: !(Maybe LuciClient)
-    , luciScenario :: !(Maybe Scenario)
+    , luciScenario :: !(Maybe LuciScenario)
     , scUpToDate   :: !Bool
     }
 

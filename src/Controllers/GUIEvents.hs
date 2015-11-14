@@ -14,6 +14,7 @@
 module Controllers.GUIEvents where
 
 import GHCJS.Types
+import Data.Geometry.Structure.Feature (FeatureCollection)
 
 -- | Reaction on this event should be starting evaluation of current service
 data ServiceRunBegin = ServiceRunBegin
@@ -23,13 +24,10 @@ data ClearingGeometry = ClearingGeometry
 
 data ClearServiceResults = ClearServiceResults
 
--- | Unprocessed Feature collection
-newtype Scenario = Scenario JSVal
-
 -- | When valid GeoJSON comes from somewhere
 data GeoJSONLoaded = GeoJSONLoaded
     { isDynamic         :: Bool
-    , featureCollection :: Scenario
+    , featureCollection :: FeatureCollection
     }
 type GeoJSONLoadCallBack = GeoJSONLoaded -> IO ()
 

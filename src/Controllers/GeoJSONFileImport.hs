@@ -19,8 +19,10 @@ module Controllers.GeoJSONFileImport
     ) where
 
 
+import Data.Geometry.Structure.Feature (FeatureCollection)
+import Data.JSArray (asJSVal)
 import GHCJS.Types
-import GHCJS.Marshal
+--import GHCJS.Marshal
 import GHCJS.Foreign.Callback
 import GHCJS.Foreign (isTruthy)
 
@@ -54,7 +56,7 @@ onGeoJSONFileImport importButton callback = elementOnChange importButton $ do
 loadGeoJSONFromLink :: JSString -> Bool -> GeoJSONLoadCallBack -> IO ()
 loadGeoJSONFromLink url isDyn callback = do
     c <- getUrlJSON url
-    if not (isTruthy $ coerce c)
+    if not (isTruthy $ asJSVal c)
     then logText "Could not read geometry"
     else callback GeoJSONLoaded
           { isDynamic         = isDyn
@@ -76,7 +78,7 @@ foreign import javascript interruptible "var r = new FileReader(); \
     \   $c(json); }}; \
     \ r.onloadend = load;  \
     \ r.readAsText($1.files[0]);"
-    getElementFiles :: JSElement -> IO Scenario
+    getElementFiles :: JSElement -> IO FeatureCollection
 
 ---- | Convert JSON object in JavaScript back to Haskell data that implements fromJSON a class
 --fromJSRef_aeson :: A.FromJSON a => JSVal -> IO (Maybe a)
@@ -101,7 +103,7 @@ foreign import javascript interruptible "var xmlHttp = new XMLHttpRequest(); \
     \     xmlHttp.open( 'GET', $1, true ); \
     \     xmlHttp.send( ); \
     \ } catch (err) { logText(err); if(i == 0){i++;$c(null);}} "
-    getUrlJSON :: JSString -> IO Scenario
+    getUrlJSON :: JSString -> IO FeatureCollection
 
 
 -- | Simple event when JSElement is changed (e.g. one picked file in "file" button)

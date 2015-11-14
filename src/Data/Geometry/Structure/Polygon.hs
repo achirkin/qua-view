@@ -16,15 +16,14 @@
 -----------------------------------------------------------------------------
 
 module Data.Geometry.Structure.Polygon
-    ( Polygon ()
+    ( Polygon (), polygon, rings
     , triangulate, triangulate', triangulatePolygon3D, triangulateMultiPolygon3D
-    , MultiPolygon ()
+    , MultiPolygon (), multiPolygon, polygons
     , toPolygon3D, toMultiPolygon3D
     ) where
 
 
 import GHCJS.Foreign.Callback (Callback, releaseCallback)
-import GHCJS.Useful
 import System.IO.Unsafe (unsafePerformIO)
 import Data.Coerce (coerce)
 
@@ -70,18 +69,29 @@ instance PS.PointSet (Polygon n x) n x where
     var = PS.var . js_PtoPA
     {-# NOINLINE mapSet #-}
     mapSet f arr = unsafePerformIO $ do
-        call <- syncCallbackUnsafe1 $ return . coerce . f . coerce
-        rez <- mapPolygon' call arr
-        releaseCallback call
+        call <- syncCallbackUnsafe1 f
+        rez <- js_mapPolygonIO call arr
+        rez `seq` releaseCallback call
         return rez
     {-# NOINLINE mapCallbackSet #-}
-    mapCallbackSet = mapPolygon''
+    mapCallbackSet = js_mapPolygon
+    {-# NOINLINE foldSet #-}
+    foldSet f a arr = unsafePerformIO $ do
+        call <- syncCallbackUnsafe2 $ \r e -> asJSVal (f (asLikeJS r) e)
+        rez <- asLikeJS <$> js_foldPolygonIO call (asJSVal a) arr
+        rez `seq` releaseCallback call
+        return rez
+    {-# NOINLINE foldCallbackSet #-}
+    foldCallbackSet f a = asLikeJS . js_foldPolygon f (asJSVal a)
 
 
 -- | Create a Polygon
 polygon :: [LinearRing n x] -- ^ All remaining points (without duplicate of the first one)
-           -> Polygon n x
-polygon = js_createPolygon  . unsafeCoerce . seqList
+        -> Polygon n x
+polygon = fromJSArray . fromList
+
+rings :: Polygon n x -> [LinearRing n x]
+rings = toList
 
 {-# INLINE js_RingArrayToPolygon #-}
 foreign import javascript unsafe "$r = {}; $r['type'] = 'Polygon'; $r['coordinates'] = $1;"
@@ -93,14 +103,14 @@ foreign import javascript unsafe "$1['coordinates']"
 
 -- | Calculate indices of triangulation and put them into Haskell list
 triangulate :: (KnownNat n, Fractional x, JSNum x) => Polygon n x -> [Int]
-triangulate p = unsafeCoerce $ js_indicesListPrim arr
+triangulate p = toList arr
     where (_,_,arr) = triangulate' p
 
 -- | Calculate indices of triangulation and keep them in JS array
 --   First return is array of points
 --   Second return is normals to the polygon (remaining PCA vectors)
 triangulate' :: (KnownNat n, Fractional x, JSNum x)
-             => Polygon n x -> (PS.PointArray n x, [Vector n x], JSVal)
+             => Polygon n x -> (PS.PointArray n x, [Vector n x], JSArray Int)
 triangulate' poly = (set, vs, triangulate'' projset rinds)
     where set = PS.toPointArray poly
           rinds = js_ringIndices poly
@@ -108,7 +118,7 @@ triangulate' poly = (set, vs, triangulate'' projset rinds)
           projset = PS.projectND [v1,v2] set
 
 triangulatePolygon3D :: (KnownNat n, Fractional x, JSNum x)
-                        => Polygon n x -> (PS.PointArray 3 x, PS.PointArray 3 x, JSVal)
+                        => Polygon n x -> (PS.PointArray 3 x, PS.PointArray 3 x, JSArray Int)
 triangulatePolygon3D poly = (points, PS.fillPointArray (jslength points) normal, indsx)
     where (points, normal, indsx) = f $ triangulate' poly
           f (p, [n], inds) = (coerce p           , coerce n      , inds)
@@ -117,7 +127,7 @@ triangulatePolygon3D poly = (points, PS.fillPointArray (jslength points) normal,
 
 
 triangulateMultiPolygon3D :: (KnownNat n, Fractional x, JSNum x)
-                          => MultiPolygon n x -> (PS.PointArray 3 x, PS.PointArray 3 x, JSVal)
+                          => MultiPolygon n x -> (PS.PointArray 3 x, PS.PointArray 3 x, JSArray Int)
 triangulateMultiPolygon3D mpoly = triags
     where triags = foldl' concatTriags startTriags . map (f . triangulate') $ polygons mpoly
           f (p, [n], inds) = (coerce p           , coerce n      , inds)
@@ -137,26 +147,22 @@ foreign import javascript unsafe "var nc = $2['coordinates'].map(function(r){ret
     toPolygon3D :: Float -> Polygon n x -> Polygon 3 x
 
 
-concatTriags :: (PS.PointArray 3 x, PS.PointArray 3 x, JSVal)
-             -> (PS.PointArray 3 x, Vector 3 x, JSVal)
-             -> (PS.PointArray 3 x, PS.PointArray 3 x, JSVal)
+concatTriags :: (PS.PointArray 3 x, PS.PointArray 3 x, JSArray Int)
+             -> (PS.PointArray 3 x, Vector 3 x, JSArray Int)
+             -> (PS.PointArray 3 x, PS.PointArray 3 x, JSArray Int)
 concatTriags (a,b,c) (d,e,f) = concatTriags' a b c d e f
 
 {-# INLINE concatTriags' #-}
 foreign import javascript unsafe "$r1 = $1.concat($4);\
                                  \$r2 = $2.concat(Array.apply(null, Array($4.length)).map(function(){return $5;}));\
                                  \$r3 = $3.concat($6.map(function(e){return e + $1.length;}));"
-    concatTriags' :: PS.PointArray 3 x -> PS.PointArray 3 x -> JSVal
-                  -> PS.PointArray 3 x -> Vector 3 x -> JSVal
-                  -> (PS.PointArray 3 x, PS.PointArray 3 x, JSVal)
+    concatTriags' :: PS.PointArray 3 x -> PS.PointArray 3 x -> JSArray Int
+                  -> PS.PointArray 3 x -> Vector 3 x -> JSArray Int
+                  -> (PS.PointArray 3 x, PS.PointArray 3 x, JSArray Int)
 
 {-# INLINE startTriags #-}
 foreign import javascript unsafe "$r1 = []; $r2 = []; $r3 = [];"
-    startTriags :: (PS.PointArray 3 x, PS.PointArray 3 x, JSVal)
-
-
-
-
+    startTriags :: (PS.PointArray 3 x, PS.PointArray 3 x, JSArray Int)
 
 
 
@@ -191,22 +197,30 @@ instance PS.PointSet (MultiPolygon n x) n x where
     var = PS.var . js_MPtoPA
     {-# NOINLINE mapSet #-}
     mapSet f arr = unsafePerformIO $ do
-        call <- syncCallbackUnsafe1 $ return . coerce . f . coerce
-        rez <- mapMultiPolygon' call arr
-        releaseCallback call
+        call <- syncCallbackUnsafe1 f
+        rez <- js_mapMultiPolygonIO call arr
+        rez `seq` releaseCallback call
         return rez
     {-# NOINLINE mapCallbackSet #-}
-    mapCallbackSet = mapMultiPolygon''
+    mapCallbackSet = js_mapMultiPolygon
+    {-# NOINLINE foldSet #-}
+    foldSet f a arr = unsafePerformIO $ do
+        call <- syncCallbackUnsafe2 $ \r e -> asJSVal (f (asLikeJS r) e)
+        rez <- asLikeJS <$> js_foldMultiPolygonIO call (asJSVal a) arr
+        rez `seq` releaseCallback call
+        return rez
+    {-# NOINLINE foldCallbackSet #-}
+    foldCallbackSet f a = asLikeJS . js_foldMultiPolygon f (asJSVal a)
 
 
 -- | Create a MultiPolygon
 multiPolygon :: [Polygon n x] -- ^ All remaining points (without duplicate of the first one)
              -> MultiPolygon n x
-multiPolygon = js_createMultiPolygon  . unsafeCoerce . seqList
+multiPolygon = fromJSArray . fromList
 
 -- | Get list of points from Polygon (without repeatative last point)
 polygons :: MultiPolygon n x -> [Polygon n x]
-polygons = unsafeCoerce . js_MPtoPList
+polygons = toList
 
 
 {-# INLINE js_PArrToMP #-}
@@ -224,37 +238,13 @@ foreign import javascript unsafe "$1['coordinates'].map(function(e){\
 
 -- | takes a polygon with holes and ring indices
 --   (it assumes that point array is a polygon)
-triangulate'' :: PS.PointArray 2 x -> JSVal -> JSVal
+triangulate'' :: PS.PointArray 2 x -> JSArray Int -> JSArray Int
 triangulate'' set rinds = js_triangulate (PS.flatten set) rinds
 
 {-# INLINE js_triangulate #-}
 foreign import javascript unsafe "earcut($1,$2)"
-    js_triangulate :: JSVal -> JSVal -> JSVal
+    js_triangulate :: JSArray x -> JSArray Int -> JSArray Int
 
-
--- {-# INLINE index #-}
---foreign import javascript unsafe "$2['coordinates'][$1]"
---    index :: Int -> Polygon n x -> LinearRing n x
-
-
-{-# INLINE js_createPolygon #-}
-foreign import javascript unsafe "$r = {}; $r['type'] = 'Polygon'; $r['coordinates'] = h$listToArray($1);"
-    js_createPolygon :: Any -> Polygon n x
-
-{-# INLINE js_createMultiPolygon #-}
-foreign import javascript unsafe "$r = {}; $r['type'] = 'MultiPolygon';\
-                                 \$r['coordinates'] = h$listToArray($1).map(function(e){return e['coordinates'];});"
-    js_createMultiPolygon :: Any -> MultiPolygon n x
-
--- {-# INLINE js_PtoLRList #-}
---foreign import javascript unsafe "h$toHsListJSVal($1['coordinates'])"
---    js_PtoLRList:: Polygon n x -> Any
-
-{-# INLINE js_MPtoPList #-}
-foreign import javascript unsafe "h$toHsListJSVal($1['coordinates'].map(function(e){\
-                                    \ var r = {}; r['type'] = 'Polygon'; r['coordinates'] = e;\
-                                    \ return r; }))"
-    js_MPtoPList:: MultiPolygon n x -> Any
 
 {-# INLINE js_MPtoPA #-}
 foreign import javascript unsafe "$r = [].concat.apply([], [].concat.apply([], $1['coordinates'])\
@@ -268,36 +258,47 @@ foreign import javascript unsafe "[].concat.apply([], $1['coordinates'].map(func
 {-# INLINE js_ringIndices #-}
 foreign import javascript unsafe "$1['coordinates'].slice(0,$1['coordinates'].length-1)\
                                         \.reduce(function(r,e){return r.concat([e.length-1 + r[r.length-1]]);},[0]).slice(1)"
-    js_ringIndices :: Polygon n x -> JSVal
-
-{-# INLINE js_indicesListPrim #-}
-foreign import javascript unsafe "h$fromArrayNoWrap($1)"
-    js_indicesListPrim:: JSVal -> Any
-
-seqList :: [a] -> [a]
-seqList xs = foldr seq () xs `seq` xs
+    js_ringIndices :: Polygon n x -> JSArray Int
+--
+--{-# INLINE js_indicesListPrim #-}
+--foreign import javascript unsafe "h$fromArrayNoWrap($1)"
+--    js_indicesListPrim:: JSArray Int -> Any
 
 
-
-{-# INLINE mapPolygon' #-}
+{-# INLINE js_mapPolygonIO #-}
 foreign import javascript unsafe "$r = {}; $r['type'] = 'Polygon';\
                                  \$r['coordinates'] = $2['coordinates'].map(function(r){return r.map($1);});"
-    mapPolygon' :: (Callback (JSVal -> IO JSVal)) -> Polygon n x -> IO (Polygon n x)
-{-# INLINE mapPolygon'' #-}
+    js_mapPolygonIO :: (Callback (Vector n x -> Vector n x)) -> Polygon n x -> IO (Polygon n x)
+{-# INLINE js_mapPolygon #-}
 foreign import javascript unsafe "$r = {}; $r['type'] = 'Polygon';\
                                  \$r['coordinates'] = $2['coordinates'].map(function(r){return r.map($1);});"
-    mapPolygon'' :: (Callback a) -> Polygon n x -> Polygon n x
+    js_mapPolygon :: (Callback (Vector n x -> Vector n x)) -> Polygon n x -> Polygon n x
 
 
-{-# INLINE mapMultiPolygon' #-}
+{-# INLINE js_mapMultiPolygonIO #-}
 foreign import javascript unsafe "$r = {}; $r['type'] = 'MultiPolygon';\
                                  \$r['coordinates'] = $2['coordinates'].map(function(p){return p.map(function(r){return r.map($1);});});"
-    mapMultiPolygon' :: (Callback (JSVal -> IO JSVal)) -> MultiPolygon n x -> IO (MultiPolygon n x)
-{-# INLINE mapMultiPolygon'' #-}
+    js_mapMultiPolygonIO :: (Callback (Vector n x -> Vector n x)) -> MultiPolygon n x -> IO (MultiPolygon n x)
+{-# INLINE js_mapMultiPolygon #-}
 foreign import javascript unsafe "$r = {}; $r['type'] = 'MultiPolygon';\
                                  \$r['coordinates'] = $2['coordinates'].map(function(p){return p.map(function(r){return r.map($1);});});"
-    mapMultiPolygon'' :: (Callback a) -> MultiPolygon n x -> MultiPolygon n x
+    js_mapMultiPolygon :: (Callback (Vector n x -> Vector n x)) -> MultiPolygon n x -> MultiPolygon n x
 
+
+{-# INLINE js_foldPolygonIO #-}
+foreign import javascript unsafe "$3['coordinates'].reduce(function(rr,r){return r.reduce($1,rr);},$2)"
+    js_foldPolygonIO :: Callback (a -> Vector n x -> a) -> JSVal -> Polygon n x -> IO JSVal
+{-# INLINE js_foldPolygon #-}
+foreign import javascript unsafe "$3['coordinates'].reduce(function(rr,r){return r.reduce($1,rr);},$2)"
+    js_foldPolygon :: Callback (a -> Vector n x -> a) -> JSVal -> Polygon n x -> JSVal
+
+
+{-# INLINE js_foldMultiPolygonIO #-}
+foreign import javascript unsafe "$3['coordinates'].reduce(function(rp,p){return p.reduce(function(rr,r){return r.reduce($1,rr);},rp);},$2)"
+    js_foldMultiPolygonIO :: Callback (a -> Vector n x -> a) -> JSVal -> MultiPolygon n x -> IO JSVal
+{-# INLINE js_foldMultiPolygon #-}
+foreign import javascript unsafe "$3['coordinates'].reduce(function(rp,p){return p.reduce(function(rr,r){return r.reduce($1,rr);},rp);},$2)"
+    js_foldMultiPolygon :: Callback (a -> Vector n x -> a) -> JSVal -> MultiPolygon n x -> JSVal
 
 
 {-# INLINE syncCallbackUnsafe1 #-}
@@ -307,10 +308,6 @@ syncCallbackUnsafe1 x = js_syncCallbackApplyReturnUnsafe 1 (unsafeCoerce x)
 {-# INLINE syncCallbackUnsafe2 #-}
 syncCallbackUnsafe2 :: (a -> b -> c) -> IO (Callback (a -> b -> c))
 syncCallbackUnsafe2 x = js_syncCallbackApplyReturnUnsafe 2 (unsafeCoerce x)
-
-{-# INLINE syncCallbackUnsafe3 #-}
-syncCallbackUnsafe3 :: (a -> b -> c -> d) -> IO (Callback (a -> b -> c -> d))
-syncCallbackUnsafe3 x = js_syncCallbackApplyReturnUnsafe 3 (unsafeCoerce x)
 
 {-# INLINE js_syncCallbackApplyReturnUnsafe #-}
 foreign import javascript unsafe

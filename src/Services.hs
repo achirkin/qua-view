@@ -26,4 +26,4 @@ data ServiceBox = forall s . ComputingService s => ServiceBox s
 
 
 class (Show s) => ComputingService s where
-    runService :: s -> Maybe LuciClient -> Maybe Scenario -> ScalarField -> IO (Maybe ScalarField)
+    runService :: s -> Maybe LuciClient -> Maybe LuciScenario -> ScalarField -> IO (Maybe ScalarField)

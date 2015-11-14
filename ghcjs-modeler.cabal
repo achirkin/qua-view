@@ -45,6 +45,7 @@ executable ghcjs-modeler
         Controllers.LuciClient
         Controllers.Pointer
         Data.Geometry.Structure
+        Data.Geometry.Structure.Feature
         Data.Geometry.Structure.LinearRing
         Data.Geometry.Structure.PointSet
         Data.Geometry.Structure.Polygon
