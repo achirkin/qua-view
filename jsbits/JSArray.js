@@ -18,10 +18,7 @@ function h$runSyncActionUnsafe(t, a, cont) {
   h$currentThread = t;
   h$stack = t.stack;
   h$sp = t.sp;
-  while(c && c !== h$reschedule)
-  {
-    c = c();
-  }
+  while(c !== h$reschedule){c = c();}
   if(ct !== null) {
     h$currentThread = ct;
     h$stack = ct.stack;

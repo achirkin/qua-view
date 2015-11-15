@@ -1,4 +1,5 @@
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE JavaScriptFFI, GHCForeignImportPrim #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Data.Geometry.Structure.Feature
@@ -13,8 +14,8 @@
 -----------------------------------------------------------------------------
 
 module Data.Geometry.Structure.Feature
-    ( FeatureCollection ()
-    , Feature ()
+    ( FeatureCollection (..)
+    , Feature (..)
     ) where
 
 import GHCJS.Types (JSVal)
@@ -34,23 +35,6 @@ instance LikeJSArray FeatureCollection where
     toJSArray = js_FCToJSArray
     {-# INLINE fromJSArray #-}
     fromJSArray = js_JSArrayToFC
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
