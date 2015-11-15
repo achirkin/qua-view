@@ -146,7 +146,7 @@ featureCollectionToObjectsAndScale b gfc = (r1,r2, scal, shift)
 --wiredGeom2FeaturesRef mt (WiredGeometry )
 
 
---toJSRef (ScenarioObject layer gid mid lobj) = do
+--toJSRef (Feature layer gid mid lobj) = do
 --        props <- newObj
 --        toJSVal >>= flip (unsafeSetProp "layer") props
 --        toJSVal >>= flip (unsafeSetProp "geomID") props
@@ -362,7 +362,7 @@ mapPoly f (S.GenericPolygon xxs) = S.GenericPolygon $ map (mapPoly f) xxs
 
 
 instance ToJSVal where
-    toJSRef (ScenarioObject layer gid mid lobj) = do
+    toJSRef (Feature layer gid mid lobj) = do
         props <- newObj
         toJSVal >>= flip (unsafeSetProp "layer") props
         toJSVal >>= flip (unsafeSetProp "geomID") props
@@ -472,12 +472,12 @@ instance FromJSVal where
             return $ case mlayer of
                 Nothing -> Just SLbuildings
                 ji -> ji
-        >>=~ \layer -> return $ importScenarioObject layer mgeomID behav rawpolygons
+        >>=~ \layer -> return $ importFeature layer mgeomID behav rawpolygons
 
 
-importScenarioObject :: ScenarioLayer -> Maybe Int -> ObjectBehavior -> [S.Polygon 3 GLfloat]
-                     -> Maybe ImportedScenarioObject
-importScenarioObject layer mGeomID behav rawpolygons =
+importFeature :: ScenarioLayer -> Maybe Int -> ObjectBehavior -> [S.Polygon 3 GLfloat]
+                     -> Maybe ImportedFeature
+importFeature layer mGeomID behav rawpolygons =
     parse3Dpolygons (map (mapPoly (\(Vector3 x mz y) -> Vector3 x y (-mz))) rawpolygons)
     >>= Just . ISObject layer mGeomID behav
 

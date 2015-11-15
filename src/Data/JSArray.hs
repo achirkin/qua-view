@@ -51,7 +51,6 @@ import System.IO.Unsafe (unsafePerformIO)
 import Unsafe.Coerce (unsafeCoerce)
 import Control.Monad (void)
 
-
 instance LikeJS (Vector n x)
 instance LikeJS (Matrix n x)
 instance (LikeJS a) => LikeJSArray (Vector n a) where
@@ -93,10 +92,11 @@ class LikeJS a where
 
     {-# INLINE asJSVal #-}
     default asJSVal :: Coercible a JSVal => a -> JSVal
-    asJSVal = coerce
+    asJSVal = unsafeCoerce
     {-# INLINE asLikeJS #-}
     default asLikeJS :: Coercible JSVal a => JSVal -> a
-    asLikeJS = coerce
+    asLikeJS = unsafeCoerce
+
 
 -- | Convert haskell list into JS array
 fromList :: ( LikeJSArray a )
@@ -424,10 +424,10 @@ instance (Show a, LikeJS a) => Show (JSArray a) where
 
 
 instance (LikeJS a, LikeJS b) => LikeJS (Either a b) where
-    {-# INLINE asJSVal #-}
+    {-# NOINLINE asJSVal #-}
     asJSVal (Left  x) = js_ToLeft $ asJSVal x
     asJSVal (Right x) = js_ToRight $ asJSVal x
-    {-# INLINE asLikeJS #-}
+    {-# NOINLINE asLikeJS #-}
     asLikeJS jsv = if js_IsEitherRight jsv
                    then Right . asLikeJS $ js_EitherVal jsv
                    else Left  . asLikeJS $ js_EitherVal jsv
@@ -467,8 +467,8 @@ instance LikeJS a => LikeJS [a] where
     asLikeJS = (toList :: JSArray a -> [a]) . asLikeJS
 
 {-# RULES
-"asJSVal/String"   asJSVal = js_toJSString . unsafeCoerce . seqList
-"asLikeJS/String" asLikeJS = unsafeCoerce . js_fromJSString
+"asJSVal/String"   asJSVal = js_toJSString . unsafeCoerce . seqList :: String -> JSVal
+"asLikeJS/String" asLikeJS = unsafeCoerce . js_fromJSString :: JSVal -> String
     #-}
 
 -- convert to / from JSVal
@@ -576,12 +576,10 @@ jsmapEither :: ( LikeJSArray a
             => (JSArrayElem a -> Either x y)
             -> a -> (JSArray x, JSArray y)
 jsmapEither f arr = unsafePerformIO $ do
-        call <- syncCallbackUnsafe1 $ asJSVal . f . asLikeJS
-        r <- js_mapEither call (toJSArray arr)
-        r `seq` releaseCallback call
-        return r
-
-
+    call <- syncCallbackUnsafe1 $ asJSVal . f . asLikeJS
+    r <- call `seq` js_mapEither call (toJSArray arr)
+    r `seq` releaseCallback call
+    return r
 
 {-# INLINE js_filter #-}
 foreign import javascript unsafe "$2.filter($1)"

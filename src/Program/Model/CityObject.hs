@@ -22,14 +22,14 @@ module Program.Model.CityObject
     ( CityObject (), LocatedCityObject, behavior, objPolygons, objPoints
     , GeoJsonGeometry (..)
     , PointData (), vertexArray, indexArray, vertexArrayLength, indexArrayLength
-    , processScenarioObject
+    , processFeature
     , ObjectBehavior (..)
 --    ( CityObject (..)
 --    , ObjectBehavior (..)
 --    , PointData (..)
 --    , LocatedCityObject
 --    , building
---    , ScenarioObject (..), GeomID, ScenarioLayer (..), ImportedScenarioObject (..)
+--    , Feature (..), GeomID, ScenarioLayer (..), ImportedFeature (..)
     )
     where
 
@@ -60,14 +60,6 @@ import Data.Geometry.Structure.LinearRing (toList', linearRing)
 import Data.Geometry.Structure.Polygon
 import Data.Geometry.Structure.PointSet (PointArray, PointSet (..), shrinkVectors, boundingRectangle2D)
 import Data.Geometry.Structure.Feature
-
---defaultHeightDynamic :: GLfloat
---defaultHeightDynamic = 3
---
---defaultHeightStatic :: GLfloat
---defaultHeightStatic = 3
-
-
 
 
 -- | Id of geometry in Luci
@@ -116,17 +108,17 @@ instance PFromJSVal (Maybe ScenarioLayer) where
 newtype CityObject = CityObject JSVal
 instance LikeJS CityObject
 
-processScenarioObject :: GLfloat -- ^ default height in camera space
+processFeature :: GLfloat -- ^ default height in camera space
                       -> GLfloat -- ^ scale objects before processing
                       -> Vector2 GLfloat -- ^ shift objects before processing
                       -> Feature -> Either JSString LocatedCityObject
-processScenarioObject defHeight scale shift sObj | scale <= 0 = Left . pack $ "processScenarioObject: Scale is wrong possible (" ++ show scale ++ ")"
+processFeature defHeight scale shift sObj | scale <= 0 = Left . pack $ "processFeature: Scale is wrong possible (" ++ show scale ++ ")"
                                                  | otherwise  = if isSlave sObj then Left "Skipping a slave scenario object." else
     pFromJSVal (getGeoJSONGeometry sObj) >>= \(ND geom) ->
     toBuildingMultiPolygon (defHeight / scale) geom >>= \mpoly ->
     let qt@(T.QFTransform trotScale tshift locMPoly) = locateMultiPolygon scale shift mpoly
         pdata = buildingPointData locMPoly
-    in Right . flip T.wrap qt $ js_ScenarioObjectToCityObject sObj pdata locMPoly tshift trotScale
+    in Right . flip T.wrap qt  $ js_FeatureToCityObject sObj pdata locMPoly tshift trotScale
 
 locateMultiPolygon :: GLfloat
                    -> Vector2 GLfloat
@@ -224,9 +216,9 @@ foreign import javascript unsafe "$1['geometry']"
 type LocatedCityObject = T.QFTransform CityObject
 
 instance LikeJS LocatedCityObject where
-    asJSVal (T.QFTransform rs sh obj) = js_delocateCityObject obj sh rs
-    asLikeJS js = T.QFTransform rs sh (coerce jv)
-        where (jv, sh, rs) = js_locateCityObject js
+    asJSVal (T.QFTransform rs sh obj) = rs `seq` sh `seq` obj `seq` js_delocateCityObject obj sh rs
+    asLikeJS js = case js_locateCityObject js of
+                   (jv, sh, rs) -> T.QFTransform rs sh (coerce jv)
 
 
 instance PFromJSVal (Maybe LocatedCityObject) where
@@ -258,7 +250,7 @@ instance PToJSVal LocatedCityObject where
 
 foreign import javascript unsafe "$r = {}; $r['properties'] = $1['properties']; $r['type'] = $1['type']; $r['geometry'] = $3; $r['pointData'] = $2;\
                                  \$r['properties']['transform'] = {}; $r['properties']['transform']['shift'] = $4; $r['properties']['transform']['rotScale'] = $5;"
-    js_ScenarioObjectToCityObject :: Feature
+    js_FeatureToCityObject :: Feature
                                   -> PointData
                                   -> MultiPolygon 3 GLfloat
                                   -> Vector3 GLfloat
@@ -343,10 +335,10 @@ foreign import javascript unsafe "{ vertexArray: $1, indexArray: Uint16Array.fro
 --                                 \$r = $1;"
 --    wrapInJSQTransform :: JSVal -> JSQTransform x
 
---data ScenarioObject = ScenarioObject ScenarioLayer GeomID (Maybe GeomID) LocatedCityObject
+--data Feature = Feature ScenarioLayer GeomID (Maybe GeomID) LocatedCityObject
 --    deriving Show
 --
-----data ImportedScenarioObject = ISObject ScenarioLayer (Maybe GeomID) ObjectBehavior (Polygon 3 GLfloat)
+----data ImportedFeature = ISObject ScenarioLayer (Maybe GeomID) ObjectBehavior (Polygon 3 GLfloat)
 ----    deriving Show
 --
 ---- | Basic entity in the program; Defines the logic of the interaction and visualization
