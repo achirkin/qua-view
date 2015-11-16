@@ -40,7 +40,7 @@ import GHCJS.Foreign.Callback (Callback)
 import GHC.TypeLits
 import Data.Proxy (Proxy(..))
 import Data.Coerce (coerce)
-import Data.JSString (unpack', append, pack)
+import Data.JSString (unpack', pack)
 
 import GHCJS.Foreign
 import GHCJS.Marshal.Pure
@@ -113,8 +113,8 @@ processFeature :: GLfloat -- ^ default height in camera space
                       -> Vector2 GLfloat -- ^ shift objects before processing
                       -> Feature -> Either JSString LocatedCityObject
 processFeature defHeight scale shift sObj | scale <= 0 = Left . pack $ "processFeature: Scale is wrong possible (" ++ show scale ++ ")"
-                                                 | otherwise  = if isSlave sObj then Left "Skipping a slave scenario object." else
-    pFromJSVal (getGeoJSONGeometry sObj) >>= \(ND geom) ->
+                                          | otherwise  = if isSlave sObj then Left "Skipping a slave scenario object." else
+    getGeoJSONGeometry sObj >>= \(ND geom) ->
     toBuildingMultiPolygon (defHeight / scale) geom >>= \mpoly ->
     let qt@(T.QFTransform trotScale tshift locMPoly) = locateMultiPolygon scale shift mpoly
         pdata = buildingPointData locMPoly
@@ -168,47 +168,6 @@ foreign import javascript unsafe "$1['properties']['isSlave']"
 
 
 
-data GeoJsonGeometryND = forall n . KnownNat n => ND (GeoJsonGeometry n)
-
-data GeoJsonGeometry n = GeoPoint JSVal -- coordinates (Vector n GLfloat)
-                       | GeoMultiPoint JSVal -- coordinates (PointArray n GLfloat)
-                       | GeoLineString JSVal -- coordinates LineString
-                       | GeoMultiLineString JSVal -- coordinates MultiLineString
-                       | GeoPolygon (Polygon n GLfloat)
-                       | GeoMultiPolygon (MultiPolygon n GLfloat)
-
-instance PFromJSVal (Either JSString (GeoJsonGeometry n)) where
-    pFromJSVal js = if not (isTruthy js)
-        then Left "Could parse GeoJsonGeometry: it is falsy!"
-        else case getGeoJSONType js of
-            "Polygon"      -> Right . GeoPolygon $ pFromJSVal js
-            "MultiPolygon" -> Right . GeoMultiPolygon $ pFromJSVal js
-            t              -> Left $ "Could parse GeoJsonGeometry: type " `append` t `append` " is not supported currently."
-
-instance PFromJSVal (Either JSString GeoJsonGeometryND) where
-    pFromJSVal js = if not (isTruthy js)
-        then Left "Could parse GeoJsonGeometryND: it is falsy!"
-        else let mdims = someNatVal . toInteger $ getDimensionality js
-             in case mdims of
-                 Nothing -> Left "Could parse GeoJsonGeometryND: failed to find dimensionality of the data"
-                 Just (SomeNat proxy) -> pFromJSVal js >>= Right . ND . dimensionalize proxy
-
-
-{-# INLINE dimensionalize #-}
-dimensionalize :: KnownNat n => Proxy n -> GeoJsonGeometry n -> GeoJsonGeometry n
-dimensionalize _ = id
-
-{-# INLINE getDim2 #-}
-getDim2 :: KnownNat n => a n x -> Proxy n
-getDim2 _ = Proxy
-
-
-{-# INLINE getGeoJSONType #-}
-foreign import javascript unsafe "$1['type']"
-    getGeoJSONType :: JSVal -> JSString
-{-# INLINE getGeoJSONGeometry #-}
-foreign import javascript unsafe "$1['geometry']"
-    getGeoJSONGeometry :: Feature -> JSVal
 --{-# INLINE getGeoJSONProperties #-}
 --foreign import javascript unsafe "$1['properties']"
 --    getGeoJSONProperties :: JSVal -> JSVal
@@ -257,14 +216,9 @@ foreign import javascript unsafe "$r = {}; $r['properties'] = $1['properties']; 
                                   -> QFloat
                                   -> CityObject
 
-{-# INLINE getDimensionality #-}
--- | Get length of the coordinates in GeoJSON object.
---   Default length is 3.
-foreign import javascript unsafe "var dims = $1['coordinates'] ? gm$GeometryDims($1['coordinates']) : 3; $r = dims === 0 ? 3 : dims;"
-    getDimensionality :: JSVal -> Int
 
 
-toBuildingMultiPolygon :: KnownNat n => GLfloat -> GeoJsonGeometry n -> (Either JSString (MultiPolygon 3 GLfloat))
+toBuildingMultiPolygon :: KnownNat n => GLfloat -> GeoJsonGeometry n GLfloat -> (Either JSString (MultiPolygon 3 GLfloat))
 toBuildingMultiPolygon _ (GeoPoint _) = Left "toBuildingMultiPolygon: GeoJSON Point is not convertible to MultiPolygon"
 toBuildingMultiPolygon _ (GeoMultiPoint _) = Left "toBuildingMultiPolygon: GeoJSON MultiPoint is not convertible to MultiPolygon"
 toBuildingMultiPolygon _ (GeoLineString _) = Left "toBuildingMultiPolygon: GeoJSON LineString is not convertible to MultiPolygon"
@@ -290,6 +244,11 @@ completeBuilding [roof] = JSArray.fromList $ roof : map buildWall wallLines
           buildWall :: (Vector3 GLfloat, Vector3 GLfloat) -> Polygon 3 GLfloat
           buildWall (p1, p2) = JSArray.fromList [linearRing p1 p2 (flat p2)  [flat p1]]
           flat (unpackV3 -> (x,y,_)) = vector3 x y 0
+
+
+{-# INLINE getDim2 #-}
+getDim2 :: KnownNat n => a n x -> Proxy n
+getDim2 _ = Proxy
 
 
 newtype PointData = PointData JSVal
