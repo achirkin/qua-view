@@ -12,7 +12,6 @@
 --
 -- Maintainer  :  Artem Chirkin <chirkin@arch.ethz.ch>
 -- Stability   :  experimental
--- Portability :
 --
 --
 -----------------------------------------------------------------------------
@@ -42,6 +41,7 @@ import GHCJS.Foreign.Callback (Callback) --, releaseCallback)
 --import Data.Coerce (coerce)
 
 import Data.Geometry
+import Data.Geometry.Transform
 import Data.JSArray
 
 
@@ -121,6 +121,9 @@ instance PointSet (PointArray n x) n x where
     {-# NOINLINE foldCallbackSet #-}
     foldCallbackSet f a = asLikeJS . js_foldPointArray f (asJSVal a)
 
+instance Transformable (PointArray 3 x) 3 x where
+    transform sarr = jsmapSame (transform . flip wrap sarr) arr
+        where arr = unwrap sarr
 
 boundSet :: ( PointSet s n x
             , KnownNat n)

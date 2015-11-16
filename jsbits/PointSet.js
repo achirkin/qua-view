@@ -54,6 +54,31 @@ function gm$GeometryDims(x) {
     return rez;
 }
 
+// check the area and ccw/cw order
+function gm$shoelace(points) {
+    'use strict';
+    var n = points.length;
+    var det2f = function (p,q){ return p[0]*q[1] - p[1]*q[0];};
+    return 0.5* points.reduce(function(r, e, i){return r + det2f(points[(i === 0 ? n : i) - 1],e);}, 0);
+}
+
+// dilate a convex hull by given
+function gm$resizeConvexHull(d, points) {
+    'use strict';
+    var n = points.length;
+    var s = gm$shoelace(points) <= 0 ? 1 : -1;
+    var vecs = points.map(function(e,i){var v = minusJSVec(e,points[(i === 0 ? n : i) - 1]); var l = s/Math.hypot(v[0],v[1]);
+                                        return [-v[1]*l,v[0]*l];});
+    vecs.push(vecs[0]); // now vecs is an array of length (n+1), stores directions orthogonal to lines i and i-1 (cycled)
+    return points.map(function(p,i) {
+        var v = plusJSVec(vecs[i],vecs[i+1]);
+        var xd = d*2/(v[0]*v[0] + v[1]*v[1]);
+        return plusJSVec(p,[v[0]*xd,v[1]*xd]);
+    });
+}
+
+
+
 // find a convex hull for 2-dimensional array
 // https://en.wikipedia.org/wiki/Graham_scan
 function gm$GrahamScan(arr) {

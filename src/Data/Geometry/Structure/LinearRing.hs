@@ -20,6 +20,7 @@ module Data.Geometry.Structure.LinearRing
     , toList -- ^ Get list of points from LinearRing (without repeatative last point)
     , toList'
     , convexPolygonHull
+    , convexPolygonHull2D, resizeConvexHull2D
     ) where
 
 import Prelude hiding (length)
@@ -39,8 +40,15 @@ import GHCJS.Marshal.Pure (PFromJSVal(..))
 
 import Data.JSArray
 import Data.Geometry
+import Data.Geometry.Transform
 import Data.Geometry.Structure.PointSet (PointSet, PointArray)
 import qualified Data.Geometry.Structure.PointSet as PS
+
+
+
+----------------------------------------------------------------------------------------------------
+-- Base Types
+----------------------------------------------------------------------------------------------------
 
 -- | GeoJSON LinearRing
 newtype LinearRing (n::Nat) x = LinearRing JSVal
@@ -66,15 +74,18 @@ instance PS.PointSet (LinearRing n x) n x where
     mean = PS.mean . js_LRtoPA
     {-# INLINE var #-}
     var = PS.var . js_LRtoPA
-    {-# NOINLINE mapSet #-}
+    {-# INLINE mapSet #-}
     mapSet = jsmapSame
-    {-# NOINLINE mapCallbackSet #-}
+    {-# INLINE mapCallbackSet #-}
     mapCallbackSet = js_mapLinearRing
-    {-# NOINLINE foldSet #-}
+    {-# INLINE foldSet #-}
     foldSet = jsfoldl
-    {-# NOINLINE foldCallbackSet #-}
+    {-# INLINE foldCallbackSet #-}
     foldCallbackSet f a = asLikeJS . js_foldLinearRing f (asJSVal a)
 
+instance Transformable (LinearRing 3 x) 3 x where
+    transform sarr = jsmapSame (transform . flip wrap sarr) arr
+        where arr = unwrap sarr
 
 -- | Create a LinearRing
 linearRing :: Vector n x -- ^ First (and last) point of the LinearRing
@@ -90,9 +101,10 @@ toList' :: LinearRing n x -> [Vector n x]
 toList' = unsafeCoerce . js_LRtoList'
 
 
-{-# INLINE lrlength #-}
-foreign import javascript unsafe "$1.length - 1"
-    lrlength :: LinearRing n x -> Int
+----------------------------------------------------------------------------------------------------
+-- Custom Funcions
+----------------------------------------------------------------------------------------------------
+
 
 -- | create a convex polygon that bounds given point set (in projection of most variance plane)
 convexPolygonHull :: (KnownNat n, PointSet s n x, Fractional x, JSNum x)
@@ -104,17 +116,50 @@ convexPolygonHull s = js_RingFromIds set pointIds
           pointIds = js_GrahamScanIds projset
 
 
+-- | create a convex polygon that bounds given point set on 2D plane (first two coordinates)
+convexPolygonHull2D :: (KnownNat n, PointSet s n x, Fractional x, JSNum x)
+                    => s -> LinearRing 2 x
+convexPolygonHull2D = js_PAtoLR . js_GrahamScan . PS.shrinkVectors . PS.toPointArray
+
+-- | Dilate or shrink LinearRing. Worning: works correctly only in case of a convex ring
+resizeConvexHull2D :: JSNum x => x -> LinearRing 2 x -> LinearRing 2 x
+resizeConvexHull2D = js_resizeConvexHull2D . fromNum
+
+foreign import javascript unsafe "$r = gm$resizeConvexHull($1,$2.slice(0,$2.length-1)); $r.push($r[0]);"
+    js_resizeConvexHull2D :: JSVal -> LinearRing 2 x -> LinearRing 2 x
+
+
+
+
+
+
+
+
+
+
+
+
+----------------------------------------------------------------------------------------------------
+-- JS Callbacks
+----------------------------------------------------------------------------------------------------
+
+
+
+{-# INLINE lrlength #-}
+foreign import javascript unsafe "$1.length - 1"
+    lrlength :: LinearRing n x -> Int
 
 {-# INLINE js_RingFromIds #-}
-foreign import javascript unsafe "$r = new Array($2.length+1); $2.forEach(function(e,i){$r[i] = $1[e];}); $r[$2.length] = $r[0];"
+foreign import javascript unsafe "$r = new Array($2.length+1); $2.forEach(function(e,i){$r[i] = $1[e];}); $r.push($r[0]);"
     js_RingFromIds :: PointArray n x -> JSVal -> LinearRing n x
 
 {-# INLINE js_GrahamScanIds #-}
 foreign import javascript unsafe "gm$GrahamScanIds($1)"
     js_GrahamScanIds :: PointArray 2 x -> JSVal
 
-
-
+{-# INLINE js_GrahamScan #-}
+foreign import javascript unsafe "gm$GrahamScan($1)"
+    js_GrahamScan :: PointArray 2 x -> PointArray 2 x
 
 {-# INLINE js_createLinearRing #-}
 foreign import javascript unsafe "$r = h$listToArray($1); $r.push($r[0]);"
