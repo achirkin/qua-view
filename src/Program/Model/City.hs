@@ -40,7 +40,7 @@ import Data.Geometry.Structure.Feature
 --import Geometry.Structure
 
 import Program.Model.CityObject
---import Program.Model.CityGround
+import Program.Model.CityGround
 --import Program.Model.WiredGeometry
 
 
@@ -58,7 +58,7 @@ data City = City
     , activeObjSnapshot :: !(Maybe LocatedCityObject)
     , objectsIn         :: !CityObjectCollection
     , cityTransform     :: !(GLfloat, Vector2 GLfloat)
---    , ground            :: !CityGround
+    , ground            :: !CityGround
 --    , clutter           :: !WiredGeometry
     --, drawTextures      :: !Bool
     }
@@ -74,6 +74,7 @@ buildCity defHeight diam scenario = (,) errors City
     { activeObjId = 0
     , activeObjSnapshot = Nothing
     , objectsIn = objects
+    , ground = buildGround objects
     , cityTransform = (cscale, cshift)
     }
     where (cscale,cshift)  = scenarioViewScaling diam scenario
@@ -84,8 +85,11 @@ updateCity :: GLfloat -- ^ default height of builginds
 updateCity defHeight scenario
            city@City{cityTransform = (cscale, cshift)} = (,)
         errors
-        city { objectsIn = js_concatObjectCollections (objectsIn city) objects }
+        city { objectsIn = allobjects
+             , ground = buildGround allobjects
+             }
     where (errors,objects) = processScenario defHeight cscale cshift scenario
+          allobjects = js_concatObjectCollections (objectsIn city) objects
 
 
 emptyCity :: City
@@ -93,6 +97,7 @@ emptyCity = City
     { activeObjId = 0
     , activeObjSnapshot = Nothing
     , objectsIn = emptyCollection
+    , ground = emptyGround
     , cityTransform = (0, 0)
     }
 
@@ -165,25 +170,6 @@ foreign import javascript unsafe "$1.concat($2)"
 
 
 
----- | Helper for creation of the city from the list of city objects
---buildCity :: [CityObject]
---          -> [Vector3 GLfloat] -- ^ positions
---          -> [GLfloat] -- ^ rotations (w.r.t. Y axis)
---          -> [[Vector3 GLfloat]] -- ^ static wired geometry
---          -> City
---buildCity bs ps rs clut =  City
---        { activeObj = 0
---        , activeObjSnapshot = Nothing
---        , objectsIn = objects
---        , ground = buildGround bb
---        , clutter = createLineSet (Vector4 0.8 0.4 0.4 1) clut
---        --, drawTextures = False
---        }
---    where trans p r t = translate p t >>= rotateY r
---          objects = IM.fromAscList . zip [1512,11923..] $ zipWith3 trans ps rs bs
---          bb = if IM.null objects then boundingBox zeros zeros else boundMap3d2d objects
-
-
 --instance Boundable City 2 GLfloat where
 --    minBBox City{ objectsIn = objs } = if IM.null objs
 --                                       then boundingBox zeros zeros
@@ -199,33 +185,7 @@ foreign import javascript unsafe "$1.concat($2)"
 --              Vector3 xh _ zh = highBound bb3d
 
 
-
 ----------------------------------------------------------------------------------------------------
 -- Edit city object set
 ----------------------------------------------------------------------------------------------------
-
---
----- | Add a list of new objects to a city
---addCityObjects :: [LocatedCityObject] -> City -> City
---addCityObjects xs city@City{objectsIn = objs} = city
---    { objectsIn = objs'
---    , ground    = rebuildGround bbox (ground city)
---    } where i = if IM.null objs then 1 else fst (IM.findMax objs) + 1
---            objs' = IM.union objs . IM.fromAscList $ zip [i..] xs
---            bbox = if IM.null objs'
---                   then boundingBox zeros zeros
---                   else boundMap3d2d objs'
---
---addCityStaticWires :: [[Vector3 GLfloat]] -> City -> City
---addCityStaticWires xs city = city{clutter = appendLineSet xs (clutter city)}
---
----- | Remove all geometry from city
---clearCity :: City -> City
---clearCity city = city
---    { activeObj = 0
---    , activeObjSnapshot = Nothing
---    , objectsIn = objs'
---    , ground = rebuildGround (boundingBox zeros zeros) (ground city)
---    , clutter = createLineSet (Vector4 0.8 0.4 0.4 1) []
---    } where objs' = IM.empty :: IM.IntMap LocatedCityObject
 

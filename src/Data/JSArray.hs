@@ -22,8 +22,9 @@
 -----------------------------------------------------------------------------
 
 module Data.JSArray
-    ( JSArray ()
+    ( JSArray (), emptyJSArray
     , LikeJSArray (..), LikeJS (..)
+    , jsjoin
     , jsmap, jsmapi, jsmapSame, jsmapIO, jsmapIO_, jsmapiIO, jsmapiIO_
     , jsfoldl, jsfoldl1, jsfoldr, jsfoldr1, jsfoldi, jsfoldi1
     , jsfoldIO, jsfoldIO_, jsfoldiIO, jsfoldiIO_
@@ -107,6 +108,7 @@ fromList = fromJSArray . js_ListToJSArray . unsafeCoerce . seqList . map asJSVal
 toList :: ( LikeJSArray a )
          => a -> [JSArrayElem a]
 toList = map asLikeJS . unsafeCoerce . js_JSArrayToList . toJSArray
+
 
 {-# NOINLINE jsmap #-}
 jsmap :: ( LikeJSArray a
@@ -697,5 +699,12 @@ jsconcat a = fromJSArray . js_concat (toJSArray a) . toJSArray
 foreign import javascript unsafe "$1.concat($2)"
     js_concat :: JSArray a -> JSArray a -> JSArray a
 
+-- | Concatenate array of arrays into single array
+{-# INLINE jsjoin #-}
+foreign import javascript unsafe "[].concat.apply([], $1)"
+    jsjoin :: JSArray (JSArray a) -> JSArray a
 
+{-# INLINE emptyJSArray #-}
+foreign import javascript unsafe "[]"
+    emptyJSArray ::JSArray a
 

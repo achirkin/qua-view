@@ -1,4 +1,4 @@
-{-# LANGUAGE DataKinds, FlexibleInstances, MultiParamTypeClasses #-}
+{-# LANGUAGE DataKinds, FlexibleInstances, MultiParamTypeClasses, OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 -----------------------------------------------------------------------------
 -- |
@@ -19,7 +19,7 @@ module Program.Reactions.ServiceFinish where
 --import Geometry.Space
 
 --import GHCJS.Marshal
-----import GHCJS.Useful
+import GHCJS.Useful
 
 import Reactive
 import Controllers.GUIEvents
@@ -28,7 +28,7 @@ import Program
 --import Program.Model.City
 --import Program.Model.CityGround
 import Program.Model.ScalarField
---import Program.View
+import Program.View
 --import Program.View.CityView
 --import Program.View.CityGroundView
 
@@ -60,7 +60,7 @@ instance Reaction Program PView ServiceRunFinish "Finish service" 0 where
 --                                       (Vector4 255 0 0 255)
 
 instance Reaction Program PView ClearServiceResults "Clear service results" 0 where
---    response _ _ _ program pview = do
---        cityView' <- updateView (glctx $ context pview) (city program) (cityView pview)
---        getElementById "clearbutton" >>= elementParent >>= hideElement
---        return $ Left pview{cityView = cityView'}
+    response _ _ _ program pview = do
+        cityView' <- updateView (glctx $ context pview) (city program) (cityView pview)
+        getElementById "clearbutton" >>= elementParent >>= hideElement
+        return $ Left pview{cityView = cityView'}

@@ -25,8 +25,8 @@ module Program.Reactions.ServiceRun where
 --import GHCJS.Useful
 import Reactive
 import Program
---import Program.Model.City
---import Program.Model.CityGround
+import Program.Model.City
+import Program.Model.CityGround
 --import Program.Model.ScalarField
 --import Program.Model.GeoJSON
 
@@ -43,8 +43,8 @@ import Program.Reactions.ViewRendering ()
 $(createEventSense ''ServiceRunFinish)
 
 instance Reaction Program PView ServiceRunBegin "Run service" 1 where
---    react _ _ program@Program{city = ci}
---        = program{city = ci{ground = rebuildGround (minBBox ci) (ground ci)}}
+    react _ _ program@Program{city = ci}
+        = program{city = ci{ground = buildGround $ objectsIn ci}}
 --    response _ _ _ Program
 --            { controls = Controls {activeService = ServiceBox service}
 --            , city = ci

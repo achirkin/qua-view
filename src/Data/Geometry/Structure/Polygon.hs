@@ -10,14 +10,13 @@
 --
 -- Maintainer  :  Artem Chirkin <chirkin@arch.ethz.ch>
 -- Stability   :  experimental
--- Portability :
 --
 --
 -----------------------------------------------------------------------------
 
 module Data.Geometry.Structure.Polygon
     ( Polygon (), polygon, rings
-    , triangulate, triangulate', triangulatePolygon3D, triangulateMultiPolygon3D
+    , triangulate, triangulate', triangulate'', triangulatePolygon3D, triangulateMultiPolygon3D
     , MultiPolygon (), multiPolygon, polygons
     , toPolygon3D, toMultiPolygon3D
     ) where
@@ -39,6 +38,7 @@ import GHCJS.Marshal.Pure (PFromJSVal(..))
 
 import Data.JSArray
 import Data.Geometry
+import Data.Geometry.Transform
 import qualified Data.Geometry.Structure.PointSet as PS
 import Data.Geometry.Structure.LinearRing (LinearRing)
 --import qualified Data.Geometry.Structure.LinearRing as LRing
@@ -84,6 +84,9 @@ instance PS.PointSet (Polygon n x) n x where
     {-# NOINLINE foldCallbackSet #-}
     foldCallbackSet f a = asLikeJS . js_foldPolygon f (asJSVal a)
 
+instance Transformable (Polygon 3 x) 3 x where
+    transform sarr = PS.mapSet (transform . flip wrap sarr) arr
+        where arr = unwrap sarr
 
 -- | Create a Polygon
 polygon :: [LinearRing n x] -- ^ All remaining points (without duplicate of the first one)
@@ -212,6 +215,8 @@ instance PS.PointSet (MultiPolygon n x) n x where
     {-# NOINLINE foldCallbackSet #-}
     foldCallbackSet f a = asLikeJS . js_foldMultiPolygon f (asJSVal a)
 
+instance Transformable (MultiPolygon 3 x) 3 x where
+    transform sarr = PS.mapSet (transform . flip wrap sarr) $ unwrap sarr
 
 -- | Create a MultiPolygon
 multiPolygon :: [Polygon n x] -- ^ All remaining points (without duplicate of the first one)

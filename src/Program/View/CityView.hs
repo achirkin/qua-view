@@ -30,11 +30,11 @@ import Data.JSArray
 
 import Program.Model.City
 import Program.Model.CityObject
---import Program.Model.CityGround
+import Program.Model.CityGround
 --import Program.Model.WiredGeometry
 import Program.View
 import Program.View.CityObjectView
---import Program.View.CityGroundView
+import Program.View.CityGroundView
 --import Program.View.WiredGeometryView ()
 import Data.Bits (Bits(..))
 
@@ -49,7 +49,7 @@ data CityView = CityView
     { viewShader   :: !ShaderProgram
     , selectShader :: !ShaderProgram
     , viewsIn      :: !COViewCollection
---    , groundView   :: !(View CityGround)
+    , groundView   :: !(View CityGround)
 --    , clutterView  :: !(View WiredGeometry)
     }
 
@@ -62,13 +62,13 @@ instance Drawable City where
         seProgram <- initShaders gl [(gl_FRAGMENT_SHADER, fragSelector)
                                     ,(gl_VERTEX_SHADER, vertSelector)]
         objs <- createObjViewCollection gl (objectsIn city)
---        gr <- createView gl (ground city)
+        gr <- createView gl (ground city)
 --        clview <- createView gl (clutter city)
         return CityView
             { viewShader   = buProgram
             , selectShader = seProgram
             , viewsIn      = objs
---            , groundView   = gr
+            , groundView   = gr
 --            , clutterView  = clview
             }
     drawInCurrContext vc@ViewContext
@@ -87,7 +87,7 @@ instance Drawable City where
         uniform1f gl userLoc 1
         uniform4f gl colLoc 1 1 1 1
         applyTransform vc (return () :: MTransform 3 GLfloat ())
---        drawCityGround gl (ploc,nloc,tloc) (ground city) (groundView cview)
+        drawCityGround gl (ploc,nloc,tloc) (ground city) (groundView cview)
         -- draw buildings
         uniform1f gl userLoc 0 -- disable textures for now
         uniform4f gl colLoc 0.5 0.5 0.55 1
@@ -112,13 +112,13 @@ instance Drawable City where
         { vGLProjLoc = unifLoc prog "uProjM"
         , vGLViewLoc = unifLoc prog "uModelViewM"
         }
-    updateView gl City{objectsIn = objs} cv@CityView{ viewsIn = views } = do
+    updateView gl city@City{objectsIn = objs} cv@CityView{ viewsIn = views } = do
         mviews' <- fromJSArray <$> jsunionZipIO f objs views
---        gr <- updateView gl (ground city) (groundView cv)
+        gr <- updateView gl (ground city) (groundView cv)
 --        cl <- updateView gl (clutter city) (clutterView cv)
         return cv
             { viewsIn = mviews'
---            , groundView = gr
+            , groundView = gr
 --            , clutterView = cl
             } where f _ Nothing  Nothing  = return (asLikeJS jsNull)
                     f _ Nothing  (Just v) = deleteView gl (undefined :: LocatedCityObject) v >> return (asLikeJS jsNull)
@@ -126,11 +126,11 @@ instance Drawable City where
                     f _ (Just o) (Just v) = updateView gl o v
     deleteView gl _ CityView
             { viewsIn      = views
---            , groundView   = gr
+            , groundView   = gr
 --            , clutterView  = clutterv
             } = do -- TODO :: delete shaders
         jsmapIO_ (deleteView gl (undefined :: LocatedCityObject)) views
---        deleteView gl (undefined :: CityGround) gr
+        deleteView gl (undefined :: CityGround) gr
 --        deleteView gl (undefined :: WiredGeometry) clutterv
     draw vc city view = -- draw vc (clutter city) (clutterView view) >>
                         drawInCurrContext vc' city view
