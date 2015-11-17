@@ -95,7 +95,11 @@ function gm$GrahamScan(arr) {
     // get the point with the lowest y-coordinate
     var start = hull.splice(hull.reduce(function(r,e,i){return (hull[r][1] > e[1] || (hull[r][1] === e[1] && hull[r][0] > e[0] )) ? i : r; }, 0), 1)[0];
     // sort by angle to starting point
-    hull.sort(function(a,b){return Math.atan2(a[1]-start[1],a[0]-start[0]) - Math.atan2(b[1]-start[1],b[0]-start[0]);});
+    hull.forEach(function(e,i){var x = e[0]-start[0], y = e[1]-start[1]; hull[i]=[x,y,x*x + y*y].concat(e);});
+    hull.sort(function(a,b){
+        return (a[1]*b[0] - a[0]*b[1]) || (a[2] - b[2]);
+    });
+    start = [0,0,0].concat(start);
     // two beginning points are last and first ones
     var end = hull[hull.length-1].slice();
     hull.splice(0,0,end,start);
@@ -114,7 +118,39 @@ function gm$GrahamScan(arr) {
         m++;
         swap( m, i );
     }
-    return hull.slice(1,m+1);
+    // second pass! --------------------------------------------------------------------------------
+    if(m > 3) {
+        hull.splice(0,1);
+        hull.splice(m,n);
+        n = m;
+        // get the point with the highest y-coordinate
+        start = hull.splice(hull.reduce(function(r,e,i){return (hull[r][1] < e[1] || (hull[r][1] === e[1] && hull[r][0] < e[0] )) ? i : r; }, 0), 1)[0];
+        // sort by angle to starting point
+        hull.forEach(function(e,i){var x = e[0]-start[0], y = e[1]-start[1]; hull[i]=[x,y,x*x + y*y].concat(e.slice(3));});
+        hull.sort(function(a,b){
+            return (a[1]*b[0] - a[0]*b[1]) || (a[2] - b[2]);
+        });
+        start[0] = 0; start[1] = 0; start[2] = 0;
+        // two beginning points are last and first ones
+        end = hull[hull.length-1].slice();
+        hull.splice(0,0,end,start);
+        m = 1;
+        for(var i = 2; i <= n; i++) {
+            while (ccw(m-1,m,i) <= 0) { // Find next valid point on convex hull
+                if (m > 1) {
+                    m--;
+                } else if (i === n) { // All points are collinear
+                    break;
+                } else {
+                    i++;
+                }
+            }
+            m++;
+            swap( m, i );
+        }
+    }
+    // end of second pass --------------------------------------------------------------------------
+    return hull.slice(1,m+1).map(function(e){return e.slice(3);});
 }
 
 function gm$GrahamScanIds(arr) {
@@ -131,7 +167,11 @@ function gm$GrahamScanIds(arr) {
     // get the point with the lowest y-coordinate
     var start = hull.splice(hull.reduce(function(r,e,i){return (hull[r][1] > e[1] || (hull[r][1] === e[1] && hull[r][0] > e[0] )) ? i : r; }, 0), 1)[0];
     // sort by angle to starting point
-    hull.sort(function(a,b){return Math.atan2(a[1]-start[1],a[0]-start[0]) - Math.atan2(b[1]-start[1],b[0]-start[0]);});
+    hull.forEach(function(e,i){var x = e[0]-start[0], y = e[1]-start[1]; hull[i]=[x,y,x*x + y*y].concat(e);});
+    hull.sort(function(a,b){
+        return (a[1]*b[0] - a[0]*b[1]) || (a[2] - b[2]);
+    });
+    start = [0,0,0].concat(start);
     // two beginning points are last and first ones
     var end = hull[hull.length-1].slice();
     hull.splice(0,0,end,start);
@@ -150,7 +190,39 @@ function gm$GrahamScanIds(arr) {
         m++;
         swap( m, i );
     }
-    return hull.slice(1,m+1).map(function(e){return e[2];});
+    // second pass! --------------------------------------------------------------------------------
+    if(m > 3) {
+        hull.splice(0,1);
+        hull.splice(m,n);
+        n = m;
+        // get the point with the highest y-coordinate
+        start = hull.splice(hull.reduce(function(r,e,i){return (hull[r][1] < e[1] || (hull[r][1] === e[1] && hull[r][0] < e[0] )) ? i : r; }, 0), 1)[0];
+        // sort by angle to starting point
+        hull.forEach(function(e,i){var x = e[0]-start[0], y = e[1]-start[1]; hull[i]=[x,y,x*x + y*y].concat(e.slice(3));});
+        hull.sort(function(a,b){
+            return (a[1]*b[0] - a[0]*b[1]) || (a[2] - b[2]);
+        });
+        start[0] = 0; start[1] = 0; start[2] = 0;
+        // two beginning points are last and first ones
+        end = hull[hull.length-1].slice();
+        hull.splice(0,0,end,start);
+        m = 1;
+        for(var i = 2; i <= n; i++) {
+            while (ccw(m-1,m,i) <= 0) { // Find next valid point on convex hull
+                if (m > 1) {
+                    m--;
+                } else if (i === n) { // All points are collinear
+                    break;
+                } else {
+                    i++;
+                }
+            }
+            m++;
+            swap( m, i );
+        }
+    }
+    // end of second pass --------------------------------------------------------------------------
+    return hull.slice(1,m+1).map(function(e){return e[5];});
 }
 
 // calculate minimum bounding rectangle for convex ccw polygon (output of gm$GrahamScan)
@@ -275,7 +347,7 @@ function gm$principalEigenvectors(mat,n) {
     for(var i = 0; i < n; i++) {
         A[i] = mat.slice(i*n,(i+1)*n);
     }
-    var eigs = numeric['eig'](A);
+    var eigs = numeric.eig(A);
     return eigs.lambda.x
         .map(function(e,i){return [e,eigs.E.x[i]];})
         .sort(function(a,b){return b[0]-a[0];})

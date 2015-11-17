@@ -266,7 +266,7 @@ initSelectorFramebuffer gl (width,height) = do
     return fb
 
 
-initTexture :: WebGLRenderingContext -> Either TexImageSource (TypedArray GLubyte, Vector2 GLsizei) -> IO WebGLTexture
+initTexture :: WebGLRenderingContext -> Either TexImageSource (TypedArray GLubyte, (GLsizei, GLsizei)) -> IO WebGLTexture
 initTexture gl texdata = do
     tex <- createTexture gl
     bindTexture gl gl_TEXTURE_2D tex
@@ -274,7 +274,7 @@ initTexture gl texdata = do
         Left img -> do
             pixelStorei gl gl_UNPACK_FLIP_Y_WEBGL 1
             texImage2DImg gl gl_TEXTURE_2D 0 gl_RGBA gl_RGBA gl_UNSIGNED_BYTE img
-        Right (arr, unpackV2 -> (w,h)) -> do
+        Right (arr, (w,h)) -> do
             pixelStorei gl gl_UNPACK_FLIP_Y_WEBGL 0
             texImage2D gl gl_TEXTURE_2D 0 gl_RGBA w h 0 gl_RGBA gl_UNSIGNED_BYTE arr
     texParameteri gl gl_TEXTURE_2D gl_TEXTURE_WRAP_S $ fromIntegral gl_CLAMP_TO_EDGE
@@ -285,7 +285,7 @@ initTexture gl texdata = do
     return tex
 
 updateTexture :: WebGLRenderingContext
-              -> Either TexImageSource (TypedArray GLubyte, Vector2 GLsizei)
+              -> Either TexImageSource (TypedArray GLubyte, (GLsizei, GLsizei))
               -> WebGLTexture
               -> IO ()
 updateTexture gl texdata tex = do
@@ -294,7 +294,7 @@ updateTexture gl texdata tex = do
         Left img -> do
             pixelStorei gl gl_UNPACK_FLIP_Y_WEBGL 1
             texImage2DImg gl gl_TEXTURE_2D 0 gl_RGBA gl_RGBA gl_UNSIGNED_BYTE img
-        Right (arr, unpackV2 -> (w,h)) -> do
+        Right (arr, (w,h)) -> do
             pixelStorei gl gl_UNPACK_FLIP_Y_WEBGL 0
             texImage2D gl gl_TEXTURE_2D 0 gl_RGBA w h 0 gl_RGBA gl_UNSIGNED_BYTE arr
     bindTexture gl gl_TEXTURE_2D (pFromJSVal jsNull)

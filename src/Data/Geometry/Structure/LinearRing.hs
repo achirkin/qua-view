@@ -174,7 +174,7 @@ foreign import javascript unsafe "$1.slice(0,$1.length-1)"
     js_LRtoPA :: LinearRing n x -> PointArray n x
 
 {-# INLINE js_PAtoLR #-}
-foreign import javascript unsafe "$r = Array.from($1); $r.push($1[0]);"
+foreign import javascript unsafe "$r = $1.slice(); $r.push($1[0]);"
     js_PAtoLR :: PointArray n x -> LinearRing n x
 
 {-# INLINE js_LRRtoPoints #-}
@@ -182,7 +182,7 @@ foreign import javascript unsafe "$1.slice(0,$1.length-1)"
     js_LRRtoPoints :: LinearRing n x -> JSArray (Vector n x)
 
 {-# INLINE js_PointsToLR #-}
-foreign import javascript unsafe "$r = Array.from($1); $r.push($1[0]);"
+foreign import javascript unsafe "$r = $1.slice(); $r.push($1[0]);"
     js_PointsToLR :: JSArray (Vector n x) -> LinearRing n x
 
 seqList :: [a] -> [a]

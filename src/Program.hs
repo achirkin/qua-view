@@ -34,9 +34,8 @@ import Program.View.WiredGeometryView ()
 import Program.View
 
 import Services
-import Services.Radius
-import Services.Isovist
-import qualified Services.Isovist as Isovist
+import qualified Services.Isovist as Services
+import qualified Services.Radius as Services
 
 data Profile = Full | ExternalEditor | ExternalViewer deriving (Show, Eq)
 
@@ -70,8 +69,8 @@ initProgram vw vh cstate userProfile = Program
         , availableServices = [radService, isovistService]
         }
     , userRole = userProfile
-    } where radService = ServiceBox . RadianceService $ vector3 0 3 5
-            isovistService = ServiceBox (Isovist Isovist.Area)
+    } where radService = ServiceBox . Services.Radius $ vector3 0 3 5
+            isovistService = ServiceBox (Services.Isovist Services.Area)
 
 
 

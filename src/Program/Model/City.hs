@@ -21,6 +21,7 @@ module Program.Model.City
     , CityObjectCollection ()
     , processScenario, scenarioViewScaling
     , getObject, setObject
+    , CitySettings (..), defaultCitySettings
 --    , buildCity
 --    , addCityObjects
     , clearCity
@@ -45,12 +46,6 @@ import Program.Model.CityGround
 
 
 
--- | Basic entity in the program; Defines the logic of the interaction and visualization
-newtype CityObjectCollection = CityObjectCollection JSVal
-instance LikeJS CityObjectCollection
-instance LikeJSArray CityObjectCollection where
-    type JSArrayElem CityObjectCollection = LocatedCityObject
-
 
 -- | Map of all city objects (buildings, roads, etc).
 data City = City
@@ -59,38 +54,25 @@ data City = City
     , objectsIn         :: !CityObjectCollection
     , cityTransform     :: !(GLfloat, Vector2 GLfloat)
     , ground            :: !CityGround
+    , settings          :: !CitySettings
 --    , clutter           :: !WiredGeometry
     --, drawTextures      :: !Bool
     }
 
-
-
-
-buildCity :: GLfloat -- ^ default height of objects represented as footprints
-          -> (Int -> GLfloat) -- ^ desired diagonal length of the city
-          -> FeatureCollection -- ^ scenario to build city of
-          -> ([JSString], City) -- ^ Errors and the city itself
-buildCity defHeight diam scenario = (,) errors City
-    { activeObjId = 0
-    , activeObjSnapshot = Nothing
-    , objectsIn = objects
-    , ground = buildGround objects
-    , cityTransform = (cscale, cshift)
+data CitySettings = CitySettings
+    { defHeight    :: !GLfloat
+    , diagFunction :: Int -> GLfloat
+    , groundDilate :: !GLfloat
+    , evalCellSize :: !GLfloat
     }
-    where (cscale,cshift)  = scenarioViewScaling diam scenario
-          (errors,objects) = processScenario defHeight cscale cshift scenario
 
-updateCity :: GLfloat -- ^ default height of builginds
-           -> FeatureCollection -> City -> ([JSString], City)
-updateCity defHeight scenario
-           city@City{cityTransform = (cscale, cshift)} = (,)
-        errors
-        city { objectsIn = allobjects
-             , ground = buildGround allobjects
-             }
-    where (errors,objects) = processScenario defHeight cscale cshift scenario
-          allobjects = js_concatObjectCollections (objectsIn city) objects
-
+defaultCitySettings :: CitySettings
+defaultCitySettings = CitySettings
+    { defHeight    = 1
+    , diagFunction = (*5) . sqrt . fromIntegral
+    , groundDilate = 1
+    , evalCellSize = 0.5
+    }
 
 emptyCity :: City
 emptyCity = City
@@ -99,7 +81,44 @@ emptyCity = City
     , objectsIn = emptyCollection
     , ground = emptyGround
     , cityTransform = (0, 0)
+    , settings = defaultCitySettings
     }
+
+-- | Basic entity in the program; Defines the logic of the interaction and visualization
+newtype CityObjectCollection = CityObjectCollection JSVal
+instance LikeJS CityObjectCollection
+instance LikeJSArray CityObjectCollection where
+    type JSArrayElem CityObjectCollection = LocatedCityObject
+
+
+
+
+buildCity :: CitySettings -- ^ desired diagonal length of the city
+          -> FeatureCollection -- ^ scenario to build city of
+          -> ([JSString], City) -- ^ Errors and the city itself
+buildCity sets scenario = (,) errors City
+    { activeObjId = 0
+    , activeObjSnapshot = Nothing
+    , objectsIn = objects
+    , ground = buildGround (groundDilate sets) objects
+    , cityTransform = (cscale, cshift)
+    , settings = sets
+    }
+    where (cscale,cshift)  = scenarioViewScaling (diagFunction sets) scenario
+          (errors,objects) = processScenario (defHeight sets) cscale cshift scenario
+
+updateCity ::FeatureCollection -> City -> ([JSString], City)
+updateCity scenario
+           city@City{cityTransform = (cscale, cshift)} = (,)
+        errors
+        city { objectsIn = allobjects
+             , ground = buildGround (groundDilate $ settings city) allobjects
+             }
+    where (errors,objects) = processScenario (defHeight $ settings city) cscale cshift scenario
+          allobjects = jsconcat (objectsIn city) objects
+
+
+
 
 foreign import javascript unsafe "[]"
     emptyCollection :: CityObjectCollection
@@ -130,7 +149,7 @@ clearCity city = city
     , activeObjSnapshot = Nothing
     , objectsIn = emptyCollection
     , cityTransform = (0, 0)
---    , ground = rebuildGround (boundingBox zeros zeros) (ground city)
+    , ground = emptyGround
 --    , clutter = createLineSet (Vector4 0.8 0.4 0.4 1) []
     } -- where objs' = IM.empty :: IM.IntMap LocatedCityObject
 
@@ -161,31 +180,4 @@ foreign import javascript unsafe "var r = gm$boundNestedArray($1['features'].map
                           \        $r3 = [-Infinity,-Infinity];}\
                           \else { $r2 = r[0].slice(0,2); $r3 = r[1].slice(0,2); } $r1 = $1['features'].length;"
     js_boundScenario :: FeatureCollection -> (Int, Vector2 x, Vector2 x)
-
-{-# INLINE js_concatObjectCollections #-}
-foreign import javascript unsafe "$1.concat($2)"
-    js_concatObjectCollections :: CityObjectCollection -> CityObjectCollection -> CityObjectCollection
-
-
-
-
-
---instance Boundable City 2 GLfloat where
---    minBBox City{ objectsIn = objs } = if IM.null objs
---                                       then boundingBox zeros zeros
---                                       else boundMap3d2d objs
---
---boundMap3d2d :: Boundable a 3 GLfloat
---             => IM.IntMap (STransform "Quaternion" GLfloat a)
---             -> BoundingBox 2 GLfloat
---boundMap3d2d objs = boundingBox (Vector2 xl zl) (Vector2 xh zh)
---        where bb3d = boundSet (fmap (fmap minBBox) objs
---                    :: IM.IntMap (STransform "Quaternion" GLfloat (BoundingBox 3 GLfloat)))
---              Vector3 xl _ zl = lowBound bb3d
---              Vector3 xh _ zh = highBound bb3d
-
-
-----------------------------------------------------------------------------------------------------
--- Edit city object set
-----------------------------------------------------------------------------------------------------
 
