@@ -76,18 +76,12 @@ foreign import javascript interruptible "var r = new FileReader(); \
     \       json = JSON.parse(r.result); \
     \   } catch (err) { logText('Your browser does not like JSON file you have chosen: ' + err); } \
     \   $c(json); }}; \
+    \ var errfun = function() {logText('Your browser cannot open file.'); $c(null);}; \
     \ r.onloadend = load;  \
+    \ r.onerror = errfun; \
     \ r.readAsText($1.files[0]);"
     getElementFiles :: JSElement -> IO FeatureCollection
 
----- | Convert JSON object in JavaScript back to Haskell data that implements fromJSON a class
---fromJSRef_aeson :: A.FromJSON a => JSVal -> IO (Maybe a)
---fromJSRef_aeson = liftM (>>= f . A.fromJSON) . fromJSRef . castRef
---    where f (A.Error _) = Nothing
---          f (A.Success x) = Just x
---
---getUrlJSON :: String -> IO (JSVal)
---getUrlJSON = getUrlJSON' . toJSString
 
 foreign import javascript interruptible "var xmlHttp = new XMLHttpRequest(); \
     \ var json = null; \
@@ -98,8 +92,10 @@ foreign import javascript interruptible "var xmlHttp = new XMLHttpRequest(); \
     \   } catch (err) { logText('Your browser does not like JSON file you have chosen: ' + err); } \
     \   if(i == 0){i++;$c(json);} \
     \ }; \
+    \ var errjson = function() {logText('Your browser cannot execute http request on ' + $1); if(i == 0){i++;$c(null);} }; \
     \ try { \
     \     xmlHttp.onload = loadjson; \
+    \     xmlHttp.onerror = errjson; \
     \     xmlHttp.open( 'GET', $1, true ); \
     \     xmlHttp.send( ); \
     \ } catch (err) { logText(err); if(i == 0){i++;$c(null);}} "

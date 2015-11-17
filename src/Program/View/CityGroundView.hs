@@ -17,7 +17,7 @@ module Program.View.CityGroundView where
 
 
 import GHCJS.WebGL
-import Data.Geometry
+--import Data.Geometry
 
 import Program.Model.CityObject
 import Program.Model.CityGround
@@ -31,17 +31,7 @@ data CityGroundView = CityGroundView !WebGLBuffer !WebGLBuffer !(Maybe WebGLText
 
 
 drawCityGround :: WebGLRenderingContext -> (GLuint,GLuint,GLuint) -> CityGround -> View CityGround -> IO ()
---drawCityGround _ _ _ (CityGroundView _ _ Nothing) = return ()
-drawCityGround gl (ploc,nloc,tloc) gr (CityGroundView buf ibuf Nothing) = do
---    bindTexture gl gl_TEXTURE_2D tex
-    depthMask gl False
-    bindBuffer gl gl_ARRAY_BUFFER buf
-    vertexAttribPointer gl ploc 3 gl_FLOAT False 20 0
-    vertexAttribPointer gl nloc 3 gl_BYTE True 20 12
-    vertexAttribPointer gl tloc 2 gl_UNSIGNED_SHORT True 20 16
-    bindBuffer gl gl_ELEMENT_ARRAY_BUFFER ibuf
-    drawElements gl gl_TRIANGLE_STRIP (indexArrayLength $ groundPoints gr) gl_UNSIGNED_SHORT 0
-    depthMask gl True
+drawCityGround _ _ _ (CityGroundView _ _ Nothing) = return ()
 drawCityGround gl (ploc,nloc,tloc) gr (CityGroundView buf ibuf (Just tex)) = do
     bindTexture gl gl_TEXTURE_2D tex
     depthMask gl False
@@ -75,7 +65,7 @@ instance Drawable CityGround where
 
 updateGroundView :: WebGLRenderingContext
                  -> CityGround
-                 -> Maybe (Either TexImageSource (TypedArray GLubyte, Vector2 GLsizei))
+                 -> Maybe (Either TexImageSource (TypedArray GLubyte, (GLsizei, GLsizei)))
                  -> View CityGround
                  -> IO (View CityGround)
 updateGroundView gl gr mts (CityGroundView buf ibuf mtex) = do

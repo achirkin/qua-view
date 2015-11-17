@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeFamilies, DataKinds #-}
+{-# LANGUAGE TypeFamilies, DataKinds, RecordWildCards #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Program.Model.CityGround
@@ -15,11 +15,13 @@
 module Program.Model.CityGround
     ( CityGround (..)
     , buildGround, emptyGround
---    , buildGround
 --    , rebuildGround
---    , groundEvalGrid
---    , groundGridToTexArray
+    , groundEvalGrid
+    , groundGridToTexArray
+    , isEmptyGround
     ) where
+
+import Unsafe.Coerce (unsafeCoerce)
 
 import GHCJS.WebGL
 
@@ -29,19 +31,29 @@ import Data.Geometry.Transform
 import Data.Geometry.Structure.LinearRing
 import Data.Geometry.Structure.Polygon
 import qualified Data.Geometry.Structure.PointSet as PS
+import JavaScript.TypedArray
 
 import SmallGL.WritableVectors
 
 import Program.Model.CityObject
 
-dilateConstant :: GLfloat
-dilateConstant = 1
-
-newtype CityGround = CityGround { groundPoints :: PointData }
+data CityGround = CityGround
+    { groundPoints :: !PointData
+    , groundCorner :: !(Vector3 GLfloat)
+    , groundX      :: !(Vector3 GLfloat)
+    , groundY      :: !(Vector3 GLfloat)
+    }
 
 buildGround :: (LikeJSArray s,JSArrayElem s ~ LocatedCityObject)
-            => s -> CityGround
-buildGround s = CityGround $ packPointData vertices indices
+            => GLfloat -- ^ how much to dilate the ground area
+            -> s -- ^ object collection to bound
+            -> CityGround
+buildGround dilateConstant s = CityGround
+    { groundPoints = packPointData vertices indices
+    , groundCorner = resizeVector ldcorner
+    , groundX      = resizeVector $ dirX * 2
+    , groundY      = resizeVector $ dirY * 2
+    }
     where points = fromJSArray . jsjoin $ jsmap (toJSArray . transform . fmap (PS.toPointArray . objPolygons)) s :: PS.PointArray 3 GLfloat
           hull' = resizeConvexHull2D dilateConstant $ convexPolygonHull2D points :: LinearRing 2 GLfloat
           hull = PS.toPointArray hull'
@@ -51,15 +63,24 @@ buildGround s = CityGround $ packPointData vertices indices
                                 (PS.fillPointArray (jslength hull) $ vector3 0 0 127)
                                 (fromJSArray $ jsmap gtx hull)
           gtx :: Vector2 GLfloat -> Vector2 GLushort
-          gtx p = case p - ldcorner of q -> vector2 (round $ dot xmult q) (round $ dot ymult q)
-          m = 65535 * 0.5 -- maximum of GLushort divided by 2
+          gtx p = case p - ldcorner of q -> vector2 (roundclamp $ dot xmult q) (roundclamp $ dot ymult q)
+          m = 65535*0.5 -- maximum of GLushort divided by 2
           ldcorner = center - dirX - dirY
-          xmult = m * dirX / dirX .*. dirX
-          ymult = m * dirY / dirY .*. dirY
+          xmult = m * dirX / (dirX .*. dirX)
+          ymult = m * dirY / (dirY .*. dirY)
+          roundclamp = max 0 . min 65535 . round
 
 
 emptyGround :: CityGround
-emptyGround = CityGround emptyPointData
+emptyGround = CityGround
+    { groundPoints = emptyPointData
+    , groundCorner = 0
+    , groundX      = vector3 1 0 0
+    , groundY      = vector3 0 1 0
+    }
+
+isEmptyGround :: CityGround -> Bool
+isEmptyGround gr = indexArrayLength (groundPoints gr) == 1
 
 
 ----import Data.Primitive.ByteArray
@@ -132,23 +153,49 @@ emptyGround = CityGround emptyPointData
 --          m = 65535 :: GLushort
 --
 --
----- texture creation
---
---groundEvalGrid :: CityGround
---               -> GLfloat  -- ^ desired cell size
---               -> [Vector3 GLfloat] -- half size in 111 direction
---groundEvalGrid CityGround{groundBox = b} cellSize = zs >>= \z -> map (\x -> Vector3 x 0 z) xs
---    where Vector2 sx sz = highBound b .- lowBound b
---          Vector2 x0 _ = lowBound b
---          Vector2 _ z1 = highBound b
---          nx = max 1 . round $ sx / cellSize :: Int
---          nz = max 1 . round $ sz / cellSize :: Int
---          dx = sx / fromIntegral nx
---          dz = - sz / fromIntegral nz
---          xs = take nx $ iterate (+dx) (0.5*dx+x0)
---          zs = take nz $ iterate (+dz) (0.5*dz+z1)
---
---
+-- texture creation
+
+groundEvalGrid :: CityGround
+               -> GLfloat  -- ^ desired cell size
+               -> PS.PointArray 3 GLfloat -- half size in 111 direction
+groundEvalGrid CityGround{..} cellSize = fromJSArray . jsmap f $ js_groundEvalGrid nx ny
+    where nx = max 1 . round $ normL2 groundX / cellSize :: Int
+          ny = max 1 . round $ normL2 groundY / cellSize :: Int
+          dx = groundX / broadcastVector (fromIntegral nx)
+          dy = groundY / broadcastVector (fromIntegral ny)
+          f ij = case unpackV2 ij of
+                   (i,j) -> groundCorner + broadcastVector i * dx
+                                         + broadcastVector j * dy
+
+foreign import javascript unsafe "$r = new Array($1*$2); for(i = 0; i < $1; i++){for(j = 0; j < $2; j++){$r[i+j*$1] = [i+0.5,j+0.5];}}"
+    js_groundEvalGrid :: Int -> Int -> PS.PointArray 2 GLfloat
+
+
+groundGridToTexArray :: CityGround
+                     -> GLfloat
+                     -> PS.PointArray 4 GLubyte
+                     -> (PS.PointArray 4 GLubyte, Maybe (TypedArray GLubyte, (GLsizei, GLsizei)))
+groundGridToTexArray CityGround{..} cellSize colors =
+    if n' < nn
+    then (fromJSArray emptyJSArray, Nothing)
+    else (jsdrop nn colors , Just (
+        fromJSArrayToTypedArray . PS.flatten . jstake nn $ colors
+        , (nx, ny))
+    )
+    where nx = max 1 . round $ normL2 groundX / cellSize
+          ny = max 1 . round $ normL2 groundY / cellSize
+          nn = fromIntegral (nx*ny)
+          n' = fromIntegral $ jslength colors
+
+fromJSArrayToTypedArray :: (TypedArrayOperations a) => JSArray a -> TypedArray a
+fromJSArrayToTypedArray = fromArray . unsafeFromJSArrayCoerce
+
+unsafeFromJSArrayCoerce :: JSArray a -> TypedArray a
+unsafeFromJSArrayCoerce = unsafeCoerce
+
+--foreign import javascript unsafe "$r = new Array($1*$2); for(i = 0; i < $1; i++){for(j = 0; j < $2; j++){$r[i+j*$1] = [i,j]}}"
+--    js_groundEvalGrid :: Int -> Int -> TypedArray GL
+
 --groundGridToTexArray :: CityGround
 --                     -> GLfloat
 --                     -> [Vector4 GLubyte]

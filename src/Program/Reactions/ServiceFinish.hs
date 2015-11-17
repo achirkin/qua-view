@@ -19,45 +19,46 @@ module Program.Reactions.ServiceFinish where
 --import Geometry.Space
 
 --import GHCJS.Marshal
+import Data.Geometry
+
 import GHCJS.Useful
 
 import Reactive
 import Controllers.GUIEvents
 
 import Program
---import Program.Model.City
---import Program.Model.CityGround
+import Program.Model.City
+import Program.Model.CityGround
 import Program.Model.ScalarField
 import Program.View
---import Program.View.CityView
---import Program.View.CityGroundView
+import Program.View.CityView
+import Program.View.CityGroundView
 
 -- | fire this event when service execution is finished
 newtype ServiceRunFinish = ServiceRunFinish ScalarField
 
 
 instance Reaction Program PView ServiceRunFinish "Finish service" 0 where
---    response _ (ServiceRunFinish sf) _ Program
---            { city = City {ground = gr}
---            } view@PView{cityView = cv} = do
---        ngr <- case groundGridToTexArray gr 1 colors of
---            (_, Nothing) -> do
---                getElementById "clearbutton" >>= elementParent >>= hideElement
---                updateGroundView (glctx $ context view) gr Nothing (groundView cv)
---            (_, Just (texbuf, texsize)) -> do
---                getElementById "clearbutton" >>= elementParent >>= showElement
---                texarr <- typedArrayViewS texbuf
---                updateGroundView (glctx $ context view)
---                                 gr
---                                 (Just (Right (texarr, texsize)))
---                                 (groundView cv)
---        programIdle
---        return (Left view{cityView = cv{groundView = ngr}})
---        where colors = makeColors palette sf
---              palette = Bezier3Palette (Vector4 0 0 255 255)
---                                       (Vector4 0 255 100 255)
---                                       (Vector4 100 255 0 255)
---                                       (Vector4 255 0 0 255)
+    response _ (ServiceRunFinish sf) _ Program
+            { city = City {ground = gr, settings = set}
+            } view@PView{cityView = cv} = do
+        ngr <- case groundGridToTexArray gr (evalCellSize set) colors of
+            (_, Nothing) -> do
+                getElementById "clearbutton" >>= elementParent >>= hideElement
+                updateGroundView (glctx $ context view) gr Nothing (groundView cv)
+            (_, Just (texbuf, texsize)) -> do
+                getElementById "clearbutton" >>= elementParent >>= showElement
+                updateGroundView (glctx $ context view)
+                                 gr
+                                 (Just (Right (texbuf, texsize)))
+                                 (groundView cv)
+        programIdle
+        return (Left view{cityView = cv{groundView = ngr}})
+        where colors = makeColors palette sf
+              palette = Bezier3Palette (vector4 0 0 255 255)
+                                       (vector4 0 255 100 255)
+                                       (vector4 100 255 0 255)
+                                       (vector4 255 0 0 255)
 
 instance Reaction Program PView ClearServiceResults "Clear service results" 0 where
     response _ _ _ program pview = do
