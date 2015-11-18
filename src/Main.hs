@@ -25,8 +25,6 @@ import Controllers.GeoJSONFileImport
 -- Get EventSense instances so that we can pass events into processing cycle
 import Program.Reactions ()
 
---import Data.JSArray
---import Data.Geometry.Structure.LinearRing
 
 main :: IO ()
 main = do
@@ -123,17 +121,6 @@ main = do
     loadGeoJSONFromLink "insidePolys.js" True  (reqEvent eventHole . EBox)
     loadGeoJSONFromLink "outsidePolys.js" False (reqEvent eventHole . EBox)
 --    loadGeoJSONFromLink "lines.js" False (reqEvent eventHole . EBox)
-
---    let r = linearRing (vector2 0 (0::Double))
---                       (vector2 2 0)
---                       (vector2 2 3)
---                       [vector2 1 4, vector2 0 1]
---    printVal . asJSVal $ r
---    printVal . asJSVal $ resizeConvexHull2D 0.5 r
---    printVal . asJSVal $ resizeConvexHull2D 1 r
---    printVal . asJSVal $ resizeConvexHull2D 2 r
---    printVal . asJSVal $ resizeConvexHull2D (-0.1) r
---    printVal . asJSVal $ resizeConvexHull2D (-0.5) r
 
     -- done!
     -- simulate an event to force render picture

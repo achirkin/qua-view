@@ -98,7 +98,7 @@ dragHorizontal (unpackV2 -> (ox,oy) ) (unpackV2 -> (x,y)) camera@Camera {
         viewportSize = (width, height),
         projMatrix = projmat,
         oldState   = ostate@CState {
-            viewPoint = v@(unpackV3 -> (_, _, pz))
+            viewPoint = v@(indexVector 2 -> pz)
         }
     } = camera {
         newState = ostate {
@@ -108,13 +108,13 @@ dragHorizontal (unpackV2 -> (ox,oy) ) (unpackV2 -> (x,y)) camera@Camera {
             campos = fromHom $ imat `prod` vector4 0 0 0 1
             oldpos = fromHom $ imat `prod` vector4
                 (2 * ox / width - 1)
-                (1 - 2 * oy / height) (-1) 1
+                (1 - 2 * oy / height) 1 1
             newpos = fromHom $ imat `prod` vector4
                 (2 * x / width - 1)
-                (1 - 2 * y / height) (-1) 1
+                (1 - 2 * y / height) 1 1
             oldPoint = findPos campos (oldpos - campos) pz
             newPoint = findPos campos (newpos - campos) pz
-            dv =  newPoint - oldPoint
+            dv = oldPoint - newPoint
 
 -- | Dragging - pan world on xy plane
 dragVertical :: Vector2 GLfloat -- ^ Old screen coordinates
@@ -168,7 +168,7 @@ scroll s camera@Camera {
     } = camera {
         newState = nstate,
         oldState = nstate
-    } where nstate = ostate { viewDist = max 0.1 (ρ * (1 + min (9 / (1 + ρ)) (max (max (-0.9) (- 9 / (1 + ρ))) s))) }
+    } where nstate = ostate { viewDist = max 0.1 (ρ * (1 + min (8 / (1 + ρ)) (max (max (-0.8) (- 8 / (1 + ρ))) s))) }
 
 -- | Rotate, scale, and pan with two fingers
 twoFingerControl :: (Vector2 GLfloat, Vector2 GLfloat) -- ^ Old screen coordinates
@@ -191,8 +191,7 @@ twoFingerControl (unpackV2 -> (opx1,opy1),unpackV2 -> (opx2,opy2))
             viewAngles = (φ', theta),
             viewDist   = max 0.1 (ρ*dlen)
         }
-    } where pmat = projmat `prod` stateToView ostate
-            imat = inverse pmat
+    } where imat = inverse $ projmat `prod` stateToView ostate
             screenO1 = vector4 (2 * opx1 / width - 1) (1 - 2 * opy1 / height) 1 1
             screenO2 = vector4 (2 * opx2 / width - 1) (1 - 2 * opy2 / height) 1 1
             screenN1 = vector4 (2 * npx1 / width - 1) (1 - 2 * npy1 / height) 1 1
@@ -205,21 +204,26 @@ twoFingerControl (unpackV2 -> (opx1,opy1),unpackV2 -> (opx2,opy2))
             realN2 = findPos campos (fromHom (imat `prod` screenN2) - campos) h
             dOld = realO2 - realO1
             dNew = realN2 - realN1
+            realN = 0.5 * (realN1 + realN2)
+            realO = 0.5 * (realO1 + realO2)
+            qs = getRotScale dNew dOld
             -- scaling
-            olen = normL2 dOld
-            nlen = normL2 dNew
-            dlen = if abs (olen/nlen - 1) < 0.05
-                then 1
-                else let dl0 = olen/nlen
-                     in 1 + (dl0 - 1) * min 1 (50 / (1 + ρ)) -- prevent going too far away on large distances
+            dlen = normL2 $ toVec4 qs
+--            olen = normL2 dOld
+--            nlen = normL2 dNew
+--            dlen = if abs (olen/nlen - 1) < 0.05
+--                then 1
+--                else let dl0 = olen/nlen
+--                     in 1 + (dl0 - 1) * min 1 (50 / (1 + ρ)) -- prevent going too far away on large distances
             -- rotating
-            dφ = let da = atan2 (indexVector 2 $ cross dNew dOld) (dot dNew dOld)
+            dφ = let da = signum (dot up $ imVec qs) * qArg qs -- atan2 (indexVector 2 $ cross dNew dOld) (dot dNew dOld)
                  in if abs da < 0.05 then 0 else da
             φ' = DF.mod' (φ+dφ+pi) (2*pi) - pi
             -- panning
             -- combine actions
-            nvp = rotScale (realToFrac dlen * axisRotation up (φ' - φ)) (ovp-realN1)
-                  + realO1 -- + 2*newPoint
+            nvp = rotScale qs (ovp - realN) + realO
+--            nvp = rotScale (realToFrac dlen * axisRotation up (φ - φ')) (ovp-realN1)
+--                  + realO1 -- + 2*newPoint
 
 
 ---- | Rotate, scale, and pan with two fingers
@@ -392,4 +396,4 @@ findPos (unpackV3 -> (c1, c2, c3)) (unpackV3 -> (v1, v2, v3)) h = vector3 x y h
     where l = (h - c3)/v3'
           x = c1 + v1*l
           y = c2 + v2*l
-          v3' = if abs v3 < 0.01 then signum v3 * 0.01 else v3
+          v3' = if abs v3 < 0.0000000001 then signum v3 * 0.0000000001 else v3
