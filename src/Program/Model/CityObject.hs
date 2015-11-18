@@ -278,7 +278,7 @@ foreign import javascript unsafe "$r1 = $1.map(function(p){return p.map(function
     hackyNormalsTexcoords :: PointArray 3 GLfloat -> (PointArray 3 GLbyte, PointArray 2 GLushort)
 
 
-foreign import javascript unsafe "{ vertexArray: $1, indexArray: Uint16Array['from']($2)['buffer'] }"
+foreign import javascript unsafe "var iss = new Uint16Array($2.length); iss.set($2); $r = { vertexArray: $1, indexArray: iss['buffer'] }"
     packPointData :: ArrayBuffer -> JSArray Int -> PointData
 
 foreign import javascript unsafe "{ vertexArray: new ArrayBuffer(0), indexArray: new Uint16Array(0) }"
