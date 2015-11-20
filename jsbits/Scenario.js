@@ -78,3 +78,34 @@ function gm$boundNestedArray(x) {
         return [rez.map(function(e){return e[0];}), rez.map(function(e){return e[1];})];
     }
 }
+
+// resizing
+
+
+function gm$resizeX(r,x) {
+    'use strict';
+    if(r.length === x.length){return x;}
+    if(r.length < x.length){return x.slice(0,r.length);}
+    return x.concat(r.slice(x.length));
+}
+
+function gm$resizeNestedArrayInner(r,x) {
+    'use strict';
+    return x.map(function(e) {
+        if(e.constructor !== Array) {return null;}
+        if(e[0].constructor === Number) {
+            return gm$resizeX(r,e);
+        } else {
+            return gm$resizeNestedArrayInner(r,e);
+        }
+    });
+}
+
+function gm$resizeNestedArray(r,x) {
+    'use strict';
+    if (!x || x.constructor !== Array || x.length === 0) {
+        return null;
+    }
+    if (x[0].constructor === Number){return gm$resizeX(r,x);}
+    return gm$resizeNestedArrayInner(r, x);
+}

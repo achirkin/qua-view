@@ -45,7 +45,6 @@ import Program.View
 --import GHCJS.Prim
 --import Data.Coerce
 
---import Unsafe.Coerce
 
 updateProgramView :: String -> Program -> PView -> IO (Either PView e)
 updateProgramView msg program pview = do
@@ -82,7 +81,7 @@ instance Reaction Program PView GeoJSONLoaded "Updating City Geometry after GeoJ
 --            let (scale,shift) = scenarioViewScaling 200 col
 --                (errors, cityObjs) = processScenario 3 scale shift col
 --            mapM_ print errors
---            printVal $ unsafeCoerce (objectsIn city)
+--            printVal . unsafeCoerce . clutter $ city prog
             return $ Left view{cityView = cview}
 --    react _ geoJSONI program@Program{controls = c@Controls{placeTransform = Nothing}}
 --        = program{controls = c{placeTransform = Just (scal, shift)}}
