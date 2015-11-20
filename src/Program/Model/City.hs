@@ -18,16 +18,14 @@
 --
 -----------------------------------------------------------------------------
 module Program.Model.City
-    ( City (..), buildCity, updateCity, isEmptyCity, emptyCity
-    , CityObjectCollection ()
-    , processScenario, scenarioViewScaling
-    , getObject, setObject
+    ( City (..), buildCity, updateCity, isEmptyCity, emptyCity, clearCity
     , CitySettings (..), defaultCitySettings
---    , buildCity
---    , addCityObjects
-    , clearCity
---    , addCityStaticWires
-    --, cityToJS
+    , CityObjectCollection ()
+    , getObject, setObject
+    -- | Load geometry
+    , processScenario, scenarioViewScaling
+    -- | Store geometry
+    , storeCityAsIs
     ) where
 
 import Control.Arrow ((***))
@@ -57,7 +55,7 @@ data City = City
     , cityTransform     :: !(GLfloat, Vector2 GLfloat)
     , ground            :: !CityGround
     , settings          :: !CitySettings
-    , clutter           :: !WiredGeometry
+    , clutter           :: !(LS.MultiLineString 3 GLfloat, WiredGeometry)
     --, drawTextures      :: !Bool
     }
 
@@ -203,4 +201,21 @@ foreign import javascript unsafe "var r = gm$boundNestedArray($1['features'].map
                           \        $r3 = [-Infinity,-Infinity];}\
                           \else { $r2 = r[0].slice(0,2); $r3 = r[1].slice(0,2); } $r1 = $1['features'].length;"
     js_boundScenario :: FeatureCollection -> (Int, Vector2 x, Vector2 x)
+
+----------------------------------------------------------------------------------------------------
+-- Scenario Store
+----------------------------------------------------------------------------------------------------
+
+storeCityAsIs :: City -> FeatureCollection
+storeCityAsIs City
+    { objectsIn = buildings
+    , clutter = (mline, _)
+    , cityTransform = (scale, shift)
+    } = fromJSArray . fromList $
+        (feature . GeoMultiLineString $ PS.mapSet (\vec -> vec * broadcastVector (1/scale) + resizeVector shift ) mline)
+        : toList (jsmap (storeCityObject scale shift PlainFeature) buildings)
+
+
+
+
 

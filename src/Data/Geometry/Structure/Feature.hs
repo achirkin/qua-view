@@ -18,7 +18,7 @@
 
 module Data.Geometry.Structure.Feature
     ( FeatureCollection (..)
-    , Feature (..)
+    , Feature (..), feature, setFeature
     , GeoJsonGeometryND (..), GeoJsonGeometry (..)
     , FeatureGeometryType (..), featureGeometryType
     , getGeoJSONGeometry, getSizedGeoJSONGeometry
@@ -80,6 +80,20 @@ foreign import javascript unsafe "var t = $1.filter(function(e){return e && e['g
                                  \$r3 = t.filter(function(e){return e['geometry']['type'] === 'Polygon' || e['geometry']['type'] === 'MultiPolygon';});"
     js_filterGeometryTypes :: JSArray Feature -> (JSArray Feature, JSArray Feature, JSArray Feature)
 
+setFeature :: GeoJsonGeometry n x -> Feature -> Feature
+setFeature geom = js_setFeature (pToJSVal geom)
+
+feature :: GeoJsonGeometry n x -> Feature
+feature = js_feature . pToJSVal
+
+
+{-# INLINE js_setFeature #-}
+foreign import javascript unsafe "$r = {}; $r['properties'] = $2['properties']; $r['type'] = 'Feature'; $r['geometry'] = $1;"
+    js_setFeature :: JSVal -> Feature -> Feature
+
+{-# INLINE js_feature #-}
+foreign import javascript unsafe "$r = {}; $r['properties'] = {}; $r['type'] = 'Feature'; $r['geometry'] = $1;"
+    js_feature :: JSVal -> Feature
 
 ----------------------------------------------------------------------------------------------------
 -- Getting Geometry
