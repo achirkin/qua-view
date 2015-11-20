@@ -48,29 +48,36 @@ createDecorativeGrid size cells color = WiredGeometry Nothing color n . arrayBuf
 
 
 emptyLineSet :: Vector4 GLfloat
-             -> WiredGeometry
-emptyLineSet colors = WiredGeometry Nothing colors 0 (arrayBuffer (fromList [] :: TypedArray GLfloat))
+             -> (LS.MultiLineString 3 GLfloat, WiredGeometry)
+emptyLineSet colors =
+    ( LS.multiLineString []
+    , WiredGeometry Nothing colors 0 (arrayBuffer (fromList [] :: TypedArray GLfloat))
+    )
 
 -- | Create a line set from multiple line loops
 createLineSet :: Vector4 GLfloat
               -> LS.MultiLineString 3 GLfloat
-              -> WiredGeometry
-createLineSet color xxs = WiredGeometry Nothing color n . arrayBuffer . fromJSArrayToTypedArray $ points
+              -> (LS.MultiLineString 3 GLfloat, WiredGeometry)
+createLineSet color xxs =
+    ( xxs
+    , WiredGeometry Nothing color n . arrayBuffer . fromJSArrayToTypedArray $ points
+    )
     where points = mkLineStrips xxs
           n = fromIntegral (JS.jslength points) `quot` 3 :: GLsizei
 
 -- | Append new points to existing line set
 appendLineSet :: LS.MultiLineString 3 GLfloat
-              -> WiredGeometry
-              -> WiredGeometry
-appendLineSet xxs (WiredGeometry _ color n0 buf0) = runST $ do
-    let arrn = typedArray (fromIntegral n * 3) :: TypedArray GLfloat
-    arr <- unsafeThaw arrn
-    setArray 0 (arrayView buf0 :: TypedArray (Vector3 Float)) arr
-    setArray (fromIntegral n0) (fromJSArrayToTypedArray points) arr
-    WiredGeometry Nothing color n <$> unsafeFreeze (arrayBuffer arr)
+              -> (LS.MultiLineString 3 GLfloat, WiredGeometry)
+              -> (LS.MultiLineString 3 GLfloat, WiredGeometry)
+appendLineSet xxs (xxso, WiredGeometry _ color n0 buf0) = (JS.fromList $ JS.toList xxso ++ JS.toList xxs, nwg)
     where points = mkLineStrips xxs
           n = n0 + fromIntegral (JS.jslength points) `quot` 3
+          nwg = runST $ do
+            let arrn = typedArray (fromIntegral n * 3) :: TypedArray GLfloat
+            arr <- unsafeThaw arrn
+            setArray 0 (arrayView buf0 :: TypedArray (Vector3 Float)) arr
+            setArray (fromIntegral n0) (fromJSArrayToTypedArray points) arr
+            WiredGeometry Nothing color n <$> unsafeFreeze (arrayBuffer arr)
 
 
 foreign import javascript unsafe "[].concat.apply([],[].concat.apply([],\
