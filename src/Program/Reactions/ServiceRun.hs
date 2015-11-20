@@ -78,6 +78,7 @@ instance Reaction Program PView ServiceRunBegin "Update Scenario" 0 where
         mscenario <- case luciScenario pview of
             _lcs -> do
               logText "Updating scenario on Luci..."
+--              printVal . asJSVal $ storeCityAsIs (city program)
               tryscenario <- createLuciScenario lc "Visualizer scenario"
                     undefined -- . geometries2features . cityGeometryRoofs $ city program
               case tryscenario of
