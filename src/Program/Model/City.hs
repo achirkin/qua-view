@@ -169,7 +169,8 @@ processScenario :: GLfloat -- ^ default height of buildings in camera space
                 -> GLfloat -- ^ scale objects before processing
                 -> Vector2 GLfloat -- ^ shift objects before processing
                 -> FeatureCollection -> ([JSString],CityObjectCollection, LS.MultiLineString 3 GLfloat)
-processScenario h e sc sh collection = (berrs ++ lerrs, buildings, mlns)
+processScenario h e sc sh collection | sc <= 0 = ([pack $ "processScenario: Scale is not possible (" ++ show sc ++ ")"], fromList [], fromList [])
+                                     | otherwise = (berrs ++ lerrs, buildings, mlns)
     where (berrs, buildings) = (toList *** fromJSArray) $ jsmapEither (processPolygonFeature h sc sh) plgs
           (_pts,lns,plgs) = filterGeometryTypes collection
           (lerrs, mlns) = (toList *** (fromJSArray . jsjoin)) $ jsmapEither (processLineFeature e sc sh) lns
@@ -179,8 +180,7 @@ processLineFeature :: GLfloat -- ^ default z-position in camera space
                    -> GLfloat -- ^ scale objects before processing
                    -> Vector2 GLfloat -- ^ shift objects before processing
                    -> Feature -> Either JSString (JSArray (LS.LineString 3 GLfloat))
-processLineFeature defz scale shift sObj | scale <= 0 = Left . pack $ "processLineFeature: Scale is not possible (" ++ show scale ++ ")"
-                                         | otherwise  = jsmapSame (PS.mapSet (\vec -> (vec - resizeVector shift) * broadcastVector scale )) <$>
+processLineFeature defz scale shift sObj = jsmapSame (PS.mapSet (\vec -> (vec - resizeVector shift) * broadcastVector scale )) <$>
     (getSizedGeoJSONGeometry (vector3 0 0 (defz / scale)) sObj >>= toMLS)
     where toMLS :: GeoJsonGeometry 3 GLfloat -> Either JSString (JSArray (LS.LineString 3 GLfloat))
           toMLS (GeoLineString x)      = Right $ fromList [x]

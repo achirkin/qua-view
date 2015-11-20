@@ -25,31 +25,19 @@ module Program.Model.CityObject
     , processPolygonFeature
     , ObjectBehavior (..)
     , packPointData, emptyPointData
---    ( CityObject (..)
---    , ObjectBehavior (..)
---    , PointData (..)
---    , LocatedCityObject
---    , building
---    , Feature (..), GeomID, ScenarioLayer (..), ImportedFeature (..)
     )
     where
 
---import Debug.Trace (traceShow)
-
 import GHCJS.Foreign.Callback (Callback)
 
-import GHC.TypeLits
-import Data.Proxy (Proxy(..))
 import Data.Coerce (coerce)
-import Data.JSString (unpack', pack)
+import Data.JSString (unpack')
 
 import GHCJS.Foreign
 import GHCJS.Marshal.Pure
 import GHCJS.Types
 import JavaScript.TypedArray
 
-
-import Data.JSArray
 import GHCJS.WebGL
 
 import SmallGL.WritableVectors
@@ -107,16 +95,19 @@ instance PFromJSVal (Maybe ScenarioLayer) where
 
 -- | Basic entity in the program; Defines the logic of the interaction and visualization
 newtype CityObject = CityObject JSVal
-instance LikeJS CityObject
+instance JSArray.LikeJS CityObject
 
+-- | Try to process geometry into building.
+--   Assumes that feature contains polygon or multipolygon.
+--   If the geometry is a single polygon or multipolygon with one polygon inside, it will add walls to it.
 processPolygonFeature :: GLfloat -- ^ default height in camera space
                       -> GLfloat -- ^ scale objects before processing
                       -> Vector2 GLfloat -- ^ shift objects before processing
                       -> Feature -> Either JSString LocatedCityObject
-processPolygonFeature defHeight scale shift sObj | scale <= 0 = Left . pack $ "processFeature: Scale is not possible (" ++ show scale ++ ")"
-                                                 | otherwise  = if isSlave sObj then Left "Skipping a slave scenario object." else
-    getGeoJSONGeometry sObj >>= \(ND geom) ->
-    toBuildingMultiPolygon (defHeight / scale) geom >>= \mpoly ->
+processPolygonFeature defHeight scale shift sObj = if isSlave sObj then Left "Skipping a slave scenario object." else
+    getSizedGeoJSONGeometry (vector3 0 0 (defHeight / scale)) sObj
+    >>= \geom -> toBuildingMultiPolygon geom
+    >>= \mpoly ->
     let qt@(T.QFTransform trotScale tshift locMPoly) = locateMultiPolygon scale shift mpoly
         pdata = buildingPointData locMPoly
     in Right . flip T.wrap qt  $ js_FeatureToCityObject sObj pdata locMPoly tshift trotScale
@@ -172,7 +163,7 @@ foreign import javascript unsafe "$1['properties']['isSlave']"
 
 type LocatedCityObject = T.QFTransform CityObject
 
-instance LikeJS LocatedCityObject where
+instance JSArray.LikeJS LocatedCityObject where
     asJSVal (T.QFTransform rs sh obj) = rs `seq` sh `seq` obj `seq` js_delocateCityObject obj sh rs
     asLikeJS js = case js_locateCityObject js of
                    (jv, sh, rs) -> T.QFTransform rs sh (coerce jv)
@@ -216,20 +207,13 @@ foreign import javascript unsafe "$r = {}; $r['properties'] = $1['properties']; 
 
 
 
-toBuildingMultiPolygon :: KnownNat n => GLfloat -> GeoJsonGeometry n GLfloat -> (Either JSString (MultiPolygon 3 GLfloat))
-toBuildingMultiPolygon _ (GeoPoint _) = Left "toBuildingMultiPolygon: GeoJSON Point is not convertible to MultiPolygon"
-toBuildingMultiPolygon _ (GeoMultiPoint _) = Left "toBuildingMultiPolygon: GeoJSON MultiPoint is not convertible to MultiPolygon"
-toBuildingMultiPolygon _ (GeoLineString _) = Left "toBuildingMultiPolygon: GeoJSON LineString is not convertible to MultiPolygon"
-toBuildingMultiPolygon _ (GeoMultiLineString _) = Left "toBuildingMultiPolygon: GeoJSON MultiLineString is not convertible to MultiPolygon"
-toBuildingMultiPolygon defHeight (GeoPolygon p) = toBuildingMultiPolygon defHeight . GeoMultiPolygon $ JSArray.fromList [p]
-toBuildingMultiPolygon defHeight (GeoMultiPolygon mp) =
-    let dims = natVal $ getDim2 mp
-    in fmap (completeBuilding . JSArray.toList ) $
-        case dims of
-         0 -> Left "toBuildingMultiPolygon: 0 is wrong dimensionality for points."
-         1 -> Left "toBuildingMultiPolygon: 1 is wrong dimensionality for points."
-         3 -> Right $ coerce mp
-         _ -> Right $ toMultiPolygon3D defHeight mp
+toBuildingMultiPolygon :: GeoJsonGeometry 3 GLfloat -> (Either JSString (MultiPolygon 3 GLfloat))
+toBuildingMultiPolygon (GeoPoint _) = Left "toBuildingMultiPolygon: GeoJSON Point is not convertible to MultiPolygon"
+toBuildingMultiPolygon (GeoMultiPoint _) = Left "toBuildingMultiPolygon: GeoJSON MultiPoint is not convertible to MultiPolygon"
+toBuildingMultiPolygon (GeoLineString _) = Left "toBuildingMultiPolygon: GeoJSON LineString is not convertible to MultiPolygon"
+toBuildingMultiPolygon (GeoMultiLineString _) = Left "toBuildingMultiPolygon: GeoJSON MultiLineString is not convertible to MultiPolygon"
+toBuildingMultiPolygon (GeoPolygon p) = Right $ completeBuilding [p]
+toBuildingMultiPolygon (GeoMultiPolygon mp) = Right . completeBuilding . JSArray.toList $ mp
 
 completeBuilding :: [Polygon 3 GLfloat] -> MultiPolygon 3 GLfloat
 completeBuilding xs@(_:_:_) = JSArray.fromList xs
@@ -242,11 +226,6 @@ completeBuilding [roof] = JSArray.fromList $ roof : map buildWall wallLines
           buildWall :: (Vector3 GLfloat, Vector3 GLfloat) -> Polygon 3 GLfloat
           buildWall (p1, p2) = JSArray.fromList [linearRing p1 p2 (flat p2)  [flat p1]]
           flat (unpackV3 -> (x,y,_)) = vector3 x y 0
-
-
-{-# INLINE getDim2 #-}
-getDim2 :: KnownNat n => a n x -> Proxy n
-getDim2 _ = Proxy
 
 
 newtype PointData = PointData JSVal
@@ -279,93 +258,8 @@ foreign import javascript unsafe "$r1 = $1.map(function(p){return p.map(function
 
 
 foreign import javascript unsafe "var iss = new Uint16Array($2.length); iss.set($2); $r = { vertexArray: $1, indexArray: iss['buffer'] }"
-    packPointData :: ArrayBuffer -> JSArray Int -> PointData
+    packPointData :: ArrayBuffer -> JSArray.JSArray Int -> PointData
 
 foreign import javascript unsafe "{ vertexArray: new ArrayBuffer(0), indexArray: new Uint16Array(0) }"
     emptyPointData :: PointData
 
---norm = fmap (round . max (-128) . min 127)
-----            $ ((if c then 1 else -1) * 127 / normL2 nr') ..* nr' :: Vector3 GLbyte
-
---{-# INLINE wrapInJSQTransform #-}
---foreign import javascript unsafe "if (! $1['properties']){ $1['properties'] = {}; }\
---                                 \if (! $1['properties']['transform']){ $1['properties']['transform'] = {}; }\
---                                 \$1['properties']['transform']['shift'] = [0,0,0];\
---                                 \$1['properties']['transform']['rotScale'] = [0,0,0,1];\
---                                 \$r = $1;"
---    wrapInJSQTransform :: JSVal -> JSQTransform x
-
---data Feature = Feature ScenarioLayer GeomID (Maybe GeomID) LocatedCityObject
---    deriving Show
---
-----data ImportedFeature = ISObject ScenarioLayer (Maybe GeomID) ObjectBehavior (Polygon 3 GLfloat)
-----    deriving Show
---
----- | Basic entity in the program; Defines the logic of the interaction and visualization
---data CityObject =
---    -- | Building object.
---    --   Polygon of the building represents the roof shape;
---    --   floor is assumed to be at zero height;
---    --   walls are strictly vertical.
---    --   All together this gives full info on the building shape - extruded polygon.
---    --   Points of the polygon assumed to be centered around zero coords.
---    Building
---    { behavior   :: !ObjectBehavior
---    , objPolygon :: !(Polygon 3 GLfloat)
---    , points     :: !(PointData Vertex20CNT GLushort)
---    }
---
---instance Show CityObject where
---    show obj = show (behavior obj) ++ " CityObject: " ++ show (objPolygon obj)
---
---
---
---data PointData points indices = PointData
---    { vertexArray       :: !ByteArray
---    , vertexArrayLength :: !GLsizei
---    , indexArray        :: !ByteArray
---    , indexArrayLength  :: !GLsizei
---    }
---
---
---building :: ObjectBehavior -> Polygon 3 GLfloat -> CityObject
---building beh poly =  Building
---    { behavior   = beh
---    , objPolygon = poly
---    , points     = fillBuildingArrays pts
---    }
---    where mkpts pol = case pol of
---            SimpleConvexPolygon xs -> xs
---            SimplePolygon xs -> xs
---            GenericPolygon [] -> []
---            GenericPolygon (p:_) -> mkpts p
---          pts = mkpts poly
---
---
---
-----instance Boundable CityObject 2 GLfloat where
-----    minBBox Building{ objPolygon = poly} = boundingBox (Vector2 lx lz)
-----                                                       (Vector2 hx hz)
-----        where bound3 = minBBox poly
-----              Vector3 lx _ lz = lowBound bound3
-----              Vector3 hx _ hz = lowBound bound3
-----
-----instance Boundable CityObject 3 GLfloat where
-----    minBBox Building{ objPolygon = poly} = boundPair bb zbound
-----        where bb = minBBox poly
-----              Vector3 lx _ lz = lowBound bb
-----              Vector3 hx _ hz = highBound bb
-----              zbound = boundingBox (Vector3 lx 0 lz) (Vector3 hx 0 hz)
---
---
-------------------------------------------------------------------------------------------------------
----- Helpers
-------------------------------------------------------------------------------------------------------
-
----- | For simple polygons says for each point whether it is convex (True) or concave (False)
---shoelace :: (Fractional x, Ord x) => [Vector3 x] -> Bool
---shoelace pts = area > 0
---    where area = sum $ f pts (head pts) -- area of whole thing (shoelace)
---          f (Vector3 x1 _ z1 :xs@(Vector3 x2 _ z2 :_)) l = x1*z2 - x2*z1 : f xs l
---          f [Vector3 x1 _ z1] (Vector3 x2 _ z2) = [x1*z2 - x2*z1]
---          f [] _ = []
