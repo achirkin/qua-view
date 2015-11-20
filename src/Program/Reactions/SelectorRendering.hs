@@ -30,6 +30,8 @@ import Controllers.Pointer
 import Controllers.ElementResizing
 import Controllers.GUIEvents
 
+import Control.Monad (when)
+
 --import GHCJS.Useful
 import Program.View
 
@@ -40,12 +42,12 @@ $(createEventSense ''SelectionEvent)
 $(createEventSense ''SelectionConfirmEvent)
 
 
------ Marking area for selection and firing an event with selection Id
+--- Marking area for selection and firing an event with selection Id
 
-selectOnScene :: Program -> PView -> IO (Either PView (EventBox Program PView))
+selectOnScene :: Program -> PView -> IO PView
 selectOnScene program view = do
     ctx <- applySelector (context view) (camera program) (city program) (cityView view)
-    return $ Left view{context = ctx}
+    return view{context = ctx}
 
 instance Reaction Program PView WheelEvent "Mark selection" 10 where
     response _ _ _ = selectOnScene
@@ -65,30 +67,24 @@ instance Reaction Program PView ClearingGeometry "Clear selection mark" 10 where
 
 instance Reaction Program PView GeoJSONLoaded "Mark selection" 10 where
     response _ _ _ = selectOnScene
---
-------- Selecting object on click
---
+
+--- Selecting object on click
+
 getSelectId :: Vector2 GLfloat -> Program -> PView -> IO SelectionEvent
 getSelectId v program view = getSelection (context view) (camera program) v
 
-wrapEvent :: (EventSense Program PView e) => IO e -> IO (Either PView (EventBox Program PView))
-wrapEvent = fmap (Right . EBox)
-
 
 instance Reaction Program PView PointerClickEvent "Get selection" 1 where
-    response _ (PClick LeftButton (p:_)) _ prog  = wrapEvent . getSelectId p prog
-    response _ (PClick Touches [p]) _ prog = wrapEvent . getSelectId p prog
-    response _ _ _ _ = return . Left
+    response _ hole (PClick LeftButton (p:_)) prog pview = getSelectId p prog pview >>= reqEvent hole . EBox >> return pview
+    response _ hole (PClick Touches [p])      prog pview = getSelectId p prog pview >>= reqEvent hole . EBox >> return pview
+    response _ _ _ _ pview = return pview
 
------ Selecting onbject on mouse down to allow moving objects
+--- Selecting onbject on mouse down to allow moving objects
 
 instance Reaction Program PView PointerDownEvent "Fire selection action" 0 where
     react _ _ prog@Program{controls = c} = prog{controls = c{selectedObject = 0}}
-    response _
-             (PDown _ (p:_))
-             _ program
-             view = do
+    response _ hole (PDown _ (p:_)) program view = do
         SelectionEvent i <- getSelectId p program view
-        if i == 0 then return $ Left view
-        else return . Right . EBox $ SelectionConfirmEvent i
-    response _ _ _ _ view = return $ Left view
+        when (i /= 0) . reqEvent hole . EBox $ SelectionConfirmEvent i
+        return view
+    response _ _ _ _ view = return view

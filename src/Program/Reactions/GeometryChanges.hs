@@ -47,12 +47,12 @@ import Program.View
 
 
 
-updateProgramView :: String -> Program -> PView -> IO (Either PView e)
+updateProgramView :: String -> Program -> PView -> IO PView
 updateProgramView msg program pview = do
         getElementById "clearbutton" >>= elementParent >>= hideElement
         cityView' <- updateView (glctx $ context pview) (city program) (cityView pview)
         logText msg
-        return $ Left pview{cityView = cityView', scUpToDate = False}
+        return pview{cityView = cityView', scUpToDate = False}
 
 instance Reaction Program PView ClearingGeometry "Clearing City Geometry" 0 where
     react _ ClearingGeometry program = program
@@ -73,19 +73,19 @@ instance Reaction Program PView GeoJSONLoaded "Updating City Geometry after GeoJ
                             then buildCity defaultCitySettings col
                             else updateCity col ci
             in program {city = c}
-    response _ GeoJSONLoaded
+    response _ _ GeoJSONLoaded
         {
         -- isDynamic = dyn
         -- ,
         -- featureCollection = col
-         } _ prog view = do
+         } prog view = do
             cview <- createView (glctx $ context view) (city prog)
 --            let (errors, city) = buildCity 3 200 col
 --            let (scale,shift) = scenarioViewScaling 200 col
 --                (errors, cityObjs) = processScenario 3 scale shift col
 --            mapM_ print errors
 --            printVal . unsafeCoerce . clutter $ city prog
-            return $ Left view{cityView = cview}
+            return view{cityView = cview}
 --    react _ geoJSONI program@Program{controls = c@Controls{placeTransform = Nothing}}
 --        = program{controls = c{placeTransform = Just (scal, shift)}}
 --        { city = addCityStaticWires lns $ addCityObjects geoms (city program)

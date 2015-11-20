@@ -29,7 +29,7 @@ import Program.View
 
 import Program.Reactions.ServiceFinish
 
-renderScene :: Program -> PView -> IO (Either PView (EventBox Program PView))
+renderScene :: Program -> PView -> IO PView
 renderScene program view = do
     -- prepare rendering
     ctime <- waitForAnimationFrame
@@ -39,7 +39,7 @@ renderScene program view = do
     draw ctx (decGrid program) (dgView view)
     draw ctx (city program) (cityView view)
     -- done!
-    return $ Left view{context = ctx}
+    return view{context = ctx}
 
 instance Reaction Program PView WheelEvent "Render" 1 where
     response _ _ _ = renderScene

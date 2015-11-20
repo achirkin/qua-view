@@ -43,8 +43,10 @@ import Data.List (foldl', groupBy, sortBy)
 import Data.Ord (comparing)
 
 import Control.Concurrent (forkIO)
-import Control.Concurrent.MVar (MVar,putMVar, newEmptyMVar, takeMVar, tryPutMVar)
-import Control.Monad (void,foldM)
+
+import Control.Concurrent.STM.TChan
+import Control.Monad.STM
+import Control.Monad (when,void,foldM)
 
 -- | Wrap any type of event into this EventBox before throwing it into the `EventHole`.
 data EventBox program view = forall event . EventSense program view event => EBox !event
@@ -75,9 +77,8 @@ class Reaction program view event (name :: Symbol) (priority :: Nat)
     react _ _ = id
     -- | Response IO action: gets an event, a program changed after `react`, and a view to modify.
     --   By default does nothing.
-    response :: R name priority -> event -> program -> program -> view
-             -> IO (Either view (EventBox program view))
-    response _ _ _ _ = return . Left
+    response :: R name priority -> EventHole program view -> event -> program -> view -> IO view
+    response _ _ _ _ = return
 
 -- | Main cycle of our reactive programming engine.
 --   Supply here the init states of the program and its view,
@@ -86,10 +87,15 @@ reactiveCycle :: program -- ^ init
               -> view -- ^ init view representation
               -> IO (EventHole program view)
 reactiveCycle iprog irep = iprog `seq` irep `seq` do
-    senseRef <- newEmptyMVar
-    void . forkIO $ pIteration senseRef [] (iprog,irep)
-    return $ EventHole (putMVar senseRef) (tryPutMVar senseRef)
-
+    senseRef <- newTChanIO
+    let ehole = EventHole (atomically . writeTChan senseRef) (atomically . tryWriteTChan senseRef)
+    void . forkIO $ pIteration ehole senseRef (iprog,irep)
+    return ehole
+    where tryWriteTChan :: TChan a -> a -> STM Bool
+          tryWriteTChan ref val = do
+            em <- isEmptyTChan ref
+            when em $ writeTChan ref val
+            return em
 
 -- | Create an `EventSense` instance declarations for all `Reaction` instances available in the scope.
 --   Run TH declaration $(createAllEventSenses) in a place wich imports all modules that define `Reaction` instances.
@@ -181,8 +187,8 @@ class EventSense program view event | program -> view, view -> program where
     processAllReactions :: event -> program -> program
     processAllReactions _ = id
     -- | Process all responses on a given event; do not call it explicitly
-    processAllResponses :: event -> program -> program -> view -> IO (view, [EventBox program view])
-    processAllResponses _ _ _ v = return (v,[])
+    processAllResponses :: EventHole program view -> event -> program -> view -> IO view
+    processAllResponses _ _ _ = return
 
 
 ----------------------------------------------------------------------------------------------------
@@ -201,30 +207,30 @@ reactList :: [ SR program view event ]
 reactList rs ev program =  ev `seq` program `seq` foldl' (\p (SR r) -> react r ev p) program rs
 
 responseList :: [ SR program view event ]
-             -> event -> program -> program -> view -> IO (view, [EventBox program view])
-responseList rs ev programOld programNew view = ev `seq` programNew `seq` view `seq`
-    foldM (\(v, es) (SR r) -> response r ev programOld programNew v
-    >>= \resp -> return $ case resp of
-        Left v' -> (v',es)
-        Right e -> (v, e:es)) (view, []) rs
+             -> EventHole program view
+             -> event -> program -> view -> IO view
+responseList rs hole ev programNew view = ev `seq` programNew `seq` view `seq`
+    foldM (\v (SR r) -> response r hole ev programNew v) view rs
 
 
 -- Do one iteration of processing
-pIteration :: MVar (EventBox program view)
-           -> [EventBox program view]
+pIteration :: EventHole program view
+           -> TChan (EventBox program view)
            -> (program, view)
            -> IO ()
-pIteration senseRef (EBox event : oevs) pv = pv `seq` event `seq` do
-    (nprog,nview,nevs) <- pProcessIteration event pv
-    pIteration senseRef (oevs ++ reverse nevs) (nprog, nview)
-pIteration senseRef [] pv = pv `seq` do
-    ebox <- takeMVar senseRef
-    pIteration senseRef [ebox] pv
+pIteration hole senseRef pv = pv `seq` do
+    EBox event <- atomically $ readTChan senseRef
+    (nprog,nview) <- pProcessIteration hole event pv
+    pIteration hole senseRef (nprog, nview)
 
+--pIteration hole senseRef pv = pv `seq` do
+--    (nprog,nview,nevs) <- pProcessIteration event pv
+--    pIteration senseRef (oevs ++ reverse nevs) (nprog, nview)
 
 pProcessIteration :: (EventSense program view event)
-                  => event -> (program, view) -> IO (program, view, [EventBox program view])
-pProcessIteration event (program, view) = event `seq` program `seq` view `seq`
+                  => EventHole program view
+                  -> event -> (program, view) -> IO (program, view)
+pProcessIteration hole event (program, view) = event `seq` program `seq` view `seq`
     case processAllReactions event program of
-        nprog -> (\(nview, nevs) -> (nprog, nview, nevs))
-            <$> processAllResponses event program nprog view
+        nprog -> (\nview -> (nprog, nview))
+            <$> processAllResponses hole event nprog view

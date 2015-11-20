@@ -34,14 +34,14 @@ import GHCJS.Types
 
 
 instance Reaction Program PView SubmitScenario "Show popup" 1 where
-    response _ (SubmitScenario url) _ program view = do
+    response _ _ (SubmitScenario url) program view = do
         -- this must be ASAP - before drawing buffer is flushed
         previewURL <- getPreviewURL
         programInProgress
         -- ... and then all the rest
         showSubmitPopup previewURL (storeCityAsIs $ city program) url
         programIdle
-        return $ Left view
+        return $ view
 
 foreign import javascript safe "document.getElementById('previewcontainer').innerHTML = \
     \   '<img src=\"' + $1 + '\" style=\"width:100%;\"></img>';\
