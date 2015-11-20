@@ -63,7 +63,7 @@ instance Drawable City where
                                     ,(gl_VERTEX_SHADER, vertSelector)]
         objs <- createObjViewCollection gl (objectsIn city)
         gr <- createView gl (ground city)
-        clview <- createView gl (clutter city)
+        clview <- createView gl (snd $ clutter city)
         return CityView
             { viewShader   = buProgram
             , selectShader = seProgram
@@ -115,7 +115,7 @@ instance Drawable City where
     updateView gl city@City{objectsIn = objs} cv@CityView{ viewsIn = views } = do
         mviews' <- fromJSArray <$> jsunionZipIO f objs views
         gr <- updateView gl (ground city) (groundView cv)
-        cl <- updateView gl (clutter city) (clutterView cv)
+        cl <- updateView gl (snd $ clutter city) (clutterView cv)
         return cv
             { viewsIn = mviews'
             , groundView = gr
@@ -132,7 +132,7 @@ instance Drawable City where
         jsmapIO_ (deleteView gl (undefined :: LocatedCityObject)) views
         deleteView gl (undefined :: CityGround) gr
         deleteView gl (undefined :: WiredGeometry) clutterv
-    draw vc city view = draw vc (clutter city) (clutterView view) >>
+    draw vc city view = draw vc (snd $ clutter city) (clutterView view) >>
                         drawInCurrContext vc' city view
         where vc' = vc{ curState = updateDrawState city view $ curState vc}
 
