@@ -28,7 +28,7 @@ import Controllers.LuciClient
 import Program
 
 instance Reaction Program PView LuciConnect "Connecting to Luci" 1 where
-    response _ LuciConnect{..} _ _ pview = do
+    response _ _ LuciConnect{..} _ pview = do
         programInProgress
         elc <- connectToLuci cHost
         mlc <- case elc of
@@ -50,5 +50,5 @@ instance Reaction Program PView LuciConnect "Connecting to Luci" 1 where
                                                           Left e -> logText' e
                 return $ Just lc
         programIdle
-        return $ Left pview{luciClient = mlc}
+        return pview{luciClient = mlc}
 

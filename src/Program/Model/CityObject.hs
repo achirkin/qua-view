@@ -52,7 +52,7 @@ import Data.Geometry.Structure.Polygon
 import Data.Geometry.Structure.PointSet (PointArray, PointSet (..), shrinkVectors, boundingRectangle2D)
 import Data.Geometry.Structure.Feature
 
-import GHCJS.Useful
+--import GHCJS.Useful
 
 -- | Id of geometry in Luci
 newtype GeomID = GeomID JSVal

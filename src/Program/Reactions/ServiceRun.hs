@@ -47,20 +47,20 @@ $(createEventSense ''ServiceRunFinish)
 instance Reaction Program PView ServiceRunBegin "Run service" 1 where
     react _ _ program@Program{city = ci}
         = program{city = ci{ground = buildGround (groundDilate $ settings ci) $ objectsIn ci}}
-    response _ _ _ Program
+    response _ hole _ Program
             { controls = Controls {activeService = ServiceBox service}
             , city = ci
             } pview = if isEmptyGround (ground ci)
                       then do
         logText "No geometry to run a service."
         getElementById "clearbutton" >>= elementParent >>= hideElement
-        return $ Left pview
+        return pview
                       else do
         programInProgress
         logText ("Running service " ++ show service)
         runService service (luciClient pview) (luciScenario pview) sf >>= \r -> case r of
-            Nothing -> programIdle >> return (Left pview)
-            Just sfin -> return . Right . EBox $ ServiceRunFinish sfin
+            Nothing -> programIdle >> return pview
+            Just sfin -> (reqEvent hole . EBox $ ServiceRunFinish sfin) >> return pview
             where cs = evalCellSize $ settings ci
                   sf = ScalarField
                     { cellSize  = cs
@@ -70,8 +70,8 @@ instance Reaction Program PView ServiceRunBegin "Run service" 1 where
                     }
 
 instance Reaction Program PView ServiceRunBegin "Update Scenario" 0 where
-    response _ _ _ program pview@PView{luciClient = Nothing} = return $ Left pview
-    response _ _ _ program pview@PView{scUpToDate = True, luciScenario = Just _} = return $ Left pview
+    response _ _ _ _ pview@PView{luciClient = Nothing} = return pview
+    response _ _ _ _ pview@PView{scUpToDate = True, luciScenario = Just _} = return pview
     response _ _ _ program pview@PView{scUpToDate = False, luciClient = Just lc} = do
         programInProgress
         t0 <- getTime
@@ -79,12 +79,12 @@ instance Reaction Program PView ServiceRunBegin "Update Scenario" 0 where
             _lcs -> do
               logText "Updating scenario on Luci..."
 --              printVal . asJSVal $ storeCityAsIs (city program)
-              tryscenario <- createLuciScenario lc "Visualizer scenario"
-                    undefined -- . geometries2features . cityGeometryRoofs $ city program
+              tryscenario <- createLuciScenario lc "Visualizer scenario" (storeCityAsIs $ city program)
+                    -- undefined -- . geometries2features . cityGeometryRoofs $ city program
               case tryscenario of
                 Left err -> logText' err >> return Nothing
                 Right scenario -> return (Just scenario)
         getTime >>= \t1 -> logText ("Scenario updated in " ++ show (t1-t0) ++ " seconds.")
         programIdle
-        return (Left pview{luciScenario = mscenario, scUpToDate = isJust mscenario})
-    response _ _ _ _ pview = return $ Left pview
+        return pview{luciScenario = mscenario, scUpToDate = isJust mscenario}
+    response _ _ _ _ pview = return pview
