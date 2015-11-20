@@ -22,7 +22,7 @@ module Program.Model.CityObject
     ( CityObject (), LocatedCityObject, behavior, objPolygons, objPoints
     , GeoJsonGeometry (..)
     , PointData (), vertexArray, indexArray, vertexArrayLength, indexArrayLength
-    , processFeature
+    , processPolygonFeature
     , ObjectBehavior (..)
     , packPointData, emptyPointData
 --    ( CityObject (..)
@@ -109,12 +109,12 @@ instance PFromJSVal (Maybe ScenarioLayer) where
 newtype CityObject = CityObject JSVal
 instance LikeJS CityObject
 
-processFeature :: GLfloat -- ^ default height in camera space
+processPolygonFeature :: GLfloat -- ^ default height in camera space
                       -> GLfloat -- ^ scale objects before processing
                       -> Vector2 GLfloat -- ^ shift objects before processing
                       -> Feature -> Either JSString LocatedCityObject
-processFeature defHeight scale shift sObj | scale <= 0 = Left . pack $ "processFeature: Scale is wrong possible (" ++ show scale ++ ")"
-                                          | otherwise  = if isSlave sObj then Left "Skipping a slave scenario object." else
+processPolygonFeature defHeight scale shift sObj | scale <= 0 = Left . pack $ "processFeature: Scale is not possible (" ++ show scale ++ ")"
+                                                 | otherwise  = if isSlave sObj then Left "Skipping a slave scenario object." else
     getGeoJSONGeometry sObj >>= \(ND geom) ->
     toBuildingMultiPolygon (defHeight / scale) geom >>= \mpoly ->
     let qt@(T.QFTransform trotScale tshift locMPoly) = locateMultiPolygon scale shift mpoly

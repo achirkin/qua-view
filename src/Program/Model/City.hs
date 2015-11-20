@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ForeignFunctionInterface,  JavaScriptFFI, GHCForeignImportPrim, UnliftedFFITypes #-}
 -----------------------------------------------------------------------------
 -- |
@@ -35,16 +36,17 @@ import GHCJS.WebGL
 import GHCJS.Marshal.Pure
 
 import Data.JSArray
+import Data.JSString
 import Data.Geometry
 import Data.Geometry.Structure.Feature
+import qualified Data.Geometry.Structure.LineString as LS
+import qualified Data.Geometry.Structure.PointSet as PS
 --import Data.Geometry.Transform
 --import Geometry.Structure
 
 import Program.Model.CityObject
 import Program.Model.CityGround
---import Program.Model.WiredGeometry
-
-
+import Program.Model.WiredGeometry
 
 
 -- | Map of all city objects (buildings, roads, etc).
@@ -55,7 +57,7 @@ data City = City
     , cityTransform     :: !(GLfloat, Vector2 GLfloat)
     , ground            :: !CityGround
     , settings          :: !CitySettings
---    , clutter           :: !WiredGeometry
+    , clutter           :: !WiredGeometry
     --, drawTextures      :: !Bool
     }
 
@@ -64,6 +66,7 @@ data CitySettings = CitySettings
     , diagFunction :: Int -> GLfloat
     , groundDilate :: !GLfloat
     , evalCellSize :: !GLfloat
+    , defElevation :: !GLfloat
     }
 
 defaultCitySettings :: CitySettings
@@ -72,6 +75,7 @@ defaultCitySettings = CitySettings
     , diagFunction = (*5) . sqrt . fromIntegral
     , groundDilate = 1
     , evalCellSize = 0.5
+    , defElevation = 0.01
     }
 
 emptyCity :: City
@@ -82,6 +86,7 @@ emptyCity = City
     , ground = emptyGround
     , cityTransform = (0, 0)
     , settings = defaultCitySettings
+    , clutter = emptyLineSet (vector4 0.8 0.4 0.4 1)
     }
 
 -- | Basic entity in the program; Defines the logic of the interaction and visualization
@@ -103,9 +108,10 @@ buildCity sets scenario = (,) errors City
     , ground = buildGround (groundDilate sets) objects
     , cityTransform = (cscale, cshift)
     , settings = sets
+    , clutter = createLineSet (vector4 0.8 0.4 0.4 1) liness
     }
     where (cscale,cshift)  = scenarioViewScaling (diagFunction sets) scenario
-          (errors,objects) = processScenario (defHeight sets) cscale cshift scenario
+          (errors,objects, liness) = processScenario (defHeight sets) (defElevation sets) cscale cshift scenario
 
 updateCity ::FeatureCollection -> City -> ([JSString], City)
 updateCity scenario
@@ -113,8 +119,9 @@ updateCity scenario
         errors
         city { objectsIn = allobjects
              , ground = buildGround (groundDilate $ settings city) allobjects
+             , clutter = appendLineSet liness (clutter city)
              }
-    where (errors,objects) = processScenario (defHeight $ settings city) cscale cshift scenario
+    where (errors,objects, liness) = processScenario (defHeight $ settings city)  (defElevation $ settings city) cscale cshift scenario
           allobjects = jsconcat (objectsIn city) objects
 
 
@@ -150,19 +157,35 @@ clearCity city = city
     , objectsIn = emptyCollection
     , cityTransform = (0, 0)
     , ground = emptyGround
---    , clutter = createLineSet (Vector4 0.8 0.4 0.4 1) []
+    , clutter = emptyLineSet (vector4 0.8 0.4 0.4 1) --  createLineSet (Vector4 0.8 0.4 0.4 1) []
     } -- where objs' = IM.empty :: IM.IntMap LocatedCityObject
 
 ----------------------------------------------------------------------------------------------------
 -- Scenario Processing
 ----------------------------------------------------------------------------------------------------
 
-processScenario :: GLfloat -- ^ default height in camera space
+processScenario :: GLfloat -- ^ default height of buildings in camera space
+                -> GLfloat -- ^ default elevation of lines in camera space
                 -> GLfloat -- ^ scale objects before processing
                 -> Vector2 GLfloat -- ^ shift objects before processing
-                -> FeatureCollection -> ([JSString],CityObjectCollection)
-processScenario h sc sh = (toList *** fromJSArray)
-                        . jsmapEither (processFeature h sc sh)
+                -> FeatureCollection -> ([JSString],CityObjectCollection, LS.MultiLineString 3 GLfloat)
+processScenario h e sc sh collection = (berrs ++ lerrs, buildings, mlns)
+    where (berrs, buildings) = (toList *** fromJSArray) $ jsmapEither (processPolygonFeature h sc sh) plgs
+          (_pts,lns,plgs) = filterGeometryTypes collection
+          (lerrs, mlns) = (toList *** (fromJSArray . jsjoin)) $ jsmapEither (processLineFeature e sc sh) lns
+
+
+processLineFeature :: GLfloat -- ^ default z-position in camera space
+                   -> GLfloat -- ^ scale objects before processing
+                   -> Vector2 GLfloat -- ^ shift objects before processing
+                   -> Feature -> Either JSString (JSArray (LS.LineString 3 GLfloat))
+processLineFeature defz scale shift sObj | scale <= 0 = Left . pack $ "processLineFeature: Scale is not possible (" ++ show scale ++ ")"
+                                         | otherwise  = jsmapSame (PS.mapSet (\vec -> (vec - resizeVector shift) * broadcastVector scale )) <$>
+    (getSizedGeoJSONGeometry (vector3 0 0 (defz / scale)) sObj >>= toMLS)
+    where toMLS :: GeoJsonGeometry 3 GLfloat -> Either JSString (JSArray (LS.LineString 3 GLfloat))
+          toMLS (GeoLineString x)      = Right $ fromList [x]
+          toMLS (GeoMultiLineString x) = Right $ toJSArray x
+          toMLS _                      = Left "processLineFeature: wrong geometry type (not a line)"
 
 
 -- | Calculate scale and shift coefficients for scenario

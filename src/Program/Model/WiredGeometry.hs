@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Program.Model.WiredGeometry
@@ -14,8 +15,10 @@
 module Program.Model.WiredGeometry
     ( WiredGeometry (..)
     , createDecorativeGrid
-    , createLineSet, appendLineSet
+    , createLineSet, appendLineSet, emptyLineSet
     ) where
+
+import Unsafe.Coerce
 
 import Control.Monad.ST
 import JavaScript.TypedArray
@@ -24,6 +27,8 @@ import JavaScript.TypedArray.ST
 import GHCJS.WebGL
 import Data.Geometry
 
+import qualified Data.Geometry.Structure.LineString as LS
+import qualified Data.JSArray as JS
 --import SmallGL.WritableVectors ()
 
 -- | Collection of lines in one entity.
@@ -41,30 +46,44 @@ createDecorativeGrid size cells color = WiredGeometry Nothing color n . arrayBuf
           n = fromIntegral $ 4*(cells-1) :: GLsizei
           h = 0
 
+
+emptyLineSet :: Vector4 GLfloat
+             -> WiredGeometry
+emptyLineSet colors = WiredGeometry Nothing colors 0 (arrayBuffer (fromList [] :: TypedArray GLfloat))
+
 -- | Create a line set from multiple line loops
 createLineSet :: Vector4 GLfloat
-              -> [[Vector3 GLfloat]]
+              -> LS.MultiLineString 3 GLfloat
               -> WiredGeometry
-createLineSet color xxs = WiredGeometry Nothing color n . arrayBuffer . fromList $ points
-    where points = concatMap mkLineStrip xxs
-          n = fromIntegral $ length points :: GLsizei
+createLineSet color xxs = WiredGeometry Nothing color n . arrayBuffer . fromJSArrayToTypedArray $ points
+    where points = mkLineStrips xxs
+          n = fromIntegral (JS.jslength points) `quot` 3 :: GLsizei
 
 -- | Append new points to existing line set
-appendLineSet :: [[Vector3 GLfloat]]
+appendLineSet :: LS.MultiLineString 3 GLfloat
               -> WiredGeometry
               -> WiredGeometry
 appendLineSet xxs (WiredGeometry _ color n0 buf0) = runST $ do
-    arr <- newSTTypedArray (fromIntegral n)
+    let arrn = typedArray (fromIntegral n * 3) :: TypedArray GLfloat
+    arr <- unsafeThaw arrn
     setArray 0 (arrayView buf0 :: TypedArray (Vector3 Float)) arr
-    setList (fromIntegral n0) points arr
+    setArray (fromIntegral n0) (fromJSArrayToTypedArray points) arr
     WiredGeometry Nothing color n <$> unsafeFreeze (arrayBuffer arr)
-    where points = concatMap mkLineStrip xxs
-          n = n0 + fromIntegral (length points)
+    where points = mkLineStrips xxs
+          n = n0 + fromIntegral (JS.jslength points) `quot` 3
 
 
-mkLineStrip :: [Vector3 GLfloat] -> [Vector3 GLfloat]
-mkLineStrip (t:ts) = t:mkLineStrip' ts
-    where mkLineStrip' (x:(xs@(_:_))) = x:x:mkLineStrip' xs
-          mkLineStrip' [x] = [x]
-          mkLineStrip' [] = []
-mkLineStrip _      = []
+foreign import javascript unsafe "[].concat.apply([],[].concat.apply([],\
+                                 \  $1['coordinates'].map(function(r){\
+                                 \        if(!r || r.length <= 1){return [];}\
+                                 \        else {var s = new Array(r.length*2-2);s[0] = r[0];s[s.length-1] = r[r.length-1];\
+                                 \              for(var i = 1; i < r.length-1; i++){s[i*2-1] = r[i]; s[i*2] = r[i];}\
+                                 \              return s;}\
+                                 \})))"
+    mkLineStrips :: LS.MultiLineString n GLfloat -> JS.JSArray GLfloat
+
+fromJSArrayToTypedArray :: (TypedArrayOperations a) => JS.JSArray a -> TypedArray a
+fromJSArrayToTypedArray = fromArray . unsafeFromJSArrayCoerce
+
+unsafeFromJSArrayCoerce :: JS.JSArray a -> TypedArray a
+unsafeFromJSArrayCoerce = unsafeCoerce

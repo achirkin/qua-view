@@ -119,8 +119,8 @@ main = do
     -- experiments
     logText $ "Started " ++ show userProfile ++ " session of modeler."
     loadGeoJSONFromLink "insidePolys.js" True  (reqEvent eventHole . EBox)
-    loadGeoJSONFromLink "outsidePolys.js" False (reqEvent eventHole . EBox)
---    loadGeoJSONFromLink "lines.js" False (reqEvent eventHole . EBox)
+--    loadGeoJSONFromLink "outsidePolys.js" False (reqEvent eventHole . EBox)
+    loadGeoJSONFromLink "lines.js" False (reqEvent eventHole . EBox)
 
     -- done!
     -- simulate an event to force render picture

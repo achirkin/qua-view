@@ -31,11 +31,11 @@ import Data.JSArray
 import Program.Model.City
 import Program.Model.CityObject
 import Program.Model.CityGround
---import Program.Model.WiredGeometry
+import Program.Model.WiredGeometry
 import Program.View
 import Program.View.CityObjectView
 import Program.View.CityGroundView
---import Program.View.WiredGeometryView ()
+import Program.View.WiredGeometryView ()
 import Data.Bits (Bits(..))
 
 --import GHCJS.Useful
@@ -50,7 +50,7 @@ data CityView = CityView
     , selectShader :: !ShaderProgram
     , viewsIn      :: !COViewCollection
     , groundView   :: !(View CityGround)
---    , clutterView  :: !(View WiredGeometry)
+    , clutterView  :: !(View WiredGeometry)
     }
 
 
@@ -63,13 +63,13 @@ instance Drawable City where
                                     ,(gl_VERTEX_SHADER, vertSelector)]
         objs <- createObjViewCollection gl (objectsIn city)
         gr <- createView gl (ground city)
---        clview <- createView gl (clutter city)
+        clview <- createView gl (clutter city)
         return CityView
             { viewShader   = buProgram
             , selectShader = seProgram
             , viewsIn      = objs
             , groundView   = gr
---            , clutterView  = clview
+            , clutterView  = clview
             }
     drawInCurrContext vc@ViewContext
         { glctx = gl
@@ -115,11 +115,11 @@ instance Drawable City where
     updateView gl city@City{objectsIn = objs} cv@CityView{ viewsIn = views } = do
         mviews' <- fromJSArray <$> jsunionZipIO f objs views
         gr <- updateView gl (ground city) (groundView cv)
---        cl <- updateView gl (clutter city) (clutterView cv)
+        cl <- updateView gl (clutter city) (clutterView cv)
         return cv
             { viewsIn = mviews'
             , groundView = gr
---            , clutterView = cl
+            , clutterView = cl
             } where f _ Nothing  Nothing  = return (asLikeJS jsNull)
                     f _ Nothing  (Just v) = deleteView gl (undefined :: LocatedCityObject) v >> return (asLikeJS jsNull)
                     f _ (Just o) Nothing  = createView gl o
@@ -127,12 +127,12 @@ instance Drawable City where
     deleteView gl _ CityView
             { viewsIn      = views
             , groundView   = gr
---            , clutterView  = clutterv
+            , clutterView  = clutterv
             } = do -- TODO :: delete shaders
         jsmapIO_ (deleteView gl (undefined :: LocatedCityObject)) views
         deleteView gl (undefined :: CityGround) gr
---        deleteView gl (undefined :: WiredGeometry) clutterv
-    draw vc city view = -- draw vc (clutter city) (clutterView view) >>
+        deleteView gl (undefined :: WiredGeometry) clutterv
+    draw vc city view = draw vc (clutter city) (clutterView view) >>
                         drawInCurrContext vc' city view
         where vc' = vc{ curState = updateDrawState city view $ curState vc}
 
