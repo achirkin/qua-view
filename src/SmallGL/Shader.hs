@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  SmallGL.Shader
@@ -11,42 +12,79 @@
 --
 -----------------------------------------------------------------------------
 
-module SmallGL.Shader where
+module SmallGL.Shader
+    ( ShaderProgram (), programId
+    , initShaders, attrLoc, unifLoc
+    ) where
 
 import Data.JSString (unpack', pack)
 import Control.Monad
-import qualified Data.Map as Map
 
 import GHCJS.WebGL
+import GHCJS.Types
 
 import SmallGL.Helpers
 
 import GHCJS.Marshal
 import Data.Maybe
+import Data.Coerce
 
 -- | Shader program definision
 data ShaderProgram = ShaderProgram
     { programId :: WebGLProgram -- ^ if of a program to supply to glUseProgram
-    , attributesOf :: Map.Map
-            String
-            (GLuint, GLenum, GLint) -- ^ name of the attribute - location,type,count
-    , uniformsOf :: Map.Map
-            String
-            (WebGLUniformLocation, GLenum, GLint) -- ^ name of the uniform - location,type,count
+    , attributesOf :: JSMap AttribProps -- ^ name of the attribute - location,type,count
+    , uniformsOf :: JSMap UniformProps -- ^ name of the uniform - location,type,count
     }
+
+
+newtype AttribProps = AttribProps JSVal
+newtype UniformProps = UniformProps JSVal
+
+foreign import javascript unsafe "$1.location" js_attrLoc :: AttribProps -> GLuint
+--foreign import javascript unsafe "$1.type" js_attrType :: AttribProps -> GLenum
+--foreign import javascript unsafe "$1.count" js_attrCount :: AttribProps -> GLint
+foreign import javascript unsafe "$r = {}; $r.location = $1; $r.type = $2; $r.count = $3;"
+    js_attrProps :: GLuint -> GLenum -> GLint -> AttribProps
+
+foreign import javascript unsafe "$1.location" js_unifLoc :: UniformProps -> WebGLUniformLocation
+--foreign import javascript unsafe "$1.type" js_unifType :: UniformProps -> GLenum
+--foreign import javascript unsafe "$1.count" js_unifCount :: UniformProps -> GLint
+foreign import javascript unsafe "$r = {}; $r.location = $1; $r.type = $2; $r.count = $3;"
+    js_unifProps :: WebGLUniformLocation -> GLenum -> GLint -> UniformProps
+
+
+newtype JSMap a = JSMap JSVal
+
+jsMapFromList :: Coercible a JSVal => [(JSString, a)] -> JSMap a
+jsMapFromList xs = foldl f mm xs
+    where mm = js_emptyMap
+          f m (name, val) = jssetMapVal name val m
+
+jsIndexMap :: Coercible JSVal a => JSMap a -> JSString -> a
+jsIndexMap = coerce . js_indexMap
+
+foreign import javascript unsafe "$r = {};" js_emptyMap :: JSMap a
+
+foreign import javascript unsafe "$r = $3; $r[$1] = $2;"
+    js_setMapVal :: JSString -> JSVal -> JSMap a -> JSMap a
+
+jssetMapVal :: Coercible a JSVal => JSString -> a -> JSMap a -> JSMap a
+jssetMapVal s v = js_setMapVal s (coerce v)
+
+foreign import javascript unsafe "$r = $1[$2];"
+    js_indexMap :: JSMap a -> JSString -> JSVal
+
 
 -- | Synonym for a type of shader gl enum
 type ShaderType = GLenum
 
 -- | return attribute location by name
-attrLoc :: ShaderProgram -> String -> GLuint
-attrLoc program name = loc
-    where (loc,_,_) = attributesOf program Map.! name
+attrLoc :: ShaderProgram -> JSString -> GLuint
+attrLoc program name = js_attrLoc $ attributesOf program `jsIndexMap` name
 
 -- | return uniform location by name
-unifLoc :: ShaderProgram -> String -> WebGLUniformLocation
-unifLoc program name = loc
-    where (loc,_,_) = uniformsOf program Map.! name
+unifLoc :: ShaderProgram -> JSString -> WebGLUniformLocation
+unifLoc program name = js_unifLoc $ uniformsOf program `jsIndexMap` name
 
 -- | Initialize shader program by supplying a number of source codes.
 --   One source code per shader.
@@ -74,20 +112,20 @@ initShaders gl shtexts = do
     attrCount <- liftM (fromMaybe (0::GLuint))
         (getProgramParameter gl shaderProgram gl_ACTIVE_ATTRIBUTES >>= fromJSVal)
 --    putStrLn $ "Shader attributes: " ++ show attrCount
-    shaderAttribs <- liftM Map.fromList $ sequence . flip map [0..attrCount-1] $ \i -> do
+    shaderAttribs <- liftM jsMapFromList $ sequence . flip map [0..attrCount-1] $ \i -> do
         activeInfo <- getActiveAttrib gl shaderProgram i
         checkGLError gl $ "GetActiveAttrib gl for getting shader attrib" ++ show i
         aPos <- getAttribLocation gl shaderProgram (aiName activeInfo)
-        return (unpack' (aiName activeInfo), (fromIntegral aPos, aiType activeInfo, aiSize activeInfo))
+        return (aiName activeInfo, js_attrProps (fromIntegral aPos) (aiType activeInfo) (aiSize activeInfo))
     -- load uniforms' information
     uniCount <-  liftM (fromMaybe (0::GLuint))
         (getProgramParameter gl shaderProgram gl_ACTIVE_UNIFORMS >>= fromJSVal)
 --    putStrLn $ "Shader uniforms: " ++ show attrCount
-    shaderUniforms <- liftM Map.fromList $ sequence . flip map [0..uniCount-1] $ \i -> do
+    shaderUniforms <- liftM jsMapFromList $ sequence . flip map [0..uniCount-1] $ \i -> do
         activeInfo <- getActiveUniform gl shaderProgram i
         checkGLError gl $ "GetActiveUniform gl for getting shader uniform" ++ show i
         uPos <- getUniformLocation gl shaderProgram (aiName activeInfo)
-        return (unpack' (aiName activeInfo), (uPos, aiType activeInfo, aiSize activeInfo))
+        return (aiName activeInfo, js_unifProps uPos (aiType activeInfo) (aiSize activeInfo))
 --    sequence_ . map (putStrLn . show) . Map.toList $ shaderAttribs
 --    sequence_ . map (putStrLn . show) . Map.toList $ shaderUniforms
     return ShaderProgram {

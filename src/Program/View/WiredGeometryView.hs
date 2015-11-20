@@ -1,5 +1,6 @@
 {-# LANGUAGE TypeFamilies, ViewPatterns #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# LANGUAGE OverloadedStrings #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Program.View.WiredGeometryView
