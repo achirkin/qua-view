@@ -46,6 +46,7 @@ import Program.View
 --import Data.Coerce
 
 
+
 updateProgramView :: String -> Program -> PView -> IO (Either PView e)
 updateProgramView msg program pview = do
         getElementById "clearbutton" >>= elementParent >>= hideElement
@@ -67,9 +68,11 @@ instance Reaction Program PView GeoJSONLoaded "Updating City Geometry after GeoJ
         -- isDynamic = dyn
         --,
         featureCollection = col }
-        program@Program{city = ci} = if isEmptyCity ci
-            then program {city = snd $ buildCity defaultCitySettings col}
-            else program {city = snd $ updateCity col ci}
+        program@Program{city = ci} =
+            let (_errs, c) = if isEmptyCity ci
+                            then buildCity defaultCitySettings col
+                            else updateCity col ci
+            in program {city = c}
     response _ GeoJSONLoaded
         {
         -- isDynamic = dyn

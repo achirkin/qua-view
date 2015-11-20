@@ -70,13 +70,13 @@ instance Reaction Program PView ServiceRunBegin "Run service" 1 where
                     }
 
 instance Reaction Program PView ServiceRunBegin "Update Scenario" 0 where
-    response _ _ _ _ pview@PView{luciClient = Nothing} = return $ Left pview
-    response _ _ _ _ pview@PView{scUpToDate = True, luciScenario = Just _} = return $ Left pview
+    response _ _ _ program pview@PView{luciClient = Nothing} = return $ Left pview
+    response _ _ _ program pview@PView{scUpToDate = True, luciScenario = Just _} = return $ Left pview
     response _ _ _ program pview@PView{scUpToDate = False, luciClient = Just lc} = do
         programInProgress
         t0 <- getTime
         mscenario <- case luciScenario pview of
-            lcs -> do
+            _lcs -> do
               logText "Updating scenario on Luci..."
               tryscenario <- createLuciScenario lc "Visualizer scenario"
                     undefined -- . geometries2features . cityGeometryRoofs $ city program

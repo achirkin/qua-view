@@ -25,6 +25,8 @@ module Program.Model.CityObject
     , processPolygonFeature
     , ObjectBehavior (..)
     , packPointData, emptyPointData
+    , StoreMode (..)
+    , storeCityObject
     )
     where
 
@@ -50,6 +52,7 @@ import Data.Geometry.Structure.Polygon
 import Data.Geometry.Structure.PointSet (PointArray, PointSet (..), shrinkVectors, boundingRectangle2D)
 import Data.Geometry.Structure.Feature
 
+import GHCJS.Useful
 
 -- | Id of geometry in Luci
 newtype GeomID = GeomID JSVal
@@ -112,6 +115,22 @@ processPolygonFeature defHeight scale shift sObj = if isSlave sObj then Left "Sk
         pdata = buildingPointData locMPoly
     in Right . flip T.wrap qt  $ js_FeatureToCityObject sObj pdata locMPoly tshift trotScale
 
+
+data StoreMode = PlainFeature
+               | QuaternionTranformedFeature
+               | LuciMatrixTranformedFeature
+
+-- | Store City Object into plain Feature
+storeCityObject :: GLfloat -> Vector2 GLfloat -> StoreMode -> LocatedCityObject -> Feature
+storeCityObject sc shift storeMode sObj' =
+    case storeMode of
+      PlainFeature                -> js_delocateCityObjectNoTransform obj . T.transform $ objPolygons <$> sObj
+      QuaternionTranformedFeature -> JSArray.asLikeJS $ pToJSVal sObj
+      LuciMatrixTranformedFeature -> js_delocateCityObjectLuciMatrix obj mat
+    where sObj = (pure id >>= T.translate (resizeVector shift) >>= T.scale (1/sc)) <*> sObj'
+          obj = T.unwrap sObj
+          (T.MTransform mat _) = T.mergeSecond (pure id) sObj
+
 locateMultiPolygon :: GLfloat
                    -> Vector2 GLfloat
                    -> MultiPolygon 3 GLfloat
@@ -167,7 +186,8 @@ instance JSArray.LikeJS LocatedCityObject where
     asJSVal (T.QFTransform rs sh obj) = rs `seq` sh `seq` obj `seq` js_delocateCityObject obj sh rs
     asLikeJS js = case js_locateCityObject js of
                    (jv, sh, rs) -> T.QFTransform rs sh (coerce jv)
-
+instance PToJSVal LocatedCityObject where
+    pToJSVal (T.QFTransform rs sh obj) = rs `seq` sh `seq` obj `seq` js_delocateCityObject obj sh rs
 
 instance PFromJSVal (Maybe LocatedCityObject) where
     pFromJSVal js = if not (isTruthy jv)
@@ -192,18 +212,27 @@ foreign import javascript unsafe "$r = gm$cloneCityObject($1); $r['properties'][
                           -> QFloat
                           -> JSVal
 
-instance PToJSVal LocatedCityObject where
-    pToJSVal (T.QFTransform rs sh obj) = js_delocateCityObject obj sh rs
+foreign import javascript unsafe "$r = {}; $r['type'] = 'Feature';\
+                                 \$r['properties'] = JSON.parse(JSON.stringify($1['properties']));\
+                                 \$r['geometry'] = $2;\
+                                 \delete $r['properties']['transform'];"
+    js_delocateCityObjectNoTransform :: CityObject -> MultiPolygon 3 GLfloat -> Feature
+
+foreign import javascript unsafe "$r = {}; $r['type'] = 'Feature';\
+                                 \$r['properties'] = JSON.parse(JSON.stringify($1['properties']));\
+                                 \$r['geometry'] = $1['geometry'];\
+                                 \$r['properties']['transform'] = matRowsJS($2, 4);"
+    js_delocateCityObjectLuciMatrix :: CityObject -> Matrix4 GLfloat -> Feature
 
 
 foreign import javascript unsafe "$r = {}; $r['properties'] = $1['properties']; $r['type'] = $1['type']; $r['geometry'] = $3; $r['pointData'] = $2;\
                                  \$r['properties']['transform'] = {}; $r['properties']['transform']['shift'] = $4; $r['properties']['transform']['rotScale'] = $5;"
     js_FeatureToCityObject :: Feature
-                                  -> PointData
-                                  -> MultiPolygon 3 GLfloat
-                                  -> Vector3 GLfloat
-                                  -> QFloat
-                                  -> CityObject
+                           -> PointData
+                           -> MultiPolygon 3 GLfloat
+                           -> Vector3 GLfloat
+                           -> QFloat
+                           -> CityObject
 
 
 
