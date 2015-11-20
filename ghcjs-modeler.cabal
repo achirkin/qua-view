@@ -26,9 +26,7 @@ executable ghcjs-modeler
         ghcjs-base ==0.2.0.1,
         ghcjs-prim ==0.1.*,
         ghcjs-webgl ==0.3.*,
-        template-haskell >=2.10,
-        containers >=0.5.6.3,
-        text >=1.2.0.4
+        template-haskell >=2.10
     cpp-options: -DGHCJS_BROWSER
     js-sources:
         jsbits/JSArray.js
