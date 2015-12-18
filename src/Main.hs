@@ -116,11 +116,17 @@ main = do
                 , cPass = pass
                 }
 
+    -- load geometry from url
+    case getHtmlArg "geomUrl" of
+        "" -> do
+            loadGeoJSONFromLink "insidePolys.js" True  (reqEvent eventHole . EBox)
+--            loadGeoJSONFromLink "outsidePolys.js" False (reqEvent eventHole . EBox)
+            loadGeoJSONFromLink "lines.js" False (reqEvent eventHole . EBox)
+        u -> loadGeoJSONFromLink u True  (reqEvent eventHole . EBox)
+
     -- experiments
     logText $ "Started " ++ show userProfile ++ " session of modeler."
-    loadGeoJSONFromLink "insidePolys.js" True  (reqEvent eventHole . EBox)
---    loadGeoJSONFromLink "outsidePolys.js" False (reqEvent eventHole . EBox)
-    loadGeoJSONFromLink "lines.js" False (reqEvent eventHole . EBox)
+
 
     -- done!
     -- simulate an event to force render picture
