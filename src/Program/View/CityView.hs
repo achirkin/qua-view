@@ -175,11 +175,14 @@ fragBuilding :: String
 fragBuilding = unlines [
   "precision mediump float;",
   "varying vec4 vColor;",
+  "varying vec3 vDist;",
   "varying vec2 vTextureCoord;",
   "uniform sampler2D uSampler;",
   "uniform float uTexUser;",
   "void main(void) {",
-  "    gl_FragColor = (uTexUser * texture2D(uSampler, vec2(vTextureCoord.s, vTextureCoord.t)) + (1.0-uTexUser))*vColor;",
+  " lowp float z = clamp(dot(vDist,vDist), 0.0, 3.0);",
+  " vec4 tColor = clamp(vColor, vec4(0.0,0.0,0.0,0.0), vec4(1.0,1.0,1.0,min(3.0-z, 1.0)));",
+  " gl_FragColor = (uTexUser * texture2D(uSampler, vec2(vTextureCoord.s, vTextureCoord.t)) + (1.0-uTexUser))*tColor;",
   "}"]
 
 vertBuilding :: String
@@ -194,13 +197,13 @@ vertBuilding = unlines [
   "uniform vec4 uVertexColor;",
   "varying vec4 vColor;",
   "varying vec2 vTextureCoord;",
+  "varying vec3 vDist;",
   "void main(void) {",
   "  vec4 globalPos = uModelViewM * vec4(aVertexPosition, 1.0);",
   "  gl_Position = uProjM * globalPos;",
-  "  vec3 vDist = globalPos.xyz/globalPos.w/150.0;",
-  "  float z = clamp(dot(vDist,vDist), 0.0, 3.0);",
-  "  vColor = uVertexColor * (1.0 + 0.3*max(0.0, dot(-vec4(uSunDir, 0.0), normalize(uModelViewM * vec4(aVertexNormal, 0.0)))));",
-  "  vColor = clamp(vColor, vec4(0.0,0.0,0.0,0.0), vec4(1.0,1.0,1.0,min(3.0-z, 1.0)));",
+  "  vDist = globalPos.xyz/globalPos.w/150.0;",
+  "  vec4 tNormal = normalize(uModelViewM * vec4(aVertexNormal, 0.0));",
+  "  vColor = uVertexColor * (1.0 + 0.3 * dot(tNormal,vec4(uSunDir, 0.0)) * sign(dot(tNormal,globalPos)));",
   "  vTextureCoord = aTextureCoord;",
   "}"]
 

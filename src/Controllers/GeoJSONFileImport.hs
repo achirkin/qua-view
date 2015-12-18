@@ -94,10 +94,21 @@ foreign import javascript interruptible "var xmlHttp = new XMLHttpRequest(); \
     \ }; \
     \ var errjson = function() {logText('Your browser cannot execute http request on ' + $1); if(i == 0){i++;$c(null);} }; \
     \ try { \
-    \     xmlHttp.onload = loadjson; \
-    \     xmlHttp.onerror = errjson; \
-    \     xmlHttp.open( 'GET', $1, true ); \
-    \     xmlHttp.send( ); \
+    \   if ('withCredentials' in xmlHttp) { \
+    \       xmlHttp.onload = loadjson; \
+    \       xmlHttp.onerror = errjson; \
+    \       xmlHttp.open( 'GET', $1, true ); \
+    \   } else if (typeof XDomainRequest != 'undefined') { \
+    \       xmlHttp = new XDomainRequest(); \
+    \       xmlHttp.onload = loadjson; \
+    \       xmlHttp.onerror = errjson; \
+    \       xmlHttp.open( 'GET', $1); \
+    \   } else { \
+    \       xmlHttp.onload = loadjson; \
+    \       xmlHttp.onerror = errjson; \
+    \       xmlHttp.open( 'GET', $1, true ); \
+    \   } \
+    \   xmlHttp.send( ); \
     \ } catch (err) { logText(err); if(i == 0){i++;$c(null);}} "
     getUrlJSON :: JSString -> IO FeatureCollection
 
