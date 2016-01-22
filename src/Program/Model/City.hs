@@ -32,6 +32,7 @@ import Control.Arrow ((***))
 import GHCJS.Types
 import GHCJS.WebGL
 import GHCJS.Marshal.Pure
+import Data.Maybe (fromMaybe)
 
 import Data.JSArray
 import Data.JSString
@@ -65,6 +66,7 @@ data CitySettings = CitySettings
     , groundDilate :: !GLfloat
     , evalCellSize :: !GLfloat
     , defElevation :: !GLfloat
+    , defScale     :: !(Maybe GLfloat)
     }
 
 defaultCitySettings :: CitySettings
@@ -74,6 +76,7 @@ defaultCitySettings = CitySettings
     , groundDilate = 1
     , evalCellSize = 0.5
     , defElevation = 0.01
+    , defScale     = Nothing
     }
 
 emptyCity :: City
@@ -108,8 +111,9 @@ buildCity sets scenario = (,) errors City
     , settings = sets
     , clutter = createLineSet (vector4 0.8 0.4 0.4 1) liness
     }
-    where (cscale,cshift)  = scenarioViewScaling (diagFunction sets) scenario
+    where (rcscale,cshift)  = scenarioViewScaling (diagFunction sets) scenario
           (errors,objects, liness) = processScenario (defHeight sets) (defElevation sets) cscale cshift scenario
+          cscale = fromMaybe rcscale (defScale sets)
 
 updateCity ::FeatureCollection -> City -> ([JSString], City)
 updateCity scenario
