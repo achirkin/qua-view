@@ -49,17 +49,19 @@ data Program = Program
     }
 
 data Controls = Controls
-    { selectedObject     :: !Int
-    , activeService      :: !ServiceBox
-    , availableServices  :: ![ServiceBox]
+    { selectedObject    :: !Int
+    , activeService     :: !ServiceBox
+    , availableServices :: ![ServiceBox]
+    , objectScale       :: !(Maybe GLfloat)
     }
 
 initProgram :: GLfloat -- ^ width of the viewport
             -> GLfloat -- ^ height of the viewport
             -> CState -- ^ initial camera state
             -> Profile -- ^ determine the functionality of the program
+            -> Maybe GLfloat -- ^ default scaling of the objects
             -> Program
-initProgram vw vh cstate userProfile = Program
+initProgram vw vh cstate userProfile objScale = Program
     { camera = initCamera vw vh cstate
     , decGrid = createDecorativeGrid 500 100 (vector4 0.6 0.6 0.8 1)
     , city = emptyCity -- buildCity [] [] [] []
@@ -67,6 +69,7 @@ initProgram vw vh cstate userProfile = Program
         { selectedObject = 0
         , activeService = radService
         , availableServices = [radService, isovistService]
+        , objectScale = objScale
         }
     , userRole = userProfile
     } where radService = ServiceBox . Services.Radius $ vector3 0 3 5

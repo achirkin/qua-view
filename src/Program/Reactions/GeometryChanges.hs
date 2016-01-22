@@ -70,8 +70,11 @@ instance Reaction Program PView GeoJSONLoaded "Updating City Geometry after GeoJ
         featureCollection = col }
         program@Program{city = ci} =
             let (_errs, c) = if isEmptyCity ci
-                            then buildCity defaultCitySettings col
+                            then buildCity citySettings col
                             else updateCity col ci
+                citySettings = defaultCitySettings {
+                        defScale = objectScale . controls $ program
+                    }
             in program {city = c}
     response _ _ GeoJSONLoaded
         {

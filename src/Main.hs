@@ -7,9 +7,10 @@ module Main (
 
 -- Various thins I use
 import Data.Geometry
-import Data.JSString (JSString, append)
+import Data.JSString (JSString, append, unpack')
 import Control.Monad (void)
 import GHCJS.Useful
+import Text.Read (readMaybe)
 
 -- Program Logic
 import Reactive
@@ -35,6 +36,9 @@ main = do
     -- drawing area
     canvas <- getElementById "glcanvas"
 
+    -- get default scaling level
+    let geomScale = readMaybe . unpack' $ getHtmlArg "scale"
+
     -- get request processing
     let userProfile = case getHtmlArg "role" of
                     "edit" -> ExternalEditor
@@ -47,6 +51,7 @@ main = do
                      viewAngles = (-pi/5, pi/12),
                      viewDist   = 30 }
             userProfile
+            geomScale
     canv <- getCanvasById "glcanvas"
     view <- initView program canv
     -- run main reactive programming cycle and get event submission functions (in EventHole)
