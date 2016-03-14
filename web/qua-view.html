@@ -11,13 +11,7 @@
     <meta http-equiv="expires" content="0" />
     <meta http-equiv="expires" content="Tue, 01 Jan 1980 1:00:00 GMT" />
     <meta http-equiv="pragma" content="no-cache" />
-    <link href="modeler.css" rel="stylesheet" type="text/css">
-    <script language="javascript" src="../dist/build/ghcjs-modeler/ghcjs-modeler.jsexe/rts.js"></script>
-    <script language="javascript" src="../dist/build/ghcjs-modeler/ghcjs-modeler.jsexe/lib.js"></script>
-    <script language="javascript" src="../dist/build/ghcjs-modeler/ghcjs-modeler.jsexe/out.js"></script>
-    <script type="text/javascript" src="luciConnect.js"></script>
-    <script type="text/javascript" src="faultylabs.md5.js"></script>
-    <script type="text/javascript" src="misc.js"></script>
+    <link href="qua-view.css" rel="stylesheet" type="text/css">
     <script type="text/javascript" src="numeric.min.js"></script>
   </head>
 <body>
@@ -258,7 +252,6 @@ Services
 
 </div>
 
-
 <!-- Popup windows -->
 <div id="popupbg" onclick="document.getElementById('popuphelp').style.display='none'; document.getElementById('popupbg').style.display='none'; document.getElementById('popupsave').style.display='none';"></div>
 
@@ -492,7 +485,7 @@ Use three fingers to rotate camera in all directions
 window.onload = function() {
 var mainjs=document.createElement('script')
 mainjs.setAttribute("type","text/javascript")
-mainjs.setAttribute("src", "../dist/build/ghcjs-modeler/ghcjs-modeler.jsexe/runmain.js")
+mainjs.setAttribute("src", "modeler.js")
 document.head.appendChild(mainjs);
 }
 </script>

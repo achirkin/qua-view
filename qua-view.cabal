@@ -1,4 +1,4 @@
-name: ghcjs-modeler
+name: qua-view
 version: 0.2
 cabal-version: >=1.22
 build-type: Simple
@@ -7,7 +7,7 @@ license-file: LICENSE
 copyright: (c) Artem Chirkin
 maintainer: Artem Chirkin <chirkin@arch.ethz.ch>
 stability: experimental
-homepage: http://ia.arch.ethz.ch/
+homepage: http://ia.arch.ethz.ch/achirkin
 bug-reports: mailto:chirkin@arch.ethz.ch
 synopsis: Modelling OpenGL prototype
 description:
@@ -17,7 +17,7 @@ description:
 category: OpenGL, WebGL
 author: Artem Chirkin
 
-executable ghcjs-modeler
+executable qua-view
     main-is: Main.hs
     build-depends:
         fastvec ==0.1.*,
