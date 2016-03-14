@@ -1,8 +1,9 @@
-# qua-viewer
+# qua-view
 Web app written in Haskell (GHCJS) for visualizing building geometry.
 This is a part of **qua-kit** project - **Quick Urban Analysis Kit** -
 that is being developed under the scope of [ADvISE](http://www.ia.arch.ethz.ch/advise/) reseach project.
-Qua-viewer can be compiled into a standalone javascript application, independent of the main project.
+Qua-view can be compiled into a standalone javascript application, independent of the main project.
+Other parts are responsible for a server side.
 
 besides ghcjs depends on https://github.com/achirkin/ghcjs-webgl and https://github.com/achirkin/fastvec
 
