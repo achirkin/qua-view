@@ -23,7 +23,7 @@ executable qua-view
         fastvec ==0.1.*,
         base >=4.8 && <5,
         ghc-prim >=0.4,
-        ghcjs-base ==0.2.0.1,
+        ghcjs-base-alt ==0.2.*,
         ghcjs-prim ==0.1.*,
         ghcjs-webgl ==0.3.*,
         stm >=2.4,
