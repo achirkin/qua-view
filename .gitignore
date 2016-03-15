@@ -3,6 +3,7 @@ testdata
 cabal-dev
 SourceGraph
 web/modeler-icons
+web/qua-view.js
 *~
 *.o
 *.hi
@@ -19,7 +20,7 @@ cabal.config
 .dist-buildwrapper/
 .project
 .settings/
-*.sh
+
 
 # leksah stuff
 *.lkshf
