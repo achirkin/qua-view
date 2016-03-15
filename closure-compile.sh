@@ -1,0 +1,1 @@
+closure-compiler --language_in=ECMASCRIPT5 dist/build/qua-view/qua-view.jsexe/all.js web/misc.js web/luciConnect.js web/faultylabs.md5.js --compilation_level=ADVANCED_OPTIMIZATIONS --externs=web/numeric.min.js >> web/qua-view.js
