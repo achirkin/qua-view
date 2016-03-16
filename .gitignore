@@ -14,7 +14,7 @@ web/qua-view.js
 .HTF/
 .cabal-sandbox/
 cabal.sandbox.config
-cabal.config
+#cabal.config
 
 # eclipse stuff
 .dist-buildwrapper/
