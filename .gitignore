@@ -15,6 +15,7 @@ web/qua-view.js
 .cabal-sandbox/
 cabal.sandbox.config
 cabal.config
+.stack-work/
 
 # eclipse stuff
 .dist-buildwrapper/
@@ -24,3 +25,5 @@ cabal.config
 
 # leksah stuff
 *.lkshf
+*.lkshw
+*.lkshs
