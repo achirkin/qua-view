@@ -13,15 +13,14 @@ web/qua-view.js
 .hsenv
 .HTF/
 .cabal-sandbox/
+.stack-work/
 cabal.sandbox.config
 cabal.config
-.stack-work/
 
 # eclipse stuff
 .dist-buildwrapper/
 .project
 .settings/
-
 
 # leksah stuff
 *.lkshf
