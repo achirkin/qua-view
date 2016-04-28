@@ -1,616 +1,450 @@
-//#
-//# Created: MAY 2014
-//# Author: Lukas Treyer
-//# License: MIT
-//#
-//# using -jQuery: parseJSON(), event.trigger(), on()
-//#       -faultylabs.md5_compact_min (named md5.js in luci/web/js)
-//#
-//# test on js console with:  
-//# 	var lc = new LuciClient("localhost", 8080, "ws/");
-//#		lc.authenticate("lukas","1234", function(lc){console.log(lc.getMessage().result)})
-//# 	--> [Log] User 'lukas' authenticated!
+/** MIT License
+ * @authors Lukas Treyer, Artem Chirkin
+ * @date Apr 28, 2016
+ * */
 
-//Taken from https://mths.be/punycode
-//function ucs2decode(string) {
-//	var output = [];
-//	var counter = 0;
-//	var length = string.length;
-//	var value;
-//	var extra;
-//	while (counter < length) {
-//		value = string.charCodeAt(counter++);
-//		if (value >= 0xD800 && value <= 0xDBFF && counter < length) {
-//			// high surrogate, and there is a next character
-//			extra = string.charCodeAt(counter++);
-//			if ((extra & 0xFC00) == 0xDC00) { // low surrogate
-//				output.push(((value & 0x3FF) << 10) + (extra & 0x3FF) + 0x10000);
-//			} else {
-//				// unmatched surrogate; only append this code unit, in case the next
-//				// code unit is the high surrogate of a surrogate pair
-//				output.push(value);
-//				counter--;
-//			}
-//		} else {
-//			output.push(value);
-//		}
-//	}
-//	return output;
-//}
+// these are global dependencies, only faultylabs is non-standard
+/*global faultylabs, Blob, WebSocket, console*/
 
-function typeof_o(o){
-	if (typeof(o) == "object"){
-		return Object.prototype.toString.call(o).replace(/\[object (.+)\]/, "$1");
-	}
-	return typeof(o);
-}
+// declare an isolated namespace Luci, and use strict language subset inside for better performance
+var Luci = (function () {
+    'use strict';
+    
+    function printLog() {
+        console.log(arguments);
+    }
 
-//function isNativeLittle(){
-//	var arr16 = new Uint16Array(1);
-//	arr16[0] = 255;
-//	var arr8 = new Uint8Array(arr16.buffer);
-//	return arr8[0] == 255;
-//}
-//
-//function packBigEndian(number){
-//	var arr32 = new Uint32Array(2);
-//	if (isNativeLittle()) {
-//		arr32[0] = number;
-//		var arr8 = new Uint8Array(arr32.buffer);
-//		var arr = new Uint8Array(8);
-//		for (var i = 7, j = 0; i >= 0; i--){
-//			arr[i] = arr8[j++];
-////			console.log(i + " - " + j);
-//		}
-//		return arr.buffer;
-//	}
-//	arr32[1] = number;
-//	var arr8 = new Uint8Array(arr32.buffer);
-//	return arr8.buffer;
-//}
+    function typeof_o(o) {
+        if (typeof (o) === "object") {
+            /*jslint regexp: true */
+            return Object.prototype.toString.call(o).replace(/\[object (.+)\]/, "$1");
+        }
+        return typeof (o);
+    }
 
-//function array2buffer(arr){
-//	var buf = new Uint8Array(arr.length);
-//	for (var i = 0; i < arr.length; i++){
-//		buf[i] = arr[i];
-//	}
-//	return buf.buffer;
-//}
+    function generateUUID() {
+        var d = new Date().getTime(),
+            uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+                /*jslint bitwise: true */
+                var r = ((d + Math.random() * 16) % 16) | 0;
+                d = Math.floor(d / 16);
+                return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+            });
+        return uuid;
+    }
+    
+    var imageFormats = ['png', 'jpg', 'jpeg', 'svg', 'bmp', 'tif', 'tiff'],
+        Image = (function () {
+            /*jslint nomen: true*/
+            var _src, _format, _width, _height,
+                Image = function (src, format, width, height) {
+                    if (imageFormats.indexOf(format) < 0) { throw new Error("given format is no image format"); }
+                    _src = src;
+                    _format = format;
+                    _width = width;
+                    _height = height;
+                };
+            Image.prototype.getSource = function () { return _src; };
+            Image.prototype.getFormat = function () { return _format; };
+            Image.prototype.getWidth  = function () { return _width; };
+            Image.prototype.getHeight = function () { return _height; };
+            return Image;
+        }()),
 
-//function buffer2array(buf){
-//	var arr = [];
-//	for (var i = 0; i < buf.byteLength; i++){
-//		arr[i] = buf[i];
-//	}
-//	return arr;
-//}
+        globalAttachmentID = 1,
+        
+        CustomEventQueue = (function () {
+            var q = {}, q1 = {},
+                CustomEventQueue = function () {
+                    //constructor
+                };
 
-//function mergeBuffers(bufs){
-//	var l  = 0;
-//	for (var i = 0; i < bufs.length; i++){
-//		var buf = bufs[i];
-//		l += buf.byteLength;
-//	}
-//	var arr8 = new Uint8Array(l);
-//	for (var i = 0, j = 0; i < bufs.length; i++){
-////		console.log("  :  "+bufs[i][0]);
-//		var buf = new Uint8Array(bufs[i]);
-////		console.log("  -  "+buf[0]);
-//		arr8.set(buf, j);
-//		j += buf.byteLength;
-//	}
-////	console.log(arr8[0]);
-//	return arr8.buffer;
-//}
+            CustomEventQueue.prototype.on = function (e, callback) {
+                (q[e] = q[e] || []).push(callback);
+            };
 
-var CounterLatch = function(cb){
-	this.callback = cb;
-	this.count = 0;
-	this.started = false;
-	this.counted = false;
+            CustomEventQueue.prototype.one = function (e, callback) {
+                (q1[e] = q1[e] || []).push(callback);
+            };
 
-	this.countDown = function(amount){
-		if (typeof(amount) == "undefined") amount = 1;
-		this.count = this.count - amount;
-		this.counted = true;
-		if (this.started && this.count == 0) {
-			this.callback();
-		}
-		return this;
-	}
-	this.countUp = function(amount){
-		if (typeof(amount) == "undefined") amount = 1;
-		this.count = this.count + amount;
-		this.counted = true;
-		if (this.started && this.count == 0) {
-			this.callback();
-		}
-		return this;
-	}
-	this.reset = function(){
-		this.count = 0;
-		this.counted = false;
-		this.started = false;
-		return this;
-	}
-	
-	this.start = function(){
-		this.started = true;
-		if (this.counted && this.count == 0) {
-			this.callback();
-		}
-		return this;
-	}
-};
+            CustomEventQueue.prototype.trigger = function (e, params) {
+                var qe = q[e],
+                    q1e = q1[e],
+                    i;
+                if (qe) {
+                    for (i in qe) {
+                        if (qe.hasOwnProperty(i)) { qe[i](params); }
+                    }
+                }
+                if (q1e) {
+                    // any callbacks added from within a callback will not be executed here since len is set only once
+                    /*jslint plusplus: true */
+                    for (i = 0; i < q1e.length; i++) {
+                        q1e.shift()(params);
+                    }
+                }
+            };
+            return CustomEventQueue;
+        }()),
+        
+        Attachment = (function () {
+            /*jslint nomen: true*/
+            var _this, id, headerDescr, format, name, position, blobOrFile;
 
-var CustomEventQueue = (function(){
-	var q = {};
-	var q1 = {};
+            Attachment = function (obj, n, f) {
+                _this = this;
+                name = n;
+                format = f;
+                position = 0;
+                /*jslint plusplus: true */
+                id = globalAttachmentID++;
+                var t = typeof_o(obj);
+                if (t === "ArrayBuffer") {
+                    headerDescr = {
+                        'format': format,
+                        'attachment': {
+                            'length': blobOrFile.size,
+                            'position': 0,
+                            'checksum': faultylabs.MD5(obj)
+                        }
+                    };
+                    blobOrFile = new Blob([obj]);
+                } else if (t === "File") {
+                    headerDescr = {
+                        'format': format,
+                        'POST': 0
+                    };
+                    blobOrFile = obj;
+                }
+            };
 
-	CustomEventQueue = function(){
-		//constructor
-	}
+            Attachment.prototype.setPosition = function (p) {
+                position = p;
+                if (headerDescr.hasOwnProperty('attachment')) {
+                    headerDescr.attachment.position = p;
+                } else {
+                    headerDescr.POST = p;
+                }
+            };
 
-	CustomEventQueue.prototype.on = function(e,callback) {
-		(q[e] = q[e] || []).push( callback );
-	},
+            Attachment.prototype.getFormat = function () {
+                return format;
+            };
 
-	CustomEventQueue.prototype.one = function(e,callback) {
-		(q1[e] = q1[e] || []).push( callback );
-	},
+            Attachment.prototype.getPosition = function () {
+                return position;
+            };
 
-	CustomEventQueue.prototype.trigger = function(e,params) {
-		var qe = q[e];
-		var q1e = q1[e];
+            Attachment.prototype.getHeaderDescription = function () {
+                return headerDescr;
+            };
 
-		if( qe ) {
-			for( i in qe ){
-				qe[i](this,params);
-			}
-		}
-		if( q1e ) {
-			var len = q1e.length;
-			// any callbacks added from within a callback will not be executed here since len is set only once
-			for(var i = 0; i < len; i++){
-				q1e.shift()(this,params);
-			}
-		}
-	}
-	return CustomEventQueue;
-})();
+            Attachment.prototype.getID = function () {
+                return id;
+            };
 
-var LuciClient = (function(){
-	var socket;
-	var _bytes_in = {};
-	var blocked = false;
-	var msgLatch;
-	var filesReadLatch;
-	var _onpost_msg = [];
-	var message;
-	var order = 1;
-	var _this;
-	var isAuth = false;
-	var host;
-	var port;
-	var clientID;
-	
-	var file_lengths = {};
-	var file_progress = {};
-	var total_length = 0;
-	var receive_progress = 0;
+            Attachment.prototype.send = function (url, guid, onsent, onprogress) {
+                var xhr = new XMLHttpRequest(),
+                    h = this.getHeaderDescription();
+                xhr.open('POST', url, true);
+                xhr.setRequestHeader("guid", guid);
+                xhr.setRequestHeader("name", name);
+                xhr.setRequestHeader("Content-Length", blobOrFile.size.toString());
+                xhr.setRequestHeader("Content-Type", blobOrFile.type);
+                if (headerDescr.hasOwnProperty('attachment')) {
+                    xhr.setRequestHeader("checksum", h.attachment.checksum);
+                    xhr.setRequestHeader("position", h.attachment.position);
+                } else {
+                    xhr.setRequestHeader("position", h.POST);
+                }
+                xhr.onload = onsent;
+                xhr.upload.onprogress = onprogress;
+                xhr.send(blobOrFile);
+            };
+            return Attachment;
+        }()),
+        
+        Message = (function () {
+            /*jslint nomen: true*/
+            var header,
+                _this,
+                attachmentDescriptions,
+                attachments,
+                _jadMap,
+                _attMap,
+                i,
+                j;
 
-	LuciClient = function(host, port, path, do_onopen, do_onclose, do_onerror){
-		this['path'] = path || "";
-		this['port'] = port || 80;
-		this['host'] = host;
-		socket = new WebSocket("ws://"+this['host']+":"+this['port']+"/"+this['path']);
-		socket.binaryType = "arraybuffer";
-		if (do_onopen !== undefined) socket.onopen = do_onopen;
-		if (do_onclose !== undefined) {
-			// TODO: reset clientID to null;
-			socket.onclose = do_onclose;
-		}
-		if (do_onerror !== undefined) socket.onerror = do_onerror;
-		socket.onmessage = do_onmessage;
-		msgLatch = new CounterLatch(function(){
-			_streaminfo_check(message);
-			blocked = false;
-			_this.trigger("onmessage");
-		}).start();
-		_this = this;
-	}
+            function checkForAttachments(obj) {
+                var tj = typeof_o(obj),
+                    index,
+                    o;
+                if (tj === "Object") {
+                    if (obj.hasOwnProperty("format") && obj.hasOwnProperty("attachment")) {
+                        if (obj.attachment.checksum !== "string") { _jadMap[obj.attachment.position] = obj; }
+                    } else if (obj instanceof Attachment) {
+                        _attMap[obj.getID()] = obj;
+                        return obj.getHeaderDescription();
+                    } else { // this branch equals exactly the previous existing branch tj === "Array"
+                        for (index in obj) {
+                            if (obj.hasOwnProperty(index)) {
+                                o = checkForAttachments(obj[index]);
+                                if (o !== undefined) { obj[index] = o; }
+                            }
+                        }
+                    }
+                }
+            }
 
-	LuciClient.prototype = new CustomEventQueue(); // LuciClient extends CustomEventQueue
+            Message = function (o) {
+                _this = this;
+                header = o;
+                attachmentDescriptions = [];
+                attachments = [];
+                _jadMap = {};
+                _attMap = {};
 
-	LuciClient.prototype.getMessage = function(){
-		return message;
-	}
+                checkForAttachments(header);
 
-	function do_onmessage(evt){
-		var msg = evt.data;
-		if (typeof(msg) == "string") {
-			if (clientID === undefined || clientID == null) clientID = msg;
-			else {
-				message = JSON && JSON.parse(msg) || $.parseJSON(msg);
-				if ("progress" in message) _this.trigger("onprogress");
-				else msgLatch.countUp(_streaminfo_count(message));
-			}
-		} else {
-			throw new Error("Received binary message!")
-		}
-	}
+                // attachment descriptions
+                var i, key, attachment, keys = Object.keys(_jadMap);
+                keys.sort();
+                /*jslint plusplus: true */
+                for (i = 0; i < keys.length; i++) {
+                    key = keys[i];
+                    attachmentDescriptions.push(_jadMap[key]);
+                }
 
-	function _streaminfo_count(j){
-		if ("format" in j && "streaminfo" in j){
-			var chck = j["streaminfo"]["checksum"];
-			if (chck != "string") {
-				total_length += file_lengths[chck] = j["streaminfo"]["length"];
-				file_progress[chck] = 0;
-				_download(chck, j["format"]);
-				return 1;
-			} else return 0;
-		} else {
-			var i = 0;
-			for (var k in j){
-				var v = j[k];
-				if (typeof_o(v) == "Object"){
-					i += _streaminfo_count(v);
-				}
-			}
-			return i;
-		}
-	}
+                // attachments
+                keys = Object.keys(_attMap);
+                keys.sort();
+                j = 1;
+                for (i = 0; i < keys.length; i++) {
+                    key = keys[i];
+                    attachment = _attMap[key];
+                    attachment.setPosition(j++);
+                    attachments.push(attachment);
+                }
+                i = j = 0;
+            };
 
-	function _streaminfo_check(j){
-		if ("format" in j && "streaminfo" in j){
-			var chksum = j["streaminfo"]["checksum"];
-			if (chksum !== "string")
-			if (chksum in _bytes_in) j["bytes"] = _bytes_in[chksum];
-			else throw new Error("byte-array with checksum '" + chksum + "' not received!");
-		} else {
-			for (var k in j){
-				var v = j[k];
-				if (typeof_o(v) == "Object"){
-					_streaminfo_check(v);
-				}
-			}
-		}
-	}
-	
-	function _download(checksum, format){
-		var url = "http://" + _this.host + ":" + _this.port +"/download/"+checksum+"."+format;
-		console.log(url);
-		var xhr = new XMLHttpRequest();
-		xhr.open('GET', url, true); // parameter 3 = asynchronous
-		xhr.responseType = 'arraybuffer';
+            Message.prototype.hasAttachments = function () {
+                return attachmentDescriptions.length > 0 || attachments.length > 0;
+            };
 
-		xhr.onload = function(e) {
-			var vbuf = this.response;
-			// _bytes_in[faultylabs.MD5(buf)] = buf;
-			_bytes_in[faultylabs.MD5(vbuf)] = vbuf;
-			msgLatch.countDown();
-		};
-		xhr.onprogress = function(e){
-			_accumulate_progress(e, checksum, "onprogress_receive");
-		}
+            Message.prototype.getHeader = function () {
+                return header;
+            };
 
-		xhr.send();
-	}
-	
-	function _accumulate_progress(e, checksum, eventName){
-		// accumulate onprogress calls in onprogress_receive
-		if (e.lengthComputable) {
-		    var percentComplete = e.loaded / e.total;
-		    file_progress[checksum] = e.loaded;
-		    
-		    var p;
-		    for (var chck in file_progress){
-		    	p += file_progress[chck];
-		    }
-		    var n = Math.round(total_length / p * 100)/100;
-		    if (receive_progress != n) {
-		    	receive_progress = n;
-		    	_this.trigger(eventName, 
-		    			{"lengthComputable":true, "loaded":p, "total":total_length});
-		    }
-		}
-	}
-	
-	// note: luci's websocket compared to luci's socket does not send the size of the bytearray at the beginning
-	function _do_onbinary(buf){
-		_bytes_in[faultylabs.MD5(buf)] = buf;
-	}
+            Message.prototype.getCallID = function () {
+                if (Object.keys(header).indexOf("callID") >= 0) {
+                    return header.callID;
+                } else { return 0; }
+            };
 
-	LuciClient.prototype.authenticate = function(user, pwd, cllbk){
-		if (!isAuth){
-			var auth = {};
-            auth["action"] = "authenticate";
-            auth["username"] = user;
-            auth["userpasswd"] = pwd;
-			var cllbks = [function(lc){
-//				console.log(lc.getMessage());
-				isAuth = true;
-			}];
-			if (cllbk != undefined) cllbks.push(cllbk);
-			this.sendAndReceive(auth, cllbks);
-		} else {
-			throw new Error("Already authenticated; authentication call omitted!");
-		}
-	}
+            Message.prototype.hasMoreAttachmentDescriptions = function () {
+                return i < attachmentDescriptions.length;
+            };
 
-	LuciClient.prototype.logout = function(cllbk){
-		if (isAuth){
-			var lout = {};
-            lout["action"] = "logout";
-			var cllbks = [function(lc){
-				console.log(lc.getMessage());
-				isAuth = false;
-			}];
-			if (cllbk != undefined) cllbks.push(cllbk);
-			this.sendAndReceive(lout, cllbks);
-		} else {
-			throw new Error("Logout: not authenticated; logout call omitted!");
-		}
-	}
-	
-	LuciClient.prototype.createScenario = function(name, callback, geometry, projection){
-		var action = {};
-        action["action"] = "create_scenario";
-        action["name"] = name;
-		if (geometry !== undefined) action["geometry"] = geometry;
-		if (projection !== undefined) action["projection"] = projection;
-		if (callback !== undefined) this.sendAndReceive(action, [callback]);
-		else this.sendAndReceive(action);
-	}
-	
-	LuciClient.prototype.updateScenario = function(ScID, callback, name, geometry, bbox){
-        var action = {};
-        action["action"] = "update_scenario";
-        action["ScID"] = ScID;
-		if (geometry !== undefined && geometry != null) action["geometry"] = geometry;
-		if (name !== undefined && name != null) action["name"] = name;
-		if (bbox !== undefined && bbox != null) action["bbox"] = bbox;
-		if (callback !== undefined && callback != null) this.sendAndReceive(action, [callback]);
-		else this.sendAndReceive(action);
-	}
+            Message.prototype.nextAttachmentDescription = function () {
+                /*jslint plusplus: true */
+                return attachmentDescriptions[i++];
+            };
 
-	LuciClient.prototype.send = function(obj){
-//		console.log("send");
-		if (!blocked){
-			// reset members
-			_bytes_in = {};
-			message = {};
-			blocked = true;
-			msgLatch.reset().start();
-			
-			
-			
-			var hashed_bytes;
-			filesReadLatch = new CounterLatch(function(){
-				var bytes = [];
-				var chcks = Object.keys(hashed_bytes);
-				for (var i = 0; i <chcks.length ; i++){
-					var chck = chcks[i];
-					var info = hashed_bytes[chck];
-					bytes.push(info["buf"]);
-					delete info["buf"];
-					info["order"] = i + 1;
-				}
-				socket.send(JSON.stringify(obj));
-				_onpost_msg = [];
-				file_lengths = {};
-				file_progress = {};
-				total_length = 0;
-				receive_progress = 0;
-				var onload = function(e) {
-					// add response to a response array and raise an onsent event if 
-					// we 've got equal amount of answers as amount of bytes sent
-					_onpost_msg.push(e);
-					if (_onpost_msg.length == bytes.length) _this.trigger("onsent", _onpost_msg);
-				};
-				for (var i = 0; i < bytes.length; i++){
-					var arr = bytes[i];
-					var xhr = new XMLHttpRequest();
-					xhr.open('POST', '/upload?clientID='+clientID+'&checksum='+chcks[i], true);
-//					xhr.setRequestHeader("clientID", "123");
-//					xhr.setRequestHeader("checksum", chcks[i]);
-					xhr.onload = onload;
-					xhr.onprogress = function(e){
-						// handle progress and forward it to a onprogress event of _this
-						// that accumulates all onprogress messages in onprogress_send
-						if (e.type == "load") onload(e);
-						else _accumulate_progress(e, chcks[i], "onprogress_send");
-					}
-					// TODO: replace ArrayBuffer with Blob
-					xhr.send(new Blob([arr]));
-				}
-				if (_onpost_msg.length == bytes.length) _this.trigger("onsent");
-			});
-			hashed_bytes = _attachment_check(obj);
-			filesReadLatch.countDown(0).start();
+            Message.prototype.hasMoreAttachments = function () {
+                return j < attachments.length;
+            };
 
-		} else {
-			throw new Error("LuciClient is blocked waiting for an answer from '"+socket.url+"'!");
-		}
-	}
+            Message.prototype.nextAttachment = function () {
+                /*jslint plusplus: true */
+                return attachments[j++];
+            };
 
-	LuciClient.prototype.sendAndReceive = function(obj, handlers){
-		if (handlers !== undefined){
-			for (var i in handlers){
-				_this.one("onmessage", handlers[i]);
-			}
-		}
-		this.send(obj);
-	}
+            Message.prototype.rewindAttachmentDescriptionCounter = function () {
+                i = 0;
+            };
 
-	function _attachment_check(obj){
-		var bytes = {};
-		for (var k in obj){
-			var v = obj[k];
-			var t = typeof_o(v);
-			if (t == "Object"){
-				var sub = _attachment_check(v);
-				for (var checksum in sub){
-					bytes[checksum] = sub[checksum];
-				}
-			} else if (k == "bytes" && t == "ArrayBuffer"){
-				// TODO: replace ArrayBuffer with Blob
-				var len = v.byteLength;
-				_attachment_pack(obj, v, len, bytes);
-				delete obj["bytes"];
-			} else if (k == "file" && t == "File") {
-				filesReadLatch.countUp(1);
-				var len = v.size;
-				var reader = new FileReader();
-				reader.onload = function(e){
-					_attachment_pack(obj, v, len, bytes);
-					delete obj["file"];
-				}
-				reader.readAsArrayBuffer(v);
-			}
-		}
-		return bytes;
-	}
-	
-	function _attachment_pack(obj, buf, len, bytes){
-		if (len < Math.pow(2,32)){
-			var checksum = faultylabs.MD5(buf);
-			var s = obj["streaminfo"] = {"checksum":checksum, "length":len, "buf":buf};
-			bytes[checksum] = s;
-		} else throw new Error("Javascript numbers are limited to 32bit; file sizes to 4GB");
-	}
-	
-	LuciClient.prototype.isValidLuciJSON = function(j){
-		if (!("action" in j || "result" in j || "error" in j || "progress" in j))
-			return false;
-		return true;
-	}
+            Message.prototype.rewindAttachmentCounter = function () {
+                j = 0;
+            };
 
-	return LuciClient;
+            Message.prototype.toString = function () {
+                return JSON.stringify(header);
+            };
 
+            return Message;
+        }()),
+
+        ResponseHandler = (function () {
+            ResponseHandler = function () {};
+            ResponseHandler.prototype.onResult = function (message) {
+                printLog("RESULT: ", message.getHeader());
+            };
+            ResponseHandler.prototype.onProgress = function (message) {
+                var header = message.getHeader();
+                printLog(header.percentage + "% on " + header.callID);
+            };
+            ResponseHandler.prototype.onError = function (message) {
+                var header = message.getHeader();
+                printLog("ERROR: ", header.error);
+            };
+            return ResponseHandler;
+        }()),
+
+        LuciClient = (function () {
+            /*jslint nomen: true*/
+            var socket, socketURL, message, _this,
+                host, port, postURL,
+                callbacks,
+                callbackQueue,
+        //    var waitingForNewCallID = false;
+        //    var responseWhileWaitingForNewCallID;
+                err = "No valid key! ['newCallID','result','progress','error','run','cancel']";
+
+            LuciClient = function (host, port, path, stdResponseHandler, postURL) {
+                callbacks = {};
+                callbackQueue = [];
+                if (stdResponseHandler !== undefined && typeof (stdResponseHandler) !== "function") {
+                    throw new Error("stdResponseHandler must be of type 'function'");
+                }
+                _this = this;
+                this.path = path || "";
+                this.port = port || 80;
+                this.host = host;
+                this.postURL = postURL;
+                this.stdResponseHandler = stdResponseHandler || ResponseHandler;
+                socketURL = "ws://" + this.host + ":" + this.port + "/" + this.path;
+            };
+
+            LuciClient.prototype = new CustomEventQueue(); // LuciClient extends CustomEventQueue
+
+            
+            function handle(responseHandler, message, callID) {
+                var header = message.getHeader();
+                if (header.hasOwnProperty("progress")) {
+                    responseHandler.onProgress(message);
+                    _this.trigger("progress", message);
+                } else if (header.hasOwnProperty("result")) {
+                    responseHandler.onResult(message);
+                    _this.trigger("result", message);
+                    delete callbacks[callID];
+                } else if (header.hasOwnProperty("error")) {
+                    responseHandler.onError(message);
+                    _this.trigger("error", message);
+                    delete callbacks[callID];
+                } else {
+                    throw new Error(err);
+                    // this is unreachable: delete callbacks[callID];
+                }
+            }
+            
+            function do_onmessage(evt) {
+                var msg, header, callID, responseHandler, msgData = evt.data;
+                if (typeof (msgData) === "string") {
+                    msg = JSON && JSON.parse(msgData);
+                    message = new Message(msg);
+                    header = message.getHeader();
+                    if (header.hasOwnProperty("newCallID")) {
+                        callID = header.newCallID;
+                        callbacks[callID] = callbackQueue.shift() || new _this.stdResponseHandler();
+                    } else if (header.hasOwnProperty("callID")) {
+                        callID = header.callID;
+                        responseHandler = callbacks[callID] || new _this.stdResponseHandler();
+                        handle(responseHandler, message, callID);
+                    } else if (header.hasOwnProperty("run")) {
+                        _this.trigger("run", message);
+                    } else if (header.hasOwnProperty("cancel")) {
+                        _this.trigger("cancel", message);
+                    } else { throw new Error(err); }
+                } else { throw new Error("Received binary message!"); }
+            }
+            
+            function send(obj) {
+                if (!_this.isConnected()) { throw new Error("not connected!"); }
+                var a, guid, m = new Message(obj),
+                    reportSent = function () { printLog("sent!"); };
+                if (m.hasAttachments()) {
+                    guid = generateUUID();
+                    m.getHeader().guid = guid;
+                    socket.send(m.toString());
+                    // printLog("guid", guid);
+                    while (m.hasMoreAttachments()) {
+                        a = m.nextAttachment();
+                        printLog("sending ", a);
+                        a.send(_this.postURL, guid, reportSent);
+                    }
+                } else { socket.send(m.toString()); }
+            }
+            
+            LuciClient.prototype.connect = function (do_onopen, do_onclose, do_onerror) {
+                printLog("connecting to " + socketURL);
+                socket = new WebSocket(socketURL);
+                if (do_onopen !== undefined) { socket.onopen = do_onopen; }
+                if (do_onclose !== undefined) { socket.onclose = do_onclose; }
+                if (do_onerror !== undefined) { socket.onerror = do_onerror; }
+                socket.onmessage = do_onmessage;
+            };
+
+            LuciClient.prototype.isConnected = function () {
+                return socket !== undefined;
+            };
+
+            LuciClient.prototype.disconnect = function (onClose) {
+                socket.onclose = function () {
+                    onClose();
+                    socket = undefined;
+                };
+                socket.close();
+            };
+
+            LuciClient.prototype.getCurrentlyReceivedMessage = function () {
+                return message;
+            };
+
+            LuciClient.prototype.getSocketURL = function () {
+                return socketURL;
+            };
+
+            LuciClient.prototype.sendAndReceive = function (obj, responseHandler) {
+                if (!_this.isConnected()) { throw new Error("not connected!"); }
+                if (responseHandler !== undefined) {
+                    if (!(responseHandler instanceof ResponseHandler)) {
+                        if (typeof (responseHandler) === "function") {
+                            var resp = new _this.stdResponseHandler();
+                            resp.onResult = responseHandler;
+                            responseHandler = resp;
+                        } else {
+                            throw new Error("Given argument is no ResponseHandler or function: " + typeof_o(responseHandler));
+                        }
+                    }
+                    callbackQueue.push(responseHandler);
+                } else if (_this.stdResponseHandler === undefined) {
+                    throw new Error("No standard ResponseHandler set!");
+                }
+                send(obj);
+            };
+
+            LuciClient.prototype.send = function (obj) {
+                if (!_this.isConnected()) { throw new Error("not connected!"); }
+                if (_this.stdResponseHandler === undefined) {
+                    throw new Error("Cannot call 'send' without stdResponseHandler being set!");
+                }
+                // yes the standard response must be defined in order to reliably handle events
+                callbackQueue.push(new _this.stdResponseHandler());
+                send(obj);
+            };
+
+            return LuciClient;
+        }());
+    
+    // these are the functions we expose in the namespace Luci; Please, remove unnecessary
+    return {
+        imageFormats: imageFormats,
+        Image: Image,
+        CustomEventQueue: CustomEventQueue,
+        Attachment: Attachment,
+        Message: Message,
+        ResponseHandler: ResponseHandler,
+        Client: LuciClient
+    };
 }());
-
-
-
-//var LuciRemoteService = (function(){
-//	var inputIndex = {};
-//	var outputIndex = {};
-//	var servicename;
-//	var machinename;
-//	var description;
-//	var version;
-//	var inputs;
-//	var outputs;
-//	var hashcode;
-//	var sobjid;
-//	var scid;
-//	var scenario_timestamp;
-//	var outputStreams;
-//	var registered;
-//	var task;
-//	var _this;
-
-//	LuciRemoteService = function(
-//			s, // servicename
-//			i, // inputIndex / input description (javascript object following the Luci Meta JSON Spec)
-//			o, // outputIndex / output desciption (javascript object following the Luci Meta JSON Spec)
-//			m, // machinename
-//			d, // description (what the service is doing)
-//			v, // version
-//			t  // task / callback
-//		){
-//		if (typeof_o(i) != "Object") throw new Error("inputIndex must be of type 'object' {}");
-//		if (typeof_o(o) != "Object") throw new Error("outputIndex must be of type 'object' {}");
-//		inputIndex = i;
-//		outputIndex = o;
-//		servicename = s;
-//		machinename = m;
-//		description = d;
-//		version = v;
-//		task = t;
-//		_this = this;
-//	}
-
-//	LuciRemoteService.prototype = LuciClient; // inheritance
-
-//	LuciRemoteService.prototype.getTask = function(){
-//		return task;
-//	}
-
-//	LuciRemoteService.prototype.register = function(onsuccess, onfailure){
-//		var r = {"action":"remote_register", "machinename":this.machinename, "service":{
-//			"classname":this.servicename, "version":this.version, "description":this.description,
-//			"inputs":this.inputIndex, "outputs":this.outputIndex
-//		}
-//		}
-//		_this.one("onregister_success", onsuccess);
-//		_this.one("onregister_failure", onfailure);
-//		_this.on("onmessage", function(e){
-//			e.stopPropagation();
-//			var run = e.target.message;
-//			if ("action" in run ){
-//				var action = run["action"];
-//				if(action == "run"){
-//					if ("SObjID" in run){
-//						if ("input_hashcode" in run){
-//							var result = {"result":"any","input_hashcode":run["input_hashcode"],"SObjID":run["SObjID"]}
-//							var o = this.task(run.inputs);
-//							if (typeof_o(o) != "Object") {
-//								result["outputs"] = o;
-//								this.send(result);
-//							} else this.send({"error":"LuciRemoteService: invalid task return type!"});
-//						} else {
-//							this.send({"error":"remote service '"+this.servicename+"' is missing the input_hashcode"});
-//						}
-//					} else {
-//						this.send({"error":"remote service '"+this.servicename+"' is missing the SObjID"});
-//					}
-//				} else if (action == "cancel") {
-//					this.send({"error":"LuciConnect.js is being developed under the assumption of a " +
-//						"single threaded event queue environment as it is typical for browsers " +
-//						"and most situations in node.js. Adapt it to your needs if you wish to " +
-//						"use javascript in a multi-threaded environment. You may want to consider " +
-//					"also this post: http://stackoverflow.com/a/8845948"});
-//				} else {
-//					this.send({"error":"remote service '"+this.servicename+"': invalid action '"+action+"'."});
-//				}
-//			} else if ("result" in run){
-
-//			} else if ("error" in run){
-
-//			} else {
-//				this.send({"error":"json sent to '"+this.servicename+"' is missing an action"});
-//			}
-//		});
-//		this.sendAndReceive(r, [function(lc){
-//			var answer = lc.getMessage();
-//			if ("result" in answer){
-//				this.registered = true;
-//				this.trigger("onregister_success");
-//			} else {
-//				this.trigger("onregister_failure");
-//			}
-//		}]);
-//	}
-
-//	LuciRemoteService.prototype.unregister = function(onsuccess, onfailure){
-//		var u = {"action":"remote_unregister"};
-//		this.one("onunregister_success", onsuccess);
-//		this.one("onunregister_failure", onfailure);
-//		if (this.registered){
-//			this.sendAndReceive(u, [function(lc){
-//				var answer = lc.getMessage();
-//				if ("result" in answer){
-//					this.trigger("onunregister_success");
-//					this.registered = false;
-//				} else {
-//					this.trigger("onunregister_failure");
-//				}
-//			}]);
-//		} else {
-//			this.trigger("onunregister_failure");
-//		}
-//	}
-
-//	return LuciRemoteService;
-//})();
