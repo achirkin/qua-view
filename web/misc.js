@@ -152,6 +152,26 @@ logText = function(text) {
     elem.appendChild(newDiv); 
 }
 
+var QLuciHandler = (function() {
+    QLuciHandler = function () {
+        if (arguments.length > 0) {
+            this.onResult = arguments[0];
+        }
+    };
+    QLuciHandler.prototype = new Luci.ResponseHandler();
+    QLuciHandler.prototype.onResult = function (message) {
+        logText("Luci on result: " + message.getHeader());
+    };
+    QLuciHandler.prototype.onProgress = function (message) {
+        var header = message.getHeader();
+        logText("Luci in progress: " + header.percentage + "% on " + header.callID);
+    };
+    QLuciHandler.prototype.onError = function (message) {
+        var header = message.getHeader();
+        logText("Luci error: " + header.error);
+    };
+    return QLuciHandler;
+}());
 
 // Toggle GUI panel on the right side of window
 toggleGUIPanel = function(){

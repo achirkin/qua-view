@@ -35,18 +35,20 @@ instance Reaction Program PView LuciConnect "Connecting to Luci" 1 where
             Left err -> logText' err >> return Nothing
             Right lc -> do
                 logText' $ "Connected to Luci on " `append` cHost
-                ans <- authenticate lc cUser cPass
+--                ans <- authenticate lc cUser cPass
                 getElementById "ipaddressinfo" >>= flip setElementInnerHTML (hostOf lc)
-                logText $ show ans
+--                logText $ show ans
                 getElementById "loginform" >>= hideElement
                 getElementById "logondiv" >>= showElement
                 logText "Getting list of services"
-                fmap (fmap unwords) (getServicesList lc) >>= \r -> case r of
-                                                                    Right l -> logText' $ "List of services in LUCI: " `append` l
-                                                                    Left e -> logText' e
-                logText "Getting info about service fibonacci"
-                getServiceInfo lc "fibonacci" >>= \r -> case r of
-                                                          Right l -> logText $ "Info about fibonacci: "  ++ show l
+                getServicesList lc >>= \r -> case r of
+                          Right l -> do
+                            logText' $ "List of services in LUCI: "
+                            mapM_ logText' l
+                          Left e -> logText' e
+                logText "Getting info about service test.Fibonacci"
+                getServiceInfo lc "test.Fibonacci" >>= \r -> case r of
+                                                          Right l -> logText $ "Info about test.Fibonacci: "  ++ show l
                                                           Left e -> logText' e
                 return $ Just lc
         programIdle
