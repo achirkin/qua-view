@@ -6,14 +6,20 @@
 // these are global dependencies, only faultylabs is non-standard
 /*global faultylabs, Blob, WebSocket, console*/
 
+// Use this to hide console output in production using closure compiler flag "--define='DEBUG=false'"
+/** @define {boolean} */
+var DEBUG = true;
+
 // declare an isolated namespace Luci, and use strict language subset inside for better performance
 var Luci = (function () {
     'use strict';
     
-    function printLog() {
-        console.log(arguments);
+    // the code inside this function should be completely eliminated by closure compiler
+    // if supplied with  "--define='DEBUG=false'"
+    function logDebug() {
+        return DEBUG && (typeof (console) !== 'undefined') && console.log.apply(console, arguments);
     }
-
+    
     function typeof_o(o) {
         if (typeof (o) === "object") {
             /*jslint regexp: true */
@@ -278,15 +284,15 @@ var Luci = (function () {
         ResponseHandler = (function () {
             ResponseHandler = function () {};
             ResponseHandler.prototype.onResult = function (message) {
-                printLog("RESULT: ", message.getHeader());
+                logDebug("RESULT: ", message.getHeader());
             };
             ResponseHandler.prototype.onProgress = function (message) {
                 var header = message.getHeader();
-                printLog(header.percentage + "% on " + header.callID);
+                logDebug(header.percentage + "% on " + header.callID);
             };
             ResponseHandler.prototype.onError = function (message) {
                 var header = message.getHeader();
-                printLog("ERROR: ", header.error);
+                logDebug("ERROR: ", header.error);
             };
             return ResponseHandler;
         }()),
@@ -362,22 +368,22 @@ var Luci = (function () {
             function send(obj) {
                 if (!_this.isConnected()) { throw new Error("not connected!"); }
                 var a, guid, m = new Message(obj),
-                    reportSent = function () { printLog("sent!"); };
+                    reportSent = function () { logDebug("sent!"); };
                 if (m.hasAttachments()) {
                     guid = generateUUID();
                     m.getHeader().guid = guid;
                     socket.send(m.toString());
-                    // printLog("guid", guid);
+                    // logDebug("guid", guid);
                     while (m.hasMoreAttachments()) {
                         a = m.nextAttachment();
-                        printLog("sending ", a);
+                        logDebug("sending ", a);
                         a.send(_this.postURL, guid, reportSent);
                     }
                 } else { socket.send(m.toString()); }
             }
             
             LuciClient.prototype.connect = function (do_onopen, do_onclose, do_onerror) {
-                printLog("connecting to " + socketURL);
+                logDebug("connecting to " + socketURL);
                 socket = new WebSocket(socketURL);
                 if (do_onopen !== undefined) { socket.onopen = do_onopen; }
                 if (do_onclose !== undefined) { socket.onclose = do_onclose; }
@@ -390,10 +396,12 @@ var Luci = (function () {
             };
 
             LuciClient.prototype.disconnect = function (onClose) {
-                socket.onclose = function () {
-                    onClose();
-                    socket = undefined;
-                };
+                if (onClose !== undefined) {
+                    socket.onclose = function () {
+                        onClose();
+                        socket = undefined;
+                    };
+                }
                 socket.close();
             };
 
@@ -437,7 +445,7 @@ var Luci = (function () {
             return LuciClient;
         }());
     
-    // these are the functions we expose in the namespace Luci; Please, remove unnecessary
+    // these are the functions we expose in the namespace Luci
     return {
         imageFormats: imageFormats,
         Image: Image,
