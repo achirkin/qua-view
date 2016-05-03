@@ -157,7 +157,7 @@ getServicesList :: LuciClient -> IO (Either JSString [JSString])
 getServicesList lc = eitherError "Luci answer" <$> getServicesList' lc
 foreign import javascript interruptible "var req = {}; req['run'] = 'ServiceList'; $1.sendAndReceive(req, new QLuciHandler(function(msg){ \
     \ var m = msg.getHeader();\
-    \ if(m['result'] && m['result']['serviceNames']) { var li = h$fromArray(m['result']['serviceNames']); console.log(li); $c([true, li]);} \
+    \ if(m['result'] && m['result']['serviceNames']) { $c([true, m['result']['serviceNames']]);} \
     \ else if(m['error']) {$c([false, 'Luci says: ' + m['error']]);} \
     \ else {$c([false, \"Message contains neither services list nor an error. MSG: \" + JSON.stringify(m)]);}}));"
     getServicesList' :: LuciClient -> IO JSVal
