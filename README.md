@@ -11,7 +11,7 @@ Note that qua-view depends on
 [ghcjs-base-alt](https://github.com/achirkin/ghcjs-base-alt),
 which are available only via github.
 
-Compiled application currently is available on http://www.ia.arch.ethz.ch/modeler.html
+Compiled application currently is available on http://qua-kit.ethz.ch/
 
 Supports mouse and finger control. Works best on chrome (desktop or mobile), but most other browsers working too.
 

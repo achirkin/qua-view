@@ -16,7 +16,7 @@
 module Controllers.LuciClient
     ( LuciClient (), hostOf, portOf, localPathOf, connectionString
     , connectToLuci
-    , authenticate
+--    , authenticate
     , getServicesList
     , getServiceInfo
     , LuciScenario (), createLuciScenario
@@ -111,14 +111,16 @@ connectToLuci address = eitherError "LuciClient" <$> connectToLuci' (pack host) 
           port = case filter (\x -> x >= '0' && x <= '9') port' of
             [] -> 80
             pp -> read pp
-foreign import javascript interruptible "try{\
-    \   var lc = new LuciClient($1, $2, $3, function(){$c([true, lc]);} \
-    \       , function(ev){$c([false, 'Closed with code ' + ev.code]);} \
-    \       , function(){logText(document.getElementById('consolecontent'),'Error occured on the WebSocket side.');} \
-    \   ); \
+foreign import javascript interruptible "try {\
+    \   var lc = new Luci.Client($1, $2, $3, QLuciHandler);\
     \   lc.host = $1;lc.port = $2;lc.localpath = $3; \
+    \   lc.connect\
+    \       ( function(){$c([true, lc]);} \
+    \       , function(ev){$c([false, 'Closed with code ' + ev.code]);} \
+    \       , function(){logText('Error occured on the WebSocket side.');} \
+    \   ); \
     \ }\
-    \ catch(err){$c([false, 'Error occured while trying to create Luci client: ' + JSON.stringify(err)]);}"
+    \ catch(err){$c([false, 'Error occured while trying to create Luci client: ' + err]);}"
     connectToLuci' :: JSString -> Int -> JSString -> IO JSVal
 
 
@@ -130,61 +132,60 @@ foreign import javascript interruptible  "var req = {}; \
     \ req['service']['classname'] = $2; \
     \ req['service']['ScID'] = $3; \
     \ req['service']['inputs'] = $4; \
-    \ $1.sendAndReceive(req,[function(){ \
-    \ var m = $1.getMessage(); \
+    \ $1.sendAndReceive(req,new QLuciHandler(function(m){ \
     \ if(m['result']) {$c([true, m['result']]);} \
     \ else if(m['error']) {$c([false, 'Luci says: ' + m['error']]);} \
-    \ else {$c([false, \"Message contains neither a result nor an error. MSG: \" + JSON.stringify(m)]);}}]);"
+    \ else {$c([false, \"Message contains neither a result nor an error. MSG: \" + JSON.stringify(m)]);}}));"
     runService' :: LuciClient -> JSString -> Int -> LuciServiceInput -> IO JSVal
 
--- | Authenticate in Luci
-authenticate :: LuciClient
-             -> JSString -- ^ login
-             -> JSString -- ^ password
-             -> IO (Either JSString JSString)
-authenticate lc login pass = eitherError "Luci answer" <$> authenticate' lc  login pass
-foreign import javascript interruptible "$1.authenticate($2,$3, function(){ \
-    \ var m = $1.getMessage(); \
-    \ if(m['result']) {$c([true, m['result']]);} \
-    \ else if(m['error']) {$c([false, 'Luci says: ' + m['error']]);} \
-    \ else {$c([false, \"Message contains neither result message nor an error. MSG: \" + JSON.stringify(m)]);}});"
-    authenticate' :: LuciClient -> JSString -> JSString -> IO JSVal
+---- | Authenticate in Luci
+--authenticate :: LuciClient
+--             -> JSString -- ^ login
+--             -> JSString -- ^ password
+--             -> IO (Either JSString JSString)
+--authenticate lc login pass = eitherError "Luci answer" <$> authenticate' lc  login pass
+--foreign import javascript interruptible "$1.authenticate($2,$3, function(){ \
+--    \ var m = $1.getMessage(); \
+--    \ if(m['result']) {$c([true, m['result']]);} \
+--    \ else if(m['error']) {$c([false, 'Luci says: ' + m['error']]);} \
+--    \ else {$c([false, \"Message contains neither result message nor an error. MSG: \" + JSON.stringify(m)]);}});"
+--    authenticate' :: LuciClient -> JSString -> JSString -> IO JSVal
 
 
 -- | Get list of names of available services in Luci
 getServicesList :: LuciClient -> IO (Either JSString [JSString])
 getServicesList lc = eitherError "Luci answer" <$> getServicesList' lc
-foreign import javascript interruptible "var req = {}; req['action'] = 'get_list'; req['of'] = ['services']; $1.sendAndReceive(req,[function(){ \
-    \ var m = $1.getMessage(); \
-    \ if(m['result'] && m['result']['services']) {$c({right: h$fromArray(m['result']['services'])});} \
+foreign import javascript interruptible "var req = {}; req['run'] = 'ServiceList'; $1.sendAndReceive(req, new QLuciHandler(function(msg){ \
+    \ var m = msg.getHeader();\
+    \ if(m['result'] && m['result']['serviceNames']) { $c([true, m['result']['serviceNames']]);} \
     \ else if(m['error']) {$c([false, 'Luci says: ' + m['error']]);} \
-    \ else {$c([false, \"Message contains neither services list nor an error. MSG: \" + JSON.stringify(m)]);}}]);"
+    \ else {$c([false, \"Message contains neither services list nor an error. MSG: \" + JSON.stringify(m)]);}}));"
     getServicesList' :: LuciClient -> IO JSVal
 
 
 getServiceInfo :: LuciClient -> JSString -> IO (Either JSString LuciServiceInfo)
 getServiceInfo lc sname = eitherError "LuciServiceInfo" <$> getServiceInfo' lc sname
-foreign import javascript interruptible "var req = {}; req['action'] = 'get_infos_about'; req['servicename'] = $2; $1.sendAndReceive(req,[function(){ \
-    \ var m = $1.getMessage(); \
+foreign import javascript interruptible "var req = {}; req['run'] = 'ServiceInfo'; req['serviceNames'] = [$2]; $1.sendAndReceive(req, new QLuciHandler(function(msg){ \
+    \ var m = msg.getHeader();\
     \ if(m['result'] && m['result'][$2]) {$c([true, m['result'][$2]]);} \
     \ else if(m['error']) {$c([false, 'Luci says: ' + m['error']]);} \
-    \ else {$c([false, \"Message contains neither service info nor an error. MSG: \" + JSON.stringify(m)]);}}]);"
+    \ else {$c([false, \"Message contains neither service info nor an error. MSG: \" + JSON.stringify(m)]);}}));"
     getServiceInfo' :: LuciClient -> JSString -> IO JSVal
 
 
 createLuciScenario :: LuciClient -> JSString -> FeatureCollection -> IO (Either JSString LuciScenario)
 createLuciScenario lc sname geom = eitherError "Luci Scenario" <$>  createScenario' lc sname geom
 foreign import javascript interruptible "var req = {}; \
-    \ req['action'] = 'create_scenario'; req['name'] = $2; \
+    \ req['action'] = 'scenario.geojson.Create'; req['name'] = $2; \
     \ req['geometry']= {}; \
     \ req['geometry']['ghcjs-modeler-scenario'] = {}; \
     \ req['geometry']['ghcjs-modeler-scenario']['format'] = 'GeoJSON'; \
     \ req['geometry']['ghcjs-modeler-scenario']['geometry'] = $3; \
-    \ $1.sendAndReceive(req,[function(){ \
-    \ var m = $1.getMessage(); \
+    \ $1.sendAndReceive(req,new QLuciHandler(function(msg){ \
+    \ var m = msg.getHeader();\
     \ if(m['result']) {$c([true, m['result']]);} \
     \ else if(m['error']) {$c([false, 'Luci says: ' + m['error']]);} \
-    \ else {$c([false, \"Message contains neither a result nor an error. MSG: \" + JSON.stringify(m)]);}}]);"
+    \ else {$c([false, \"Message contains neither a result nor an error. MSG: \" + JSON.stringify(m)]);}}));"
     createScenario' :: LuciClient -> JSString -> FeatureCollection -> IO JSVal
 
 eitherError :: LikeJS a => JSString -> JSVal -> Either JSString a
