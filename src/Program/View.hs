@@ -9,7 +9,7 @@
 -- |
 -- Module      :  Program.View
 -- Copyright   :  (c) Artem Chirkin
--- License     :  BSD3
+-- License     :  MIT
 --
 -- Maintainer  :  Artem Chirkin <chirkin@arch.ethz.ch>
 -- Stability   :  experimental
@@ -25,15 +25,15 @@ import Data.Coerce (coerce)
 
 import Control.Arrow ((***))
 
-import GHCJS.WebGL
+import JsHs.WebGL
 import GHCJS.Foreign
 import GHCJS.Marshal.Pure (pFromJSVal)
 import GHCJS.Useful
 
 import Data.Geometry
 import Data.Geometry.Transform
-import JavaScript.TypedArray
-import JavaScript.TypedArray.IO
+import JsHs.TypedArray
+import JsHs.TypedArray.IO
 import Program.Model.Camera (viewMatrix, Camera(..))
 
 -- | Rendering global parameters

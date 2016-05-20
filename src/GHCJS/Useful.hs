@@ -5,7 +5,7 @@
 -- |
 -- Module      :  GHCJS.Useful
 -- Copyright   :  (c) Artem Chirkin
--- License     :  BSD3
+-- License     :  MIT
 --
 -- Maintainer  :  Artem Chirkin <chirkin@arch.ethz.ch>
 -- Stability   :  experimental
@@ -21,7 +21,7 @@ import System.IO.Unsafe
 
 import Prelude hiding (lines)
 --import qualified Data.Aeson as A
-import Data.JSString
+import JsHs.JSString
 --import Data.List (intercalate)
 import Control.Concurrent (threadDelay)
 --import Control.Monad (liftM)
@@ -29,7 +29,7 @@ import Control.Concurrent (threadDelay)
 --import GHCJS.Foreign.Callback (Callback)
 --import GHCJS.Marshal
 import GHCJS.Types
-import GHCJS.WebGL.Types (GLfloat)
+import JsHs.WebGL.Types (GLfloat)
 import JavaScript.Web.Canvas (Canvas)
 
 type Time = Double

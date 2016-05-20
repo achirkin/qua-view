@@ -5,7 +5,7 @@
 -- |
 -- Module      :  Services.Isovist
 -- Copyright   :  (c) Artem Chirkin
--- License     :  BSD3
+-- License     :  MIT
 --
 -- Maintainer  :  Artem Chirkin <chirkin@arch.ethz.ch>
 -- Stability   :  experimental
@@ -24,7 +24,7 @@ module Services.Isovist where
 --import Data.Aeson
 --import Data.Geospatial (GeoMultiPoint (..))
 
-import GHCJS.WebGL
+import JsHs.WebGL
 --import GHCJS.Types
 --import GHCJS.Foreign
 --import GHCJS.Marshal

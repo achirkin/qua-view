@@ -3,7 +3,7 @@
 -- |
 -- Module      :  SmallGL.Shader
 -- Copyright   :  (c) Artem Chirkin
--- License     :  BSD3
+-- License     :  MIT
 --
 -- Maintainer  :  Artem Chirkin <chirkin@arch.ethz.ch>
 -- Stability   :  experimental
@@ -17,10 +17,10 @@ module SmallGL.Shader
     , initShaders, attrLoc, unifLoc
     ) where
 
-import Data.JSString (unpack', pack)
+import JsHs.JSString (unpack', pack)
 import Control.Monad
 
-import GHCJS.WebGL
+import JsHs.WebGL
 import GHCJS.Types
 
 import SmallGL.Helpers

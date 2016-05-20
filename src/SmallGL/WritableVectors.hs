@@ -5,7 +5,7 @@
 -- |
 -- Module      :  SmallGL.WritableVectors
 -- Copyright   :  (c) Artem Chirkin
--- License     :  BSD3
+-- License     :  MIT
 --
 -- Maintainer  :  Artem Chirkin <chirkin@arch.ethz.ch>
 -- Stability   :  experimental
@@ -26,11 +26,11 @@ import Data.Foldable (foldlM)
 
 import Control.Monad (void)
 
-import JavaScript.TypedArray
-import JavaScript.TypedArray.ST
+import JsHs.TypedArray
+import JsHs.TypedArray.ST
 import Control.Monad.ST
 
-import GHCJS.WebGL.Types
+import JsHs.WebGL.Types
 
 import Data.JSArray
 import Data.Geometry

@@ -3,7 +3,7 @@
 -- |
 -- Module      :  Program.Model.ScalarField
 -- Copyright   :  (c) Artem Chirkin
--- License     :  BSD3
+-- License     :  MIT
 --
 -- Maintainer  :  Artem Chirkin <chirkin@arch.ethz.ch>
 -- Stability   :  experimental
@@ -20,7 +20,7 @@ module Program.Model.ScalarField
 
 --import GHC.TypeLits
 
-import GHCJS.WebGL
+import JsHs.WebGL
 import Data.Geometry
 import Data.Geometry.Structure.PointSet
 import Data.JSArray

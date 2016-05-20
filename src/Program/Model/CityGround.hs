@@ -3,7 +3,7 @@
 -- |
 -- Module      :  Program.Model.CityGround
 -- Copyright   :  (c) Artem Chirkin
--- License     :  BSD3
+-- License     :  MIT
 --
 -- Maintainer  :  Artem Chirkin <chirkin@arch.ethz.ch>
 --
@@ -23,7 +23,7 @@ module Program.Model.CityGround
 
 import Unsafe.Coerce (unsafeCoerce)
 
-import GHCJS.WebGL
+import JsHs.WebGL
 
 import Data.JSArray
 import Data.Geometry
@@ -31,7 +31,7 @@ import Data.Geometry.Transform
 import Data.Geometry.Structure.LinearRing
 import Data.Geometry.Structure.Polygon
 import qualified Data.Geometry.Structure.PointSet as PS
-import JavaScript.TypedArray
+import JsHs.TypedArray
 
 import SmallGL.WritableVectors
 
@@ -86,7 +86,7 @@ isEmptyGround gr = indexArrayLength (groundPoints gr) == 1
 ----import Data.Primitive.ByteArray
 ----import Data.Primitive (sizeOf)
 --import Control.Monad.ST (runST)
---import GHCJS.WebGL
+--import JsHs.WebGL
 --import SmallGL.WritableVectors
 --import Data.Geometry
 --import Program.Model.CityObject

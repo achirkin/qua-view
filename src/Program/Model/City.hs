@@ -9,7 +9,7 @@
 -- |
 -- Module      :  Program.Model.City
 -- Copyright   :  (c) Artem Chirkin
--- License     :  BSD3
+-- License     :  MIT
 --
 -- Maintainer  :  Artem Chirkin <chirkin@arch.ethz.ch>
 -- Stability   :  experimental
@@ -30,12 +30,12 @@ module Program.Model.City
 
 import Control.Arrow ((***))
 import GHCJS.Types
-import GHCJS.WebGL
+import JsHs.WebGL
 import GHCJS.Marshal.Pure
 import Data.Maybe (fromMaybe)
 
 import Data.JSArray
-import Data.JSString
+import JsHs.JSString
 import Data.Geometry
 import Data.Geometry.Structure.Feature
 import qualified Data.Geometry.Structure.LineString as LS

@@ -5,7 +5,7 @@
 -- |
 -- Module      :  Program.View.WiredGeometryView
 -- Copyright   :  (c) Artem Chirkin
--- License     :  BSD3
+-- License     :  MIT
 --
 -- Maintainer  :  Artem Chirkin <chirkin@arch.ethz.ch>
 -- Stability   :  experimental
@@ -18,9 +18,9 @@ module Program.View.WiredGeometryView
     ( WiredGeometryView (..)
     )where
 
-import JavaScript.TypedArray.IO
+import JsHs.TypedArray.IO
 import Data.Coerce (coerce)
-import GHCJS.WebGL
+import JsHs.WebGL
 import SmallGL.Shader
 import Data.Geometry
 

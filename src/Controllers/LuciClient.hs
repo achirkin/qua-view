@@ -4,7 +4,7 @@
 -- |
 -- Module      :  Controllers.LuciClient
 -- Copyright   :  (c) Artem Chirkin
--- License     :  BSD3
+-- License     :  MIT
 --
 -- Maintainer  :  Artem Chirkin <chirkin@arch.ethz.ch>
 -- Stability   :  experimental
@@ -27,7 +27,7 @@ module Controllers.LuciClient
 
 
 import Data.Int (Int64)
-import Data.JSString (JSString, append,unpack',pack)
+import JsHs.JSString (JSString, append,unpack',pack)
 
 import GHCJS.Foreign
 import GHCJS.Types (JSVal)

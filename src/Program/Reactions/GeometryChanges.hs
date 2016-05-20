@@ -6,7 +6,7 @@
 -- |
 -- Module      :  Program.Reactions.GeometryChanges
 -- Copyright   :  (c) Artem Chirkin
--- License     :  BSD3
+-- License     :  MIT
 --
 -- Maintainer  :  Artem Chirkin <chirkin@arch.ethz.ch>
 -- Stability   :  experimental
@@ -42,7 +42,7 @@ import Program.View
 
 --import GHCJS.Foreign.Callback
 --import GHCJS.Types
---import GHCJS.Prim
+--import JsHs.Types.Prim
 --import Data.Coerce
 
 
