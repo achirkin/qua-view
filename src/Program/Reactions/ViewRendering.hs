@@ -4,7 +4,7 @@
 -- |
 -- Module      :  Program.Reactions.ViewRendering
 -- Copyright   :  (c) Artem Chirkin
--- License     :  BSD3
+-- License     :  MIT
 --
 -- Maintainer  :  Artem Chirkin <chirkin@arch.ethz.ch>
 -- Stability   :  experimental

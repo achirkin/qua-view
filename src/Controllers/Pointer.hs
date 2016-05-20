@@ -2,7 +2,7 @@
 -- |
 -- Module      :  Controllers.Pointer
 -- Copyright   :  (c) Artem Chirkin
--- License     :  BSD3
+-- License     :  MIT
 --
 -- Maintainer  :  Artem Chirkin <chirkin@arch.ethz.ch>
 -- Stability   :  experimental
@@ -27,8 +27,8 @@ module Controllers.Pointer
 import GHCJS.Foreign.Callback
 import GHCJS.Marshal
 import GHCJS.Types
-import GHCJS.Prim
-import GHCJS.WebGL
+import JsHs.Types.Prim
+import JsHs.WebGL
 import GHCJS.Useful
 
 import Data.Coerce (coerce)

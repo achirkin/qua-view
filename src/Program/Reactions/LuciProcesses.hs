@@ -5,7 +5,7 @@
 -- |
 -- Module      :  Program.Reactions.LuciProcesses
 -- Copyright   :  (c) Artem Chirkin
--- License     :  BSD3
+-- License     :  MIT
 --
 -- Maintainer  :  Artem Chirkin <chirkin@arch.ethz.ch>
 -- Stability   :  experimental
@@ -19,7 +19,7 @@ module Program.Reactions.LuciProcesses () where
 import Prelude hiding (unwords)
 
 import GHCJS.Useful
-import Data.JSString (append, unwords)
+import JsHs.JSString (append, unwords)
 
 import Reactive
 import Controllers.GUIEvents

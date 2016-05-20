@@ -2,7 +2,7 @@
 -- |
 -- Module      :  Controllers.ElementResizing
 -- Copyright   :  (c) Artem Chirkin
--- License     :  BSD3
+-- License     :  MIT
 --
 -- Maintainer  :  Artem Chirkin <chirkin@arch.ethz.ch>
 -- Stability   :  experimental
@@ -18,7 +18,7 @@ module Controllers.ElementResizing
     ) where
 
 import GHCJS.Foreign.Callback
-import GHCJS.WebGL
+import JsHs.WebGL
 import GHCJS.Useful
 
 -- | Resizing element - gives new width and height

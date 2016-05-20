@@ -3,7 +3,7 @@
 -- |
 -- Module      :  Program.Model.WiredGeometry
 -- Copyright   :  (c) Artem Chirkin
--- License     :  BSD3
+-- License     :  MIT
 --
 -- Maintainer  :  Artem Chirkin <chirkin@arch.ethz.ch>
 -- Stability   :  experimental
@@ -21,10 +21,10 @@ module Program.Model.WiredGeometry
 import Unsafe.Coerce
 
 import Control.Monad.ST
-import JavaScript.TypedArray
-import JavaScript.TypedArray.ST
+import JsHs.TypedArray
+import JsHs.TypedArray.ST
 
-import GHCJS.WebGL
+import JsHs.WebGL
 import Data.Geometry
 
 import qualified Data.Geometry.Structure.LineString as LS

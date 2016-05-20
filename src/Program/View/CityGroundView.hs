@@ -4,7 +4,7 @@
 -- |
 -- Module      :  Program.View.CityGroundView
 -- Copyright   :  (c) Artem Chirkin
--- License     :  BSD3
+-- License     :  MIT
 --
 -- Maintainer  :  Artem Chirkin <chirkin@arch.ethz.ch>
 -- Stability   :  experimental
@@ -16,14 +16,14 @@
 module Program.View.CityGroundView where
 
 
-import GHCJS.WebGL
+import JsHs.WebGL
 --import Data.Geometry
 
 import Program.Model.CityObject
 import Program.Model.CityGround
 import Program.View
 
-import JavaScript.TypedArray
+import JsHs.TypedArray
 
 data CityGroundView = CityGroundView !WebGLBuffer !WebGLBuffer !(Maybe WebGLTexture)
 

@@ -9,7 +9,7 @@
 -- |
 -- Module      :  Data.JSArray
 -- Copyright   :  (c) Artem Chirkin
--- License     :  BSD3
+-- License     :  MIT
 --
 -- Maintainer  :  Artem Chirkin <chirkin@arch.ethz.ch>
 -- Stability   :  experimental
@@ -43,7 +43,7 @@ import Data.Geometry.VectorMath --(Vector )
 
 -- everything else that I use in this module
 import Data.Foldable (foldr')
-import Data.JSString (JSString, pack, unpack')
+import JsHs.JSString (JSString, pack, unpack')
 import Data.Coerce (Coercible (), coerce)
 import GHC.Exts (Any)
 import GHCJS.Foreign.Callback (Callback, OnBlocked (..), releaseCallback, syncCallback1, syncCallback2, syncCallback3)

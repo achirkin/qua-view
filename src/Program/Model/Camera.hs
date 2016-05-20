@@ -3,7 +3,7 @@
 -- |
 -- Module      :  Program.Model.Camera
 -- Copyright   :  (c) Artem Chirkin
--- License     :  BSD3
+-- License     :  MIT
 --
 -- Maintainer  :  Artem Chirkin <chirkin@arch.ethz.ch>
 -- Stability   :  experimental
@@ -22,7 +22,7 @@ module Program.Model.Camera
     ) where
 
 import Control.Monad (ap)
-import GHCJS.WebGL
+import JsHs.WebGL
 import Data.Fixed as DF
 
 import Data.Geometry

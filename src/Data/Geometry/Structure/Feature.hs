@@ -7,7 +7,7 @@
 -- |
 -- Module      :  Data.Geometry.Structure.Feature
 -- Copyright   :  (c) Artem Chirkin
--- License     :  BSD3
+-- License     :  MIT
 --
 -- Maintainer  :  Artem Chirkin <chirkin@arch.ethz.ch>
 -- Stability   :  experimental
@@ -31,7 +31,7 @@ import GHCJS.Foreign (isTruthy)
 import GHCJS.Marshal.Pure (PToJSVal (..))
 import GHCJS.Types (JSVal)
 import Data.Proxy (Proxy(..))
-import Data.JSString (JSString, append)
+import JsHs.JSString (JSString, append)
 import Data.JSArray
 import Data.Geometry
 import qualified Data.Geometry.Structure.PointSet as PS

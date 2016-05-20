@@ -7,7 +7,7 @@ module Main (
 
 -- Various thins I use
 import Data.Geometry
-import Data.JSString (JSString, append, unpack')
+import JsHs.JSString (JSString, append, unpack')
 import Control.Monad (void)
 import GHCJS.Useful
 import Text.Read (readMaybe)

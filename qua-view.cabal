@@ -1,8 +1,8 @@
 name: qua-view
-version: 0.2
+version: 0.3
 cabal-version: >=1.22
 build-type: Simple
-license: BSD3
+license: MIT
 license-file: LICENSE
 copyright: (c) Artem Chirkin
 maintainer: Artem Chirkin <chirkin@arch.ethz.ch>
@@ -23,9 +23,8 @@ executable qua-view
         fastvec ==0.1.*,
         base >=4.8 && <5,
         ghc-prim >=0.4,
-        ghcjs-base-alt ==0.2.*,
-        ghcjs-prim ==0.1.*,
-        ghcjs-webgl ==0.3.*,
+        ghcjs-hs-interop -any,
+        ghcjs-webgl -any,
         stm >=2.4,
         template-haskell >=2.10
     cpp-options: -DGHCJS_BROWSER

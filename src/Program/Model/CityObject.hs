@@ -9,7 +9,7 @@
 -- |
 -- Module      :  Program.Model.CityObject
 -- Copyright   :  (c) Artem Chirkin
--- License     :  BSD3
+-- License     :  MIT
 --
 -- Maintainer  :  Artem Chirkin <chirkin@arch.ethz.ch>
 -- Stability   :  experimental
@@ -33,14 +33,14 @@ module Program.Model.CityObject
 import GHCJS.Foreign.Callback (Callback)
 
 import Data.Coerce (coerce)
-import Data.JSString (unpack')
+import JsHs.JSString (unpack')
 
 import GHCJS.Foreign
 import GHCJS.Marshal.Pure
 import GHCJS.Types
-import JavaScript.TypedArray
+import JsHs.TypedArray
 
-import GHCJS.WebGL
+import JsHs.WebGL
 
 import SmallGL.WritableVectors
 

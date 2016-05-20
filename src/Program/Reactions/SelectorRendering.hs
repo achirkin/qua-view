@@ -6,7 +6,7 @@
 -- |
 -- Module      :  Program.Reactions.SelectorRendering
 -- Copyright   :  (c) Artem Chirkin
--- License     :  BSD3
+-- License     :  MIT
 --
 -- Maintainer  :  Artem Chirkin <chirkin@arch.ethz.ch>
 -- Stability   :  experimental
@@ -18,7 +18,7 @@
 module Program.Reactions.SelectorRendering (
     ) where
 
-import GHCJS.WebGL
+import JsHs.WebGL
 import Data.Geometry
 
 

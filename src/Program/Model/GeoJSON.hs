@@ -7,7 +7,7 @@
 -- |
 -- Module      :  Program.Model.GeoJSON
 -- Copyright   :  (c) Artem Chirkin
--- License     :  BSD3
+-- License     :  MIT
 --
 -- Maintainer  :  Artem Chirkin <chirkin@arch.ethz.ch>
 -- Stability   :  experimental
@@ -33,7 +33,7 @@ import qualified Data.IntMap.Strict as IM
 import Control.Monad ((>=>), liftM, join)
 import Control.Arrow (first, second)
 
-import GHCJS.WebGL
+import JsHs.WebGL
 
 import Geometry.Space
 import Geometry.Space.Transform

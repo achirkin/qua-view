@@ -7,7 +7,7 @@
 -- |
 -- Module      :  Program.View.CityView
 -- Copyright   :  (c) Artem Chirkin
--- License     :  BSD3
+-- License     :  MIT
 --
 -- Maintainer  :  Artem Chirkin <chirkin@arch.ethz.ch>
 -- Stability   :  experimental
@@ -21,7 +21,7 @@ module Program.View.CityView where
 
 import GHCJS.Foreign
 import GHCJS.Types
-import GHCJS.WebGL
+import JsHs.WebGL
 import SmallGL.Shader
 import Data.Geometry
 import Data.Geometry.Transform

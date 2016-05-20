@@ -2,7 +2,7 @@
 -- |
 -- Module      :  Program
 -- Copyright   :  (c) Artem Chirkin
--- License     :  BSD3
+-- License     :  MIT
 --
 -- Maintainer  :  Artem Chirkin <chirkin@arch.ethz.ch>
 -- Stability   :  experimental
@@ -19,7 +19,7 @@ module Program where
 
 
 import JavaScript.Web.Canvas (Canvas)
-import GHCJS.WebGL
+import JsHs.WebGL
 import GHCJS.Useful
 import Data.Geometry
 
