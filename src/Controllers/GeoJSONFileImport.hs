@@ -20,11 +20,12 @@ module Controllers.GeoJSONFileImport
 
 
 import Data.Geometry.Structure.Feature (FeatureCollection)
-import Data.JSArray (asJSVal)
-import GHCJS.Types
+import JsHs.LikeJS.Class
+import JsHs.Types
+import JsHs.Types.Prim
 --import GHCJS.Marshal
-import GHCJS.Foreign.Callback
-import GHCJS.Foreign (isTruthy)
+import JsHs.Callback
+-- import GHCJS.Foreign (isTruthy)
 
 import GHCJS.Useful
 import Controllers.GUIEvents
@@ -56,7 +57,7 @@ onGeoJSONFileImport importButton callback = elementOnChange importButton $ do
 loadGeoJSONFromLink :: JSString -> Bool -> GeoJSONLoadCallBack -> IO ()
 loadGeoJSONFromLink url isDyn callback = do
     c <- getUrlJSON url
-    if not (isTruthy $ asJSVal c)
+    if jsIsNullOrUndef $ asJSVal c
     then logText "Could not read geometry"
     else callback GeoJSONLoaded
           { isDynamic         = isDyn

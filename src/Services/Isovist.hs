@@ -25,8 +25,8 @@ module Services.Isovist where
 --import Data.Geospatial (GeoMultiPoint (..))
 
 import JsHs.WebGL
---import GHCJS.Types
---import GHCJS.Foreign
+--import JsHs.Types
+---- import GHCJS.Foreign
 --import GHCJS.Marshal
 import GHCJS.Useful
 

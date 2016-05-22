@@ -1,5 +1,6 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# LANGUAGE DataKinds, FlexibleInstances, MultiParamTypeClasses #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Program.View.CityObjectView
@@ -15,21 +16,23 @@
 
 module Program.View.CityObjectView where
 
-import Data.JSArray
+import JsHs.Array
+--import JsHs.LikeJS.Class
 
 import JsHs.WebGL
-import GHCJS.Types
+import JsHs.Types
 
 import Program.Model.CityObject
 import Program.View
+import JsHs.Nullable (Nullable)
 
 --import Unsafe.Coerce (unsafeCoerce)
 --import GHCJS.Useful
 --import JsHs.TypedArray
 
 newtype CityObjectView = CityObjectView JSVal
-instance LikeJS CityObjectView
-
+instance LikeJS "Object" CityObjectView
+instance Nullable CityObjectView
 
 {-# INLINE cityObjectView #-}
 foreign import javascript "$r = {}; $r.pointBuffer = $1; $r.indexBuffer = $2;"

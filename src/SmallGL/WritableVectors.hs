@@ -32,7 +32,7 @@ import Control.Monad.ST
 
 import JsHs.WebGL.Types
 
-import Data.JSArray
+import JsHs.Array as JS
 import Data.Geometry
 import Data.Geometry.Structure.PointSet
 
@@ -81,7 +81,7 @@ packPoints :: PointArray 3 GLfloat  -- ^ Points
            -> PointArray 2 GLushort -- ^ Texture Coords
            -> ArrayBuffer
 packPoints points normals texcoords = runST $ do
-    buf <- newSTArrayBuffer (jslength points * 20)
+    buf <- newSTArrayBuffer (JS.length points * 20)
     setPoints 5  0  points    (arrayView buf)
     setPoints 20 12 normals   (arrayView buf)
     setPoints 10 8  texcoords (arrayView buf)

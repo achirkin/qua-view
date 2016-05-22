@@ -21,8 +21,8 @@ module GHCJS.Instances () where
 
 
 --import Unsafe.Coerce
---import GHCJS.Foreign
---import GHCJS.Types
+---- import GHCJS.Foreign
+--import JsHs.Types
 --import GHCJS.Marshal
 --import Control.Monad (liftM, join)
 --

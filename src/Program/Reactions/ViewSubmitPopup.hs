@@ -28,8 +28,8 @@ import Controllers.GUIEvents
 import GHCJS.Useful
 --import Program.View
 
-import GHCJS.Types
---import GHCJS.Foreign
+import JsHs.Types
+---- import GHCJS.Foreign
 --import GHCJS.Marshal
 
 

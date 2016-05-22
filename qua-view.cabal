@@ -20,9 +20,9 @@ author: Artem Chirkin
 executable qua-view
     main-is: Main.hs
     build-depends:
-        fastvec ==0.1.*,
         base >=4.8 && <5,
         ghc-prim >=0.4,
+        fastvec -any,
         ghcjs-hs-interop -any,
         ghcjs-webgl -any,
         stm >=2.4,
@@ -48,7 +48,6 @@ executable qua-view
         Data.Geometry.Structure.Point
         Data.Geometry.Structure.PointSet
         Data.Geometry.Structure.Polygon
-        Data.JSArray
         GHCJS.Useful
         SmallGL.Helpers
         SmallGL.Shader

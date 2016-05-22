@@ -13,12 +13,12 @@
 
 module Program where
 
---import GHCJS.Foreign
+---- import GHCJS.Foreign
 --import GHCJS.Marshal
 --import Program.Model.GeoJSON
 
 
-import JavaScript.Web.Canvas (Canvas)
+--import JavaScript.Web.Canvas (Canvas)
 import JsHs.WebGL
 import GHCJS.Useful
 import Data.Geometry
@@ -89,7 +89,7 @@ data PView = PView
     }
 
 
-initView :: Program -> Canvas -> IO PView
+initView :: Program -> WebGLCanvas -> IO PView
 initView prog@Program
     { camera = cam
     } canvas = do

@@ -23,7 +23,7 @@ module Program.Model.ScalarField
 import JsHs.WebGL
 import Data.Geometry
 import Data.Geometry.Structure.PointSet
-import Data.JSArray
+import JsHs.Array as JS
 import Data.Coerce
 
 -- | Describes evaluations performed on geometry.
@@ -33,7 +33,7 @@ data ScalarField = ScalarField
     { cellSize  :: !GLfloat -- ^ desired size of computed cell
     , sfPoints  :: !(PointArray 3 GLfloat) -- ^ set of points to compute values on
     , sfRange   :: !(GLfloat, GLfloat) -- ^ min and max of the field values
-    , sfValues  :: !(JSArray GLfloat) -- ^ set of values
+    , sfValues  :: !(JS.Array GLfloat) -- ^ set of values
     }
 
 -- | Color range to describe color pallete
@@ -45,14 +45,14 @@ data ColorPalette = LinearPalette !(Vector4 GLubyte) !(Vector4 GLubyte)
 makeColors :: ColorPalette
            -> ScalarField
            -> PointArray 4 GLubyte -- ^ set of values in RGBA form [0..255]
-makeColors (LinearPalette p0 p1) sf = fromJSArray . jsmap f $ normalized sf
+makeColors (LinearPalette p0 p1) sf = fromJSArray . JS.map f $ normalized sf
     where f x = round $ (1-x) * v p0
                       +    x  * v p1
-makeColors (Bezier2Palette p0 p1 p2) sf = fromJSArray . jsmap f $ normalized sf
+makeColors (Bezier2Palette p0 p1 p2) sf = fromJSArray . JS.map f $ normalized sf
     where f x | y <- 1-x = round $   y*y * v p0
                                  + 2*x*y * v p1
                                  +   x*x * v p2
-makeColors (Bezier3Palette p0 p1 p2 p3) sf = fromJSArray . jsmap f $ normalized sf
+makeColors (Bezier3Palette p0 p1 p2 p3) sf = fromJSArray . JS.map f $ normalized sf
     where f x | y <- 1-x = round $   y*y*y * v p0
                                  + 3*x*y*y * v p1
                                  + 3*x*x*y * v p2
@@ -68,6 +68,6 @@ normalized :: ScalarField -> PointArray 4 GLfloat
 normalized ScalarField
     { sfRange  = (xmin, xmax)
     , sfValues = vals
-    } = fromJSArray $ jsmap f vals
+    } = fromJSArray $ JS.map f vals
     where f x = realToFrac . min 1 . max 0 $ (x - xmin)/xspan
           xspan = max 10e-5 $ xmax - xmin

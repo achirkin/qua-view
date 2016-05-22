@@ -29,12 +29,12 @@ module Program.Model.City
     ) where
 
 import Control.Arrow ((***))
-import GHCJS.Types
+import JsHs.Types
 import JsHs.WebGL
-import GHCJS.Marshal.Pure
+--import GHCJS.Marshal.Pure
 import Data.Maybe (fromMaybe)
 
-import Data.JSArray
+import JsHs.Array as JS
 import JsHs.JSString
 import Data.Geometry
 import Data.Geometry.Structure.Feature
@@ -92,9 +92,9 @@ emptyCity = City
 
 -- | Basic entity in the program; Defines the logic of the interaction and visualization
 newtype CityObjectCollection = CityObjectCollection JSVal
-instance LikeJS CityObjectCollection
-instance LikeJSArray CityObjectCollection where
-    type JSArrayElem CityObjectCollection = LocatedCityObject
+instance LikeJS "Array" CityObjectCollection
+instance LikeJSArray "Object" CityObjectCollection where
+    type ArrayElem CityObjectCollection = LocatedCityObject
 
 
 
@@ -124,7 +124,7 @@ updateCity scenario
              , clutter = appendLineSet liness (clutter city)
              }
     where (errors,objects, liness) = processScenario (defHeight $ settings city)  (defElevation $ settings city) cscale cshift scenario
-          allobjects = jsconcat (objectsIn city) objects
+          allobjects = JS.concat (objectsIn city) objects
 
 
 
@@ -136,10 +136,10 @@ foreign import javascript "$1.length"
     collectionLength :: CityObjectCollection -> Int
 
 getObject :: Int -> City -> Maybe LocatedCityObject
-getObject i City{objectsIn=objects} = pFromJSVal $ js_getObject (i-1) objects
+getObject i City{objectsIn=objects} = asLikeJS $ js_getObject (i-1) objects
 
 setObject :: Int -> LocatedCityObject -> City -> City
-setObject i obj city@City{objectsIn=objects} = city{objectsIn = js_setObject (i-1) (pToJSVal obj) objects}
+setObject i obj city@City{objectsIn=objects} = city{objectsIn = js_setObject (i-1) (asJSVal obj) objects}
 
 
 foreign import javascript unsafe "$2[$1]"
@@ -173,18 +173,18 @@ processScenario :: GLfloat -- ^ default height of buildings in camera space
                 -> FeatureCollection -> ([JSString],CityObjectCollection, LS.MultiLineString 3 GLfloat)
 processScenario h e sc sh collection | sc <= 0 = ([pack $ "processScenario: Scale is not possible (" ++ show sc ++ ")"], fromList [], fromList [])
                                      | otherwise = (berrs ++ lerrs, buildings, mlns)
-    where (berrs, buildings) = (toList *** fromJSArray) $ jsmapEither (processPolygonFeature h sc sh) plgs
+    where (berrs, buildings) = (toList *** fromJSArray) $ JS.mapEither (processPolygonFeature h sc sh) plgs
           (_pts,lns,plgs) = filterGeometryTypes collection
-          (lerrs, mlns) = (toList *** (fromJSArray . jsjoin)) $ jsmapEither (processLineFeature e sc sh) lns
+          (lerrs, mlns) = (toList *** (fromJSArray . JS.join)) $ JS.mapEither (processLineFeature e sc sh) lns
 
 
 processLineFeature :: GLfloat -- ^ default z-position in camera space
                    -> GLfloat -- ^ scale objects before processing
                    -> Vector2 GLfloat -- ^ shift objects before processing
-                   -> Feature -> Either JSString (JSArray (LS.LineString 3 GLfloat))
-processLineFeature defz scale shift sObj = jsmapSame (PS.mapSet (\vec -> (vec - resizeVector shift) * broadcastVector scale )) <$>
+                   -> Feature -> Either JSString (JS.Array (LS.LineString 3 GLfloat))
+processLineFeature defz scale shift sObj = JS.mapSame (PS.mapSet (\vec -> (vec - resizeVector shift) * broadcastVector scale )) <$>
     (getSizedGeoJSONGeometry (vector3 0 0 (defz / scale)) sObj >>= toMLS)
-    where toMLS :: GeoJsonGeometry 3 GLfloat -> Either JSString (JSArray (LS.LineString 3 GLfloat))
+    where toMLS :: GeoJsonGeometry 3 GLfloat -> Either JSString (JS.Array (LS.LineString 3 GLfloat))
           toMLS (GeoLineString x)      = Right $ fromList [x]
           toMLS (GeoMultiLineString x) = Right $ toJSArray x
           toMLS _                      = Left "processLineFeature: wrong geometry type (not a line)"
@@ -217,7 +217,7 @@ storeCityAsIs City
     , cityTransform = (scale, shift)
     } = fromJSArray . fromList $
         (feature . GeoMultiLineString $ PS.mapSet (\vec -> vec * broadcastVector (1/scale) + resizeVector shift ) mline)
-        : toList (jsmap (storeCityObject scale shift PlainFeature) buildings)
+        : toList (JS.map (storeCityObject scale shift PlainFeature) buildings)
 
 
 

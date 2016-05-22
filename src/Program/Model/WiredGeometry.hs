@@ -28,7 +28,7 @@ import JsHs.WebGL
 import Data.Geometry
 
 import qualified Data.Geometry.Structure.LineString as LS
-import qualified Data.JSArray as JS
+import qualified JsHs.Array as JS
 --import SmallGL.WritableVectors ()
 
 -- | Collection of lines in one entity.
@@ -63,7 +63,7 @@ createLineSet color xxs =
     , WiredGeometry Nothing color n . arrayBuffer . fromJSArrayToTypedArray $ points
     )
     where points = mkLineStrips xxs
-          n = fromIntegral (JS.jslength points) `quot` 3 :: GLsizei
+          n = fromIntegral (JS.length points) `quot` 3 :: GLsizei
 
 -- | Append new points to existing line set
 appendLineSet :: LS.MultiLineString 3 GLfloat
@@ -71,7 +71,7 @@ appendLineSet :: LS.MultiLineString 3 GLfloat
               -> (LS.MultiLineString 3 GLfloat, WiredGeometry)
 appendLineSet xxs (xxso, WiredGeometry _ color n0 buf0) = (JS.fromList $ JS.toList xxso ++ JS.toList xxs, nwg)
     where points = mkLineStrips xxs
-          n = n0 + fromIntegral (JS.jslength points) `quot` 3
+          n = n0 + fromIntegral (JS.length points) `quot` 3
           nwg = runST $ do
             let arrn = typedArray (fromIntegral n * 3) :: TypedArray GLfloat
             arr <- unsafeThaw arrn
@@ -87,10 +87,10 @@ foreign import javascript unsafe "[].concat.apply([],[].concat.apply([],\
                                  \              for(var i = 1; i < r.length-1; i++){s[i*2-1] = r[i]; s[i*2] = r[i];}\
                                  \              return s;}\
                                  \})))"
-    mkLineStrips :: LS.MultiLineString n GLfloat -> JS.JSArray GLfloat
+    mkLineStrips :: LS.MultiLineString n GLfloat -> JS.Array GLfloat
 
-fromJSArrayToTypedArray :: (TypedArrayOperations a) => JS.JSArray a -> TypedArray a
+fromJSArrayToTypedArray :: (TypedArrayOperations a) => JS.Array a -> TypedArray a
 fromJSArrayToTypedArray = fromArray . unsafeFromJSArrayCoerce
 
-unsafeFromJSArrayCoerce :: JS.JSArray a -> TypedArray a
+unsafeFromJSArrayCoerce :: JS.Array a -> TypedArray a
 unsafeFromJSArrayCoerce = unsafeCoerce

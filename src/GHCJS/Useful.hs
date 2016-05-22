@@ -25,12 +25,12 @@ import JsHs.JSString
 --import Data.List (intercalate)
 import Control.Concurrent (threadDelay)
 --import Control.Monad (liftM)
---import GHCJS.Foreign
---import GHCJS.Foreign.Callback (Callback)
+---- import GHCJS.Foreign
+--JsHs.Callback (Callback)
 --import GHCJS.Marshal
-import GHCJS.Types
-import JsHs.WebGL.Types (GLfloat)
-import JavaScript.Web.Canvas (Canvas)
+import JsHs.Types
+import JsHs.WebGL.Types (GLfloat, WebGLCanvas)
+--import JavaScript.Web.Canvas (Canvas)
 
 type Time = Double
 
@@ -44,7 +44,7 @@ foreign import javascript unsafe "$r = document.getElementById($1)"
 
 -- | Shortcut to get the element from the DOM
 foreign import javascript unsafe "$r = document.getElementById($1)"
-    getCanvasById :: JSString -> IO Canvas
+    getCanvasById :: JSString -> IO WebGLCanvas
 
 -- | Get body element of the page
 foreign import javascript unsafe "$r = document.body"

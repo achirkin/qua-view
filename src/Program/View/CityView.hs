@@ -1,8 +1,9 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-{-# LANGUAGE ViewPatterns, DataKinds #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DataKinds, FlexibleInstances, MultiParamTypeClasses #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Program.View.CityView
@@ -19,15 +20,15 @@
 module Program.View.CityView where
 
 
-import GHCJS.Foreign
-import GHCJS.Types
+-- import GHCJS.Foreign
+import JsHs.Types
 import JsHs.WebGL
 import SmallGL.Shader
 import Data.Geometry
 import Data.Geometry.Transform
 --import Geometry.Space
 --import Geometry.Space.Transform
-import Data.JSArray
+import JsHs.Array as JS
 
 import Program.Model.City
 import Program.Model.CityObject
@@ -38,13 +39,14 @@ import Program.View.CityObjectView
 import Program.View.CityGroundView
 import Program.View.WiredGeometryView ()
 import Data.Bits (Bits(..))
+import JsHs.Nullable (Nullable(..))
 
 --import GHCJS.Useful
 
 newtype COViewCollection = COViewCollection JSVal
-instance LikeJS COViewCollection
-instance LikeJSArray COViewCollection where
-    type JSArrayElem COViewCollection = CityObjectView
+instance LikeJS "Array" COViewCollection
+instance LikeJSArray "Object" COViewCollection where
+    type ArrayElem COViewCollection = CityObjectView
 
 data CityView = CityView
     { viewShader   :: !ShaderProgram
@@ -92,7 +94,7 @@ instance Drawable City where
         -- draw buildings
         uniform1f gl userLoc 0 -- disable textures for now
         uniform4f gl colLoc 0.5 0.5 0.55 1
-        jszipiIO_ drawObject (objectsIn city) (viewsIn cview)
+        JS.zipiIO_ drawObject (objectsIn city) (viewsIn cview)
         disableVertexAttribArray gl tloc
         disableVertexAttribArray gl nloc
         disableVertexAttribArray gl ploc
@@ -114,15 +116,15 @@ instance Drawable City where
         , vGLViewLoc = unifLoc prog "uModelViewM"
         }
     updateView gl city@City{objectsIn = objs} cv@CityView{ viewsIn = views } = do
-        mviews' <- fromJSArray <$> jsunionZipIO f objs views
+        mviews' <- fromJSArray <$> JS.unionZipIO f objs views
         gr <- updateView gl (ground city) (groundView cv)
         cl <- updateView gl (snd $ clutter city) (clutterView cv)
         return cv
             { viewsIn = mviews'
             , groundView = gr
             , clutterView = cl
-            } where f _ Nothing  Nothing  = return (asLikeJS jsNull)
-                    f _ Nothing  (Just v) = deleteView gl (undefined :: LocatedCityObject) v >> return (asLikeJS jsNull)
+            } where f _ Nothing  Nothing  = return nullRef
+                    f _ Nothing  (Just v) = deleteView gl (undefined :: LocatedCityObject) v >> return nullRef
                     f _ (Just o) Nothing  = createView gl o
                     f _ (Just o) (Just v) = updateView gl o v
     deleteView gl _ CityView
@@ -130,7 +132,7 @@ instance Drawable City where
             , groundView   = gr
             , clutterView  = clutterv
             } = do -- TODO :: delete shaders
-        jsmapIO_ (deleteView gl (undefined :: LocatedCityObject)) views
+        JS.mapIO_ (deleteView gl (undefined :: LocatedCityObject)) views
         deleteView gl (undefined :: CityGround) gr
         deleteView gl (undefined :: WiredGeometry) clutterv
     draw vc city view = draw vc (snd $ clutter city) (clutterView view) >>
@@ -146,7 +148,7 @@ instance Selectable City where
         enableVertexAttribArray gl ploc
         useProgram gl . programId $ prog
         uniformMatrix4fv gl (vGLProjLoc cs) False (projectArr vc)
-        jszipiIO_ drawObject (objectsIn city) (viewsIn cview)
+        JS.zipiIO_ drawObject (objectsIn city) (viewsIn cview)
         disableVertexAttribArray gl ploc
         where drawObject i tobj oview | behavior (unwrap tobj) == Static = return ()
                                       | otherwise = applyTransform vc tobj >>= \obj -> do
@@ -166,7 +168,7 @@ instance Selectable City where
 
 createObjViewCollection :: WebGLRenderingContext -> CityObjectCollection -> IO COViewCollection
 createObjViewCollection gl objs = fromJSArray <$>
-            jsmapIO (createView gl :: LocatedCityObject -> IO CityObjectView) objs
+            JS.mapIO (createView gl :: LocatedCityObject -> IO CityObjectView) objs
 
 
 -- Render shader

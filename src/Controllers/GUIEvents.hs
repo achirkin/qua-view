@@ -13,7 +13,7 @@
 
 module Controllers.GUIEvents where
 
-import GHCJS.Types
+import JsHs.Types
 import Data.Geometry.Structure.Feature (FeatureCollection)
 
 -- | Reaction on this event should be starting evaluation of current service

@@ -27,12 +27,13 @@ module Data.Geometry.Structure.Feature
 
 
 import GHC.TypeLits (KnownNat, SomeNat (..), someNatVal)
-import GHCJS.Foreign (isTruthy)
-import GHCJS.Marshal.Pure (PToJSVal (..))
-import GHCJS.Types (JSVal)
+---- import GHCJS.Foreign (isTruthy)
+--import GHCJS.Marshal.Pure (PToJSVal (..))
+import JsHs.Types (JSVal)
 import Data.Proxy (Proxy(..))
 import JsHs.JSString (JSString, append)
-import Data.JSArray
+import JsHs.Array as JS
+import JsHs.Types.Prim (jsIsNullOrUndef)
 import Data.Geometry
 import qualified Data.Geometry.Structure.PointSet as PS
 import Data.Geometry.Structure.LineString (LineString (), MultiLineString ())
@@ -45,14 +46,14 @@ import Data.Geometry.Structure.Polygon (Polygon (), MultiPolygon ())
 
 -- | GeoJSON Feature
 newtype Feature = Feature JSVal
-instance LikeJS Feature
+instance LikeJS "Object" Feature
 
 -- | GeoJSON FeatureCollection
 newtype FeatureCollection = FeatureCollection JSVal
-instance LikeJS FeatureCollection
+instance LikeJS "Object" FeatureCollection
 
-instance LikeJSArray FeatureCollection where
-    type JSArrayElem FeatureCollection = Feature
+instance LikeJSArray "Object" FeatureCollection where
+    type ArrayElem FeatureCollection = Feature
     {-# INLINE toJSArray #-}
     toJSArray = js_FCToJSArray
     {-# INLINE fromJSArray #-}
@@ -70,7 +71,7 @@ foreign import javascript unsafe "var r = gm$boundNestedArray(($1['geometry'] &&
 
 
 {-# INLINE filterGeometryTypes #-}
-filterGeometryTypes :: FeatureCollection -> (JSArray Feature, JSArray Feature, JSArray Feature)
+filterGeometryTypes :: FeatureCollection -> (JS.Array Feature, JS.Array Feature, JS.Array Feature)
 filterGeometryTypes = js_filterGeometryTypes . toJSArray
 
 {-# INLINE js_filterGeometryTypes #-}
@@ -78,13 +79,13 @@ foreign import javascript unsafe "var t = $1.filter(function(e){return e && e['g
                                  \$r1 = t.filter(function(e){return e['geometry']['type'] === 'Point' || e['geometry']['type'] === 'MultiPoint';});\
                                  \$r2 = t.filter(function(e){return e['geometry']['type'] === 'LineString' || e['geometry']['type'] === 'MultiLineString';});\
                                  \$r3 = t.filter(function(e){return e['geometry']['type'] === 'Polygon' || e['geometry']['type'] === 'MultiPolygon';});"
-    js_filterGeometryTypes :: JSArray Feature -> (JSArray Feature, JSArray Feature, JSArray Feature)
+    js_filterGeometryTypes :: JS.Array Feature -> (JS.Array Feature, JS.Array Feature, JS.Array Feature)
 
 setFeature :: GeoJsonGeometry n x -> Feature -> Feature
-setFeature geom = js_setFeature (pToJSVal geom)
+setFeature geom = js_setFeature (asJSVal geom)
 
 feature :: GeoJsonGeometry n x -> Feature
-feature = js_feature . pToJSVal
+feature = js_feature . asJSVal
 
 
 {-# INLINE js_setFeature #-}
@@ -113,7 +114,7 @@ featureGeometryType = asLikeJS . js_featureGeometryType
 foreign import javascript unsafe "$r = $1['geometry']['type'];"
     js_featureGeometryType :: Feature -> JSVal
 
-instance LikeJS FeatureGeometryType where
+instance LikeJS "String" FeatureGeometryType where
     asJSVal FeaturePoint           = asJSVal ("Point" :: JSString)
     asJSVal FeatureMultiPoint      = asJSVal ("MultiPoint" :: JSString)
     asJSVal FeatureLineString      = asJSVal ("LineString" :: JSString)
@@ -139,17 +140,18 @@ data GeoJsonGeometry n x = GeoPoint (Point n x)
                          | GeoPolygon (Polygon n x)
                          | GeoMultiPolygon (MultiPolygon n x)
 
-instance PToJSVal (GeoJsonGeometry n x) where
-    pToJSVal (GeoPoint x)           = asJSVal x
-    pToJSVal (GeoMultiPoint x)      = asJSVal x
-    pToJSVal (GeoLineString x)      = asJSVal x
-    pToJSVal (GeoMultiLineString x) = asJSVal x
-    pToJSVal (GeoPolygon x)         = asJSVal x
-    pToJSVal (GeoMultiPolygon x)    = asJSVal x
+instance LikeJS "Array" (GeoJsonGeometry n x) where
+    asJSVal (GeoPoint x)           = asJSVal x
+    asJSVal (GeoMultiPoint x)      = asJSVal x
+    asJSVal (GeoLineString x)      = asJSVal x
+    asJSVal (GeoMultiLineString x) = asJSVal x
+    asJSVal (GeoPolygon x)         = asJSVal x
+    asJSVal (GeoMultiPolygon x)    = asJSVal x
+    asLikeJS _ = undefined
 
 -- | Get Feature GeoJSON geometry, without knowledge of how many dimensions there are in geometry
 getGeoJSONGeometry :: Feature -> Either JSString (GeoJsonGeometryND x)
-getGeoJSONGeometry fe = if isTruthy js
+getGeoJSONGeometry fe = if not (jsIsNullOrUndef js)
     then let mdims = someNatVal . toInteger $ getDimensionality js
          in case mdims of
              Nothing -> Left "Cannot parse GeoJsonGeometryND: failed to find dimensionality of the data"
@@ -160,7 +162,7 @@ getGeoJSONGeometry fe = if isTruthy js
 -- | Get geometry of certain dimensionality;
 --   Does not check the real dimensionality of geoJSON geometry!
 getGeoJSONGeometryN :: JSVal -> Either JSString (GeoJsonGeometry n x)
-getGeoJSONGeometryN js = if isTruthy js
+getGeoJSONGeometryN js = if not (jsIsNullOrUndef js)
         then case getGeoJSONType js of
             "Point"           -> Right . GeoPoint $ asLikeJS js
             "MultiPoint"      -> Right . GeoMultiPoint $ asLikeJS js
@@ -174,7 +176,7 @@ getGeoJSONGeometryN js = if isTruthy js
 -- | Try to resize geometry inside feature to required dimensionality, and then return it
 getSizedGeoJSONGeometry :: Vector n x -- ^ values to substitute into each coordinate if the vector dimensionality is larger than that of points
                         -> Feature -> Either JSString (GeoJsonGeometry n x)
-getSizedGeoJSONGeometry v fe = if isTruthy js
+getSizedGeoJSONGeometry v fe = if not (jsIsNullOrUndef js)
     then getGeoJSONGeometryN $ js_getSizedGeoJSONGeometry v js
     else Left "Cannot parse GeoJsonGeometry: it is falsy!"
     where js = getGeoJSONGeometry' fe
@@ -272,7 +274,7 @@ instance PS.PointSet (GeoJsonGeometry n x) n x where
 
 {-# INLINE js_FCToJSArray #-}
 foreign import javascript unsafe "$1['features']"
-    js_FCToJSArray :: FeatureCollection -> JSArray Feature
+    js_FCToJSArray :: FeatureCollection -> JS.Array Feature
 {-# INLINE js_JSArrayToFC #-}
 foreign import javascript unsafe "$r = {}; $r['type'] = 'FeatureCollection'; $r['features'] = $1"
-    js_JSArrayToFC :: JSArray Feature -> FeatureCollection
+    js_JSArrayToFC :: JS.Array Feature -> FeatureCollection

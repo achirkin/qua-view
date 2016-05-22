@@ -23,7 +23,7 @@ import Data.Maybe (isJust)
 --import Geometry.Space
 --import Geometry.Structure
 
-import Data.JSArray
+import JsHs.Array as JS
 
 import GHCJS.Useful
 import Reactive
@@ -66,7 +66,7 @@ instance Reaction Program PView ServiceRunBegin "Run service" 1 where
                     { cellSize  = cs
                     , sfPoints  = groundEvalGrid (ground ci) cs
                     , sfRange   = (0,0)
-                    , sfValues  = emptyJSArray
+                    , sfValues  = JS.emptyArray
                     }
 
 instance Reaction Program PView ServiceRunBegin "Update Scenario" 0 where

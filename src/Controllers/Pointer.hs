@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts, FlexibleInstances, DataKinds, MultiParamTypeClasses #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Controllers.Pointer
@@ -24,10 +25,11 @@ module Controllers.Pointer
     )
     where
 
-import GHCJS.Foreign.Callback
-import GHCJS.Marshal
-import GHCJS.Types
+import JsHs.Callback
+--import GHCJS.Marshal
+import JsHs.Types
 import JsHs.Types.Prim
+import JsHs.LikeJS.Class
 import JsHs.WebGL
 import GHCJS.Useful
 
@@ -85,13 +87,13 @@ addEventlisteners :: JSElement
                   -> PCancelCallBack -- ^ cancel
                   -> IO ()
 addEventlisteners element clickFun downFun moveFun upFun cancelFun = do
-    clickCallBack <- asyncCallback1 (\ival -> fromJSVal ival
+    clickCallBack <- asyncCallback1 (\ival -> return (asLikeJS ival)
         >>= maybeCall (\(Interaction t _ ps) -> clickFun $ PClick t (map fst ps)))
-    downCallBack <- asyncCallback1 (\ival -> fromJSVal ival
+    downCallBack <- asyncCallback1 (\ival -> return (asLikeJS ival)
         >>= maybeCall (\(Interaction t _ ps) -> downFun $ PDown t (map snd ps)))
-    moveCallBack <- asyncCallback1 (\ival -> fromJSVal ival
+    moveCallBack <- asyncCallback1 (\ival -> return (asLikeJS ival)
         >>= maybeCall (\(Interaction t dt ps) -> moveFun $ PMove t dt ps))
-    upCallBack <- asyncCallback1 (\ival -> fromJSVal ival
+    upCallBack <- asyncCallback1 (\ival -> return (asLikeJS ival)
         >>= maybeCall (\(Interaction t dt ps) -> upFun $ PUp t dt ps))
     cancelCallback <- asyncCallback (cancelFun PCancel)
     addEventlisteners' element clickCallBack downCallBack moveCallBack upCallBack cancelCallback
@@ -210,14 +212,16 @@ data Interaction = Interaction !InteractionType !Time ![(Vector2 GLfloat, Vector
     deriving (Eq, Show)
 
 
-instance FromJSVal Interaction where
-    fromJSVal val = fromJSArray val >>= \vals ->
-      case vals of
-        mode:dt:ar:_ -> Just . Interaction (toEnum $ toNum mode) (toNum dt) . f <$> fromJSArray ar
-        _            -> pure Nothing
-      where f :: [JSVal] -> [(Vector2 GLfloat, Vector2 GLfloat)]
-            f (n:o:xs) = (coerce n, coerce o) : f xs
-            f _ = []
+instance LikeJS "Array" Interaction where
+  asLikeJS _ = undefined
+  asJSVal _ = undefined
+--    asLikeJS val = fromJSArray val >>= \vals ->
+--      case vals of
+--        mode:dt:ar:_ -> Just . Interaction (toEnum $ toNum mode) (toNum dt) . f <$> fromJSArray ar
+--        _            -> pure Nothing
+--      where f :: [JSVal] -> [(Vector2 GLfloat, Vector2 GLfloat)]
+--            f (n:o:xs) = (coerce n, coerce o) : f xs
+--            f _ = []
 
 ----------------------------------------------------------------------------------------------------
 -- Mouse wheel
@@ -227,7 +231,7 @@ instance FromJSVal Interaction where
 --   This is the only stateless action in the module.
 onMouseWheel :: JSElement -> WheelCallBack -> IO ()
 onMouseWheel element wheelFun = do
-    wheelCallBack <- asyncCallback1 (\iref -> fromJSVal iref
+    wheelCallBack <- asyncCallback1 (\iref -> return (asLikeJS iref)
         >>= maybeCall (\d -> wheelFun $ WheelDelta d))
     onMouseWheel' element wheelCallBack
     where maybeCall _ Nothing = print "ups!" >> return ()

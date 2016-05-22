@@ -21,11 +21,12 @@ import JsHs.JSString (unpack', pack)
 import Control.Monad
 
 import JsHs.WebGL
-import GHCJS.Types
+import JsHs.Types
+import JsHs.LikeJS.Class
 
 import SmallGL.Helpers
 
-import GHCJS.Marshal
+-- import GHCJS.Marshal
 import Data.Maybe
 import Data.Coerce
 
@@ -101,16 +102,14 @@ initShaders gl shtexts = do
     -- check program status
     linkProgram gl shaderProgram
     checkGLError gl "link shader program"
-    serror <- liftM (fromMaybe True) (getProgramParameter gl shaderProgram gl_LINK_STATUS
-                >>= fromJSVal)
+    serror <- fromMaybe True . asLikeJS <$> getProgramParameter gl shaderProgram gl_LINK_STATUS
     unless serror $ do
         putStrLn "Shader Program linking error"
         logm <- getProgramInfoLog gl shaderProgram
         checkGLError gl "GetShaderInfoLog gl"
         putStrLn . unpack' $ logm
     -- load attributes' information
-    attrCount <- liftM (fromMaybe (0::GLuint))
-        (getProgramParameter gl shaderProgram gl_ACTIVE_ATTRIBUTES >>= fromJSVal)
+    attrCount <- fromMaybe (0::GLuint) . asLikeJS <$>getProgramParameter gl shaderProgram gl_ACTIVE_ATTRIBUTES
 --    putStrLn $ "Shader attributes: " ++ show attrCount
     shaderAttribs <- liftM jsMapFromList $ sequence . flip map [0..attrCount-1] $ \i -> do
         activeInfo <- getActiveAttrib gl shaderProgram i
@@ -118,8 +117,7 @@ initShaders gl shtexts = do
         aPos <- getAttribLocation gl shaderProgram (aiName activeInfo)
         return (aiName activeInfo, js_attrProps (fromIntegral aPos) (aiType activeInfo) (aiSize activeInfo))
     -- load uniforms' information
-    uniCount <-  liftM (fromMaybe (0::GLuint))
-        (getProgramParameter gl shaderProgram gl_ACTIVE_UNIFORMS >>= fromJSVal)
+    uniCount <- fromMaybe (0::GLuint) . asLikeJS <$> getProgramParameter gl shaderProgram gl_ACTIVE_UNIFORMS
 --    putStrLn $ "Shader uniforms: " ++ show attrCount
     shaderUniforms <- liftM jsMapFromList $ sequence . flip map [0..uniCount-1] $ \i -> do
         activeInfo <- getActiveUniform gl shaderProgram i
@@ -143,7 +141,7 @@ getShader gl t src = do
     checkGLError gl ("ShaderSource gl type " ++ show t)
     compileShader gl shaderId
     checkGLError gl ("CompileShader gl type" ++ show t)
-    serror <- liftM (fromMaybe True) $ getShaderParameter gl shaderId gl_COMPILE_STATUS >>= fromJSVal
+    serror <- fromMaybe True . asLikeJS <$> getShaderParameter gl shaderId gl_COMPILE_STATUS
     unless serror $ do
         putStrLn $ "Error in shader of type " ++ show t
         logm <- getShaderInfoLog gl shaderId

@@ -26,7 +26,7 @@ module Data.Geometry.Structure.LinearRing
 import Prelude hiding (length)
 
 
-import GHCJS.Foreign.Callback (Callback) --, releaseCallback)
+import JsHs.Callback (Callback) --, releaseCallback)
 --import GHCJS.Useful
 --import System.IO.Unsafe (unsafePerformIO)
 --import Data.Coerce (coerce)
@@ -35,10 +35,10 @@ import GHC.Exts (Any)
 import Unsafe.Coerce (unsafeCoerce)
 import GHC.TypeLits
 
-import GHCJS.Types
-import GHCJS.Marshal.Pure (PFromJSVal(..))
+import JsHs.Types
+--import GHCJS.Marshal.Pure (PFromJSVal(..))
 
-import Data.JSArray
+import JsHs.Array as JS
 import Data.Geometry
 import Data.Geometry.Transform
 import Data.Geometry.Structure.PointSet (PointSet, PointArray)
@@ -53,11 +53,9 @@ import qualified Data.Geometry.Structure.PointSet as PS
 -- | GeoJSON LinearRing
 newtype LinearRing (n::Nat) x = LinearRing JSVal
 instance IsJSVal (LinearRing n x)
-instance PFromJSVal (LinearRing n x) where
-    pFromJSVal = LinearRing
-instance LikeJS (LinearRing n x)
-instance LikeJSArray (LinearRing n x) where
-    type JSArrayElem (LinearRing n x) = Vector n x
+instance LikeJS "Array" (LinearRing n x)
+instance LikeJSArray "Array" (LinearRing n x) where
+    type ArrayElem (LinearRing n x) = Vector n x
     {-# INLINE toJSArray #-}
     toJSArray = js_LRRtoPoints
     {-# INLINE fromJSArray #-}
@@ -75,16 +73,16 @@ instance PS.PointSet (LinearRing n x) n x where
     {-# INLINE var #-}
     var = PS.var . js_LRtoPA
     {-# INLINE mapSet #-}
-    mapSet = jsmapSame
+    mapSet = JS.mapSame
     {-# INLINE mapCallbackSet #-}
     mapCallbackSet = js_mapLinearRing
     {-# INLINE foldSet #-}
-    foldSet = jsfoldl
+    foldSet = JS.foldl
     {-# INLINE foldCallbackSet #-}
     foldCallbackSet f a = asLikeJS . js_foldLinearRing f (asJSVal a)
 
 instance Transformable (LinearRing 3 x) 3 x where
-    transform sarr = jsmapSame (transform . flip wrap sarr) arr
+    transform sarr = JS.mapSame (transform . flip wrap sarr) arr
         where arr = unwrap sarr
 
 -- | Create a LinearRing
@@ -179,14 +177,14 @@ foreign import javascript unsafe "$r = $1.slice(); $r.push($1[0]);"
 
 {-# INLINE js_LRRtoPoints #-}
 foreign import javascript unsafe "$1.slice(0,$1.length-1)"
-    js_LRRtoPoints :: LinearRing n x -> JSArray (Vector n x)
+    js_LRRtoPoints :: LinearRing n x -> JS.Array (Vector n x)
 
 {-# INLINE js_PointsToLR #-}
 foreign import javascript unsafe "$r = $1.slice(); $r.push($1[0]);"
-    js_PointsToLR :: JSArray (Vector n x) -> LinearRing n x
+    js_PointsToLR :: JS.Array (Vector n x) -> LinearRing n x
 
 seqList :: [a] -> [a]
-seqList xs = foldr seq () xs `seq` xs
+seqList xs = Prelude.foldr seq () xs `seq` xs
 
 
 {-# INLINE js_mapLinearRing #-}

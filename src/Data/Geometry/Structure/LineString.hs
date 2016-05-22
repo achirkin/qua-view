@@ -21,16 +21,16 @@ module Data.Geometry.Structure.LineString
 
 
 import GHC.Exts (Any)
-import GHCJS.Foreign.Callback (Callback, releaseCallback)
+import JsHs.Callback (Callback, releaseCallback)
 import System.IO.Unsafe (unsafePerformIO)
 
 import Unsafe.Coerce (unsafeCoerce)
 import GHC.TypeLits
 
-import GHCJS.Types
+import JsHs.Types
 --import GHCJS.Marshal.Pure (PFromJSVal(..))
 
-import Data.JSArray
+import JsHs.Array as JS
 import Data.Geometry
 import Data.Geometry.Transform
 import Data.Geometry.Structure.PointSet (PointSet, PointArray)
@@ -46,10 +46,10 @@ newtype LineString (n::Nat) x = LineString JSVal
 instance IsJSVal (LineString n x)
 --instance PFromJSVal (LineString n x) where
 --    pFromJSVal = LineString
-instance LikeJS (LineString n x)
+instance LikeJS "Array" (LineString n x)
 
-instance LikeJSArray (LineString n x) where
-    type JSArrayElem (LineString n x) = Vector n x
+instance LikeJSArray "Array" (LineString n x) where
+    type ArrayElem (LineString n x) = Vector n x
     {-# INLINE toJSArray #-}
     toJSArray = js_LSToVArr
     {-# INLINE fromJSArray #-}
@@ -60,10 +60,10 @@ newtype MultiLineString (n::Nat) x = MultiLineString JSVal
 instance IsJSVal (MultiLineString n x)
 --instance PFromJSVal (MultiLineString n x) where
 --    pFromJSVal = MultiLineString
-instance LikeJS (MultiLineString n x)
+instance LikeJS "Array" (MultiLineString n x)
 
-instance LikeJSArray (MultiLineString n x) where
-    type JSArrayElem (MultiLineString n x) = LineString n x
+instance LikeJSArray "Array" (MultiLineString n x) where
+    type ArrayElem (MultiLineString n x) = LineString n x
     {-# INLINE toJSArray #-}
     toJSArray = js_MLSToLSArr
     {-# INLINE fromJSArray #-}
@@ -94,11 +94,11 @@ instance PointSet (LineString n x) n x where
     {-# INLINE var #-}
     var = PS.var . js_LStoPA
     {-# INLINE mapSet #-}
-    mapSet = jsmapSame
+    mapSet = JS.mapSame
     {-# INLINE mapCallbackSet #-}
     mapCallbackSet = js_mapLineString
     {-# INLINE foldSet #-}
-    foldSet = jsfoldl
+    foldSet = JS.foldl
     {-# INLINE foldCallbackSet #-}
     foldCallbackSet f a = asLikeJS . js_foldLineString f (asJSVal a)
 
@@ -123,11 +123,11 @@ foreign import javascript unsafe "$3['coordinates'].reduce($1,$2)"
 
 {-# INLINE js_VArrToLS #-}
 foreign import javascript unsafe "$r = {}; $r['type'] = 'LineString'; $r['coordinates'] = $1.slice();"
-    js_VArrToLS :: JSArray (Vector n x) -> LineString n x
+    js_VArrToLS :: JS.Array (Vector n x) -> LineString n x
 
 {-# INLINE js_LSToVArr #-}
 foreign import javascript unsafe "$1['coordinates'].slice()"
-    js_LSToVArr ::  LineString n x -> JSArray (Vector n x)
+    js_LSToVArr ::  LineString n x -> JS.Array (Vector n x)
 
 
 ----------------------------------------------------------------------------------------------------
@@ -168,13 +168,13 @@ instance Transformable (MultiLineString 3 x) 3 x where
 {-# INLINE js_LSArrToMLS #-}
 foreign import javascript unsafe "$r = {}; $r['type'] = 'MultiLineString';\
                                  \$r['coordinates'] = $1.map(function(e){return e['coordinates'];});"
-    js_LSArrToMLS :: JSArray (LineString n x) -> MultiLineString n x
+    js_LSArrToMLS :: JS.Array (LineString n x) -> MultiLineString n x
 
 {-# INLINE js_MLSToLSArr #-}
 foreign import javascript unsafe "$1['coordinates'].map(function(e){\
                                     \ var r = {}; r['type'] = 'LineString'; r['coordinates'] = e;\
                                     \ return r; })"
-    js_MLSToLSArr ::  MultiLineString n x -> JSArray (LineString n x)
+    js_MLSToLSArr ::  MultiLineString n x -> JS.Array (LineString n x)
 
 {-# INLINE js_MLStoPA #-}
 foreign import javascript unsafe "[].concat.apply([], $1['coordinates'].map(function(a){return a;}))"
