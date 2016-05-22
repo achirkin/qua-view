@@ -9,15 +9,24 @@ function h$runSyncActionUnsafe(t, a, cont) {
   t.stack[5] = a;
   t.stack[6] = h$return;
   t.sp = 6;
-  t.status = (0);
+  t.status = THREAD_RUNNING;
+#ifdef GHCJS_PROF
+  // fixme this looks wrong
+  // t.ccs = h$currentThread.ccs; // TODO: not sure about this
+#endif
   t.isSynchronous = true;
   t.continueAsync = cont;
   var ct = h$currentThread;
   var csp = h$sp;
   var cr1 = h$r1; // do we need to save more than this?
+  var caught = false, excep = null;
   h$currentThread = t;
   h$stack = t.stack;
   h$sp = t.sp;
+#ifdef GHCJS_PROF
+  h$reportCurrentCcs();
+#endif
+  // 
   while(c !== h$reschedule){c = c();}
   if(ct !== null) {
     h$currentThread = ct;
@@ -28,28 +37,38 @@ function h$runSyncActionUnsafe(t, a, cont) {
     h$currentThread = null;
     h$stack = null;
   }
-  if(t.status !== (16) && !cont) {
+#ifdef GHCJS_PROF
+  // fixme?
+  h$reportCurrentCcs();
+#endif
+  if(t.status !== THREAD_FINISHED && !cont) {
     h$removeThreadBlock(t);
     h$finishThread(t);
   }
 }
 
+/*
+   The same as h$runSyncReturn, but is not interruptable at all.
+   returns: the result of the IO action
+ */
 function h$runSyncReturnUnsafe(a, cont) {
   var t = new h$Thread();
-  var aa = (h$c2(h$ap1_e,(h$ghcjszmprimZCGHCJSziPrimziInternalzisetCurrentThreadResultValue),(a)));
+  TRACE_SCHEDULER("h$runSyncReturnUnsafe created thread: " + h$threadString(t));
+  var aa = MK_AP1(h$ghcjszmprimZCGHCJSziPrimziInternalzisetCurrentThreadResultValue, a);
   h$runSyncActionUnsafe(t, aa, cont);
-  if(t.status === (16)) {
+  if(t.status === THREAD_FINISHED) {
     if(t.resultIsException) {
       throw t.result;
     } else {
       return t.result;
     }
-  } else if(t.status === (1)) {
+  } else if(t.status === THREAD_BLOCKED) {
     throw new h$WouldBlock();
   } else {
-    throw new Error("h$runSyncReturn: Unexpected thread status: " + t.status)
+    throw new Error("h$runSyncReturnUnsafe: Unexpected thread status: " + t.status);
   }
 }
+
 
 /*
    convert an array to a Haskell list, wrapping each element in a

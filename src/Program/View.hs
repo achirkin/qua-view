@@ -25,15 +25,17 @@ import Data.Coerce (coerce)
 
 import Control.Arrow ((***))
 
+--import JsHs.Types
 import JsHs.WebGL
-import GHCJS.Foreign
-import GHCJS.Marshal.Pure (pFromJSVal)
+---- import GHCJS.Foreign
+--import GHCJS.Marshal.Pure (pFromJSVal)
 import GHCJS.Useful
 
 import Data.Geometry
 import Data.Geometry.Transform
 import JsHs.TypedArray
 import JsHs.TypedArray.IO
+import JsHs.Nullable
 import Program.Model.Camera (viewMatrix, Camera(..))
 
 -- | Rendering global parameters
@@ -196,7 +198,7 @@ applySelector vc'@ViewContext
     viewport gl 0 0 vpWidth vpHeight
     clear gl (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
     selectArea vc obj view
-    bindFramebuffer gl gl_FRAMEBUFFER (pFromJSVal jsNull)
+    bindFramebuffer gl gl_FRAMEBUFFER nullRef
     viewport gl 0 0 vpWidth vpHeight
     return vc
     where (vpWidth, vpHeight) = round *** round $ viewportSize cam
@@ -222,7 +224,7 @@ getSelection ViewContext
     r <- fromIntegral <$> index 0 pcarr
     g <- fromIntegral <$> index 1 pcarr
     b <- fromIntegral <$> index 2 pcarr
-    bindFramebuffer gl gl_FRAMEBUFFER (pFromJSVal jsNull)
+    bindFramebuffer gl gl_FRAMEBUFFER nullRef
     viewport gl 0 0 w h
     return . SelectionEvent $ r + shift g 8 + shift b 16
     where (w,h) = round *** round $ viewportSize cam
@@ -246,13 +248,13 @@ initSelectorFramebuffer gl (width,height) = do
     bindFramebuffer gl gl_FRAMEBUFFER fb
     tex <- createTexture gl
     bindTexture gl gl_TEXTURE_2D tex
-    texImage2D gl gl_TEXTURE_2D 0 gl_RGBA width height 0 gl_RGBA gl_UNSIGNED_BYTE (pFromJSVal jsNull)
+    texImage2D gl gl_TEXTURE_2D 0 gl_RGBA width height 0 gl_RGBA gl_UNSIGNED_BYTE Nothing
     texParameteri gl gl_TEXTURE_2D gl_TEXTURE_WRAP_S $ fromIntegral gl_CLAMP_TO_EDGE
     texParameteri gl gl_TEXTURE_2D gl_TEXTURE_WRAP_T $ fromIntegral gl_CLAMP_TO_EDGE
     texParameteri gl gl_TEXTURE_2D gl_TEXTURE_MAG_FILTER $ fromIntegral gl_NEAREST
     texParameteri gl gl_TEXTURE_2D gl_TEXTURE_MIN_FILTER $ fromIntegral gl_NEAREST
     framebufferTexture2D gl gl_FRAMEBUFFER gl_COLOR_ATTACHMENT0 gl_TEXTURE_2D tex 0
-    bindTexture gl gl_TEXTURE_2D (pFromJSVal jsNull)
+    bindTexture gl gl_TEXTURE_2D nullRef
 --    rbc <- createRenderbuffer gl
 --    bindRenderbuffer gl gl_RENDERBUFFER rbc
 --    renderbufferStorage gl gl_RENDERBUFFER gl_RGBA4 width height
@@ -261,8 +263,8 @@ initSelectorFramebuffer gl (width,height) = do
     bindRenderbuffer gl gl_RENDERBUFFER rbd
     renderbufferStorage gl gl_RENDERBUFFER gl_DEPTH_COMPONENT16 width height
     framebufferRenderbuffer gl gl_FRAMEBUFFER gl_DEPTH_ATTACHMENT gl_RENDERBUFFER rbd
-    bindRenderbuffer gl gl_RENDERBUFFER (pFromJSVal jsNull)
-    bindFramebuffer gl gl_FRAMEBUFFER (pFromJSVal jsNull)
+    bindRenderbuffer gl gl_RENDERBUFFER nullRef
+    bindFramebuffer gl gl_FRAMEBUFFER nullRef
     return fb
 
 
@@ -276,12 +278,12 @@ initTexture gl texdata = do
             texImage2DImg gl gl_TEXTURE_2D 0 gl_RGBA gl_RGBA gl_UNSIGNED_BYTE img
         Right (arr, (w,h)) -> do
             pixelStorei gl gl_UNPACK_FLIP_Y_WEBGL 0
-            texImage2D gl gl_TEXTURE_2D 0 gl_RGBA w h 0 gl_RGBA gl_UNSIGNED_BYTE arr
+            texImage2D gl gl_TEXTURE_2D 0 gl_RGBA w h 0 gl_RGBA gl_UNSIGNED_BYTE (Just arr)
     texParameteri gl gl_TEXTURE_2D gl_TEXTURE_WRAP_S $ fromIntegral gl_CLAMP_TO_EDGE
     texParameteri gl gl_TEXTURE_2D gl_TEXTURE_WRAP_T $ fromIntegral gl_CLAMP_TO_EDGE
     texParameteri gl gl_TEXTURE_2D gl_TEXTURE_MAG_FILTER $ fromIntegral gl_NEAREST
     texParameteri gl gl_TEXTURE_2D gl_TEXTURE_MIN_FILTER $ fromIntegral gl_NEAREST
-    bindTexture gl gl_TEXTURE_2D (pFromJSVal jsNull)
+    bindTexture gl gl_TEXTURE_2D nullRef
     return tex
 
 updateTexture :: WebGLRenderingContext
@@ -296,5 +298,5 @@ updateTexture gl texdata tex = do
             texImage2DImg gl gl_TEXTURE_2D 0 gl_RGBA gl_RGBA gl_UNSIGNED_BYTE img
         Right (arr, (w,h)) -> do
             pixelStorei gl gl_UNPACK_FLIP_Y_WEBGL 0
-            texImage2D gl gl_TEXTURE_2D 0 gl_RGBA w h 0 gl_RGBA gl_UNSIGNED_BYTE arr
-    bindTexture gl gl_TEXTURE_2D (pFromJSVal jsNull)
+            texImage2D gl gl_TEXTURE_2D 0 gl_RGBA w h 0 gl_RGBA gl_UNSIGNED_BYTE (Just arr)
+    bindTexture gl gl_TEXTURE_2D nullRef

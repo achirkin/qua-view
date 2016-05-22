@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleContexts, OverloadedStrings #-}
 {-# LANGUAGE ForeignFunctionInterface,  JavaScriptFFI, GHCForeignImportPrim, UnliftedFFITypes #-}
+{-# LANGUAGE DataKinds, FlexibleInstances, MultiParamTypeClasses #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Controllers.LuciClient
@@ -29,31 +30,31 @@ module Controllers.LuciClient
 import Data.Int (Int64)
 import JsHs.JSString (JSString, append,unpack',pack)
 
-import GHCJS.Foreign
-import GHCJS.Types (JSVal)
+---- import GHCJS.Foreign
+import JsHs.Types (JSVal)
 import Data.Geometry.Structure.Feature (FeatureCollection)
-import Data.JSArray (LikeJS (..))
+import JsHs.Array (LikeJS (..))
 
 import Control.Arrow (first)
 
 newtype LuciServiceInput = LuciServiceInput JSVal
-instance LikeJS LuciServiceInput
+instance LikeJS "Object" LuciServiceInput
 
 newtype LuciServiceOutput = LuciServiceOutput JSVal
-instance LikeJS LuciServiceOutput
+instance LikeJS "Object" LuciServiceOutput
 
 newtype LuciServiceInfo = LuciServiceInfo JSVal
-instance LikeJS LuciServiceInfo
+instance LikeJS "Object" LuciServiceInfo
 instance Show LuciServiceInfo where
     show (LuciServiceInfo val) = unpack' $ jsonStringify val
 
 -- | Object for Luci connection
 newtype LuciClient = LuciClient JSVal
-instance LikeJS LuciClient
+instance LikeJS "Luci.Client" LuciClient
 
 -- | Scenario Object
 newtype LuciScenario = LuciScenario JSVal
-instance LikeJS LuciScenario
+instance LikeJS "Object" LuciScenario
 
 -- | Full string passed into WebSocket constructor
 connectionString :: LuciClient -> JSString
@@ -188,10 +189,10 @@ foreign import javascript interruptible "var req = {}; \
     \ else {$c([false, \"Message contains neither a result nor an error. MSG: \" + JSON.stringify(m)]);}}));"
     createScenario' :: LuciClient -> JSString -> FeatureCollection -> IO JSVal
 
-eitherError :: LikeJS a => JSString -> JSVal -> Either JSString a
-eitherError s val = if isTruthy val
-                    then asLikeJS val
-                    else Left $ "Something bad has just happened: " `append` s `append` "is falsy."
+eitherError :: LikeJS ta a => JSString -> JSVal -> Either JSString a
+eitherError s val = case asLikeJS val of
+                      Just x -> x
+                      Nothing -> Left $ "Something bad has just happened: " `append` s `append` "is falsy."
 --
 ---- | Either treatment
 --eitherError :: (Coercible JSVal a) => JSString -> JSVal -> Either JSString a

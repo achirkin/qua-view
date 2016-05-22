@@ -16,7 +16,7 @@ module Services.Radius where
 import JsHs.WebGL
 
 import Data.Geometry
-import Data.JSArray
+import JsHs.Array as JS
 import Program.Model.ScalarField
 
 import Services
@@ -27,9 +27,9 @@ newtype Radius = Radius (Vector3 GLfloat) deriving Show
 
 instance ComputingService Radius where
     runService (Radius x) _ _ sf@ScalarField{ sfPoints = pnts} = return $
-      if jslength pnts == 0 then Nothing
+      if JS.length pnts == 0 then Nothing
       else Just sf
-        { sfRange = ( jsfoldl1 min vals
-                    , jsfoldl1 max vals)
+        { sfRange = ( JS.foldl1 min vals
+                    , JS.foldl1 max vals)
         , sfValues = vals
-        } where vals = jsmap (\v -> - normL2 (x - v)) pnts
+        } where vals = JS.map (\v -> - normL2 (x - v)) pnts

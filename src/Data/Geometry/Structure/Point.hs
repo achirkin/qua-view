@@ -20,15 +20,15 @@ module Data.Geometry.Structure.Point
     ) where
 
 
-import GHCJS.Foreign.Callback (Callback)
+import JsHs.Callback (Callback)
 
 import Unsafe.Coerce (unsafeCoerce)
 import GHC.TypeLits
 
-import GHCJS.Types
-import GHCJS.Marshal.Pure (PFromJSVal(..))
+import JsHs.Types
+--import GHCJS.Marshal.Pure (PFromJSVal(..))
 
-import Data.JSArray
+import JsHs.Array as JS
 import Data.Geometry
 import Data.Geometry.Transform
 import Data.Geometry.Structure.PointSet (PointSet, PointArray)
@@ -42,19 +42,15 @@ import qualified Data.Geometry.Structure.PointSet as PS
 -- | GeoJSON Point
 newtype Point (n::Nat) x = Point JSVal
 instance IsJSVal (Point n x)
-instance PFromJSVal (Point n x) where
-    pFromJSVal = Point
-instance LikeJS (Point n x)
+instance LikeJS "Array" (Point n x)
 
 -- | GeoJSON MultiPoint
 newtype MultiPoint (n::Nat) x = MultiPoint JSVal
 instance IsJSVal (MultiPoint n x)
-instance PFromJSVal (MultiPoint n x) where
-    pFromJSVal = MultiPoint
-instance LikeJS (MultiPoint n x)
+instance LikeJS "Array" (MultiPoint n x)
 
-instance LikeJSArray (MultiPoint n x) where
-    type JSArrayElem (MultiPoint n x) = Vector n x
+instance LikeJSArray "Array" (MultiPoint n x) where
+    type ArrayElem (MultiPoint n x) = Vector n x
     {-# INLINE toJSArray #-}
     toJSArray = js_MPToVArr
     {-# INLINE fromJSArray #-}
@@ -140,11 +136,11 @@ instance PointSet (MultiPoint n x) n x where
     {-# INLINE var #-}
     var = PS.var . js_MPtoPA
     {-# INLINE mapSet #-}
-    mapSet = jsmapSame
+    mapSet = JS.mapSame
     {-# INLINE mapCallbackSet #-}
     mapCallbackSet = js_mapMultiPoint
     {-# INLINE foldSet #-}
-    foldSet = jsfoldl
+    foldSet = JS.foldl
     {-# INLINE foldCallbackSet #-}
     foldCallbackSet f a = asLikeJS . js_foldMultiPoint f (asJSVal a)
 
@@ -169,8 +165,8 @@ foreign import javascript unsafe "$3['coordinates'].reduce($1,$2)"
 
 {-# INLINE js_VArrToMP #-}
 foreign import javascript unsafe "$r = {}; $r['type'] = 'MultiPoint'; $r['coordinates'] = $1.slice();"
-    js_VArrToMP :: JSArray (Vector n x) -> MultiPoint n x
+    js_VArrToMP :: JS.Array (Vector n x) -> MultiPoint n x
 
 {-# INLINE js_MPToVArr #-}
 foreign import javascript unsafe "$1['coordinates'].slice()"
-    js_MPToVArr ::  MultiPoint n x -> JSArray (Vector n x)
+    js_MPToVArr ::  MultiPoint n x -> JS.Array (Vector n x)

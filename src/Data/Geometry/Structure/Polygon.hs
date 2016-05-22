@@ -22,7 +22,7 @@ module Data.Geometry.Structure.Polygon
     ) where
 
 
-import GHCJS.Foreign.Callback (Callback, releaseCallback)
+import JsHs.Callback (Callback, releaseCallback)
 import System.IO.Unsafe (unsafePerformIO)
 import Data.Coerce (coerce)
 
@@ -33,10 +33,10 @@ import GHC.Exts (Any)
 import Unsafe.Coerce (unsafeCoerce)
 import GHC.TypeLits
 
-import GHCJS.Types
-import GHCJS.Marshal.Pure (PFromJSVal(..))
+import JsHs.Types
+--import GHCJS.Marshal.Pure (PFromJSVal(..))
 
-import Data.JSArray
+import JsHs.Array as JS
 import Data.Geometry
 import Data.Geometry.Transform
 import qualified Data.Geometry.Structure.PointSet as PS
@@ -46,11 +46,9 @@ import Data.Geometry.Structure.LinearRing (LinearRing)
 -- | GeoJSON Polygon
 newtype Polygon (n::Nat) x = Polygon JSVal
 instance IsJSVal (Polygon n x)
-instance PFromJSVal (Polygon n x) where
-    pFromJSVal = Polygon
-instance LikeJS (Polygon n x)
-instance LikeJSArray (Polygon n x) where
-    type JSArrayElem (Polygon n x) = LinearRing n x
+instance LikeJS "Array" (Polygon n x)
+instance LikeJSArray "Array" (Polygon n x) where
+    type ArrayElem (Polygon n x) = LinearRing n x
     {-# INLINE toJSArray #-}
     toJSArray = js_PolygonToRingArray
     {-# INLINE fromJSArray #-}
@@ -98,11 +96,11 @@ rings = toList
 
 {-# INLINE js_RingArrayToPolygon #-}
 foreign import javascript unsafe "$r = {}; $r['type'] = 'Polygon'; $r['coordinates'] = $1;"
-    js_RingArrayToPolygon :: JSArray (LinearRing n x) -> Polygon n x
+    js_RingArrayToPolygon :: JS.Array (LinearRing n x) -> Polygon n x
 
 {-# INLINE js_PolygonToRingArray #-}
 foreign import javascript unsafe "$1['coordinates']"
-    js_PolygonToRingArray ::  Polygon n x -> JSArray (LinearRing n x)
+    js_PolygonToRingArray ::  Polygon n x -> JS.Array (LinearRing n x)
 
 -- | Calculate indices of triangulation and put them into Haskell list
 triangulate :: (KnownNat n, Fractional x, JSNum x) => Polygon n x -> [Int]
@@ -113,7 +111,7 @@ triangulate p = toList arr
 --   First return is array of points
 --   Second return is normals to the polygon (remaining PCA vectors)
 triangulate' :: (KnownNat n, Fractional x, JSNum x)
-             => Polygon n x -> (PS.PointArray n x, [Vector n x], JSArray Int)
+             => Polygon n x -> (PS.PointArray n x, [Vector n x], JS.Array Int)
 triangulate' poly = (set, vs, triangulate'' projset rinds)
     where set = PS.toPointArray poly
           rinds = js_ringIndices poly
@@ -121,8 +119,8 @@ triangulate' poly = (set, vs, triangulate'' projset rinds)
           projset = PS.projectND [v1,v2] set
 
 triangulatePolygon3D :: (KnownNat n, Fractional x, JSNum x)
-                        => Polygon n x -> (PS.PointArray 3 x, PS.PointArray 3 x, JSArray Int)
-triangulatePolygon3D poly = (points, PS.fillPointArray (jslength points) normal, indsx)
+                        => Polygon n x -> (PS.PointArray 3 x, PS.PointArray 3 x, JS.Array Int)
+triangulatePolygon3D poly = (points, PS.fillPointArray (JS.length points) normal, indsx)
     where (points, normal, indsx) = f $ triangulate' poly
           f (p, [n], inds) = (coerce p           , coerce n      , inds)
           f (p, [] , inds) = (PS.enlargeVectors p, vector3 0 0 1 , inds)
@@ -130,9 +128,9 @@ triangulatePolygon3D poly = (points, PS.fillPointArray (jslength points) normal,
 
 
 triangulateMultiPolygon3D :: (KnownNat n, Fractional x, JSNum x)
-                          => MultiPolygon n x -> (PS.PointArray 3 x, PS.PointArray 3 x, JSArray Int)
+                          => MultiPolygon n x -> (PS.PointArray 3 x, PS.PointArray 3 x, JS.Array Int)
 triangulateMultiPolygon3D mpoly = triags
-    where triags = foldl' concatTriags startTriags . map (f . triangulate') $ polygons mpoly
+    where triags = foldl' concatTriags startTriags . Prelude.map (f . triangulate') $ polygons mpoly
           f (p, [n], inds) = (coerce p           , coerce n      , inds)
           f (p, [] , inds) = (PS.enlargeVectors p, vector3 0 0 1 , inds)
           f (p, n:_, inds) = (PS.shrinkVectors  p, resizeVector n, inds)
@@ -150,22 +148,22 @@ foreign import javascript unsafe "var nc = $2['coordinates'].map(function(r){ret
     toPolygon3D :: Float -> Polygon n x -> Polygon 3 x
 
 
-concatTriags :: (PS.PointArray 3 x, PS.PointArray 3 x, JSArray Int)
-             -> (PS.PointArray 3 x, Vector 3 x, JSArray Int)
-             -> (PS.PointArray 3 x, PS.PointArray 3 x, JSArray Int)
+concatTriags :: (PS.PointArray 3 x, PS.PointArray 3 x, JS.Array Int)
+             -> (PS.PointArray 3 x, Vector 3 x, JS.Array Int)
+             -> (PS.PointArray 3 x, PS.PointArray 3 x, JS.Array Int)
 concatTriags (a,b,c) (d,e,f) = concatTriags' a b c d e f
 
 {-# INLINE concatTriags' #-}
 foreign import javascript unsafe "$r1 = $1.concat($4);\
                                  \$r2 = $2.concat(Array.apply(null, Array($4.length)).map(function(){return $5;}));\
                                  \$r3 = $3.concat($6.map(function(e){return e + $1.length;}));"
-    concatTriags' :: PS.PointArray 3 x -> PS.PointArray 3 x -> JSArray Int
-                  -> PS.PointArray 3 x -> Vector 3 x -> JSArray Int
-                  -> (PS.PointArray 3 x, PS.PointArray 3 x, JSArray Int)
+    concatTriags' :: PS.PointArray 3 x -> PS.PointArray 3 x -> JS.Array Int
+                  -> PS.PointArray 3 x -> Vector 3 x -> JS.Array Int
+                  -> (PS.PointArray 3 x, PS.PointArray 3 x, JS.Array Int)
 
 {-# INLINE startTriags #-}
 foreign import javascript unsafe "$r1 = []; $r2 = []; $r3 = [];"
-    startTriags :: (PS.PointArray 3 x, PS.PointArray 3 x, JSArray Int)
+    startTriags :: (PS.PointArray 3 x, PS.PointArray 3 x, JS.Array Int)
 
 
 
@@ -175,11 +173,9 @@ foreign import javascript unsafe "$r1 = []; $r2 = []; $r3 = [];"
 -- | GeoJSON MultiPolygon
 newtype MultiPolygon (n::Nat) x = MultiPolygon JSVal
 instance IsJSVal (MultiPolygon n x)
-instance PFromJSVal (MultiPolygon n x) where
-    pFromJSVal = MultiPolygon
-instance LikeJS (MultiPolygon n x)
-instance LikeJSArray (MultiPolygon n x) where
-    type JSArrayElem (MultiPolygon n x) = Polygon n x
+instance LikeJS "Array" (MultiPolygon n x)
+instance LikeJSArray "Array" (MultiPolygon n x) where
+    type ArrayElem (MultiPolygon n x) = Polygon n x
     {-# INLINE toJSArray #-}
     toJSArray = js_MPToPArr
     {-# INLINE fromJSArray #-}
@@ -231,24 +227,24 @@ polygons = toList
 {-# INLINE js_PArrToMP #-}
 foreign import javascript unsafe "$r = {}; $r['type'] = 'MultiPolygon';\
                                  \$r['coordinates'] = $1.map(function(e){return e['coordinates'];});"
-    js_PArrToMP :: JSArray (Polygon n x) -> MultiPolygon n x
+    js_PArrToMP :: JS.Array (Polygon n x) -> MultiPolygon n x
 
 {-# INLINE js_MPToPArr #-}
 foreign import javascript unsafe "$1['coordinates'].map(function(e){\
                                     \ var r = {}; r['type'] = 'Polygon'; r['coordinates'] = e;\
                                     \ return r; })"
-    js_MPToPArr ::  MultiPolygon n x -> JSArray (Polygon n x)
+    js_MPToPArr ::  MultiPolygon n x -> JS.Array (Polygon n x)
 
 
 
 -- | takes a polygon with holes and ring indices
 --   (it assumes that point array is a polygon)
-triangulate'' :: PS.PointArray 2 x -> JSArray Int -> JSArray Int
+triangulate'' :: PS.PointArray 2 x -> JS.Array Int -> JS.Array Int
 triangulate'' set rinds = js_triangulate (PS.flatten set) rinds
 
 {-# INLINE js_triangulate #-}
 foreign import javascript unsafe "earcut($1,$2)"
-    js_triangulate :: JSArray x -> JSArray Int -> JSArray Int
+    js_triangulate :: JS.Array x -> JS.Array Int -> JS.Array Int
 
 
 {-# INLINE js_MPtoPA #-}
@@ -263,11 +259,11 @@ foreign import javascript unsafe "[].concat.apply([], $1['coordinates'].map(func
 {-# INLINE js_ringIndices #-}
 foreign import javascript unsafe "$1['coordinates'].slice(0,$1['coordinates'].length-1)\
                                         \.reduce(function(r,e){return r.concat([e.length-1 + r[r.length-1]]);},[0]).slice(1)"
-    js_ringIndices :: Polygon n x -> JSArray Int
+    js_ringIndices :: Polygon n x -> JS.Array Int
 --
 --{-# INLINE js_indicesListPrim #-}
 --foreign import javascript unsafe "h$fromArrayNoWrap($1)"
---    js_indicesListPrim:: JSArray Int -> Any
+--    js_indicesListPrim:: JS.Array Int -> Any
 
 
 {-# INLINE js_mapPolygonIO #-}

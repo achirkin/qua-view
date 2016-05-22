@@ -30,27 +30,30 @@ module Program.Model.CityObject
     )
     where
 
-import GHCJS.Foreign.Callback (Callback)
+import JsHs.Callback (Callback)
 
 import Data.Coerce (coerce)
 import JsHs.JSString (unpack')
 
-import GHCJS.Foreign
-import GHCJS.Marshal.Pure
-import GHCJS.Types
+---- import GHCJS.Foreign
+--import GHCJS.Marshal.Pure
+import JsHs.Types
+import JsHs.Types.Prim
 import JsHs.TypedArray
+import JsHs.LikeJS.Class
 
 import JsHs.WebGL
 
 import SmallGL.WritableVectors
 
-import qualified Data.JSArray as JSArray
+import qualified JsHs.Array as JSArray
 import Data.Geometry
 import qualified Data.Geometry.Transform as T
 import Data.Geometry.Structure.LinearRing (toList', linearRing)
 import Data.Geometry.Structure.Polygon
 import Data.Geometry.Structure.PointSet (PointArray, PointSet (..), shrinkVectors, boundingRectangle2D)
 import Data.Geometry.Structure.Feature
+import Unsafe.Coerce
 
 --import GHCJS.Useful
 
@@ -59,7 +62,7 @@ newtype GeomID = GeomID JSVal
 instance Eq GeomID where
     (==) = cmpIDs
 instance Show GeomID where
-    show (GeomID jv) = unpack' (pFromJSVal jv)
+    show (GeomID jv) = unpack' (asLikeJS jv)
 {-# INLINE cmpIDs #-}
 foreign import javascript unsafe "$1 === $2" cmpIDs :: GeomID -> GeomID -> Bool
 
@@ -68,12 +71,10 @@ foreign import javascript unsafe "$1 === $2" cmpIDs :: GeomID -> GeomID -> Bool
 -- | Whether one could interact with an object or not
 data ObjectBehavior = Static | Dynamic deriving (Eq,Show)
 
-instance PToJSVal ObjectBehavior where
-    pToJSVal Static = jsTrue
-    pToJSVal Dynamic = jsFalse
-
-instance PFromJSVal ObjectBehavior where
-    pFromJSVal js = if isTruthy js
+instance LikeJS "Bool" ObjectBehavior where
+    asJSVal Static = asJSVal True
+    asJSVal Dynamic = asJSVal False
+    asLikeJS js = if asLikeJS js
         then Static
         else Dynamic
 
@@ -81,24 +82,22 @@ instance PFromJSVal ObjectBehavior where
 data ScenarioLayer = Objects3D | Footprints | Objects2D
     deriving (Eq, Show)
 
-instance PToJSVal ScenarioLayer where
-    pToJSVal Objects3D  = jsval ("objects3D"  :: JSString)
-    pToJSVal Footprints = jsval ("footprints" :: JSString)
-    pToJSVal Objects2D  = jsval ("objects2D"  :: JSString)
-
-instance PFromJSVal (Maybe ScenarioLayer) where
-    pFromJSVal js = if not (isTruthy js)
-        then Nothing
-        else case pFromJSVal js :: JSString of
-            "objects3D"  -> Just Objects3D
-            "footprints" -> Just Footprints
-            "objects2D"  -> Just Objects2D
-            _            -> Nothing
+instance LikeJS "String" ScenarioLayer where
+    asJSVal Objects3D  = jsval ("objects3D"  :: JSString)
+    asJSVal Footprints = jsval ("footprints" :: JSString)
+    asJSVal Objects2D  = jsval ("objects2D"  :: JSString)
+    asLikeJS js = if jsIsNullOrUndef js
+        then unsafeCoerce jsNull
+        else case asLikeJS js :: JSString of
+            "objects3D"  -> Objects3D
+            "footprints" -> Footprints
+            "objects2D"  -> Objects2D
+            _            -> unsafeCoerce jsNull
 
 
 -- | Basic entity in the program; Defines the logic of the interaction and visualization
 newtype CityObject = CityObject JSVal
-instance JSArray.LikeJS CityObject
+instance LikeJS "Object" CityObject
 
 -- | Try to process geometry into building.
 --   Assumes that feature contains polygon or multipolygon.
@@ -125,7 +124,7 @@ storeCityObject :: GLfloat -> Vector2 GLfloat -> StoreMode -> LocatedCityObject 
 storeCityObject sc shift storeMode sObj' =
     case storeMode of
       PlainFeature                -> js_delocateCityObjectNoTransform obj . T.transform $ objPolygons <$> sObj
-      QuaternionTranformedFeature -> JSArray.asLikeJS $ pToJSVal sObj
+      QuaternionTranformedFeature -> JSArray.asLikeJS $ asJSVal sObj
       LuciMatrixTranformedFeature -> js_delocateCityObjectLuciMatrix obj mat
     where sObj = (pure id >>= T.translate (resizeVector shift) >>= T.scale (1/sc)) <*> sObj'
           obj = T.unwrap sObj
@@ -161,7 +160,7 @@ foreign import javascript unsafe "$r = function(v){var t = [v[0]-$1[0],v[1]-$1[1
 
 {-# INLINE behavior #-}
 behavior :: CityObject -> ObjectBehavior
-behavior = pFromJSVal . behavior'
+behavior = asLikeJS . behavior'
 {-# INLINE behavior' #-}
 foreign import javascript unsafe "$1['properties']['static']"
     behavior' :: CityObject -> JSVal
@@ -182,18 +181,18 @@ foreign import javascript unsafe "$1['properties']['isSlave']"
 
 type LocatedCityObject = T.QFTransform CityObject
 
-instance JSArray.LikeJS LocatedCityObject where
+instance LikeJS "Object" LocatedCityObject where
     asJSVal (T.QFTransform rs sh obj) = rs `seq` sh `seq` obj `seq` js_delocateCityObject obj sh rs
     asLikeJS js = case js_locateCityObject js of
                    (jv, sh, rs) -> T.QFTransform rs sh (coerce jv)
-instance PToJSVal LocatedCityObject where
-    pToJSVal (T.QFTransform rs sh obj) = rs `seq` sh `seq` obj `seq` js_delocateCityObject obj sh rs
-
-instance PFromJSVal (Maybe LocatedCityObject) where
-    pFromJSVal js = if not (isTruthy jv)
-        then Nothing
-        else Just $ T.QFTransform rs sh (coerce jv)
-        where (jv, sh, rs) = js_locateCityObject js
+--instance PToJSVal LocatedCityObject where
+--    pToJSVal (T.QFTransform rs sh obj) = rs `seq` sh `seq` obj `seq` js_delocateCityObject obj sh rs
+--
+--instance PFromJSVal (Maybe LocatedCityObject) where
+--    pFromJSVal js = if not (isTruthy jv)
+--        then Nothing
+--        else Just $ T.QFTransform rs sh (coerce jv)
+--        where (jv, sh, rs) = js_locateCityObject js
 
 foreign import javascript unsafe "if($1['properties']['transform'] && $1['properties']['transform']['shift'] && $1['properties']['transform']['rotScale']\
                                  \ && $1['pointData']){\
@@ -287,7 +286,7 @@ foreign import javascript unsafe "$r1 = $1.map(function(p){return p.map(function
 
 
 foreign import javascript unsafe "var iss = new Uint16Array($2.length); iss.set($2); $r = { vertexArray: $1, indexArray: iss['buffer'] }"
-    packPointData :: ArrayBuffer -> JSArray.JSArray Int -> PointData
+    packPointData :: ArrayBuffer -> JSArray.Array Int -> PointData
 
 foreign import javascript unsafe "{ vertexArray: new ArrayBuffer(0), indexArray: new Uint16Array(0) }"
     emptyPointData :: PointData

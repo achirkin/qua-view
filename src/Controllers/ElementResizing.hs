@@ -17,7 +17,7 @@ module Controllers.ElementResizing
     , onElementResize
     ) where
 
-import GHCJS.Foreign.Callback
+import JsHs.Callback
 import JsHs.WebGL
 import GHCJS.Useful
 

@@ -40,8 +40,8 @@ import Program.View
 --import Geometry.Structure
 --import Control.Monad
 
---import GHCJS.Foreign.Callback
---import GHCJS.Types
+--JsHs.Callback
+--import JsHs.Types
 --import JsHs.Types.Prim
 --import Data.Coerce
 
