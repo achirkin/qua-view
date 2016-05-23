@@ -213,15 +213,13 @@ data Interaction = Interaction !InteractionType !Time ![(Vector2 GLfloat, Vector
 
 
 instance LikeJS "Array" Interaction where
-  asLikeJS _ = undefined
-  asJSVal _ = undefined
---    asLikeJS val = fromJSArray val >>= \vals ->
---      case vals of
---        mode:dt:ar:_ -> Just . Interaction (toEnum $ toNum mode) (toNum dt) . f <$> fromJSArray ar
---        _            -> pure Nothing
---      where f :: [JSVal] -> [(Vector2 GLfloat, Vector2 GLfloat)]
---            f (n:o:xs) = (coerce n, coerce o) : f xs
---            f _ = []
+    asLikeJS val = case asLikeJS val of
+        mode:dt:ar:_ -> Interaction (toEnum $ asLikeJS mode) (asLikeJS dt) . f $ asLikeJS ar
+        _            -> Interaction LeftButton 0 []
+      where f :: [Vector2 GLfloat] -> [(Vector2 GLfloat, Vector2 GLfloat)]
+            f (n:o:xs) = (n, o) : f xs
+            f _ = []
+    asJSVal _ = undefined
 
 ----------------------------------------------------------------------------------------------------
 -- Mouse wheel
