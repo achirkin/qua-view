@@ -16,8 +16,8 @@
 
 module GHCJS.Useful where
 
-import Unsafe.Coerce (unsafeCoerce)
-import System.IO.Unsafe
+--import Unsafe.Coerce (unsafeCoerce)
+--import System.IO.Unsafe
 
 import Prelude hiding (lines)
 --import qualified Data.Aeson as A
@@ -50,14 +50,6 @@ foreign import javascript unsafe "$r = document.getElementById($1)"
 foreign import javascript unsafe "$r = document.body"
     documentBody :: IO JSElement
 
-
--- | Log staff
-foreign import javascript unsafe "console.log($1)"
-    printVal :: JSVal -> IO ()
-
-{-# NOINLINE traceVal #-}
-traceVal :: a -> b -> b
-traceVal = seq . unsafePerformIO . printVal . unsafeCoerce
 
 
 -- | Current time in seconds

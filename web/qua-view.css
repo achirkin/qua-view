@@ -181,21 +181,21 @@ rect.btn {
 
 .titlediv {
     position: absolute;
-    left: 10%;
-    bottom: 20%;
+    left: 5%;
     color: #FFFFFF;
     padding: 0;
     margin: 0;
-    height: 60%;
+    width: 60%;
+    height: 100%;
 }
 .logodiv {
     position: absolute;
     right: 0%;
-    bottom: 20%;
     color: #FFFFFF;
     padding: 0;
     margin: 0;
-    height: 60%;
+    width: 60%;
+    height: 100%;
 }
 .iaLogo {
     overflow: visible;

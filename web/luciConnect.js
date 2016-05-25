@@ -7,8 +7,7 @@
 /*global faultylabs, Blob, WebSocket, console*/
 
 // Use this to hide console output in production using closure compiler flag "--define='DEBUG=false'"
-/** @define {boolean} */
-var DEBUG = true;
+
 
 // declare an isolated namespace Luci, and use strict language subset inside for better performance
 var Luci = (function () {
