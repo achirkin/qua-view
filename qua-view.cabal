@@ -29,10 +29,10 @@ executable qua-view
         template-haskell >=2.10
     cpp-options: -DGHCJS_BROWSER
     js-sources:
-        jsbits/JSArray.js
         jsbits/PointSet.js
         jsbits/earcut.js
         jsbits/Scenario.js
+        jsbits/misc.js
     default-language: Haskell2010
     hs-source-dirs: src
     other-modules:

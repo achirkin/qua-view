@@ -33,8 +33,8 @@ import Program.Reactions.ServiceFinish
 
 import Control.Exception (onException)
 import JsHs.Types
-import JsHs.LikeJS.Class
-import JsHs.Callback
+--import JsHs.LikeJS.Class
+--import JsHs.Callback
 
 renderScene :: Program -> PView -> IO PView
 renderScene program view = do
@@ -112,29 +112,29 @@ waitForAnimationFrame = do
      synchronous thread, and is passed the high-performance clock time
      stamp for that frame.
  -}
-inAnimationFrame :: OnBlocked       -- ^ what to do when encountering a blocking call
-                 -> (Double -> IO ())  -- ^ the action to run
-                 -> IO AnimationFrameHandle
-inAnimationFrame onBlocked x = do
-  cb <- syncCallback1 onBlocked (x . asLikeJS)
-  h  <- js_makeAnimationFrameHandleCallback (jsval cb)
-  js_requestAnimationFrame h
-  return h
+--inAnimationFrame :: OnBlocked       -- ^ what to do when encountering a blocking call
+--                 -> (Double -> IO ())  -- ^ the action to run
+--                 -> IO AnimationFrameHandle
+--inAnimationFrame onBlocked x = do
+--  cb <- syncCallback1 onBlocked (x . asLikeJS)
+--  h  <- js_makeAnimationFrameHandleCallback (jsval cb)
+--  js_requestAnimationFrame h
+--  return h
 
-cancelAnimationFrame :: AnimationFrameHandle -> IO ()
-cancelAnimationFrame h = js_cancelAnimationFrame h
-{-# INLINE cancelAnimationFrame #-}
+--cancelAnimationFrame :: AnimationFrameHandle -> IO ()
+--cancelAnimationFrame h = js_cancelAnimationFrame h
+--{-# INLINE cancelAnimationFrame #-}
 
 -- -----------------------------------------------------------------------------
 
 foreign import javascript unsafe "{ handle: null, callback: null }"
   js_makeAnimationFrameHandle :: IO AnimationFrameHandle
-foreign import javascript unsafe "{ handle: null, callback: $1 }"
-  js_makeAnimationFrameHandleCallback :: JSVal -> IO AnimationFrameHandle
+--foreign import javascript unsafe "{ handle: null, callback: $1 }"
+--  js_makeAnimationFrameHandleCallback :: JSVal -> IO AnimationFrameHandle
 foreign import javascript unsafe "h$animationFrameCancel"
   js_cancelAnimationFrame :: AnimationFrameHandle -> IO ()
 foreign import javascript interruptible
   "$1.handle = window.requestAnimationFrame($c);"
   js_waitForAnimationFrame :: AnimationFrameHandle -> IO Double
-foreign import javascript unsafe "h$animationFrameRequest"
-  js_requestAnimationFrame :: AnimationFrameHandle -> IO ()
+--foreign import javascript unsafe "h$animationFrameRequest"
+--  js_requestAnimationFrame :: AnimationFrameHandle -> IO ()

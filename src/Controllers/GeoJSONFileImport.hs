@@ -25,6 +25,7 @@ import JsHs.Types
 import JsHs.Types.Prim
 --import GHCJS.Marshal
 import JsHs.Callback
+--import JsHs.Debug
 -- import GHCJS.Foreign (isTruthy)
 
 import GHCJS.Useful

@@ -22,6 +22,8 @@ module Program.Reactions.GeometryChanges () where
 --import Geometry.Math
 --import GHCJS.Marshal
 import GHCJS.Useful
+--import JsHs.Debug
+--import JsHs.LikeJS.Class
 
 import Reactive
 import Controllers.GUIEvents

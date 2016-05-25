@@ -28,12 +28,12 @@ module Controllers.Pointer
 import JsHs.Callback
 --import GHCJS.Marshal
 import JsHs.Types
-import JsHs.Types.Prim
+--import JsHs.Types.Prim
 import JsHs.LikeJS.Class
 import JsHs.WebGL
 import GHCJS.Useful
 
-import Data.Coerce (coerce)
+--import Data.Coerce (coerce)
 
 import Data.Geometry
 

@@ -47,6 +47,7 @@ import Program.Model.CityObject
 import Program.Model.CityGround
 import Program.Model.WiredGeometry
 
+--import JsHs.Debug
 
 -- | Map of all city objects (buildings, roads, etc).
 data City = City

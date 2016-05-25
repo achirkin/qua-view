@@ -19,13 +19,15 @@ module Program.Reactions.LuciProcesses () where
 import Prelude hiding (unwords)
 
 import GHCJS.Useful
-import JsHs.JSString (append, unwords)
+import JsHs.JSString (append)
 
 import Reactive
 import Controllers.GUIEvents
 import Controllers.LuciClient
 
 import Program
+
+import JsHs.Debug
 
 instance Reaction Program PView LuciConnect "Connecting to Luci" 1 where
     response _ _ LuciConnect{..} _ pview = do
@@ -47,7 +49,7 @@ instance Reaction Program PView LuciConnect "Connecting to Luci" 1 where
                             mapM_ logText' l
                           Left e -> logText' e
                 logText "Getting info about service test.Fibonacci"
-                getServiceInfo lc "test.Fibonacci" >>= \r -> case r of
+                getServiceInfo lc "scenario.geojson.Create" >>= \r -> case r of
                                                           Right l -> logText $ "Info about test.Fibonacci: "  ++ show l
                                                           Left e -> logText' e
                 return $ Just lc

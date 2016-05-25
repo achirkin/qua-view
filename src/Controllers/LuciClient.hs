@@ -116,12 +116,12 @@ foreign import javascript interruptible "try {\
     \   var lc = new Luci.Client($1, $2, $3, QLuciHandler);\
     \   lc.host = $1;lc.port = $2;lc.localpath = $3; \
     \   lc.connect\
-    \       ( function(){$c([true, lc]);} \
-    \       , function(ev){$c([false, 'Closed with code ' + ev.code]);} \
+    \       ( function(){$c(new LikeHS.Either(lc,true));} \
+    \       , function(ev){$c(new LikeHS.Either('Closed with code ' + ev.code, false));} \
     \       , function(){logText('Error occured on the WebSocket side.');} \
     \   ); \
     \ }\
-    \ catch(err){$c([false, 'Error occured while trying to create Luci client: ' + err]);}"
+    \ catch(err){$c(new LikeHS.Either('Error occured while trying to create Luci client: ' + err, false))}"
     connectToLuci' :: JSString -> Int -> JSString -> IO JSVal
 
 
@@ -134,9 +134,9 @@ foreign import javascript interruptible  "var req = {}; \
     \ req['service']['ScID'] = $3; \
     \ req['service']['inputs'] = $4; \
     \ $1.sendAndReceive(req,new QLuciHandler(function(m){ \
-    \ if(m['result']) {$c([true, m['result']]);} \
-    \ else if(m['error']) {$c([false, 'Luci says: ' + m['error']]);} \
-    \ else {$c([false, \"Message contains neither a result nor an error. MSG: \" + JSON.stringify(m)]);}}));"
+    \ if(m['result']) {$c(new LikeHS.Either(m['result'],true));} \
+    \ else if(m['error']) {$c(new LikeHS.Either('Luci says: ' + m['error'],false));} \
+    \ else {$c(new LikeHS.Either('Message contains neither a result nor an error. MSG: ' + JSON.stringify(m), false));}}));"
     runService' :: LuciClient -> JSString -> Int -> LuciServiceInput -> IO JSVal
 
 ---- | Authenticate in Luci
@@ -147,9 +147,9 @@ foreign import javascript interruptible  "var req = {}; \
 --authenticate lc login pass = eitherError "Luci answer" <$> authenticate' lc  login pass
 --foreign import javascript interruptible "$1.authenticate($2,$3, function(){ \
 --    \ var m = $1.getMessage(); \
---    \ if(m['result']) {$c([true, m['result']]);} \
---    \ else if(m['error']) {$c([false, 'Luci says: ' + m['error']]);} \
---    \ else {$c([false, \"Message contains neither result message nor an error. MSG: \" + JSON.stringify(m)]);}});"
+--    \ if(m['result']) {$c(new LikeHS.Either(m['result'],false);} \
+--    \ else if(m['error']) {$c(new LikeHS.Either('Luci says: ' + m['error'],false));} \
+--    \ else {$c(new LikeHS.Either( \"Message contains neither result message nor an error. MSG: \" + JSON.stringify(m), false));}});"
 --    authenticate' :: LuciClient -> JSString -> JSString -> IO JSVal
 
 
@@ -158,9 +158,9 @@ getServicesList :: LuciClient -> IO (Either JSString [JSString])
 getServicesList lc = eitherError "Luci answer" <$> getServicesList' lc
 foreign import javascript interruptible "var req = {}; req['run'] = 'ServiceList'; $1.sendAndReceive(req, new QLuciHandler(function(msg){ \
     \ var m = msg.getHeader();\
-    \ if(m['result'] && m['result']['serviceNames']) { $c([true, m['result']['serviceNames']]);} \
-    \ else if(m['error']) {$c([false, 'Luci says: ' + m['error']]);} \
-    \ else {$c([false, \"Message contains neither services list nor an error. MSG: \" + JSON.stringify(m)]);}}));"
+    \ if(m['result'] && m['result']['serviceNames']) { $c(new LikeHS.Either(m['result']['serviceNames'], true));} \
+    \ else if(m['error']) {$c(new LikeHS.Either('Luci says: ' + m['error'], false));} \
+    \ else {$c(new LikeHS.Either('Message contains neither services list nor an error. MSG: ' + JSON.stringify(m), false));}}));"
     getServicesList' :: LuciClient -> IO JSVal
 
 
@@ -168,31 +168,31 @@ getServiceInfo :: LuciClient -> JSString -> IO (Either JSString LuciServiceInfo)
 getServiceInfo lc sname = eitherError "LuciServiceInfo" <$> getServiceInfo' lc sname
 foreign import javascript interruptible "var req = {}; req['run'] = 'ServiceInfo'; req['serviceNames'] = [$2]; $1.sendAndReceive(req, new QLuciHandler(function(msg){ \
     \ var m = msg.getHeader();\
-    \ if(m['result'] && m['result'][$2]) {$c([true, m['result'][$2]]);} \
-    \ else if(m['error']) {$c([false, 'Luci says: ' + m['error']]);} \
-    \ else {$c([false, \"Message contains neither service info nor an error. MSG: \" + JSON.stringify(m)]);}}));"
+    \ if(m['result'] && m['result'][$2]) {$c(new LikeHS.Either(m['result'][$2],true));} \
+    \ else if(m['error']) {$c(new LikeHS.Either('Luci says: ' + m['error'],false));} \
+    \ else {$c(new LikeHS.Either( 'Message contains neither service info nor an error. MSG: ' + JSON.stringify(m), false));}}));"
     getServiceInfo' :: LuciClient -> JSString -> IO JSVal
 
 
 createLuciScenario :: LuciClient -> JSString -> FeatureCollection -> IO (Either JSString LuciScenario)
 createLuciScenario lc sname geom = eitherError "Luci Scenario" <$>  createScenario' lc sname geom
 foreign import javascript interruptible "var req = {}; \
-    \ req['action'] = 'scenario.geojson.Create'; req['name'] = $2; \
-    \ req['geometry']= {}; \
-    \ req['geometry']['ghcjs-modeler-scenario'] = {}; \
-    \ req['geometry']['ghcjs-modeler-scenario']['format'] = 'GeoJSON'; \
-    \ req['geometry']['ghcjs-modeler-scenario']['geometry'] = $3; \
+    \ req['run'] = 'scenario.geojson.Create'; req['name'] = $2; \
+    \ req['geometry_input']= {}; \
+    \ req['geometry_input']['ghcjs-modeler-scenario'] = {}; \
+    \ req['geometry_input']['ghcjs-modeler-scenario']['format'] = 'GeoJSON'; \
+    \ req['geometry_input']['ghcjs-modeler-scenario']['geometry'] = $3; \
     \ $1.sendAndReceive(req,new QLuciHandler(function(msg){ \
     \ var m = msg.getHeader();\
-    \ if(m['result']) {$c([true, m['result']]);} \
-    \ else if(m['error']) {$c([false, 'Luci says: ' + m['error']]);} \
-    \ else {$c([false, \"Message contains neither a result nor an error. MSG: \" + JSON.stringify(m)]);}}));"
+    \ if(m['result']) {$c(new LikeHS.Either(m['result'], false));} \
+    \ else if(m['error']) {$c(new LikeHS.Either('Luci says: ' + m['error'],false));} \
+    \ else {$c(new LikeHS.Either('Message contains neither a result nor an error. MSG: ' + JSON.stringify(m), false));}}));"
     createScenario' :: LuciClient -> JSString -> FeatureCollection -> IO JSVal
 
 eitherError :: LikeJS ta a => JSString -> JSVal -> Either JSString a
 eitherError s val = case asLikeJS val of
                       Just x -> x
-                      Nothing -> Left $ "Something bad has just happened: " `append` s `append` "is falsy."
+                      Nothing -> Left $ "Something bad has just happened: " `append` s `append` " is null or undefined."
 --
 ---- | Either treatment
 --eitherError :: (Coercible JSVal a) => JSString -> JSVal -> Either JSString a
