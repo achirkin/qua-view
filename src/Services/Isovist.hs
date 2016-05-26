@@ -1,6 +1,6 @@
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE FlexibleInstances, TypeFamilies #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DataKinds, FlexibleInstances, MultiParamTypeClasses #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Services.Isovist
@@ -16,25 +16,23 @@
 
 module Services.Isovist where
 
---import Control.Monad (mzero)
+--import Data.Foldable (foldl')
 
---import Data.List (foldl')
---import Data.Foldable (toList)
---import Data.Text.Encoding
---import Data.Aeson
---import Data.Geospatial (GeoMultiPoint (..))
+
+import JsHs.Debug
 
 import JsHs.WebGL
---import JsHs.Types
----- import GHCJS.Foreign
---import GHCJS.Marshal
+import JsHs.Types
+import JsHs.LikeJS.Class
+import qualified JsHs.Array as JS
 import GHCJS.Useful
 
---import Geometry.Space
+import Data.Geometry.VectorMath
+import qualified Data.Geometry.Structure.Point as Point
+import qualified Data.Geometry.Structure.Feature as Feature
 
---import Controllers.LuciClient
---import Program.Model.GeoJSON
---import Program.Model.ScalarField
+import Controllers.LuciClient
+import Program.Model.ScalarField
 
 import Services
 
@@ -55,25 +53,38 @@ instance Show Isovist where
     show (Isovist mode) = "Isovist Service (" ++ show mode ++ ")"
 
 -- | Results that we get from luci (after parsing JSON)
-data IsovistResults = IR [IsovistPoint]
--- | Results that we get from luci (after parsing JSON)
-data IsovistPoint = IsovistPoint
-    { ipArea        :: !GLfloat
-    , ipCompactness :: !GLfloat
-    , ipMaxRadial   :: !GLfloat
-    , ipMinRadial   :: !GLfloat
-    , ipOcclusivity :: !GLfloat
-    , ipPerimeter   :: !GLfloat
-    } deriving Show
+newtype IsovistResults = IR JSVal
+instance LikeJS "Array" IsovistResults where
+    asLikeJS = IR . asLikeJS
+    asJSVal (IR x) = asJSVal x
+instance JS.LikeJSArray "Object" IsovistResults where
+    type ArrayElem IsovistResults = IsovistPoint
+    toJSArray x = js_getResults x
+    fromJSArray x = undefined
+
+foreign import javascript unsafe  "$1['outputs']['OutputVals']['Results']" js_getResults :: IsovistResults -> JS.Array IsovistPoint
+
+-- | Results that we get from luci
+newtype IsovistPoint = IsovistPoint JSVal
+instance LikeJS "Object" IsovistPoint
+--instance LikeJS IsovistPoint
+
+foreign import javascript unsafe  "$1['Area']" ipArea :: IsovistPoint -> GLfloat
+foreign import javascript unsafe  "$1['Area']" ipCompactness :: IsovistPoint -> GLfloat
+foreign import javascript unsafe  "$1['Area']" ipMaxRadial :: IsovistPoint -> GLfloat
+foreign import javascript unsafe  "$1['Area']" ipMinRadial :: IsovistPoint -> GLfloat
+foreign import javascript unsafe  "$1['Area']" ipOcclusivity :: IsovistPoint -> GLfloat
+foreign import javascript unsafe  "$1['Area']" ipPerimeter :: IsovistPoint -> GLfloat
+
 
 -- | Get desired grid values from Isovist results
-getIsovistValues :: IsovistResults -> IsovistMode -> [GLfloat]
-getIsovistValues (IR irs) Area = map ipArea irs
-getIsovistValues (IR irs) Compactness = map ipCompactness irs
-getIsovistValues (IR irs) MaxRadial = map ipMaxRadial irs
-getIsovistValues (IR irs) MinRadial = map ipMinRadial irs
-getIsovistValues (IR irs) Occlusivity = map ipOcclusivity irs
-getIsovistValues (IR irs) Perimeter = map ipPerimeter irs
+getIsovistValues :: IsovistResults -> IsovistMode -> JS.Array GLfloat
+getIsovistValues irs Area = JS.map ipArea irs
+getIsovistValues irs Compactness = JS.map ipCompactness irs
+getIsovistValues irs MaxRadial = JS.map ipMaxRadial irs
+getIsovistValues irs MinRadial = JS.map ipMinRadial irs
+getIsovistValues irs Occlusivity = JS.map ipOcclusivity irs
+getIsovistValues irs Perimeter = JS.map ipPerimeter irs
 
 ---- | Helper to convert JSON to Haskell values
 --instance FromJSON IsovistResults where
@@ -102,19 +113,18 @@ getIsovistValues (IR irs) Perimeter = map ipPerimeter irs
 instance ComputingService Isovist where
     runService _ Nothing _ _ = logText "Can not run Isovist without Luci" >> return Nothing
     runService _ _ Nothing _ = logText "Can not run Isovist without Scenario on Luci" >> return Nothing
-    runService _ _ _ _ = return Nothing
---    runService (Isovist mode) (Just luci) (Just scenario) sf@ScalarField{ sfPoints = pnts} = do
---      mresult <- runLuciService luci "Isovist" inputs scenario
---      return Nothing
---      case mresult of
---        Left err -> logText err >> return Nothing
---        Right result -> case fromJSON result of
---            Error jerr -> logText jerr >> return Nothing
---            Success isovist -> return (Just nsf)
---                where nsf = sf{sfValues = vals, sfRange = vrange }
---                      vals = map (\x -> log (1 + x)) $ getIsovistValues isovist mode
---                      vrange = foldl' (\(Vector2 xmin xmax) t
---                        -> Vector2 (min xmin t) (max xmax t)) (pure $ head vals) vals
---      where inputs = object . (:[]) . (.=) "inputVals" . toJSON . GeoMultiPoint
---                     $ map (\(Vector3 x _ z) -> map realToFrac [x,-z]) pnts
+    runService (Isovist mode) (Just luci) (Just scenario) sf@ScalarField{ sfPoints = pnts} = do
+      mresult <- runLuciService luci "Isovist" inputs scenario
+      case mresult of
+        Left err -> logText' err >> return Nothing
+        Right (LuciServiceOutput isovist) -> printAny isovist >> return (Just nsf)
+          where nsf = sf{sfValues = vals, sfRange = unpackV2 vrange }
+                vals = JS.map (\x -> log (1 + x)) $ getIsovistValues (asLikeJS isovist) mode
+                vrange = JS.foldl (\v t -> let (xmin, xmax) = unpackV2 v
+                            in vector2 (min xmin t) (max xmax t)) (vector2 (1/0) (-1/0)) vals
+      where inputs = LuciServiceInput
+                 . asJSVal
+                 . Feature.GeoMultiPoint
+                 . (JS.fromJSArray :: JS.Array (Vector2 GLfloat) -> Point.MultiPoint 2 GLfloat)
+                 $ JS.map (\v -> let (x,_,z) = unpackV3 v in vector2 x (-z)) pnts
 
