@@ -18,7 +18,7 @@
 module Program.Reactions.ServiceRun where
 
 import Data.Maybe (isJust)
---import Control.Concurrent (forkIO)
+import Control.Concurrent (forkIO)
 --import Control.Monad (liftM)
 --import Geometry.Space
 --import Geometry.Structure
@@ -36,6 +36,7 @@ import Program.Model.ScalarField
 import Controllers.GUIEvents
 import Controllers.LuciClient
 
+import JsHs.JSString
 
 import Services
 
@@ -56,11 +57,16 @@ instance Reaction Program PView ServiceRunBegin "Run service" 1 where
         getElementById "clearbutton" >>= elementParent >>= hideElement
         return pview
                       else do
-        programInProgress
-        logText ("Running service " ++ show service)
-        runService service (luciClient pview) (luciScenario pview) sf >>= \r -> case r of
-            Nothing -> programIdle >> return pview
-            Just sfin -> (reqEvent hole . EBox $ ServiceRunFinish sfin) >> return pview
+--        programInProgress
+        finishEProcess <- logExternalProcess $ "Running service " ++ show service
+        _ <- forkIO $ runService service (luciClient pview) (luciScenario pview) sf >>= \r -> case r of
+            Nothing -> do
+                logText "Failed to run Luci service."
+                finishEProcess
+            Just sfin -> do
+                reqEvent hole . EBox $ ServiceRunFinish sfin
+                finishEProcess
+        return pview
             where cs = evalCellSize $ settings ci
                   sf = ScalarField
                     { cellSize  = cs
@@ -79,12 +85,12 @@ instance Reaction Program PView ServiceRunBegin "Update Scenario" 0 where
             _lcs -> do
               logText "Updating scenario on Luci..."
 --              printVal . asJSVal $ storeCityAsIs (city program)
-              tryscenario <- createLuciScenario lc "Visualizer scenario" (storeCityAsIs $ city program)
+              tryscenario <- createLuciScenario lc "qua-kit scenario" (storeCityAsIs $ city program)
                     -- undefined -- . geometries2features . cityGeometryRoofs $ city program
               case tryscenario of
                 Left err -> logText' err >> return Nothing
                 Right scenario -> return (Just scenario)
-        getTime >>= \t1 -> logText ("Scenario updated in " ++ show (t1-t0) ++ " seconds.")
+        getTime >>= \t1 -> logText ("Scenario updated in " ++ show (round $ t1-t0 :: Int) ++ " milliseconds.")
         programIdle
         return pview{luciScenario = mscenario, scUpToDate = isJust mscenario}
     response _ _ _ _ pview = return pview

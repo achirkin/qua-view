@@ -1,6 +1,5 @@
 {-# LANGUAGE ForeignFunctionInterface,  JavaScriptFFI, GHCForeignImportPrim, UnliftedFFITypes #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE CPP #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  GHCJS.Useful
@@ -52,7 +51,7 @@ foreign import javascript unsafe "$r = document.body"
 
 
 
--- | Current time in seconds
+-- | Current time in milliseconds
 foreign import javascript unsafe "$r = performance.now()"
     getTime :: IO Time
 
@@ -90,6 +89,18 @@ foreign import javascript interruptible "document.getElementById('loadingSplash'
 -- | Hide loading splash
 foreign import javascript unsafe "document.getElementById('loadingSplash').style.display = 'none';"
     programIdle :: IO ()
+
+-- | Log text with rotating loading splash,
+--   and return action that hides this splash
+logExternalProcess :: String -> IO (IO ())
+logExternalProcess text = do
+  pId <- logExternalProcess' (pack text)
+  return $ notifyFinishExternalProcess' pId
+
+foreign import javascript unsafe "logExternalProcess($1)"
+    logExternalProcess' :: JSString -> IO JSString
+foreign import javascript unsafe "notifyFinishExternalProcess($1)"
+    notifyFinishExternalProcess' :: JSString -> IO ()
 
 
 

@@ -67,7 +67,7 @@ initProgram vw vh cstate userProfile objScale = Program
     , city = emptyCity -- buildCity [] [] [] []
     , controls = Controls
         { selectedObject = 0
-        , activeService = radService
+        , activeService = isovistService -- radService
         , availableServices = [radService, isovistService]
         , objectScale = objScale
         }
