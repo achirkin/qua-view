@@ -19,8 +19,6 @@ module Services.Isovist where
 --import Data.Foldable (foldl')
 
 
-import JsHs.Debug
-
 import JsHs.WebGL
 import JsHs.Types
 import JsHs.LikeJS.Class
@@ -60,9 +58,9 @@ instance LikeJS "Array" IsovistResults where
 instance JS.LikeJSArray "Object" IsovistResults where
     type ArrayElem IsovistResults = IsovistPoint
     toJSArray x = js_getResults x
-    fromJSArray x = undefined
+    fromJSArray = undefined
 
-foreign import javascript unsafe  "$1['outputs']['OutputVals']['Results']" js_getResults :: IsovistResults -> JS.Array IsovistPoint
+foreign import javascript unsafe  "$r = $1['outputs']['outputVals']['Results'];" js_getResults :: IsovistResults -> JS.Array IsovistPoint
 
 -- | Results that we get from luci
 newtype IsovistPoint = IsovistPoint JSVal
@@ -117,7 +115,7 @@ instance ComputingService Isovist where
       mresult <- runLuciService luci "Isovist" inputs scenario
       case mresult of
         Left err -> logText' err >> return Nothing
-        Right (LuciServiceOutput isovist) -> printAny isovist >> return (Just nsf)
+        Right (LuciServiceOutput isovist) -> return (Just nsf)
           where nsf = sf{sfValues = vals, sfRange = unpackV2 vrange }
                 vals = JS.map (\x -> log (1 + x)) $ getIsovistValues (asLikeJS isovist) mode
                 vrange = JS.foldl (\v t -> let (xmin, xmax) = unpackV2 v
