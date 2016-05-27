@@ -36,7 +36,7 @@ import Program.Model.ScalarField
 import Controllers.GUIEvents
 import Controllers.LuciClient
 
-import JsHs.JSString
+--import JsHs.JSString
 
 import Services
 

@@ -128,7 +128,7 @@ runLuciService :: LuciClient -> JSString -> LuciServiceInput -> LuciScenario -> 
 runLuciService lc service inputs scenario = eitherError "service output" <$>
                                             runService' lc service (scenarioId scenario) inputs
 foreign import javascript interruptible  "var req = {}; \
-    \ req['run'] = $2; req['service'] = {}; \
+    \ req['run'] = $2; \
     \ req['ScID'] = $3; \
     \ req['gridMultiPoint'] = $4; \
     \ var logg = (DEBUG && console.log('Running Luci service:')); \
