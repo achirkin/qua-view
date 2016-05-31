@@ -25,7 +25,7 @@ import JsHs.LikeJS.Class
 import qualified JsHs.Array as JS
 import GHCJS.Useful
 
-import Data.Geometry.VectorMath
+import Data.Geometry
 import qualified Data.Geometry.Structure.Point as Point
 import qualified Data.Geometry.Structure.Feature as Feature
 
@@ -124,5 +124,5 @@ instance ComputingService Isovist where
                  . asJSVal
                  . Feature.GeoMultiPoint
                  . (JS.fromJSArray :: JS.Array (Vector2 GLfloat) -> Point.MultiPoint 2 GLfloat)
-                 $ JS.map (\v -> let (x,_,z) = unpackV3 v in vector2 x (-z)) pnts
-
+                 $ JS.map resizeVector pnts
+                 -- JS.map (\v -> let (x,_,z) = unpackV3 v in vector2 x (-z))
