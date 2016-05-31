@@ -79,7 +79,7 @@ defaultCitySettings = CitySettings
     { defHeight    = 1
     , diagFunction = (*5) . sqrt . fromIntegral
     , groundDilate = 1
-    , evalCellSize = 2 -- 0.5
+    , evalCellSize = 1 -- 0.5
     , defElevation = 0.01
     , defScale     = Nothing
     }
