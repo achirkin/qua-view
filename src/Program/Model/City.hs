@@ -49,6 +49,9 @@ import Program.Model.WiredGeometry
 
 --import JsHs.Debug
 
+--import JsHs.Debug
+--import Debug.Trace
+
 -- | Map of all city objects (buildings, roads, etc).
 data City = City
     { activeObjId       :: !Int
@@ -69,6 +72,7 @@ data CitySettings = CitySettings
     , defElevation :: !GLfloat
     , defScale     :: !(Maybe GLfloat)
     }
+
 
 defaultCitySettings :: CitySettings
 defaultCitySettings = CitySettings

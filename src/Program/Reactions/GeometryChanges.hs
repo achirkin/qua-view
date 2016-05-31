@@ -49,6 +49,7 @@ import Program.View
 
 
 
+
 updateProgramView :: String -> Program -> PView -> IO PView
 updateProgramView msg program pview = do
         getElementById "clearbutton" >>= elementParent >>= hideElement

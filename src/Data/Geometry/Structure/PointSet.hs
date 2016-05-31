@@ -225,6 +225,7 @@ boundingRectangle2D s = (center, x, y)
     where (_,_,center, x, y) = js_minRectAngle $ toPointArray s
 
 {-# INLINE js_minRectAngle #-}
+-- TODO: gm$minRectAngle sometimes returns [0,0] for Y direction!
 foreign import javascript unsafe "var rez = gm$minRectAngle(gm$GrahamScan($1)); $r1 = rez[0]; $r2 = rez[1]; $r3 = rez[2]; $r4 = rez[3]; $r5 = rez[4];"
     js_minRectAngle :: PointArray 2 x -> (Double,Double, Vector2 x, Vector2 x, Vector2 x)
 

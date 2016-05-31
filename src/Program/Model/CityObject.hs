@@ -55,8 +55,6 @@ import Data.Geometry.Structure.PointSet (PointArray, PointSet (..), shrinkVector
 import Data.Geometry.Structure.Feature
 import Unsafe.Coerce
 
---import GHCJS.Useful
-
 -- | Id of geometry in Luci
 newtype GeomID = GeomID JSVal
 instance Eq GeomID where
@@ -137,16 +135,24 @@ locateMultiPolygon :: GLfloat
 locateMultiPolygon scale shift mpoly = T.QFTransform (
         -- getRotScale (vector3 1 0 0) (unit xdir)
         axisRotation (vector3 0 0 1) (a)
-        ) center $ mapCallbackSet f mpoly
+        ) center newmpoly
     where points = shrinkVectors $ toPointArray mpoly :: PointArray 2 GLfloat
           (center', vx, vy) = boundingRectangle2D points
           a = atan2 (indexVector 1 vx) (indexVector 0 vx)
           scalev = broadcastVector scale
           center = resizeVector (center' - shift) * scalev
-          xdir = resizeVector (unit vx) * scalev
-          ydir = resizeVector (unit vy) * scalev
+          xdir' = resizeVector (unit vx)
+          ydir' = resizeVector (unit vy)
           zdir = vector3 0 0 scale
-          f = getLocatingCallback (resizeVector center') xdir ydir zdir
+          (xdir, ydir) = case (normL2 xdir', normL2 ydir') of
+                         (0,0) -> (vector3 scale 0 0, vector3 0 scale 0)
+                         (0,_) -> (cross ydir' zdir, ydir' * scalev)
+                         (_,0) -> (xdir' * scalev, cross zdir xdir')
+                         _     -> (xdir' * scalev, ydir' * scalev  )
+          ncenter = resizeVector center'
+          newmpoly = mapCallbackSet f mpoly :: MultiPolygon 3 GLfloat
+          f = ncenter `seq` xdir `seq` ydir `seq` zdir `seq`
+                getLocatingCallback ncenter xdir ydir zdir
 
 
 

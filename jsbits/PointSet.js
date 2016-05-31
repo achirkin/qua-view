@@ -347,12 +347,28 @@ function gm$principalEigenvectors(mat,n) {
     for(var i = 0; i < n; i++) {
         A[i] = mat.slice(i*n,(i+1)*n);
     }
-    var eigs = numeric.eig(A);
+    var eigs = gm$principalEigenvectorsTryEig(A, 100, 1.0e-8, 4);
+    numeric['epsilon'] = 1.0e-8;
     return eigs.lambda.x
         .map(function(e,i){return [e,eigs.E.x[i]];})
         .sort(function(a,b){return b[0]-a[0];})
         .map(function(e){return e[1];});
 }
 
+function gm$principalEigenvectorsTryEig(A, maxiter, eps, i) {
+    'use strict';
+    numeric['epsilon'] = eps;
+    if (i <= 0) {
+      console.log("Warning: eigenvector computation failed!");
+      var dim = numeric.dim(A);
+      return numeric.eig(numeric.identity(dim[0]));
+    } else {
+      try {
+        return numeric.eig(A, maxiter);
+      } catch (err) {
+        return gm$principalEigenvectorsTryEig(A, maxiter*2, eps*100, i-1);
+      }
+    }
+}
 
 
