@@ -79,7 +79,7 @@ defaultCitySettings = CitySettings
     { defHeight    = 1
     , diagFunction = (*5) . sqrt . fromIntegral
     , groundDilate = 1
-    , evalCellSize = 1 -- 0.5
+    , evalCellSize = 0.5
     , defElevation = 0.01
     , defScale     = Nothing
     }
@@ -215,14 +215,17 @@ foreign import javascript unsafe "var r = gm$boundNestedArray($1['features'].map
 -- Scenario Store
 ----------------------------------------------------------------------------------------------------
 
+-- TODO: I discarded grid scaling, but need to decidehow to treat it later.
 storeCityAsIs :: City -> FeatureCollection
 storeCityAsIs City
     { objectsIn = buildings
     , clutter = (mline, _)
-    , cityTransform = (scale, shift)
+--    , cityTransform = (scale, shift)
     } = fromJSArray . fromList $
-        (feature . GeoMultiLineString $ PS.mapSet (\vec -> vec * broadcastVector (1/scale) + resizeVector shift ) mline)
-        : toList (JS.map (storeCityObject scale shift PlainFeature) buildings)
+        (feature . GeoMultiLineString $ mline)
+        : toList (JS.map (storeCityObject 1 0 PlainFeature) buildings)
+--        (feature . GeoMultiLineString $ PS.mapSet (\vec -> vec * broadcastVector (1/scale) + resizeVector shift ) mline)
+--        : toList (JS.map (storeCityObject scale shift PlainFeature) buildings)
 
 
 

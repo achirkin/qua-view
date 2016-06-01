@@ -125,4 +125,4 @@ instance ComputingService Isovist where
                  . Feature.GeoMultiPoint
                  . (JS.fromJSArray :: JS.Array (Vector2 GLfloat) -> Point.MultiPoint 2 GLfloat)
                  $ JS.map resizeVector pnts
-                 -- JS.map (\v -> let (x,_,z) = unpackV3 v in vector2 x (-z))
+                 -- JS.map (\v -> let (x,_,z) = unpackV3 v in vector2 x (-z)) pnts
