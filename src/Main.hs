@@ -1,5 +1,6 @@
 {-# LANGUAGE JavaScriptFFI #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecursiveDo #-}
 module Main (
     main
 ) where
@@ -8,24 +9,33 @@ module Main (
 -- Various thins I use
 import Data.Geometry
 import JsHs.JSString (JSString, append, unpack')
-import Control.Monad (void)
+import Control.Monad (void, when)
 import GHCJS.Useful
 import Text.Read (readMaybe)
+import Data.Coerce
+import qualified JsHs.Array as JS
+import JsHs.WebGL.Types (GLfloat)
 
 -- Program Logic
-import Reactive
+--import Reactive
 import Program
-import Program.Model.Camera (CState(..))
+--import Program.Model.Camera (CState(..))
 
 -- Events
-import Controllers.Pointer
-import Controllers.ElementResizing
-import Controllers.GUIEvents
-import Controllers.GeoJSONFileImport
+--import Controllers.Pointer
+--import Controllers.ElementResizing
+--import Controllers.GUIEvents
+--import Controllers.GeoJSONFileImport
 
 -- Get EventSense instances so that we can pass events into processing cycle
 import Program.Reactions ()
 
+-- functional reactive programming
+import Reactive.Banana.Frameworks
+import Reactive.Banana.Combinators
+import Reactive.Banana.JsHs
+import Program.Model.Camera
+import Program.View
 
 main :: IO ()
 main = do
@@ -33,6 +43,8 @@ main = do
     body <- documentBody
     viewWidth <- getElementWidth body
     viewHeight <- getElementHeight body
+--    print $ viewWidth
+--    print $ viewHeight
     -- drawing area
     canvas <- getElementById "glcanvas"
 
@@ -54,88 +66,126 @@ main = do
             geomScale
     canv <- getCanvasById "glcanvas"
     view <- initView program canv
-    -- run main reactive programming cycle and get event submission functions (in EventHole)
-    eventHole <- reactiveCycle program view
 
-    -- mouse/touch events
-    addEventlisteners canvas (reqEvent eventHole . EBox)
-                             (reqEvent eventHole . EBox)
-                             (void . optEvent eventHole . EBox)
-                             (reqEvent eventHole . EBox)
-                             (reqEvent eventHole . EBox)
-    -- add mouse wheel separately
-    onMouseWheel canvas (reqEvent eventHole . EBox)
-    -- resize viewport when body (and canvas) is resized
-    let canvasResize cre@(ResizeEvent w h) = do
-            setElementStyleWidth canvas w
-            setElementStyleHeight canvas h
-            setElementWidth canvas w
-            setElementHeight canvas h
-            reqEvent eventHole $ EBox cre
-    onElementResize body canvasResize
+    -- reactive-banana event network
+    heh <- elementHandler $ coerce canvas
+    network <- compile $ mdo
+      pointerE <- pointerEvents heh
+      wheelE   <- wheelEvents heh
+      resizeE  <- resizeEvents heh
+      curPointersB <- curPointers heh
+      oldPointersB <- downPointers heh
+      buttonsB' <- buttons heh
+      ctrlKeyB <- ctrlKey heh
+      shiftKeyB <- shiftKey heh
+      let modButtons True True 1 = 4
+          modButtons True False 1 = 2
+          modButtons False True 1 = 2
+          modButtons _ _ b = b
+          buttonsB = modButtons <$> shiftKeyB <*> ctrlKeyB <*> buttonsB'
+          coordsB = combinePointers <$> oldPointersB <*> curPointersB
+      cameraB <- cameraBehavior (camera program)
+                                 pointerE
+                                 wheelE
+                                 resizeE
+                                 buttonsB
+                                 coordsB
+      let programB = (\c -> program{camera=c}) <$> cameraB
+--      mapEventIO :: (a -> IO b) -> Event a -> MomentIO (Event b)
+      updateE <- updateEvents heh
+      pviewB <- stepper view pviewE
+      pviewE <- mapEventIO (\(t,p,v) -> renderScene t p v ) (((\p v t -> (t,p,v)) <$> programB <*> pviewB) <@> updateE)
+      -- print camera state
+--      reactimate $ (print . newState) <$> cameraB <@ updateE
+      -- print current pressed buttons
+--      reactimate $ (\b -> when (b /= 0) $ print b) <$> buttonsB <@ updateE
+--      reactimate $ print <$> resizeE
+      return ()
+    actuate network
+    play heh
 
-    -- "submit geometry" button opens popup to save the geometry on server
-    submitButton <- getElementById "submitbutton"
-    case userProfile of
-        ExternalViewer -> elementParent submitButton >>= hideElement
-        ExternalEditor -> elementOnClick submitButton . const . reqEvent eventHole . EBox
-                $ SubmitScenario "http://www.archevolve.com/process.php"
-        Full -> elementOnClick submitButton . const . reqEvent eventHole . EBox
-                $ SubmitScenario "http://httpbin.org/post"
+--    -- run main reactive programming cycle and get event submission functions (in EventHole)
+--    eventHole <- reactiveCycle program view
+--
+--    -- mouse/touch events
+--    addEventlisteners canvas (reqEvent eventHole . EBox)
+--                             (reqEvent eventHole . EBox)
+--                             (void . optEvent eventHole . EBox)
+--                             (reqEvent eventHole . EBox)
+--                             (reqEvent eventHole . EBox)
+--    -- add mouse wheel separately
+--    onMouseWheel canvas (reqEvent eventHole . EBox)
+--    -- resize viewport when body (and canvas) is resized
+--    let canvasResize cre@(ResizeEvent w h) = do
+--            setElementStyleWidth canvas w
+--            setElementStyleHeight canvas h
+--            setElementWidth canvas w
+--            setElementHeight canvas h
+--            reqEvent eventHole $ EBox cre
+--    onElementResize body canvasResize
+--
+--    -- "submit geometry" button opens popup to save the geometry on server
+--    submitButton <- getElementById "submitbutton"
+--    case userProfile of
+--        ExternalViewer -> elementParent submitButton >>= hideElement
+--        ExternalEditor -> elementOnClick submitButton . const . reqEvent eventHole . EBox
+--                $ SubmitScenario "http://www.archevolve.com/process.php"
+--        Full -> elementOnClick submitButton . const . reqEvent eventHole . EBox
+--                $ SubmitScenario "http://httpbin.org/post"
+--
+--
+--    -- hide everything that is not related to the full profile
+--    if userProfile /= Full
+--    then do
+--        getElementById "evaluatebutton" >>= elementParent >>= hideElement
+--        getElementById "itabGeometry" >>= hideElement
+--        getElementById "itabServices" >>= hideElement
+--        getElementById "itabLuci" >>= hideElement
+--        getElementById "tabGeometry" >>= hideElement
+--        getElementById "tabServices" >>= hideElement
+--        getElementById "tabLuci" >>= hideElement
+--    else do
+--        -- "evaluate" button runs current service
+--        evaluateButton <- getElementById "evaluatebutton"
+--        elementOnClick evaluateButton . const $ reqEvent eventHole $ EBox ServiceRunBegin
+--        clearServiceButton <- getElementById "clearbutton"
+--        elementOnClick clearServiceButton . const $ reqEvent eventHole $ EBox ClearServiceResults
+--
+--        -- "import geometry" button converts GeoJSON into internal representation
+--        importButton <- getElementById "jsonfileinput"
+--        onGeoJSONFileImport importButton (reqEvent eventHole . EBox)
+--
+--        -- "clear geometry" button removes all buildings from the city
+--        clearGeomButton <- getElementById "cleargeombutton"
+--        elementOnClick clearGeomButton . const $ reqEvent eventHole $ EBox ClearingGeometry
+--
+--        -- Connect to Luci
+--        luciConnectButton <- getElementById "loginbutton"
+--        elementOnClick luciConnectButton . const $ do
+--            host <- getElementById "inputip" >>= getInputValue
+--            name <- getElementById "inputlogin" >>= getInputValue
+--            pass <- getElementById "inputpass" >>= getInputValue
+--            reqEvent eventHole $ EBox LuciConnect
+--                { cHost = host
+--                , cUser = name
+--                , cPass = pass
+--                }
 
-
-    -- hide everything that is not related to the full profile
-    if userProfile /= Full
-    then do
-        getElementById "evaluatebutton" >>= elementParent >>= hideElement
-        getElementById "itabGeometry" >>= hideElement
-        getElementById "itabServices" >>= hideElement
-        getElementById "itabLuci" >>= hideElement
-        getElementById "tabGeometry" >>= hideElement
-        getElementById "tabServices" >>= hideElement
-        getElementById "tabLuci" >>= hideElement
-    else do
-        -- "evaluate" button runs current service
-        evaluateButton <- getElementById "evaluatebutton"
-        elementOnClick evaluateButton . const $ reqEvent eventHole $ EBox ServiceRunBegin
-        clearServiceButton <- getElementById "clearbutton"
-        elementOnClick clearServiceButton . const $ reqEvent eventHole $ EBox ClearServiceResults
-
-        -- "import geometry" button converts GeoJSON into internal representation
-        importButton <- getElementById "jsonfileinput"
-        onGeoJSONFileImport importButton (reqEvent eventHole . EBox)
-
-        -- "clear geometry" button removes all buildings from the city
-        clearGeomButton <- getElementById "cleargeombutton"
-        elementOnClick clearGeomButton . const $ reqEvent eventHole $ EBox ClearingGeometry
-
-        -- Connect to Luci
-        luciConnectButton <- getElementById "loginbutton"
-        elementOnClick luciConnectButton . const $ do
-            host <- getElementById "inputip" >>= getInputValue
-            name <- getElementById "inputlogin" >>= getInputValue
-            pass <- getElementById "inputpass" >>= getInputValue
-            reqEvent eventHole $ EBox LuciConnect
-                { cHost = host
-                , cUser = name
-                , cPass = pass
-                }
-
-    -- load geometry from url
-    case getHtmlArg "geomUrl" of
-        "" -> do
-            loadGeoJSONFromLink "insidePolys.js" True  (reqEvent eventHole . EBox)
---            loadGeoJSONFromLink "outsidePolys.js" False (reqEvent eventHole . EBox)
-            loadGeoJSONFromLink "lines.js" False (reqEvent eventHole . EBox)
-        u -> loadGeoJSONFromLink u True  (reqEvent eventHole . EBox)
-
-    -- experiments
-    logText $ "Started " ++ show userProfile ++ " session of modeler."
-
-
-    -- done!
-    -- simulate an event to force render picture
-    canvasResize $ ResizeEvent viewWidth viewHeight
+--    -- load geometry from url
+--    case getHtmlArg "geomUrl" of
+--        "" -> do
+--            loadGeoJSONFromLink "insidePolys.js" True  (reqEvent eventHole . EBox)
+----            loadGeoJSONFromLink "outsidePolys.js" False (reqEvent eventHole . EBox)
+--            loadGeoJSONFromLink "lines.js" False (reqEvent eventHole . EBox)
+--        u -> loadGeoJSONFromLink u True  (reqEvent eventHole . EBox)
+--
+--    -- experiments
+--    logText $ "Started " ++ show userProfile ++ " session of modeler."
+--
+--
+--    -- done!
+--    -- simulate an event to force render picture
+--    canvasResize $ ResizeEvent viewWidth viewHeight
     -- remove loading splash
     programIdle
 
@@ -160,3 +210,21 @@ customGreetings :: Profile -> IO ()
 customGreetings profile = getElementById "greetings"
     >>= flip insertAfterHTML (customGreetingHTML profile)
 
+
+
+combinePointers :: JS.Array PointerPos -> JS.Array PointerPos -> [(Vector2 GLfloat, Vector2 GLfloat)]
+combinePointers a b = zipWith (\p1 p2 -> ( vector2 (realToFrac $ posX p1) (realToFrac $ posY p1)
+                                         , vector2 (realToFrac $ posX p2) (realToFrac $ posY p2)
+                                         )
+                              ) (JS.toList a) (JS.toList b)
+
+renderScene :: Double -> Program -> PView -> IO PView
+renderScene ctime program view = do
+    -- prepare rendering
+    ctx <- prepareRenderState (context view) (camera program) ctime
+    -- render
+    clearScreen ctx
+    draw ctx (decGrid program) (dgView view)
+    draw ctx (city program) (cityView view)
+    -- done!
+    return view{context = ctx}

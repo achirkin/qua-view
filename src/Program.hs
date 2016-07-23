@@ -23,7 +23,7 @@ import JsHs.WebGL
 import GHCJS.Useful
 import Data.Geometry
 
-import Controllers.LuciClient
+--import Controllers.LuciClient
 
 import Program.Model.Camera
 import Program.Model.City
@@ -83,8 +83,8 @@ data PView = PView
     { context      :: !ViewContext
     , dgView       :: !(View WiredGeometry)
     , cityView     :: !(View City)
-    , luciClient   :: !(Maybe LuciClient)
-    , luciScenario :: !(Maybe LuciScenario)
+--    , luciClient   :: !(Maybe LuciClient)
+--    , luciScenario :: !(Maybe LuciScenario)
     , scUpToDate   :: !Bool
     }
 
@@ -107,8 +107,8 @@ initView prog@Program
         { context      = ctx
         , dgView       = dgview
         , cityView     = cview
-        , luciClient   = Nothing
-        , luciScenario = Nothing
+--        , luciClient   = Nothing
+--        , luciScenario = Nothing
         , scUpToDate   = False
         }
 

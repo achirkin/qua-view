@@ -19,6 +19,7 @@ module Program.Model.Camera
     , initCamera
     , scroll, dragHorizontal, dragVertical, rotateCentered, twoFingerControl
     , dragObject, rotateObject, twoFingerObject
+    , cameraBehavior
     ) where
 
 import Control.Monad (ap)
@@ -31,6 +32,86 @@ import Data.Geometry.Transform
 --import Geometry.Space.Quaternion
 
 --import Debug.Trace
+--import Reactive.Banana.Frameworks
+import Reactive.Banana.Combinators
+import Reactive.Banana.JsHs
+
+----------------------------------------------------------------------------------------------
+-- Definitions -------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------
+
+-- | Reactive-banana-like camera behavior
+cameraBehavior :: MonadMoment m
+               => Camera -- ^ initial camera
+               -> Event PointerEvent -- ^ pointer actions
+               -> Event Double -- ^ wheel
+               -> Event (Double, Double) -- ^ resize
+               -> Behavior Int -- ^ buttons
+               -> Behavior [(Vector2 GLfloat, Vector2 GLfloat)] -- ^ [(old, new)] coordinates
+               -> m (Behavior Camera)
+cameraBehavior cam pointerE wheelE resizeE buttonsB coordsB = accumB cam events
+  where
+    events = unions [ wheelT <$> wheelE
+                    , pointerT <$> buttonsB <*> coordsB <@> pointerE
+                    , resizeT <$> resizeE
+                    ]
+    -- Modify camera with will zooming
+    wheelT :: Double -> Camera -> Camera
+    wheelT wd = scroll (realToFrac wd *0.18+0.03)
+    -- Modify camera according to viewport changes
+    resizeT :: (Double, Double) -> Camera -> Camera
+    resizeT (x,y) c = initCamera (realToFrac x) (realToFrac y) (newState c)
+    pointerT :: Int -> [(Vector2 GLfloat, Vector2 GLfloat)] -> PointerEvent -> Camera -> Camera
+    -- freeze camera state on pointer up
+    pointerT _ _ (PointerUp     _) c@Camera{ newState = nstate} = c{oldState = nstate}
+    -- freeze camera state on pointer cancel
+    pointerT _ _ (PointerCancel _) c@Camera{ newState = nstate} = c{oldState = nstate}
+    -- freeze camera state on pointer down
+    pointerT _ _ (PointerDown _) c@Camera{ newState = nstate} = c{oldState = nstate}
+    -- move unknown move (should not happen anyway)
+    pointerT _ [] (PointerMove _) c = c
+    -- Three-finger rotation
+    pointerT 1 ((n1,o1):_:_:_)  (PointerMove _) c = rotateCentered o1 n1 c
+    -- Complicated two-finger control
+    pointerT 1 [(n1,o1),(n2,o2)] (PointerMove _) c = twoFingerControl (o1,o2) (n1,n2) c
+    -- Mouse control                               -- do nothing if no button pressed
+    pointerT b ((opos,npos):_) (PointerMove _) c | b == 0 = c
+                                                   -- Drag horizontally using left mouse button
+                                                 | b == 1 = dragHorizontal opos npos c
+                                                   -- Rotating using secondary button (right m b)
+                                                 | b == 2 = rotateCentered opos npos c
+                                                   -- Dragging vertically using wheel button press
+                                                 | b == 4 = dragVertical opos npos c
+                                                   -- fallback to horizontal dragging
+                                                 | otherwise = dragHorizontal opos npos c
+
+
+
+
+--instance Reaction Program PView PointerDownEvent "Remember Camera state" 0 where
+--    react _ _ = transformCamera (\c@Camera{ newState = nstate} -> c{oldState = nstate})
+----    response _ ev _ _ view = logText ("Down: " ++ show ev) >> return (Left view)
+--
+--instance Reaction Program PView PointerUpEvent "Remember Camera state" 0 where
+--    react _ _ = transformCamera (\c@Camera{ newState = nstate} -> c{oldState = nstate})
+----    response _ ev _ _ view = logText ("Up: " ++ show ev) >> return (Left view)
+--
+--instance Reaction Program PView PointerCancelEvent "Remember Camera state" 0 where
+--    react _ _ = transformCamera (\c@Camera{ newState = nstate} -> c{oldState = nstate})
+----    response _ ev _ _ view = logText ("Cancel: " ++ show ev) >> return (Left view)
+--
+--instance Reaction Program PView PointerMoveEvent "Move Camera" 0 where
+--    react _ (PMove _            _ []             )   = id
+--    react _ (PMove LeftButton   _ ((npos,opos):_))   = transformCamera (dragHorizontal opos npos)
+--    react _ (PMove RightButton  _ ((npos,opos):_))   = transformCamera (rotateCentered opos npos)
+--    react _ (PMove MiddleButton _ ((npos,opos):_))   = transformCamera (dragVertical   opos npos)
+--    react _ (PMove Touches      _ [(npos,opos)]  )   = transformCamera (dragHorizontal opos npos)
+--    react _ (PMove Touches      _ [(n1,o1),(n2,o2)]) = transformCamera (twoFingerControl (o1,o2) (n1,n2))
+--    react _ (PMove Touches      _ ((n1,o1):_:_:_))   = transformCamera (rotateCentered o1 n1)
+----    response _ ev _ _ view = logText ("Move: " ++ show ev) >> return (Left view)
+--
+--instance Reaction Program PView ResizeEvent "Resize viewport" 0 where
+--    react _ (ResizeEvent w h) = transformCamera (\Camera{ newState = st} -> initCamera w h st)
 
 ----------------------------------------------------------------------------------------------
 -- Definitions -------------------------------------------------------------------------------

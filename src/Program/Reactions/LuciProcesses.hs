@@ -33,34 +33,34 @@ import Control.Concurrent
 
 --import JsHs.Debug
 
-instance Reaction Program PView LuciConnect "Connecting to Luci" 1 where
-    response _ _ LuciConnect{..} _ pview = do
-      mmlc <- newEmptyMVar
-      _ <- forkIO $ do
-        finishEProcess <- logExternalProcess "Connecting to Luci..."
-        elc <- connectToLuci cHost
-        r <- case elc of
-            Left err -> logText' err >> return Nothing
-            Right lc -> do
-                logText' $ "Connected to Luci on " `append` cHost
---                ans <- authenticate lc cUser cPass
-                getElementById "ipaddressinfo" >>= flip setElementInnerHTML (hostOf lc)
---                logText $ show ans
-                getElementById "loginform" >>= hideElement
-                getElementById "logondiv" >>= showElement
-                logText "Getting list of services"
-                getServicesList lc >>= \r -> case r of
-                          Right l -> do
-                            logText' $ "List of services in LUCI: "
-                            mapM_ logText' l
-                          Left e -> logText' e
-                logText "Getting info about service test.Fibonacci"
-                getServiceInfo lc "test.Fibonacci" >>= \r -> case r of
-                                                          Right l -> logText $ "Info about test.Fibonacci: "  ++ show l
-                                                          Left e -> logText' e
-                return $ Just lc
-        finishEProcess
-        putMVar mmlc r
-      mlc <- unsafeInterleaveIO $ readMVar mmlc
-      return pview{luciClient = mlc}
+--instance Reaction Program PView LuciConnect "Connecting to Luci" 1 where
+--    response _ _ LuciConnect{..} _ pview = do
+--      mmlc <- newEmptyMVar
+--      _ <- forkIO $ do
+--        finishEProcess <- logExternalProcess "Connecting to Luci..."
+--        elc <- connectToLuci cHost
+--        r <- case elc of
+--            Left err -> logText' err >> return Nothing
+--            Right lc -> do
+--                logText' $ "Connected to Luci on " `append` cHost
+----                ans <- authenticate lc cUser cPass
+--                getElementById "ipaddressinfo" >>= flip setElementInnerHTML (hostOf lc)
+----                logText $ show ans
+--                getElementById "loginform" >>= hideElement
+--                getElementById "logondiv" >>= showElement
+--                logText "Getting list of services"
+--                getServicesList lc >>= \r -> case r of
+--                          Right l -> do
+--                            logText' $ "List of services in LUCI: "
+--                            mapM_ logText' l
+--                          Left e -> logText' e
+--                logText "Getting info about service test.Fibonacci"
+--                getServiceInfo lc "test.Fibonacci" >>= \r -> case r of
+--                                                          Right l -> logText $ "Info about test.Fibonacci: "  ++ show l
+--                                                          Left e -> logText' e
+--                return $ Just lc
+--        finishEProcess
+--        putMVar mmlc r
+--      mlc <- unsafeInterleaveIO $ readMVar mmlc
+--      return pview --{luciClient = mlc}
 

@@ -15,14 +15,15 @@
 -----------------------------------------------------------------------------
 
 module Controllers.LuciClient
-    ( LuciClient (), hostOf, portOf, localPathOf, connectionString
-    , connectToLuci
---    , authenticate
-    , getServicesList
-    , getServiceInfo
-    , LuciScenario (), createLuciScenario
-    , scenarioId, scenarioName, scenarioMqttTopic, scenarioTimestamp
-    , runLuciService
+    ( LuciClient (), LuciScenario (), runLuciService
+--     LuciClient (), hostOf, portOf, localPathOf, connectionString
+--    , connectToLuci
+----    , authenticate
+--    , getServicesList
+--    , getServiceInfo
+--    , LuciScenario (), createLuciScenario
+--    , scenarioId, scenarioName, scenarioMqttTopic, scenarioTimestamp
+--    , runLuciService
     , LuciServiceInput (..), LuciServiceOutput (..)
     ) where
 

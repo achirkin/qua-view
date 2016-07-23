@@ -25,6 +25,8 @@ executable qua-view
         fastvec -any,
         ghcjs-hs-interop -any,
         ghcjs-webgl -any,
+        reactive-banana -any,
+        reactive-banana-ghcjs -any,
         stm >=2.4,
         template-haskell >=2.10
     cpp-options: -DGHCJS_BROWSER
