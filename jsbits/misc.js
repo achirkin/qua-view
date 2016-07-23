@@ -128,4 +128,4 @@ var QLuciHandler = (function() {
       }
     };
     return QLuciHandler;
-})();
+});

@@ -19,7 +19,7 @@
 
 module Program.View.CityView where
 
-
+import Control.Monad (when)
 -- import GHCJS.Foreign
 import JsHs.Types
 import JsHs.WebGL
@@ -87,14 +87,16 @@ instance Drawable City where
         uniformMatrix4fv gl (vGLProjLoc cs) False (projectArr vc)
         uniform3f gl (unifLoc prog "uSunDir") sx sy sz
         -- draw ground
-        uniform1f gl userLoc 1
-        uniform4f gl colLoc 1 1 1 1
-        applyTransform vc (return () :: MTransform 3 GLfloat ())
-        drawCityGround gl (ploc,nloc,tloc) (ground city) (groundView cview)
+        when (indexArrayLength (groundPoints $ ground city) > 0) $ do
+          uniform1f gl userLoc 1
+          uniform4f gl colLoc 1 1 1 1
+          applyTransform vc (return () :: MTransform 3 GLfloat ())
+          drawCityGround gl (ploc,nloc,tloc) (ground city) (groundView cview)
         -- draw buildings
-        uniform1f gl userLoc 0 -- disable textures for now
-        uniform4f gl colLoc 0.5 0.5 0.55 1
-        JS.zipiIO_ drawObject (objectsIn city) (viewsIn cview)
+        when (not $ isEmptyCity city) $ do
+          uniform1f gl userLoc 0 -- disable textures for now
+          uniform4f gl colLoc 0.5 0.5 0.55 1
+          JS.zipiIO_ drawObject (objectsIn city) (viewsIn cview)
         disableVertexAttribArray gl tloc
         disableVertexAttribArray gl nloc
         disableVertexAttribArray gl ploc
