@@ -190,6 +190,7 @@ prepareRenderState vc@ViewContext
           (sx', sy', sz', _) = unpackV4 $ viewM `prod` vector4 sx sy sz 0
 
 
+
 applySelector :: (Selectable a)=> ViewContext -> Camera -> a -> View a -> IO ViewContext
 applySelector vc'@ViewContext
         { glctx    = gl
