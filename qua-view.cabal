@@ -29,7 +29,6 @@ executable qua-view
         reactive-banana-ghcjs -any,
         stm >=2.4,
         transformers -any
---        template-haskell >=2.10
     cpp-options: -DGHCJS_BROWSER
     js-sources:
         jsbits/PointSet.js
@@ -52,6 +51,8 @@ executable qua-view
         Data.Geometry.Structure.PointSet
         Data.Geometry.Structure.Polygon
         GHCJS.Useful
+        Program.Settings
+        Program.Types
         SmallGL.Helpers
         SmallGL.Shader
         SmallGL.WritableVectors
@@ -80,6 +81,5 @@ executable qua-view
         Program.View.CityObjectView
         Program.View.CityGroundView
         Program.View.WiredGeometryView
-        Reactive
     ghc-options: -Wall -O2 -ddump-splices
 

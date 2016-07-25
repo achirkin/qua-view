@@ -33,13 +33,14 @@ import Controllers.GUIEvents
 import Data.Coerce (coerce)
 
 import Reactive.Banana.Frameworks
+import Reactive.Banana.JsHs
 --import Reactive.Banana.Combinators
 --import Control.Monad.IO.Class
 
 
 data GeoJSONImports = GeoJSONImports
   { addHandler :: AddHandler GeoJSONLoaded
-  , registerButton :: JSElement -> IO ()
+  , registerButton :: HTMLElement -> IO ()
   , loadFromLink :: JSString -> Bool -> IO ()
   }
 
@@ -52,7 +53,7 @@ geoJSONImports = do
     , loadFromLink = \s d -> loadGeoJSONFromLink s d fire
     }
 
-onGeoJSONFileImport :: JSElement -> GeoJSONLoadCallBack -> IO ()
+onGeoJSONFileImport :: HTMLElement -> GeoJSONLoadCallBack -> IO ()
 onGeoJSONFileImport importButton callback = elementOnChange importButton $ do
     programInProgress
     logText "Trying to parse GeoJSON FeatureCollection..."
@@ -92,7 +93,7 @@ foreign import javascript interruptible "var r = new FileReader(); \
     \ r.onloadend = load;  \
     \ r.onerror = errfun; \
     \ r.readAsText($1.files[0]);"
-    getElementFiles :: JSElement -> IO FeatureCollection
+    getElementFiles :: HTMLElement -> IO FeatureCollection
 
 
 foreign import javascript interruptible "var xmlHttp = new XMLHttpRequest(); \
@@ -125,8 +126,8 @@ foreign import javascript interruptible "var xmlHttp = new XMLHttpRequest(); \
     getUrlJSON :: JSString -> IO FeatureCollection
 
 
--- | Simple event when JSElement is changed (e.g. one picked file in "file" button)
-elementOnChange :: JSElement -> IO () -> IO ()
+-- | Simple event when HTMLElement is changed (e.g. one picked file in "file" button)
+elementOnChange :: HTMLElement -> IO () -> IO ()
 elementOnChange element clickFun = do
     clickCallBack <- asyncCallback clickFun
     elementOnChange' element clickCallBack
@@ -138,4 +139,4 @@ foreign import javascript unsafe "\
     \     $2(); \
     \     return false; \
     \ });"
-    elementOnChange' :: JSElement -> Callback (IO ()) -> IO ()
+    elementOnChange' :: HTMLElement -> Callback (IO ()) -> IO ()

@@ -31,15 +31,16 @@ import JsHs.Types
 import JsHs.WebGL.Types (GLfloat, WebGLCanvas)
 --import JavaScript.Web.Canvas (Canvas)
 
-type Time = Double
+import Data.Coerce
+import Reactive.Banana.JsHs.Types (Coords2D (..), HTMLElement)
+import Data.Geometry.VectorMath (Vector (..), Vector2)
 
--- | Good name to call all html-js elements
-newtype JSElement = JSElement JSVal
-instance IsJSVal JSElement
+asVector :: Coords2D -> Vector2 GLfloat
+asVector = coerce
 
 -- | Shortcut to get the element from the DOM
 foreign import javascript unsafe "$r = document.getElementById($1)"
-    getElementById :: JSString -> IO JSElement
+    getElementById :: JSString -> IO HTMLElement
 
 -- | Shortcut to get the element from the DOM
 foreign import javascript unsafe "$r = document.getElementById($1)"
@@ -47,36 +48,31 @@ foreign import javascript unsafe "$r = document.getElementById($1)"
 
 -- | Get body element of the page
 foreign import javascript unsafe "$r = document.body"
-    documentBody :: IO JSElement
+    documentBody :: IO HTMLElement
 
-
-
--- | Current time in milliseconds
-foreign import javascript unsafe "$r = performance.now()"
-    getTime :: IO Time
 
 foreign import javascript unsafe "$r = $1.clientWidth"
-    getElementWidth :: JSElement -> IO GLfloat
+    getElementWidth :: HTMLElement -> IO GLfloat
 
 foreign import javascript unsafe "$r = $1.clientHeight"
-    getElementHeight :: JSElement -> IO GLfloat
+    getElementHeight :: HTMLElement -> IO GLfloat
 
 
 foreign import javascript unsafe "$1.width = $2"
-    setElementWidth :: JSElement -> GLfloat -> IO ()
+    setElementWidth :: HTMLElement -> GLfloat -> IO ()
 
 foreign import javascript unsafe "$1.height = $2"
-    setElementHeight :: JSElement -> GLfloat -> IO ()
+    setElementHeight :: HTMLElement -> GLfloat -> IO ()
 
 foreign import javascript unsafe "$1.style.width = $2 + 'px'"
-    setElementStyleWidth :: JSElement -> GLfloat -> IO ()
+    setElementStyleWidth :: HTMLElement -> GLfloat -> IO ()
 
 foreign import javascript unsafe "$1.style.height = $2 + 'px'"
-    setElementStyleHeight :: JSElement -> GLfloat -> IO ()
+    setElementStyleHeight :: HTMLElement -> GLfloat -> IO ()
 
 
 foreign import javascript unsafe "$1.insertAdjacentHTML('afterend', $2);"
-    insertAfterHTML :: JSElement -> JSString -> IO ()
+    insertAfterHTML :: HTMLElement -> JSString -> IO ()
 
 
 -- | Display loading splash
@@ -116,19 +112,19 @@ logShowable = logText . show
 
 
 foreign import javascript unsafe "$1.innerHTML = $2;"
-    setElementInnerHTML :: JSElement -> JSString -> IO ()
+    setElementInnerHTML :: HTMLElement -> JSString -> IO ()
 
 foreign import javascript unsafe "$1.style.display = 'none';"
-    hideElement :: JSElement -> IO ()
+    hideElement :: HTMLElement -> IO ()
 
 foreign import javascript unsafe "$1.style.display = 'block';"
-    showElement :: JSElement -> IO ()
+    showElement :: HTMLElement -> IO ()
 
 foreign import javascript unsafe "$r = $1.value;"
-    getInputValue :: JSElement -> IO JSString
+    getInputValue :: HTMLElement -> IO JSString
 
 foreign import javascript unsafe "$r = $1.parentNode;"
-    elementParent :: JSElement -> IO JSElement
+    elementParent :: HTMLElement -> IO HTMLElement
 
 foreign import javascript unsafe "$r = httpArgs[$1]; if(!$r){$r='';}"
     getHtmlArg :: JSString -> JSString
@@ -147,21 +143,3 @@ foreign import javascript unsafe "$r = httpArgs[$1]; if(!$r){$r='';}"
 --JSNUM(Float)
 --JSNUM(Double)
 
-
--- | Simple click on element
-data ElementClickEvent = ElementClick deriving (Eq, Show)
-
--- | Simple event when JSElement is clicked
-elementOnClick :: JSElement -> (ElementClickEvent -> IO ()) -> IO ()
-elementOnClick element clickFun = do
-    clickCallBack <- asyncCallback (clickFun ElementClick)
-    elementOnClick' element clickCallBack
-foreign import javascript unsafe "\
-    \ $1.addEventListener('click', function(event){ \
-    \     var e = window.event || event; \
-    \     e.preventDefault(); \
-    \     e.stopPropagation(); \
-    \     $2(); \
-    \     return false; \
-    \ });"
-    elementOnClick' :: JSElement -> Callback (IO ()) -> IO ()

@@ -27,17 +27,17 @@ module Program.Model.City
     -- | Store geometry
     , storeCityAsIs
     -- | reactive-banana
-    , loadingCityJSONEvent
+    , cityBehavior
     ) where
 
-import Control.Arrow ((***))
+import Control.Arrow ((***), first)
 import JsHs.Types
 import JsHs.WebGL
 --import GHCJS.Marshal.Pure
 import Data.Maybe (fromMaybe)
 
-import JsHs.Array as JS
-import JsHs.JSString
+import qualified JsHs.Array as JS
+import JsHs.JSString hiding (foldr1)
 import Data.Geometry
 import Data.Geometry.Structure.Feature
 import qualified Data.Geometry.Structure.LineString as LS
@@ -48,6 +48,8 @@ import qualified Data.Geometry.Structure.PointSet as PS
 import Program.Model.CityObject
 import Program.Model.CityGround
 import Program.Model.WiredGeometry
+import Program.Settings
+import Program.Types
 
 import Controllers.GUIEvents
 
@@ -64,7 +66,7 @@ data City = City
     , objectsIn         :: !CityObjectCollection
     , cityTransform     :: !(GLfloat, Vector2 GLfloat)
     , ground            :: !CityGround
-    , settings          :: !CitySettings
+    , csettings         :: !CitySettings
     , clutter           :: !(LS.MultiLineString 3 GLfloat, WiredGeometry)
     --, drawTextures      :: !Bool
     }
@@ -96,16 +98,46 @@ emptyCity = City
     , objectsIn = emptyCollection
     , ground = emptyGround
     , cityTransform = (0, 0)
-    , settings = defaultCitySettings
+    , csettings = defaultCitySettings
     , clutter = emptyLineSet (vector4 0.8 0.4 0.4 1)
     }
 
+-- | This is a main module export.
+--   Describes logic of city changes.
+cityBehavior :: MonadMoment m
+             => Behavior Settings
+             -> Event GeoJSONLoaded
+             -> Event ClearingGeometry
+             -> m (Event (RequireViewUpdate City), Behavior City)
+cityBehavior psets updateEvent clearEvent
+    = fmap (first filterJust)
+    . mapAccum emptyCity
+    $ unionsSnd
+      [ cityUpdate
+      , cityClear
+      ]
+  where
+    applySets = (\s f -> f $ defaultCitySettings { defScale = objectScale s}) <$> psets
+    cityUpdate = fmap u $ applySets <@> loadingCityJSONEvent updateEvent
+    cityClear  = fmap u $ clearCity <$ clearEvent
+    u f x = let y = f x in (Just (RequireViewUpdate y), y)
+
+unionsSnd :: [Event (a -> (Maybe b, a))] -> Event (a -> (Maybe b, a))
+unionsSnd [] = never
+unionsSnd xs = foldr1 (unionWith comb) xs
+  where
+    comb f g x = case f x of
+        (Nothing, r) -> g r
+        (Just y , r) -> case g r of
+            (Nothing, v) -> (Just y, v)
+            (Just z , v) -> (Just z, v)
+
+
 -- | Basic entity in the program; Defines the logic of the interaction and visualization
 newtype CityObjectCollection = CityObjectCollection JSVal
-instance LikeJS "Array" CityObjectCollection
-instance LikeJSArray "Object" CityObjectCollection where
+instance JS.LikeJS "Array" CityObjectCollection
+instance JS.LikeJSArray "Object" CityObjectCollection where
     type ArrayElem CityObjectCollection = LocatedCityObject
-
 
 loadingCityJSONEvent :: Event GeoJSONLoaded -> Event (CitySettings -> City -> City)
 loadingCityJSONEvent = fmap c
@@ -127,7 +159,7 @@ buildCity sets scenario = (,) errors City
     , objectsIn = objects
     , ground = buildGround (groundDilate sets) objects
     , cityTransform = (cscale, cshift)
-    , settings = sets
+    , csettings = sets
     , clutter = createLineSet (vector4 0.8 0.4 0.4 1) liness
     }
     where (rcscale,cshift)  = scenarioViewScaling (diagFunction sets) scenario
@@ -139,10 +171,10 @@ updateCity scenario
            city@City{cityTransform = (cscale, cshift)} = (,)
         errors
         city { objectsIn = allobjects
-             , ground = buildGround (groundDilate $ settings city) allobjects
+             , ground = buildGround (groundDilate $ csettings city) allobjects
              , clutter = appendLineSet liness (clutter city)
              }
-    where (errors,objects, liness) = processScenario (defHeight $ settings city)  (defElevation $ settings city) cscale cshift scenario
+    where (errors,objects, liness) = processScenario (defHeight $ csettings city)  (defElevation $ csettings city) cscale cshift scenario
           allobjects = JS.concat (objectsIn city) objects
 
 
@@ -155,10 +187,10 @@ foreign import javascript "$1.length"
     collectionLength :: CityObjectCollection -> Int
 
 getObject :: Int -> City -> Maybe LocatedCityObject
-getObject i City{objectsIn=objects} = asLikeJS $ js_getObject (i-1) objects
+getObject i City{objectsIn=objects} = JS.asLikeJS $ js_getObject (i-1) objects
 
 setObject :: Int -> LocatedCityObject -> City -> City
-setObject i obj city@City{objectsIn=objects} = city{objectsIn = js_setObject (i-1) (asJSVal obj) objects}
+setObject i obj city@City{objectsIn=objects} = city{objectsIn = js_setObject (i-1) (JS.asJSVal obj) objects}
 
 
 foreign import javascript unsafe "$2[$1]"
@@ -190,11 +222,11 @@ processScenario :: GLfloat -- ^ default height of buildings in camera space
                 -> GLfloat -- ^ scale objects before processing
                 -> Vector2 GLfloat -- ^ shift objects before processing
                 -> FeatureCollection -> ([JSString],CityObjectCollection, LS.MultiLineString 3 GLfloat)
-processScenario h e sc sh collection | sc <= 0 = ([pack $ "processScenario: Scale is not possible (" ++ show sc ++ ")"], fromList [], fromList [])
+processScenario h e sc sh collection | sc <= 0 = ([pack $ "processScenario: Scale is not possible (" ++ show sc ++ ")"], JS.fromList [], JS.fromList [])
                                      | otherwise = (berrs ++ lerrs, buildings, mlns)
-    where (berrs, buildings) = (toList *** fromJSArray) $ JS.mapEither (processPolygonFeature h sc sh) plgs
+    where (berrs, buildings) = (JS.toList *** JS.fromJSArray) $ JS.mapEither (processPolygonFeature h sc sh) plgs
           (_pts,lns,plgs) = filterGeometryTypes collection
-          (lerrs, mlns) = (toList *** (fromJSArray . JS.join)) $ JS.mapEither (processLineFeature e sc sh) lns
+          (lerrs, mlns) = (JS.toList *** (JS.fromJSArray . JS.join)) $ JS.mapEither (processLineFeature e sc sh) lns
 
 
 processLineFeature :: GLfloat -- ^ default z-position in camera space
@@ -204,8 +236,8 @@ processLineFeature :: GLfloat -- ^ default z-position in camera space
 processLineFeature defz scale shift sObj = JS.mapSame (PS.mapSet (\vec -> (vec - resizeVector shift) * broadcastVector scale )) <$>
     (getSizedGeoJSONGeometry (vector3 0 0 (defz / scale)) sObj >>= toMLS)
     where toMLS :: GeoJsonGeometry 3 GLfloat -> Either JSString (JS.Array (LS.LineString 3 GLfloat))
-          toMLS (GeoLineString x)      = Right $ fromList [x]
-          toMLS (GeoMultiLineString x) = Right $ toJSArray x
+          toMLS (GeoLineString x)      = Right $ JS.fromList [x]
+          toMLS (GeoMultiLineString x) = Right $ JS.toJSArray x
           toMLS _                      = Left "processLineFeature: wrong geometry type (not a line)"
 
 
@@ -235,9 +267,9 @@ storeCityAsIs City
     { objectsIn = buildings
     , clutter = (mline, _)
 --    , cityTransform = (scale, shift)
-    } = fromJSArray . fromList $
+    } = JS.fromJSArray . JS.fromList $
         (feature . GeoMultiLineString $ mline)
-        : toList (JS.map (storeCityObject 1 0 PlainFeature) buildings)
+        : JS.toList (JS.map (storeCityObject 1 0 PlainFeature) buildings)
 --        (feature . GeoMultiLineString $ PS.mapSet (\vec -> vec * broadcastVector (1/scale) + resizeVector shift ) mline)
 --        : toList (JS.map (storeCityObject scale shift PlainFeature) buildings)
 

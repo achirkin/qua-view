@@ -44,8 +44,8 @@ import Reactive.Banana.JsHs
 cameraBehavior :: MonadMoment m
                => Camera -- ^ initial camera
                -> Event PointerEvent -- ^ pointer actions
-               -> Event Double -- ^ wheel
-               -> Event (Double, Double) -- ^ resize
+               -> Event WheelEvent -- ^ wheel
+               -> Event ResizeEvent -- ^ resize
                -> Behavior Int -- ^ buttons
                -> Behavior [(Vector2 GLfloat, Vector2 GLfloat)] -- ^ [(old, new)] coordinates
                -> m (Behavior Camera)
@@ -56,12 +56,15 @@ cameraBehavior cam pointerE wheelE resizeE buttonsB coordsB = accumB cam events
                     , resizeT <$> resizeE
                     ]
     -- Modify camera with will zooming
-    wheelT :: Double -> Camera -> Camera
-    wheelT wd = scroll (realToFrac wd *0.18+0.03)
+    wheelT :: WheelEvent -> Camera -> Camera
+    wheelT WheelUp = scroll 0.2
+    wheelT WheelDown = scroll (-0.15)
     -- Modify camera according to viewport changes
-    resizeT :: (Double, Double) -> Camera -> Camera
-    resizeT (x,y) c = initCamera (realToFrac x) (realToFrac y) (newState c)
+    resizeT :: ResizeEvent -> Camera -> Camera
+    resizeT (ResizeEvent e) c = initCamera (realToFrac $ coordX e) (realToFrac $ coordY e) (newState c)
     pointerT :: Int -> [(Vector2 GLfloat, Vector2 GLfloat)] -> PointerEvent -> Camera -> Camera
+    -- freeze camera state on pointer up
+    pointerT _ _ (PointerClick  _) c@Camera{ newState = nstate} = c{oldState = nstate}
     -- freeze camera state on pointer up
     pointerT _ _ (PointerUp     _) c@Camera{ newState = nstate} = c{oldState = nstate}
     -- freeze camera state on pointer cancel
@@ -88,31 +91,6 @@ cameraBehavior cam pointerE wheelE resizeE buttonsB coordsB = accumB cam events
 
 
 
---instance Reaction Program PView PointerDownEvent "Remember Camera state" 0 where
---    react _ _ = transformCamera (\c@Camera{ newState = nstate} -> c{oldState = nstate})
-----    response _ ev _ _ view = logText ("Down: " ++ show ev) >> return (Left view)
---
---instance Reaction Program PView PointerUpEvent "Remember Camera state" 0 where
---    react _ _ = transformCamera (\c@Camera{ newState = nstate} -> c{oldState = nstate})
-----    response _ ev _ _ view = logText ("Up: " ++ show ev) >> return (Left view)
---
---instance Reaction Program PView PointerCancelEvent "Remember Camera state" 0 where
---    react _ _ = transformCamera (\c@Camera{ newState = nstate} -> c{oldState = nstate})
-----    response _ ev _ _ view = logText ("Cancel: " ++ show ev) >> return (Left view)
---
---instance Reaction Program PView PointerMoveEvent "Move Camera" 0 where
---    react _ (PMove _            _ []             )   = id
---    react _ (PMove LeftButton   _ ((npos,opos):_))   = transformCamera (dragHorizontal opos npos)
---    react _ (PMove RightButton  _ ((npos,opos):_))   = transformCamera (rotateCentered opos npos)
---    react _ (PMove MiddleButton _ ((npos,opos):_))   = transformCamera (dragVertical   opos npos)
---    react _ (PMove Touches      _ [(npos,opos)]  )   = transformCamera (dragHorizontal opos npos)
---    react _ (PMove Touches      _ [(n1,o1),(n2,o2)]) = transformCamera (twoFingerControl (o1,o2) (n1,n2))
---    react _ (PMove Touches      _ ((n1,o1):_:_:_))   = transformCamera (rotateCentered o1 n1)
-----    response _ ev _ _ view = logText ("Move: " ++ show ev) >> return (Left view)
---
---instance Reaction Program PView ResizeEvent "Resize viewport" 0 where
---    react _ (ResizeEvent w h) = transformCamera (\Camera{ newState = st} -> initCamera w h st)
-
 ----------------------------------------------------------------------------------------------
 -- Definitions -------------------------------------------------------------------------------
 ----------------------------------------------------------------------------------------------
@@ -123,7 +101,7 @@ data Camera = Camera
     , projMatrix   :: !(Matrix4 GLfloat)
     , oldState     :: !CState
     , newState     :: !CState
-    }
+    } deriving Show
 
 
 viewMatrix :: Camera -> Matrix4 GLfloat
