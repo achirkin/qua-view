@@ -5,6 +5,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE RecursiveDo #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Program.View
@@ -37,6 +38,9 @@ import JsHs.TypedArray
 import JsHs.TypedArray.IO
 import JsHs.Nullable
 import Program.Model.Camera (viewMatrix, Camera(..))
+import Reactive.Banana.JsHs
+import Reactive.Banana.Frameworks
+import Reactive.Banana.Combinators
 
 -- | Rendering global parameters
 data ViewContext = ViewContext
@@ -71,6 +75,20 @@ data SelectorObject = SelectorObject {
     }
 
 type AttribLocation = GLuint
+
+
+viewContextBehavior :: WebGLRenderingContext
+                    -> Time -- ^ start time
+                    -> Coords2D -- ^ initial vp size
+                    -> Vector3 GLfloat -- ^ sun direction
+                    -> Event ResizeEvent -- ^ resize
+                    -> MomentIO (Behavior ViewContext)
+viewContextBehavior gl t vpsize sd resEv = mdo
+  iview <- liftIO $ setupViewContext gl vpsize t sd
+  viewE <- mapEventIO (\(v, ResizeEvent c) -> updateViewPortSize c v)
+                      $ fmap (,) viewB <@> resEv
+  viewB <- stepper iview viewE
+  return viewB
 
 
 -- | Our meshes together with transforms could be drawn - so they implement this interface
@@ -121,7 +139,7 @@ instance ( SpaceTransform s 3 GLfloat
 
 -- | Create default world
 setupViewContext :: WebGLRenderingContext
-                 -> Camera-- ^ active camera
+                 -> Coords2D -- ^ active camera
                  -> Time -- ^ start time
                  -> Vector3 GLfloat -- ^ sun direction
                  -> IO ViewContext
@@ -153,9 +171,9 @@ setupViewContext gl cam t sd = do
             , vTime      = t
             }
         }
-    where vps@(vpWidth, vpHeight) = round *** round $ viewportSize cam
+    where vps@(vpWidth, vpHeight) = round *** round $ unpackCoords2D cam
 
-updateViewPortSize :: Camera-- ^ active camera
+updateViewPortSize :: Coords2D -- ^ active camera
                    -> ViewContext
                    -> IO ViewContext
 updateViewPortSize cam c@ViewContext
@@ -166,7 +184,7 @@ updateViewPortSize cam c@ViewContext
     deleteFramebuffer gl sbuf -- TODO: do proper delete and update of framebuffers
     sbuf' <- initSelectorFramebuffer gl vps
     return c{selector = sobj{sbuffer = sbuf'}}
-    where vps@(vpWidth, vpHeight) = round *** round $ viewportSize cam
+    where vps@(vpWidth, vpHeight) = round *** round $ unpackCoords2D cam
 
 
 clearScreen :: ViewContext -> IO ()

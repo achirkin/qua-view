@@ -217,7 +217,7 @@ vertBuilding = unlines [
   "void main(void) {",
   "  vec4 globalPos = uModelViewM * vec4(aVertexPosition, 1.0);",
   "  gl_Position = uProjM * globalPos;",
-  "  vDist = globalPos.xyz/globalPos.w/150.0;",
+  "  vDist = globalPos.xyz/(globalPos.w*150.0);",
   "  vec4 tNormal = normalize(uModelViewM * vec4(aVertexNormal, 0.0));",
   "  vColor = uVertexColor * (1.0 + 0.3 * dot(tNormal,vec4(uSunDir, 0.0)) * sign(dot(tNormal,globalPos)));",
   "  vTextureCoord = aTextureCoord;",

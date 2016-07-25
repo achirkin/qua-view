@@ -11,6 +11,7 @@
 --
 -----------------------------------------------------------------------------
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecursiveDo #-}
 
 module Program where
 
@@ -34,16 +35,19 @@ import Program.Model.WiredGeometry
 import Program.View.CityView ()
 import Program.View.WiredGeometryView ()
 import Program.View
+import Program.Settings
+import Program.Types
 
-import Services
-import qualified Services.Isovist as Services
-import qualified Services.Radius as Services
 
 import Reactive.Banana.Combinators
 import Reactive.Banana.Frameworks
 import Reactive.Banana.JsHs
 
+import JsHs.Debug
+
 data Profile = Full | ExternalEditor | ExternalViewer deriving (Show, Eq)
+
+
 
 -- | Data type representing the whole program state
 data Program = Program
@@ -51,36 +55,24 @@ data Program = Program
     , decGrid  :: !WiredGeometry
     , city     :: !City
     , userRole :: !Profile
-    , controls :: !Controls
+    , settings :: !Settings
     }
 
-data Controls = Controls
-    { selectedObject    :: !Int
-    , activeService     :: !ServiceBox
-    , availableServices :: ![ServiceBox]
-    , objectScale       :: !(Maybe GLfloat)
-    }
 
-initProgram :: GLfloat -- ^ width of the viewport
-            -> GLfloat -- ^ height of the viewport
-            -> CState -- ^ initial camera state
-            -> Profile -- ^ determine the functionality of the program
-            -> Maybe GLfloat -- ^ default scaling of the objects
-            -> Program
-initProgram vw vh cstate userProfile objScale = Program
-    { camera = initCamera vw vh cstate
-    , decGrid = createDecorativeGrid 500 100 (vector4 0.6 0.6 0.8 1)
-    , city = emptyCity -- buildCity [] [] [] []
-    , controls = Controls
-        { selectedObject = 0
-        , activeService = isovistService -- radService
-        , availableServices = [radService, isovistService]
-        , objectScale = objScale
-        }
+initProgram :: Profile -- ^ determine the functionality of the program
+            -> Behavior Settings
+            -> Behavior Camera
+            -> Behavior City
+            -> Behavior Program
+initProgram userProfile ctrlsB camB ciB = (\cls cam ci -> Program
+    { camera = cam
+    , decGrid = dg
+    , city = ci
+    , settings = cls
     , userRole = userProfile
-    } where radService = ServiceBox . Services.Radius $ vector3 0 3 5
-            isovistService = ServiceBox (Services.Isovist Services.Area)
-
+    }) <$> ctrlsB <*> camB <*> ciB
+  where
+    dg = createDecorativeGrid 500 100 (vector4 0.6 0.6 0.8 1)
 
 
 
@@ -95,73 +87,61 @@ data PView = PView
     }
 
 
-initView :: Program -> WebGLCanvas -> IO PView
-initView prog@Program
-    { camera = cam
-    } canvas = do
-    -- current time
-    ctime <- getTime
-    -- init GL
-    gl <- getWebGLContext canvas
-    -- init Context
-    ctx <- setupViewContext gl cam ctime (vector3 (-0.5) (-0.6) (-1))
-    -- init object views
-    dgview <- createView gl (decGrid prog)
-    cview <- createView gl (city prog)
-    -- done!
-    return PView
-        { context      = ctx
-        , dgView       = dgview
-        , cityView     = cview
---        , luciClient   = Nothing
---        , luciScenario = Nothing
-        , scUpToDate   = False
-        }
-
-
-cityUpdates :: Event (CitySettings -> City -> City)
-            -> Event ((Program, IO PView) -> (Program, IO PView ))
-cityUpdates = fmap c
-  where
-    c f (program, ioview) =
-      let np = program
-            { city = f (defaultCitySettings { defScale = objectScale . controls $ program})
-                       (city program)
-            }
-          ionv = ioview >>= \view -> ((\cv -> view{cityView = cv})
-                            <$> createView (glctx $ context view) (city np))
-      in ( np, ionv )
-
-cityClears :: Event ClearingGeometry
-           -> Event ((Program, IO PView) -> (Program, IO PView ))
-cityClears = fmap c
-  where
-    c _ (program, ioview) =
-      let np = program { city = clearCity (city program) }
-          ionv = ioview >>= updateProgramView "Cleared geometry." np
-      in (np, ionv)
-
-
-renderings :: Event (Double, Program, PView) -> MomentIO (Event PView)
-renderings = mapEventIO (\(t,p,v) -> renderScene t p v )
-
-renderScene :: Double -> Program -> PView -> IO PView
+--
+renderScene :: Time -> Program -> PView -> IO ()
 renderScene ctime program view = do
     -- prepare rendering
     ctx <- prepareRenderState (context view) (camera program) ctime
+    print ctime
+    printAny (context view)
     -- render
     clearScreen ctx
     draw ctx (decGrid program) (dgView view)
     draw ctx (city program) (cityView view)
     -- done!
-    return view{context = ctx}
 
-updateProgramView :: String -> Program -> PView -> IO PView
-updateProgramView msg program pview = do
-        getElementById "clearbutton" >>= elementParent >>= hideElement
-        cityView' <- updateView (glctx $ context pview) (city program) (cityView pview)
-        logText msg
-        return pview{cityView = cityView', scUpToDate = False}
+
+viewBehavior :: WebGLCanvas
+             -> Program
+             -> Coords2D -- ^ initial vp size
+             -> Event ResizeEvent -- ^ resize
+             -> Event (RequireViewUpdate City)
+             -> MomentIO (Behavior PView)
+viewBehavior canvas prog isize resEvents cityUpdates = mdo
+    -- current time
+    ctime <- liftIO getTime
+    -- init GL
+    gl <- liftIO $ getWebGLContext canvas
+    -- init Context
+    ctxB <- viewContextBehavior gl ctime isize (vector3 (-0.5) (-0.6) (-1)) resEvents
+    -- init object views
+    dgview <- liftIO $ createView gl (decGrid prog)
+    cview <- liftIO $ createView gl (city prog)
+    cviewE <- mapEventIO (\(RequireViewUpdate c) -> createView gl c) cityUpdates
+    cviewB <- stepper cview cviewE
+    -- done!
+    return $ (\ctx cv -> PView
+        { context      = ctx
+        , dgView       = dgview
+        , cityView     = cv
+--        , luciClient   = Nothing
+--        , luciScenario = Nothing
+        , scUpToDate   = False
+        }) <$> ctxB <*> cviewB
+
+
+--  iview <- liftIO $ setupViewContext gl vpsize t sd
+--  viewE <- mapEventIO (\(v, ResizeEvent c) -> updateViewPortSize c v)
+--                      $ fmap (,) viewB <@> resEv
+--  viewB <- stepper iview viewE
+
+
+--updateProgramView :: String -> Program -> PView -> IO PView
+--updateProgramView msg program pview = do
+--        getElementById "clearbutton" >>= elementParent >>= hideElement
+--        cityView' <- updateView (glctx $ context pview) (city program) (cityView pview)
+--        logText msg
+--        return pview{cityView = cityView', scUpToDate = False}
 
 
 
@@ -191,7 +171,7 @@ selection beh ev = mapEventIO spawnEvent $ (,) <$> beh <@> filterE clickEvent ev
     clickEvent _ = False
     spawnEvent ((p,v), PointerUp e) = getSelectId (getCoord e) p v
     spawnEvent _ = undefined
-    getCoord e = let c = pointers e JS.! 0 in vector2 (realToFrac $ posX c) (realToFrac $ posY c)
+    getCoord e = asVector (pointers e JS.! 0)
 
 
 
@@ -208,7 +188,7 @@ selectionConfirm beh ev = fmap filterJust
       return $ if i /= 0 then Just $ SelectionConfirmEvent i
                          else Nothing
     spawnEvent _ = undefined
-    getCoord e = let c = pointers e JS.! 0 in vector2 (realToFrac $ posX c) (realToFrac $ posY c)
+    getCoord e = asVector (pointers e JS.! 0)
 
 
 --instance Reaction Program PView PointerClickEvent "Get selection" 1 where
