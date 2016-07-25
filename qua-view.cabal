@@ -28,7 +28,8 @@ executable qua-view
         reactive-banana -any,
         reactive-banana-ghcjs -any,
         stm >=2.4,
-        template-haskell >=2.10
+        transformers -any
+--        template-haskell >=2.10
     cpp-options: -DGHCJS_BROWSER
     js-sources:
         jsbits/PointSet.js

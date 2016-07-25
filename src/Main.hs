@@ -7,6 +7,7 @@ module Main (
 
 
 -- Various thins I use
+import Control.Arrow (second)
 import Data.Geometry
 import JsHs.JSString (JSString, append, unpack')
 import Control.Monad (void, when)
@@ -24,17 +25,18 @@ import Program
 -- Events
 --import Controllers.Pointer
 --import Controllers.ElementResizing
---import Controllers.GUIEvents
---import Controllers.GeoJSONFileImport
+import Controllers.GUIEvents
+import qualified Controllers.GeoJSONFileImport as JFI
 
 -- Get EventSense instances so that we can pass events into processing cycle
-import Program.Reactions ()
+--import Program.Reactions ()
 
 -- functional reactive programming
 import Reactive.Banana.Frameworks
 import Reactive.Banana.Combinators
 import Reactive.Banana.JsHs
 import Program.Model.Camera
+import Program.Model.City
 import Program.View
 
 main :: IO ()
@@ -47,6 +49,14 @@ main = do
 --    print $ viewHeight
     -- drawing area
     canvas <- getElementById "glcanvas"
+    -- "import geometry" button converts GeoJSON into internal representation
+    importButton <- getElementById "jsonfileinput"
+    clearGeomButton <- getElementById "cleargeombutton"
+    (clearGeomH, clearGeomFire) <- newAddHandler
+    elementOnClick clearGeomButton (const $ clearGeomFire ClearingGeometry)
+    -- geoJSON updates
+    geoJSONImportsHandler <- JFI.geoJSONImports
+    JFI.registerButton geoJSONImportsHandler importButton
 
     -- get default scaling level
     let geomScale = readMaybe . unpack' $ getHtmlArg "scale"
@@ -56,7 +66,7 @@ main = do
                     "edit" -> ExternalEditor
                     "view" -> ExternalViewer
                     _      -> Full
-    customGreetings userProfile
+--    customGreetings userProfile
     -- create program and view
     let program = initProgram viewWidth viewHeight
             CState { viewPoint  = vector3 3 0 0,
@@ -70,6 +80,14 @@ main = do
     -- reactive-banana event network
     heh <- elementHandler $ coerce canvas
     network <- compile $ mdo
+      -- GeoJSON updates
+      geoJSONImportE <- fromAddHandler $ JFI.addHandler geoJSONImportsHandler
+      clearGeometryE <- fromAddHandler clearGeomH
+      let cityUpdatesE = unions
+                [ cityUpdates $ loadingCityJSONEvent geoJSONImportE
+                , cityClears clearGeometryE
+                ]
+      -- canvas events
       pointerE <- pointerEvents heh
       wheelE   <- wheelEvents heh
       resizeE  <- resizeEvents heh
@@ -78,6 +96,7 @@ main = do
       buttonsB' <- buttons heh
       ctrlKeyB <- ctrlKey heh
       shiftKeyB <- shiftKey heh
+
       let modButtons True True 1 = 4
           modButtons True False 1 = 2
           modButtons False True 1 = 2
@@ -90,11 +109,26 @@ main = do
                                  resizeE
                                  buttonsB
                                  coordsB
-      let programB = (\c -> program{camera=c}) <$> cameraB
---      mapEventIO :: (a -> IO b) -> Event a -> MomentIO (Event b)
+
+      -- update city with geoJSON
+      programViewE' <- return (second return <$> programViewE) +^^+ accumE (program, return view) cityUpdatesE
+          >>= mapEventIO (\(p,iov) -> (,) p <$> iov)
+      programViewB <- stepper (program, view) programViewE'
+      -- update camera
+      let programViewB'' = (\(p,v) c -> (p{camera=c}, v)) <$> programViewB <*> cameraB
+      -- render scene
       updateE <- updateEvents heh
-      pviewB <- stepper view pviewE
-      pviewE <- mapEventIO (\(t,p,v) -> renderScene t p v ) (((\p v t -> (t,p,v)) <$> programB <*> pviewB) <@> updateE)
+      programViewE <- mapEventIO (\(p,v,t) -> (,) p <$> renderScene t p v)
+                      (((\(p,v) t -> (p,v,t)) <$> programViewB'') <@> updateE)
+
+      selectionE <- selection programViewB pointerE
+      let updateSelE = unions
+              [ selectOnScene wheelE
+              , selectOnScene resizeE
+              , selectOnScene ]
+
+
+--      let programViewB = unionWith (\_ b -> b) pviewRenderE cityUpdatesE
       -- print camera state
 --      reactimate $ (print . newState) <$> cameraB <@ updateE
       -- print current pressed buttons
@@ -103,6 +137,10 @@ main = do
       return ()
     actuate network
     play heh
+
+
+--unionPviews [] = never
+--unions xs = foldr1 (unionWith (.)) xs
 
 --    -- run main reactive programming cycle and get event submission functions (in EventHole)
 --    eventHole <- reactiveCycle program view
@@ -190,26 +228,30 @@ main = do
     programIdle
 
 
-customGreetingHTML :: Profile -> JSString
-customGreetingHTML profile = wrapf $ case profile of
-    Full ->
-        " You are in a standard Luci-enabled mode. Use control panel on the right hand-side to \
-        \ work with scenarios, available Luci computing services, and GeoJSON geometry."
-    ExternalEditor ->
-        " You are in the editor mode. \
-        \ Edit the geometry according to a given task, and then \
-        \ save it on our server."
-    ExternalViewer ->
-        " You are in the viewer mode. \
-        \ You can browse and change geometry locally, but no changes would be saved on our server."
-    where thead = "<hr><div style=\"font-size: 125%; text-align: justify;\">"
-          ttail = "</div>"
-          wrapf t = thead `append` t `append` ttail
+--customGreetingHTML :: Profile -> JSString
+--customGreetingHTML profile = wrapf $ case profile of
+--    Full ->
+--        " You are in a standard Luci-enabled mode. Use control panel on the right hand-side to \
+--        \ work with scenarios, available Luci computing services, and GeoJSON geometry."
+--    ExternalEditor ->
+--        " You are in the editor mode. \
+--        \ Edit the geometry according to a given task, and then \
+--        \ save it on our server."
+--    ExternalViewer ->
+--        " You are in the viewer mode. \
+--        \ You can browse and change geometry locally, but no changes would be saved on our server."
+--    where thead = "<hr><div style=\"font-size: 125%; text-align: justify;\">"
+--          ttail = "</div>"
+--          wrapf t = thead `append` t `append` ttail
+--
+--customGreetings :: Profile -> IO ()
+--customGreetings profile = getElementById "greetings"
+--    >>= flip insertAfterHTML (customGreetingHTML profile)
 
-customGreetings :: Profile -> IO ()
-customGreetings profile = getElementById "greetings"
-    >>= flip insertAfterHTML (customGreetingHTML profile)
 
+
+(+^^+) :: Applicative m => m (Event e) -> m (Event e) -> m (Event e)
+a +^^+ b = unionWith (\_ b -> b) <$> a <*> b
 
 
 combinePointers :: JS.Array PointerPos -> JS.Array PointerPos -> [(Vector2 GLfloat, Vector2 GLfloat)]
@@ -217,14 +259,3 @@ combinePointers a b = zipWith (\p1 p2 -> ( vector2 (realToFrac $ posX p1) (realT
                                          , vector2 (realToFrac $ posX p2) (realToFrac $ posY p2)
                                          )
                               ) (JS.toList a) (JS.toList b)
-
-renderScene :: Double -> Program -> PView -> IO PView
-renderScene ctime program view = do
-    -- prepare rendering
-    ctx <- prepareRenderState (context view) (camera program) ctime
-    -- render
-    clearScreen ctx
-    draw ctx (decGrid program) (dgView view)
-    draw ctx (city program) (cityView view)
-    -- done!
-    return view{context = ctx}

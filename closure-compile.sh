@@ -3,5 +3,6 @@ closure-compiler --warning_level=QUIET\
                  --compilation_level=ADVANCED_OPTIMIZATIONS\
                  --define='DEBUG=false'\
                  --externs=web/numeric.min.js\
-        web/faultylabs.md5.js web/luciConnect.js\
-        dist/build/qua-view/qua-view.jsexe/all.js\ > web/qua-view.js
+ dist/build/qua-view/qua-view.jsexe/all.js > web/qua-view.js
+#        web/faultylabs.md5.js web/luciConnect.js\
+#        dist/build/qua-view/qua-view.jsexe/all.js > web/qua-view.js

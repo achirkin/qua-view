@@ -14,8 +14,8 @@
 -----------------------------------------------------------------------------
 
 module Controllers.GeoJSONFileImport
-    ( onGeoJSONFileImport
-    , loadGeoJSONFromLink
+    ( GeoJSONImports, addHandler, registerButton, loadFromLink
+    , geoJSONImports
     ) where
 
 
@@ -32,6 +32,26 @@ import GHCJS.Useful
 import Controllers.GUIEvents
 import Data.Coerce (coerce)
 
+import Reactive.Banana.Frameworks
+--import Reactive.Banana.Combinators
+--import Control.Monad.IO.Class
+
+
+data GeoJSONImports = GeoJSONImports
+  { addHandler :: AddHandler GeoJSONLoaded
+  , registerButton :: JSElement -> IO ()
+  , loadFromLink :: JSString -> Bool -> IO ()
+  }
+
+geoJSONImports :: IO GeoJSONImports
+geoJSONImports = do
+  (h,fire) <- newAddHandler
+  return GeoJSONImports
+    { addHandler = h
+    , registerButton = flip onGeoJSONFileImport fire
+    , loadFromLink = \s d -> loadGeoJSONFromLink s d fire
+    }
+
 onGeoJSONFileImport :: JSElement -> GeoJSONLoadCallBack -> IO ()
 onGeoJSONFileImport importButton callback = elementOnChange importButton $ do
     programInProgress
@@ -43,16 +63,6 @@ onGeoJSONFileImport importButton callback = elementOnChange importButton $ do
         { isDynamic          = isBehChecked
         , featureCollection  = gfc
         }
---    c <- getElementFiles importButton >>= fromJSRef_aeson
---    case c of
---        Nothing -> logText "Could not read geometry"
---        Just gfc -> do
---            isBehChecked <- isElementChecked  "dynamicstaticswitcher"
---            logText "GeoJSON FeatureCollection is imported."
---            callback GeoJSONLoaded
---                { isDynamic          = isBehChecked
---                , featureCollection  = gfc
---                }
     programIdle
 
 loadGeoJSONFromLink :: JSString -> Bool -> GeoJSONLoadCallBack -> IO ()

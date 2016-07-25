@@ -26,6 +26,8 @@ module Program.Model.City
     , processScenario, scenarioViewScaling
     -- | Store geometry
     , storeCityAsIs
+    -- | reactive-banana
+    , loadingCityJSONEvent
     ) where
 
 import Control.Arrow ((***))
@@ -47,6 +49,9 @@ import Program.Model.CityObject
 import Program.Model.CityGround
 import Program.Model.WiredGeometry
 
+import Controllers.GUIEvents
+
+import Reactive.Banana.Combinators
 --import JsHs.Debug
 
 --import JsHs.Debug
@@ -102,6 +107,15 @@ instance LikeJSArray "Object" CityObjectCollection where
     type ArrayElem CityObjectCollection = LocatedCityObject
 
 
+loadingCityJSONEvent :: Event GeoJSONLoaded -> Event (CitySettings -> City -> City)
+loadingCityJSONEvent = fmap c
+  where
+    c e sets = snd . loadingCityJSON sets e
+
+loadingCityJSON :: CitySettings -> GeoJSONLoaded -> City -> ([JSString], City)
+loadingCityJSON citySettings GeoJSONLoaded { featureCollection = col } ci =
+  if isEmptyCity ci then buildCity citySettings col
+                    else updateCity col ci
 
 
 buildCity :: CitySettings -- ^ desired diagonal length of the city

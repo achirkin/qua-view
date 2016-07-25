@@ -48,6 +48,18 @@ instance LikeJS "Array" COViewCollection
 instance LikeJSArray "Object" COViewCollection where
     type ArrayElem COViewCollection = CityObjectView
 
+
+
+--         } prog view = do
+--            cview <- createView (glctx $ context view) (city prog)
+----            let (errors, city) = buildCity 3 200 col
+----            let (scale,shift) = scenarioViewScaling 200 col
+----                (errors, cityObjs) = processScenario 3 scale shift col
+----            mapM_ print errors
+----            printVal . unsafeCoerce . clutter $ city prog
+--            return view{cityView = cview}
+
+
 data CityView = CityView
     { viewShader   :: !ShaderProgram
     , selectShader :: !ShaderProgram

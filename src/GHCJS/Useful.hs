@@ -25,7 +25,7 @@ import JsHs.JSString
 import Control.Concurrent (threadDelay)
 --import Control.Monad (liftM)
 ---- import GHCJS.Foreign
---JsHs.Callback (Callback)
+import JsHs.Callback (Callback, asyncCallback)
 --import GHCJS.Marshal
 import JsHs.Types
 import JsHs.WebGL.Types (GLfloat, WebGLCanvas)
@@ -147,3 +147,21 @@ foreign import javascript unsafe "$r = httpArgs[$1]; if(!$r){$r='';}"
 --JSNUM(Float)
 --JSNUM(Double)
 
+
+-- | Simple click on element
+data ElementClickEvent = ElementClick deriving (Eq, Show)
+
+-- | Simple event when JSElement is clicked
+elementOnClick :: JSElement -> (ElementClickEvent -> IO ()) -> IO ()
+elementOnClick element clickFun = do
+    clickCallBack <- asyncCallback (clickFun ElementClick)
+    elementOnClick' element clickCallBack
+foreign import javascript unsafe "\
+    \ $1.addEventListener('click', function(event){ \
+    \     var e = window.event || event; \
+    \     e.preventDefault(); \
+    \     e.stopPropagation(); \
+    \     $2(); \
+    \     return false; \
+    \ });"
+    elementOnClick' :: JSElement -> Callback (IO ()) -> IO ()
