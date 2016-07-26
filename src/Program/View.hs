@@ -30,7 +30,7 @@ import Control.Arrow ((***))
 import JsHs.WebGL
 ---- import GHCJS.Foreign
 --import GHCJS.Marshal.Pure (pFromJSVal)
-import GHCJS.Useful
+--import GHCJS.Useful
 
 import Data.Geometry
 import Data.Geometry.Transform
@@ -79,7 +79,7 @@ type AttribLocation = GLuint
 
 viewContextBehavior :: WebGLRenderingContext
                     -> Time -- ^ start time
-                    -> Coords2D -- ^ initial vp size
+                    -> (GLfloat,GLfloat) -- ^ initial vp size
                     -> Vector3 GLfloat -- ^ sun direction
                     -> Event ResizeEvent -- ^ resize
                     -> MomentIO (Behavior ViewContext)
@@ -139,7 +139,7 @@ instance ( SpaceTransform s 3 GLfloat
 
 -- | Create default world
 setupViewContext :: WebGLRenderingContext
-                 -> Coords2D -- ^ active camera
+                 -> (GLfloat,GLfloat)  -- ^ active camera
                  -> Time -- ^ start time
                  -> Vector3 GLfloat -- ^ sun direction
                  -> IO ViewContext
@@ -171,7 +171,7 @@ setupViewContext gl cam t sd = do
             , vTime      = t
             }
         }
-    where vps@(vpWidth, vpHeight) = round *** round $ unpackCoords2D cam
+    where vps@(vpWidth, vpHeight) = round *** round $ cam
 
 updateViewPortSize :: Coords2D -- ^ active camera
                    -> ViewContext
@@ -209,7 +209,7 @@ prepareRenderState vc@ViewContext
 
 
 
-applySelector :: (Selectable a)=> ViewContext -> Camera -> a -> View a -> IO ViewContext
+applySelector :: (Selectable a) => ViewContext -> Camera -> a -> View a -> IO ViewContext
 applySelector vc'@ViewContext
         { glctx    = gl
         } cam obj view = do

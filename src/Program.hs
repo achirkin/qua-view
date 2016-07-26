@@ -18,7 +18,7 @@ module Program where
 ---- import GHCJS.Foreign
 --import GHCJS.Marshal
 --import Program.Model.GeoJSON
-import Controllers.GUIEvents
+--import Controllers.GUIEvents
 
 --import JavaScript.Web.Canvas (Canvas)
 import JsHs.WebGL
@@ -43,7 +43,7 @@ import Reactive.Banana.Combinators
 import Reactive.Banana.Frameworks
 import Reactive.Banana.JsHs
 
-import JsHs.Debug
+--import JsHs.Debug
 
 data Profile = Full | ExternalEditor | ExternalViewer deriving (Show, Eq)
 
@@ -88,46 +88,73 @@ data PView = PView
 
 
 --
-renderScene :: Time -> Program -> PView -> IO ()
-renderScene ctime program view = do
+--renderScene :: Time -> Program -> PView -> IO ()
+--renderScene ctime program view = do
+--    -- prepare rendering
+--    ctx <- prepareRenderState (context view) (camera program) ctime
+--    -- render
+--    -- setup WebGL
+--    clearScreen ctx
+--    draw ctx (decGrid program) (dgView view)
+--    draw ctx (city program) (cityView view)
+--    -- done!
+
+renderScene' :: Program -> PView -> Time -> IO PView
+renderScene' program view ctime = do
     -- prepare rendering
     ctx <- prepareRenderState (context view) (camera program) ctime
-    print ctime
-    printAny (context view)
     -- render
     clearScreen ctx
     draw ctx (decGrid program) (dgView view)
     draw ctx (city program) (cityView view)
     -- done!
+    return view{ context = ctx}
 
 
 viewBehavior :: WebGLCanvas
-             -> Program
-             -> Coords2D -- ^ initial vp size
              -> Event ResizeEvent -- ^ resize
              -> Event (RequireViewUpdate City)
+             -> Event Time -- ^ renderings
+             -> Behavior Program
              -> MomentIO (Behavior PView)
-viewBehavior canvas prog isize resEvents cityUpdates = mdo
-    -- current time
-    ctime <- liftIO getTime
+viewBehavior canvas resEvents cityUpdates renderings programB = mdo
+    -- initial values
+    itime <- liftIO getTime
+    iprog <- valueB programB
     -- init GL
     gl <- liftIO $ getWebGLContext canvas
     -- init Context
-    ctxB <- viewContextBehavior gl ctime isize (vector3 (-0.5) (-0.6) (-1)) resEvents
+    ctxB <- viewContextBehavior gl itime (viewportSize $ camera iprog)
+                                         (vector3 (-0.5) (-0.6) (-1)) resEvents
+    ictx <- valueB ctxB
     -- init object views
-    dgview <- liftIO $ createView gl (decGrid prog)
-    cview <- liftIO $ createView gl (city prog)
+    dgview <- liftIO $ createView gl (decGrid iprog)
+    cview <- liftIO $ createView gl (city iprog)
     cviewE <- mapEventIO (\(RequireViewUpdate c) -> createView gl c) cityUpdates
-    cviewB <- stepper cview cviewE
+--    cviewB <- stepper cview cviewE
+
     -- done!
-    return $ (\ctx cv -> PView
-        { context      = ctx
-        , dgView       = dgview
-        , cityView     = cv
---        , luciClient   = Nothing
---        , luciScenario = Nothing
-        , scUpToDate   = False
-        }) <$> ctxB <*> cviewB
+    let ipview = PView
+          { context      = ictx
+          , dgView       = dgview
+          , cityView     = cview
+  --        , luciClient   = Nothing
+  --        , luciScenario = Nothing
+          , scUpToDate   = False
+          }
+        pviewE1 = (\ctx cv -> PView
+          { context      = ctx
+          , dgView       = dgview
+          , cityView     = cv
+  --        , luciClient   = Nothing
+  --        , luciScenario = Nothing
+          , scUpToDate   = False
+          }) <$> ctxB <@> cviewE
+    pviewE2 <- mapEventIO id $ renderScene' <$> programB <*> pviewB <@> renderings
+    let pviewEAll :: Event PView
+        pviewEAll = unionWith (const id) pviewE2 pviewE1
+    pviewB <- stepper ipview pviewEAll :: MomentIO (Behavior PView)
+    return pviewB
 
 
 --  iview <- liftIO $ setupViewContext gl vpsize t sd
