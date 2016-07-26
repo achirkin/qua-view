@@ -6,11 +6,13 @@ module Main (
 ) where
 
 
+--import Control.Concurrent
+
 -- Various thins I use
-import Control.Arrow (second)
+--import Control.Arrow (second)
 import Data.Geometry
-import JsHs.JSString (JSString, append, unpack')
-import Control.Monad (void, when)
+import JsHs.JSString (unpack') -- JSString, append
+--import Control.Monad (void, when)
 import GHCJS.Useful
 import Text.Read (readMaybe)
 import Data.Coerce
@@ -40,7 +42,7 @@ import Program.Model.City
 --import Program.View
 import Program.Settings
 
-import JsHs.Debug
+--import JsHs.Debug
 
 main :: IO ()
 main = do
@@ -115,12 +117,11 @@ main = do
 
       let programB = initProgram userProfile settingsB cameraB cityB
 
-      iprogram <- valueB programB
-      viewB <- viewBehavior canv iprogram isize resizeE cityChanges
-
       -- render scene
       updateE <- updateEvents heh
-      reactimate $ (\p v t -> renderScene t p v) <$> programB <*> viewB <@> updateE
+      _viewB <- viewBehavior canv resizeE cityChanges updateE programB
+
+      return ()
 
     actuate network
     play heh

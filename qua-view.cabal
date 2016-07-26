@@ -42,7 +42,6 @@ executable qua-view
         Controllers.GUIEvents
         Controllers.GeoJSONFileImport
         Controllers.LuciClient
-        Controllers.Pointer
         Data.Geometry.Structure
         Data.Geometry.Structure.Feature
         Data.Geometry.Structure.LineString
