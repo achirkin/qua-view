@@ -101,14 +101,16 @@ data PView = PView
 
 renderScene' :: Program -> PView -> Time -> IO PView
 renderScene' program view ctime = do
+    -- selector rendering
+    ctx' <- applySelector (context view) (camera program) (city program) (cityView view)
     -- prepare rendering
-    ctx <- prepareRenderState (context view) (camera program) ctime
+    ctx <- prepareRenderState ctx' (camera program) ctime
     -- render
     clearScreen ctx
     draw ctx (decGrid program) (dgView view)
     draw ctx (city program) (cityView view)
     -- done!
-    return view{ context = ctx}
+    return view{ context = ctx }
 
 
 viewBehavior :: WebGLCanvas

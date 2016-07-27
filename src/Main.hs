@@ -30,6 +30,10 @@ import Program
 import Controllers.GUIEvents
 import qualified Controllers.GeoJSONFileImport as JFI
 
+
+import qualified Data.Geometry.Transform as T
+import Program.Model.CityObject
+
 -- Get EventSense instances so that we can pass events into processing cycle
 --import Program.Reactions ()
 
@@ -39,7 +43,7 @@ import Reactive.Banana.Combinators
 import Reactive.Banana.JsHs
 import Program.Model.Camera
 import Program.Model.City
---import Program.View
+import Program.View
 import Program.Settings
 
 --import JsHs.Debug
@@ -103,23 +107,65 @@ main = do
           buttonsB = modButtons <$> shiftKeyB <*> ctrlKeyB <*> buttonsB'
           coordsB = combinePointers <$> oldPointersB <*> curPointersB
 
+      -----------------------
       -- program components
+      -----------------------
+
+      -- selection must go first for some reason (otherwise blocked by MVar)
+      heldObjIdB <- heldObjectIdBehavior pointerE cameraB (context <$> viewB)
+      selObjIdB  <- selectedObjectIdBehavior pointerE cameraB (context <$> viewB)
+      let allowCameraMoveB = f <$> selObjIdB <*> heldObjIdB
+            where
+              f _ Nothing = True
+              f Nothing _ = True
+              f (Just i) (Just j) | j /= i    = True
+                                  | otherwise = False
+
+      -- conrol camera
       cameraB <- cameraBehavior icamera
                                 pointerE
                                 wheelE
                                 resizeE
                                 buttonsB
                                 coordsB
+                                allowCameraMoveB
+
+      -- object transform applies to any active object
+      let objectTransformE :: Event (ObjectTransform T.QFTransform CityObject)
+          objectTransformE = objectTransformEvents pointerE
+                                                   buttonsB
+                                                   coordsB
+                                                   cameraB
+      let objectTransformAndIdE = filterJust $ f <$> selObjIdB <*> heldObjIdB <@> objectTransformE
+            where
+              f (Just i) Nothing TransformStart = Just (i, TransformStart)
+              f _ Nothing _ = Nothing
+              f Nothing _ _       = Nothing
+              f (Just i) (Just j) t | j /= i    = Nothing
+                                    | otherwise = Just (i, t)
+
+
+
 
       let settingsB = pure defaultSettings { objectScale = geomScale}
 
-      (cityChanges, cityB) <- cityBehavior settingsB geoJSONImportE clearGeometryE
+      -- city
+      (cityChanges, cityB) <- cityBehavior settingsB
+                                           selObjIdB
+                                           objectTransformAndIdE
+                                           geoJSONImportE
+                                           clearGeometryE
 
       let programB = initProgram userProfile settingsB cameraB cityB
 
       -- render scene
       updateE <- updateEvents heh
-      _viewB <- viewBehavior canv resizeE cityChanges updateE programB
+      viewB <- viewBehavior canv resizeE cityChanges updateE programB
+
+
+      selHelB <- stepper (Nothing, Nothing) selHelE
+      let selHelE = filterApply ((/=) <$> selHelB) $ (,) <$> selObjIdB <*> heldObjIdB <@ updateE
+--      reactimate $ (\c t -> putStrLn $ show (activeObjId c) ++ " " ++ show t) <$> cityB <@> selHelE
 
       return ()
 

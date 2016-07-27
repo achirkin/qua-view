@@ -20,6 +20,7 @@ module Program.Model.Camera
     , scroll, dragHorizontal, dragVertical, rotateCentered, twoFingerControl
     , dragObject, rotateObject, twoFingerObject
     , cameraBehavior
+    , ObjectTransform (..), objectTransformEvents
     ) where
 
 import Control.Monad (ap)
@@ -48,10 +49,12 @@ cameraBehavior :: MonadMoment m
                -> Event ResizeEvent -- ^ resize
                -> Behavior Int -- ^ buttons
                -> Behavior [(Vector2 GLfloat, Vector2 GLfloat)] -- ^ [(old, new)] coordinates
+               -> Behavior Bool -- ^ allow to move camera (is there object dragging or not)
                -> m (Behavior Camera)
-cameraBehavior cam pointerE wheelE resizeE buttonsB coordsB = accumB cam events
+cameraBehavior cam pointerE wheelE resizeE buttonsB coordsB alowMoveB = accumB cam events
   where
-    events = unions [ wheelT <$> wheelE
+    events = whenE alowMoveB
+           $ unions [ wheelT <$> wheelE
                     , pointerT <$> buttonsB <*> coordsB <@> pointerE
                     , resizeT <$> resizeE
                     ]
@@ -74,9 +77,9 @@ cameraBehavior cam pointerE wheelE resizeE buttonsB coordsB = accumB cam events
     -- move unknown move (should not happen anyway)
     pointerT _ [] (PointerMove _) c = c
     -- Three-finger rotation
-    pointerT 1 ((n1,o1):_:_:_)  (PointerMove _) c = rotateCentered o1 n1 c
+    pointerT 1 ((o1,n1):_:_:_)  (PointerMove _) c = rotateCentered o1 n1 c
     -- Complicated two-finger control
-    pointerT 1 [(n1,o1),(n2,o2)] (PointerMove _) c = twoFingerControl (o1,o2) (n1,n2) c
+    pointerT 1 [(o1,n1),(o2,n2)] (PointerMove _) c = twoFingerControl (o1,o2) (n1,n2) c
     -- Mouse control                               -- do nothing if no button pressed
     pointerT b ((opos,npos):_) (PointerMove _) c | b == 0 = c
                                                    -- Drag horizontally using left mouse button
@@ -89,6 +92,56 @@ cameraBehavior cam pointerE wheelE resizeE buttonsB coordsB = accumB cam events
                                                  | otherwise = dragHorizontal opos npos c
 
 
+
+data (SpaceTransform s 3 GLfloat, Space3DTransform s GLfloat QFloat) =>
+  ObjectTransform s x
+  = ObjectTransform   (s x -> s x)
+  | TransformProgress (s x -> s x)
+  | TransformStart
+  | TransformCancel
+
+
+objectTransformEvents :: ( SpaceTransform s 3 GLfloat
+                         , Space3DTransform s GLfloat QFloat)
+                      => Event PointerEvent -- ^ pointer actions
+                      -> Behavior Int -- ^ buttons
+                      -> Behavior [(Vector2 GLfloat, Vector2 GLfloat)] -- ^ [(old, new)] coordinates
+                      -> Behavior Camera
+                      -> Event (ObjectTransform s x)
+objectTransformEvents pointerE buttonsB coordsB cameraB =
+    filterJust $ f <$> cameraB <*> buttonsB <*> coordsB <@> pointerE
+  where
+    f _ _ [] _ = Nothing -- early stop if no pointers found
+    f _ 0 _  _ = Nothing -- early stop if no button pressed
+    f _ _ _ (PointerClick  _) = Just TransformCancel
+    f _ _ _ (PointerDown   _) = Just TransformStart
+    f _ _ _ (PointerCancel _) = Just TransformCancel
+    -- move & rotate with two fingers pressed
+    f cam _ ((o1,n1):(o2,n2):_) p  = Just . g p $ twoFingerObject (o1,o2) (n1,n2) cam
+    -- rotate object with secondary button
+    f cam 2 ((opos,npos):_) p = Just . g p $ rotateObject opos npos cam
+    -- drag object with any other button
+    f cam _ [(opos,npos)] p = Just . g p $ dragObject opos npos cam
+    g (PointerClick  _) _ = TransformCancel
+    g (PointerDown  _) _ = TransformStart
+    g (PointerCancel  _) _ = TransformCancel
+    g (PointerMove  _) v = TransformProgress v
+    g (PointerUp  _) v = ObjectTransform v
+
+--    react _ (PMove _            _ []             )   = id
+--    react _ (PMove LeftButton   _ ((npos,opos):_))   = transformCity (dragObject opos npos)
+--    react _ (PMove RightButton  _ ((npos,opos):_))   = transformCity (rotateObject opos npos)
+--    react _ (PMove Touches      _ [(npos,opos)]  )   = transformCity (dragObject opos npos)
+--    react _ (PMove Touches      _ [(n1,o1),(n2,o2)]) = transformCity (twoFingerObject (o1,o2) (n1,n2))
+--    react _ (PMove Touches      _ (_:_:_:_))         = id
+--    react _ (PMove MiddleButton _ _)                 = id
+--    response _ _ (PMove _            _ []             )       _ = geometryChanged False
+--    response _ _ (PMove LeftButton   _ ((_npos,_opos):_))     _ = geometryChanged True
+--    response _ _ (PMove RightButton  _ ((_npos,_opos):_))     _ = geometryChanged True
+--    response _ _ (PMove Touches      _ [(_npos,_opos)]  )     _ = geometryChanged True
+--    response _ _ (PMove Touches      _ [(_n1,_o1),(_n2,_o2)]) _ = geometryChanged True
+--    response _ _ (PMove Touches      _ (_:_:_:_))             _ = geometryChanged False
+--    response _ _ (PMove MiddleButton _ _)                     _ = geometryChanged False
 
 
 ----------------------------------------------------------------------------------------------

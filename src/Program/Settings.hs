@@ -20,16 +20,14 @@ import qualified Services.Radius as Services
 
 
 data Settings = Settings
-    { selectedObject    :: !Int
-    , activeService     :: !ServiceBox
+    { activeService     :: !ServiceBox
     , availableServices :: ![ServiceBox]
     , objectScale       :: !(Maybe GLfloat)
     }
 
 defaultSettings :: Settings
 defaultSettings = Settings
-        { selectedObject = 0
-        , activeService = isovistService -- radService
+        { activeService = isovistService -- radService
         , availableServices = [radService, isovistService]
         , objectScale = Nothing
         } where radService = ServiceBox . Services.Radius $ vector3 0 3 5
