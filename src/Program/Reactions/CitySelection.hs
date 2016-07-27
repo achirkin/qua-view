@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds, FlexibleInstances, MultiParamTypeClasses #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
+
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Program.Reactions.CitySelection

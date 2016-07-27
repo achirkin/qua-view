@@ -28,9 +28,10 @@ import Control.Arrow ((***))
 
 --import JsHs.Types
 import JsHs.WebGL
+import qualified JsHs.Array as JS
 ---- import GHCJS.Foreign
 --import GHCJS.Marshal.Pure (pFromJSVal)
---import GHCJS.Useful
+import GHCJS.Useful (asVector)
 
 import Data.Geometry
 import Data.Geometry.Transform
@@ -41,6 +42,7 @@ import Program.Model.Camera (viewMatrix, Camera(..))
 import Reactive.Banana.JsHs
 import Reactive.Banana.Frameworks
 import Reactive.Banana.Combinators
+--import Program.Types
 
 -- | Rendering global parameters
 data ViewContext = ViewContext
@@ -76,6 +78,54 @@ data SelectorObject = SelectorObject {
 
 type AttribLocation = GLuint
 
+-- | ID of an object that was clicked on last
+selectedObjectIdBehavior :: Event PointerEvent
+                         -> Behavior Camera
+                         -> Behavior ViewContext
+                         -> MomentIO (Behavior (Maybe Int))
+selectedObjectIdBehavior pointerE cameraB viewB = do
+    events <- fmap (fmap g)
+            . mapEventIO id
+            $ getSelection <$> viewB <*> cameraB <@> filterJust (f <$> pointerE)
+    stepper Nothing events
+  where
+    g (SelectionEvent i) | i <= 0 = Nothing
+                         | otherwise = Just i
+    f (PointerClick p) | ptrs <- pointers p = if JS.length ptrs == 0
+                                              then Nothing
+                                              else Just $ asVector (ptrs JS.! 0)
+    f _ = Nothing
+
+-- | ID of an object under pointer when it is dragged
+heldObjectIdBehavior :: Event PointerEvent
+                     -> Behavior Camera
+                     -> Behavior ViewContext
+                     -> MomentIO (Behavior (Maybe Int))
+heldObjectIdBehavior pointerE cameraB viewB = mdo
+    -- on pointerFinish shows actual remaining points
+    let releaseE = fmap (const Nothing)
+                 . filterE (Nothing==)
+                 . filterJust $ releaseF <$> pointerE
+    pressE <- fmap (fmap g)
+            . mapEventIO id
+            $ getSelection <$> viewB <*> cameraB <@> filterJust (pressF <$> pointerE)
+    stepper Nothing (unionWith (const id) pressE releaseE)
+  where
+    g (SelectionEvent i) | i <= 0 = Nothing
+                         | otherwise = Just i
+    releaseF (PointerUp p) = Just $ oneOrZero p
+    releaseF (PointerClick p) = Just $ oneOrZero p
+    releaseF (PointerCancel p) = Just $ oneOrZero p
+    releaseF _ = Nothing
+    pressF (PointerDown p) | ptrs <- pointers p = if JS.length ptrs <= 0
+                                                  then Nothing
+                                                  else Just $ asVector (ptrs JS.! 0)
+    pressF _ = Nothing
+    oneOrZero p | ptrs <- pointers p = if JS.length ptrs <= 1
+                                       then Nothing
+                                       else Just $ asVector (ptrs JS.! 0)
+
+-- wheelE resizeE viewUpdateE
 
 viewContextBehavior :: WebGLRenderingContext
                     -> Time -- ^ start time
@@ -85,8 +135,12 @@ viewContextBehavior :: WebGLRenderingContext
                     -> MomentIO (Behavior ViewContext)
 viewContextBehavior gl t vpsize sd resEv = mdo
   iview <- liftIO $ setupViewContext gl vpsize t sd
+
+  -- update viewport on canvas resize
   viewE <- mapEventIO (\(v, ResizeEvent c) -> updateViewPortSize c v)
                       $ fmap (,) viewB <@> resEv
+
+
   viewB <- stepper iview viewE
   return viewB
 
@@ -229,6 +283,8 @@ applySelector vc'@ViewContext
 newtype SelectionEvent = SelectionEvent Int
 newtype SelectionConfirmEvent = SelectionConfirmEvent Int
 
+
+-- Note, we render index (i+1) on screen, so that 0 encodes no object there
 getSelection :: ViewContext -> Camera -> Vector2 GLfloat -> IO SelectionEvent
 getSelection ViewContext
     { glctx = gl

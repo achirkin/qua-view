@@ -5,6 +5,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ForeignFunctionInterface,  JavaScriptFFI, GHCForeignImportPrim, UnliftedFFITypes #-}
+{-# LANGUAGE RecursiveDo #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Program.Model.City
@@ -40,6 +41,7 @@ import qualified JsHs.Array as JS
 import JsHs.JSString hiding (foldr1)
 import Data.Geometry
 import Data.Geometry.Structure.Feature
+import qualified Data.Geometry.Transform as T
 import qualified Data.Geometry.Structure.LineString as LS
 import qualified Data.Geometry.Structure.PointSet as PS
 --import Data.Geometry.Transform
@@ -48,12 +50,14 @@ import qualified Data.Geometry.Structure.PointSet as PS
 import Program.Model.CityObject
 import Program.Model.CityGround
 import Program.Model.WiredGeometry
+import Program.Model.Camera
 import Program.Settings
 import Program.Types
 
 import Controllers.GUIEvents
 
 import Reactive.Banana.Combinators
+import Control.Monad.Fix (MonadFix)
 --import JsHs.Debug
 
 --import JsHs.Debug
@@ -104,23 +108,53 @@ emptyCity = City
 
 -- | This is a main module export.
 --   Describes logic of city changes.
-cityBehavior :: MonadMoment m
+cityBehavior :: (MonadMoment m, MonadFix m)
              => Behavior Settings
+             -> Behavior (Maybe Int)
+             -> Event (Int, ObjectTransform T.QFTransform CityObject)
              -> Event GeoJSONLoaded
              -> Event ClearingGeometry
              -> m (Event (RequireViewUpdate City), Behavior City)
-cityBehavior psets updateEvent clearEvent
-    = fmap (first filterJust)
-    . mapAccum emptyCity
-    $ unionsSnd
-      [ cityUpdate
-      , cityClear
-      ]
+cityBehavior psets selIdB otransform updateEvent clearEvent = mdo
+    activeObjectSnapshot <- stepper Nothing . filterJust $ osnapshotF <$> cityBeh <@> otransform
+    let objectMove = fmap ((,) Nothing .)
+                    $ objectMoveF <$> activeObjectSnapshot <@> otransform
+    (cityUE,cityBeh) <- fmap (first filterJust)
+              . mapAccum emptyCity
+              $ unionsSnd
+                [ objectMove
+                , cityUpdate
+                , cityClear
+                ]
+    return (cityUE, addSelId <$> selIdB <*> cityBeh)
   where
+    addSelId Nothing city = city{activeObjId = 0}
+    addSelId (Just i) city = city{activeObjId = i}
     applySets = (\s f -> f $ defaultCitySettings { defScale = objectScale s}) <$> psets
     cityUpdate = fmap u $ applySets <@> loadingCityJSONEvent updateEvent
     cityClear  = fmap u $ clearCity <$ clearEvent
     u f x = let y = f x in (Just (RequireViewUpdate y), y)
+    osnapshotF _ (_, TransformCancel)     = Just Nothing
+    osnapshotF _ (_, TransformProgress _) = Nothing
+    osnapshotF _ (_, ObjectTransform _)   = Just Nothing
+    osnapshotF city (i, TransformStart)   = Just $ getObject i city
+    objectMoveF _        (_,TransformStart)  city = city
+    objectMoveF Nothing   _                  city = city
+    objectMoveF (Just o) (i,TransformCancel)     city = setObject i o city
+    objectMoveF (Just o) (i,TransformProgress t) city = setObject i (t o) city
+    objectMoveF (Just o) (i,ObjectTransform   t) city = setObject i (t o) city
+
+--transformCityObject :: (Camera -> LocatedCityObject -> LocatedCityObject)
+--              -> CityObject -> Program
+--transformCityObject _ program@Program{controls = Controls{ selectedObject = 0 }} = program
+--transformCityObject f program@Program
+--    { city = c@City{activeObjSnapshot = Just obj}
+--    , controls = Controls{ selectedObject = i }
+--    } = program
+--    { city = setObject i (f (camera program) obj) c
+--    }
+--transformCity _ program = program
+
 
 unionsSnd :: [Event (a -> (Maybe b, a))] -> Event (a -> (Maybe b, a))
 unionsSnd [] = never

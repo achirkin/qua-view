@@ -154,6 +154,7 @@ instance Drawable City where
         where vc' = vc{ curState = updateDrawState city view $ curState vc}
 
 -- City selectable means one can select objects in a city
+-- Note, we render index (i+1) on screen, so that 0 encodes no object there
 instance Selectable City where
     selectInCurrContext vc@ViewContext
         { glctx = gl
