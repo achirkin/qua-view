@@ -26,6 +26,7 @@ import Program
 
 -- Events
 import qualified Controllers.GeoJSONFileImport as JFI
+import Controllers.LuciClient
 
 
 import qualified Data.Geometry.Transform as T
@@ -43,7 +44,7 @@ import Program.Model.City
 import Program.View
 import Program.Settings
 
---import JsHs.Debug
+import JsHs.Debug
 
 main :: IO ()
 main = do
@@ -152,7 +153,11 @@ main = do
       updateE <- updateEvents heh
       viewB <- viewBehavior canv resizeE cityChanges updateE programB
 
-
+      (luciClient, luciMessageE) <- luciHandler "ws://localhost:3000/luci"
+      voidE <- mapEventIO id $ (parseLuciMessages . msgHeaderValue) <$> luciMessageE
+      liftIO $ sendMessage luciClient $ toLuciMessage (MsgRun "ServiceList" []) []
+      liftIO $ sendMessage luciClient $ toLuciMessage
+            (MsgRun "test.Fibonacci" [("amount", JS.asJSVal (10::Int))]) []
 --      selHelB <- stepper (Nothing, Nothing) selHelE
 --      let selHelE = filterApply ((/=) <$> selHelB) $ (,) <$> selObjIdB <*> heldObjIdB <@ updateE
 --      voidE <-  mapEventIO id $ (\c t -> putStrLn (show (activeObjId c) ++ " " ++ show t)) <$> cityB <@> selHelE
@@ -164,8 +169,45 @@ main = do
     putStrLn "Hello world!"
     programIdle
 
+parseLuciMessages :: MessageHeader -> IO ()
+parseLuciMessages (MsgResult callID duration serviceName taskID result) = do
+  putStrLn $ "Luci service '" ++ unpack' serviceName ++ "' finished!"
+  printJSVal result
+  print (callID, duration, taskID)
+parseLuciMessages (MsgError err) = putStrLn "Luci returned error" >> print err
+parseLuciMessages (MsgProgress callID duration serviceName taskID percentage progress) = do
+  putStrLn $ "Luci service '" ++ unpack' serviceName
+           ++ "' is in progress, done " ++ show percentage ++ "%"
+  printJSVal progress
+  print (callID, duration, taskID)
+parseLuciMessages (MsgNewCallID i) = putStrLn $ "Luci assigned new callID " ++ show i
+parseLuciMessages msg = do
+  putStrLn "Got unexpected message"
+  printJSVal $ JS.asJSVal msg
 
 
+--  = MsgRun JSString [(JSString, JSVal)]
+--    -- ^ run service message, e.g. {'run': 'ServiceList'};
+--    -- params: 'run', [(name, value)]
+--  | MsgCancel Int
+--    -- ^ cancel service message, e.g. {'cancel': 25};
+--    -- params: 'callID'
+--  | MsgNewCallID Int
+--    -- ^ Luci call id, { newCallID: 57 };
+--    -- params: 'newCallID'
+--  | MsgResult Int Double JSString Int JSVal
+--    -- ^ result of a service execution,
+--    -- e.g. { callID: 57, duration: 0, serviceName: "ServiceList", taskID: 0, result: Object };
+--    -- params: 'callID', 'duration', 'serviceName', 'taskID', 'result'
+--  | MsgProgress Int Double JSString Int Double JSVal
+--    -- ^ result of a service execution,
+--    -- e.g. { callID: 57, duration: 0, serviceName: "St", taskID: 0, percentage: 0, progress: null};
+--    -- params: 'callID', 'duration', 'serviceName', 'taskID', 'percentage', 'progress'
+--  | MsgError JSString
+--    -- ^ error message, e.g. {'error': 'We are in trouble!'};
+--    -- params: 'error'
+--  | MsgUnknown JSVal
+--    -- ^ unknown type of message; passed as-is
 
 combinePointers :: JS.Array Coords2D -> JS.Array Coords2D -> [(Vector2 GLfloat, Vector2 GLfloat)]
 combinePointers a b = zipWith (\p1 p2 -> ( asVector p1, asVector p2)
