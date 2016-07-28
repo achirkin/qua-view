@@ -97,7 +97,6 @@ data (SpaceTransform s 3 GLfloat, Space3DTransform s GLfloat QFloat) =>
   ObjectTransform s x
   = ObjectTransform   (s x -> s x)
   | TransformProgress (s x -> s x)
-  | TransformStart
   | TransformCancel
 
 
@@ -114,7 +113,7 @@ objectTransformEvents pointerE buttonsB coordsB cameraB =
     f _ _ [] _ = Nothing -- early stop if no pointers found
     f _ 0 _  _ = Nothing -- early stop if no button pressed
     f _ _ _ (PointerClick  _) = Just TransformCancel
-    f _ _ _ (PointerDown   _) = Just TransformStart
+    f _ _ _ (PointerDown   _) = Just TransformCancel
     f _ _ _ (PointerCancel _) = Just TransformCancel
     -- move & rotate with two fingers pressed
     f cam _ ((o1,n1):(o2,n2):_) p  = Just . g p $ twoFingerObject (o1,o2) (n1,n2) cam
@@ -123,8 +122,8 @@ objectTransformEvents pointerE buttonsB coordsB cameraB =
     -- drag object with any other button
     f cam _ [(opos,npos)] p = Just . g p $ dragObject opos npos cam
     g (PointerClick  _) _ = TransformCancel
-    g (PointerDown  _) _ = TransformStart
-    g (PointerCancel  _) _ = TransformCancel
+    g (PointerDown  _) _ = TransformCancel
+    g (PointerCancel  _) v = ObjectTransform v
     g (PointerMove  _) v = TransformProgress v
     g (PointerUp  _) v = ObjectTransform v
 

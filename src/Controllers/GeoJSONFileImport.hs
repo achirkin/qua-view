@@ -14,7 +14,8 @@
 -----------------------------------------------------------------------------
 
 module Controllers.GeoJSONFileImport
-    ( GeoJSONImports, addHandler, registerButton, loadFromLink
+    ( GeoJSONImports, GeoJSONLoaded (..)
+    , addHandler, registerButton, loadFromLink
     , geoJSONImports
     ) where
 
@@ -29,7 +30,7 @@ import JsHs.Callback
 -- import GHCJS.Foreign (isTruthy)
 
 import GHCJS.Useful
-import Controllers.GUIEvents
+--import Controllers.GUIEvents
 import Data.Coerce (coerce)
 
 import Reactive.Banana.Frameworks
@@ -37,6 +38,12 @@ import Reactive.Banana.JsHs
 --import Reactive.Banana.Combinators
 --import Control.Monad.IO.Class
 
+-- | When valid GeoJSON comes from somewhere
+data GeoJSONLoaded = GeoJSONLoaded
+    { isDynamic         :: Bool
+    , featureCollection :: FeatureCollection
+    }
+type GeoJSONLoadCallBack = GeoJSONLoaded -> IO ()
 
 data GeoJSONImports = GeoJSONImports
   { addHandler :: AddHandler GeoJSONLoaded
