@@ -25,9 +25,6 @@ import Program
 --import Program.Model.Camera (CState(..))
 
 -- Events
---import Controllers.Pointer
---import Controllers.ElementResizing
-import Controllers.GUIEvents
 import qualified Controllers.GeoJSONFileImport as JFI
 
 
@@ -112,7 +109,7 @@ main = do
       -----------------------
 
       -- selection must go first for some reason (otherwise blocked by MVar)
-      heldObjIdB <- heldObjectIdBehavior pointerE cameraB (context <$> viewB)
+      (heldObjIdB, heldObjIdE) <- heldObjectIdBehavior pointerE cameraB (context <$> viewB)
       selObjIdB  <- selectedObjectIdBehavior pointerE cameraB (context <$> viewB)
       let allowCameraMoveB = f <$> selObjIdB <*> heldObjIdB
             where
@@ -136,14 +133,6 @@ main = do
                                                    buttonsB
                                                    coordsB
                                                    cameraB
-      let objectTransformAndIdE = filterJust $ f <$> selObjIdB <*> heldObjIdB <@> objectTransformE
-            where
-              f (Just i) Nothing TransformStart = Just (i, TransformStart)
-              f _ Nothing _ = Nothing
-              f Nothing _ _       = Nothing
-              f (Just i) (Just j) t | j /= i    = Nothing
-                                    | otherwise = Just (i, t)
-
 
 
 
@@ -152,7 +141,8 @@ main = do
       -- city
       (cityChanges, cityB) <- cityBehavior settingsB
                                            selObjIdB
-                                           objectTransformAndIdE
+                                           heldObjIdE
+                                           objectTransformE
                                            geoJSONImportE
                                            clearGeometryE
 
@@ -163,9 +153,9 @@ main = do
       viewB <- viewBehavior canv resizeE cityChanges updateE programB
 
 
-      selHelB <- stepper (Nothing, Nothing) selHelE
-      let selHelE = filterApply ((/=) <$> selHelB) $ (,) <$> selObjIdB <*> heldObjIdB <@ updateE
---      reactimate $ (\c t -> putStrLn $ show (activeObjId c) ++ " " ++ show t) <$> cityB <@> selHelE
+--      selHelB <- stepper (Nothing, Nothing) selHelE
+--      let selHelE = filterApply ((/=) <$> selHelB) $ (,) <$> selObjIdB <*> heldObjIdB <@ updateE
+--      voidE <-  mapEventIO id $ (\c t -> putStrLn (show (activeObjId c) ++ " " ++ show t)) <$> cityB <@> selHelE
 
       return ()
 

@@ -87,20 +87,9 @@ data PView = PView
     }
 
 
---
---renderScene :: Time -> Program -> PView -> IO ()
---renderScene ctime program view = do
---    -- prepare rendering
---    ctx <- prepareRenderState (context view) (camera program) ctime
---    -- render
---    -- setup WebGL
---    clearScreen ctx
---    draw ctx (decGrid program) (dgView view)
---    draw ctx (city program) (cityView view)
---    -- done!
 
-renderScene' :: Program -> PView -> Time -> IO PView
-renderScene' program view ctime = do
+renderScene :: Program -> PView -> Time -> IO PView
+renderScene program view ctime = do
     -- selector rendering
     ctx' <- applySelector (context view) (camera program) (city program) (cityView view)
     -- prepare rendering
@@ -152,25 +141,12 @@ viewBehavior canvas resEvents cityUpdates renderings programB = mdo
   --        , luciScenario = Nothing
           , scUpToDate   = False
           }) <$> ctxB <@> cviewE
-    pviewE2 <- mapEventIO id $ renderScene' <$> programB <*> pviewB <@> renderings
+    pviewE2 <- mapEventIO id $ renderScene <$> programB <*> pviewB <@> renderings
     let pviewEAll :: Event PView
         pviewEAll = unionWith (const id) pviewE2 pviewE1
     pviewB <- stepper ipview pviewEAll :: MomentIO (Behavior PView)
     return pviewB
 
-
---  iview <- liftIO $ setupViewContext gl vpsize t sd
---  viewE <- mapEventIO (\(v, ResizeEvent c) -> updateViewPortSize c v)
---                      $ fmap (,) viewB <@> resEv
---  viewB <- stepper iview viewE
-
-
---updateProgramView :: String -> Program -> PView -> IO PView
---updateProgramView msg program pview = do
---        getElementById "clearbutton" >>= elementParent >>= hideElement
---        cityView' <- updateView (glctx $ context pview) (city program) (cityView pview)
---        logText msg
---        return pview{cityView = cityView', scUpToDate = False}
 
 
 
@@ -218,20 +194,4 @@ selectionConfirm beh ev = fmap filterJust
                          else Nothing
     spawnEvent _ = undefined
     getCoord e = asVector (pointers e JS.! 0)
-
-
---instance Reaction Program PView PointerClickEvent "Get selection" 1 where
---    response _ hole (PClick LeftButton (p:_)) prog pview = getSelectId p prog pview >>= reqEvent hole . EBox >> return pview
---    response _ hole (PClick Touches [p])      prog pview = getSelectId p prog pview >>= reqEvent hole . EBox >> return pview
---    response _ _ _ _ pview = return pview
-
---- Selecting onbject on mouse down to allow moving objects
-
---instance Reaction Program PView PointerDownEvent "Fire selection action" 0 where
---    react _ _ prog@Program{controls = c} = prog{controls = c{selectedObject = 0}}
---    response _ hole (PDown _ (p:_)) program view = do
---        SelectionEvent i <- getSelectId p program view
---        when (i /= 0) . reqEvent hole . EBox $ SelectionConfirmEvent i
---        return view
---    response _ _ _ _ view = return view
 

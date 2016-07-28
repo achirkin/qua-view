@@ -100,7 +100,7 @@ selectedObjectIdBehavior pointerE cameraB viewB = do
 heldObjectIdBehavior :: Event PointerEvent
                      -> Behavior Camera
                      -> Behavior ViewContext
-                     -> MomentIO (Behavior (Maybe Int))
+                     -> MomentIO (Behavior (Maybe Int), Event (Maybe Int))
 heldObjectIdBehavior pointerE cameraB viewB = mdo
     -- on pointerFinish shows actual remaining points
     let releaseE = fmap (const Nothing)
@@ -109,7 +109,9 @@ heldObjectIdBehavior pointerE cameraB viewB = mdo
     pressE <- fmap (fmap g)
             . mapEventIO id
             $ getSelection <$> viewB <*> cameraB <@> filterJust (pressF <$> pointerE)
-    stepper Nothing (unionWith (const id) pressE releaseE)
+    let heldE = unionWith (const id) pressE releaseE
+    heldB <- stepper Nothing heldE
+    return (heldB, heldE)
   where
     g (SelectionEvent i) | i <= 0 = Nothing
                          | otherwise = Just i
@@ -246,7 +248,7 @@ clearScreen c = clear (glctx c) (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
 
 prepareRenderState :: ViewContext -> Camera -> Time -> IO ViewContext
 prepareRenderState vc@ViewContext
-        { sunDir   = unpackV3 -> (sx, sy, sz)
+        { sunDir   = sdir
         , curState = cs
         } cam t = do
     setIndex 0 (projMatrix cam) (coerce $ projectArr vc)
@@ -260,6 +262,7 @@ prepareRenderState vc@ViewContext
         }
     where viewM = viewMatrix cam
           (sx', sy', sz', _) = unpackV4 $ viewM `prod` vector4 sx sy sz 0
+          (sx, sy, sz) = unpackV3 sdir
 
 
 
@@ -309,7 +312,7 @@ getSelection ViewContext
 -- | Apply current transform of an object (including perspective) and save shader uniforms
 applyTransform :: (SpaceTransform s 3 GLfloat)
                => ViewContext -> s a -> IO a
-applyTransform vc@(ViewContext{glctx = gl, curState = cs}) tr = do
+applyTransform vc@ViewContext{glctx = gl, curState = cs} tr = do
         let MTransform matrix x = mergeSecond (MTransform (vView cs) id) tr
         setIndex 0 matrix (coerce $ modelViewArr vc)
         uniformMatrix4fv gl (vGLViewLoc cs) False (modelViewArr vc)
@@ -324,10 +327,7 @@ initSelectorFramebuffer gl (width,height) = do
     tex <- createTexture gl
     bindTexture gl gl_TEXTURE_2D tex
     texImage2D gl gl_TEXTURE_2D 0 gl_RGBA width height 0 gl_RGBA gl_UNSIGNED_BYTE Nothing
-    texParameteri gl gl_TEXTURE_2D gl_TEXTURE_WRAP_S $ fromIntegral gl_CLAMP_TO_EDGE
-    texParameteri gl gl_TEXTURE_2D gl_TEXTURE_WRAP_T $ fromIntegral gl_CLAMP_TO_EDGE
-    texParameteri gl gl_TEXTURE_2D gl_TEXTURE_MAG_FILTER $ fromIntegral gl_NEAREST
-    texParameteri gl gl_TEXTURE_2D gl_TEXTURE_MIN_FILTER $ fromIntegral gl_NEAREST
+    setTexParameters gl
     framebufferTexture2D gl gl_FRAMEBUFFER gl_COLOR_ATTACHMENT0 gl_TEXTURE_2D tex 0
     bindTexture gl gl_TEXTURE_2D nullRef
 --    rbc <- createRenderbuffer gl
@@ -354,12 +354,17 @@ initTexture gl texdata = do
         Right (arr, (w,h)) -> do
             pixelStorei gl gl_UNPACK_FLIP_Y_WEBGL 0
             texImage2D gl gl_TEXTURE_2D 0 gl_RGBA w h 0 gl_RGBA gl_UNSIGNED_BYTE (Just arr)
+    setTexParameters gl
+    bindTexture gl gl_TEXTURE_2D nullRef
+    return tex
+
+
+setTexParameters :: WebGLRenderingContext -> IO ()
+setTexParameters gl = do
     texParameteri gl gl_TEXTURE_2D gl_TEXTURE_WRAP_S $ fromIntegral gl_CLAMP_TO_EDGE
     texParameteri gl gl_TEXTURE_2D gl_TEXTURE_WRAP_T $ fromIntegral gl_CLAMP_TO_EDGE
     texParameteri gl gl_TEXTURE_2D gl_TEXTURE_MAG_FILTER $ fromIntegral gl_NEAREST
     texParameteri gl gl_TEXTURE_2D gl_TEXTURE_MIN_FILTER $ fromIntegral gl_NEAREST
-    bindTexture gl gl_TEXTURE_2D nullRef
-    return tex
 
 updateTexture :: WebGLRenderingContext
               -> Either TexImageSource (TypedArray GLubyte, (GLsizei, GLsizei))

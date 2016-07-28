@@ -22,6 +22,7 @@ module Program.Model.City
     ( City (..), buildCity, updateCity, isEmptyCity, emptyCity, clearCity
     , CitySettings (..), defaultCitySettings
     , CityObjectCollection ()
+    , ClearingGeometry (..)
     , getObject, setObject
     -- | Load geometry
     , processScenario, scenarioViewScaling
@@ -54,7 +55,7 @@ import Program.Model.Camera
 import Program.Settings
 import Program.Types
 
-import Controllers.GUIEvents
+import Controllers.GeoJSONFileImport
 
 import Reactive.Banana.Combinators
 import Control.Monad.Fix (MonadFix)
@@ -66,7 +67,7 @@ import Control.Monad.Fix (MonadFix)
 -- | Map of all city objects (buildings, roads, etc).
 data City = City
     { activeObjId       :: !Int
-    , activeObjSnapshot :: !(Maybe LocatedCityObject)
+--    , activeObjSnapshot :: !(Maybe LocatedCityObject)
     , objectsIn         :: !CityObjectCollection
     , cityTransform     :: !(GLfloat, Vector2 GLfloat)
     , ground            :: !CityGround
@@ -84,6 +85,8 @@ data CitySettings = CitySettings
     , defScale     :: !(Maybe GLfloat)
     }
 
+-- | This indicates removal of all geometry from the city
+data ClearingGeometry = ClearingGeometry
 
 defaultCitySettings :: CitySettings
 defaultCitySettings = CitySettings
@@ -98,7 +101,7 @@ defaultCitySettings = CitySettings
 emptyCity :: City
 emptyCity = City
     { activeObjId = 0
-    , activeObjSnapshot = Nothing
+--    , activeObjSnapshot = Nothing
     , objectsIn = emptyCollection
     , ground = emptyGround
     , cityTransform = (0, 0)
@@ -110,13 +113,14 @@ emptyCity = City
 --   Describes logic of city changes.
 cityBehavior :: (MonadMoment m, MonadFix m)
              => Behavior Settings
-             -> Behavior (Maybe Int)
-             -> Event (Int, ObjectTransform T.QFTransform CityObject)
+             -> Behavior (Maybe Int) -- ^ selected object id
+             -> Event (Maybe Int) -- ^ held object id
+             -> Event (ObjectTransform T.QFTransform CityObject)
              -> Event GeoJSONLoaded
              -> Event ClearingGeometry
              -> m (Event (RequireViewUpdate City), Behavior City)
-cityBehavior psets selIdB otransform updateEvent clearEvent = mdo
-    activeObjectSnapshot <- stepper Nothing . filterJust $ osnapshotF <$> cityBeh <@> otransform
+cityBehavior psets selIdB heldIdE otransform updateEvent clearEvent = mdo
+    activeObjectSnapshot <- stepper Nothing $ osnapshotF <$> cityBeh <*> selIdB <@> heldIdE
     let objectMove = fmap ((,) Nothing .)
                     $ objectMoveF <$> activeObjectSnapshot <@> otransform
     (cityUE,cityBeh) <- fmap (first filterJust)
@@ -134,26 +138,15 @@ cityBehavior psets selIdB otransform updateEvent clearEvent = mdo
     cityUpdate = fmap u $ applySets <@> loadingCityJSONEvent updateEvent
     cityClear  = fmap u $ clearCity <$ clearEvent
     u f x = let y = f x in (Just (RequireViewUpdate y), y)
-    osnapshotF _ (_, TransformCancel)     = Just Nothing
-    osnapshotF _ (_, TransformProgress _) = Nothing
-    osnapshotF _ (_, ObjectTransform _)   = Just Nothing
-    osnapshotF city (i, TransformStart)   = Just $ getObject i city
-    objectMoveF _        (_,TransformStart)  city = city
+    osnapshotF _ Nothing _ = Nothing
+    osnapshotF _ _ Nothing = Nothing
+    osnapshotF city (Just i) (Just j) | i /= j = Nothing
+                                      | otherwise = (,) i <$> getObject i city
     objectMoveF Nothing   _                  city = city
-    objectMoveF (Just o) (i,TransformCancel)     city = setObject i o city
-    objectMoveF (Just o) (i,TransformProgress t) city = setObject i (t o) city
-    objectMoveF (Just o) (i,ObjectTransform   t) city = setObject i (t o) city
+    objectMoveF (Just (i,o)) TransformCancel       city = setObject i o city
+    objectMoveF (Just (i,o)) (TransformProgress t) city = setObject i (t o) city
+    objectMoveF (Just (i,o)) (ObjectTransform   t) city = setObject i (t o) city
 
---transformCityObject :: (Camera -> LocatedCityObject -> LocatedCityObject)
---              -> CityObject -> Program
---transformCityObject _ program@Program{controls = Controls{ selectedObject = 0 }} = program
---transformCityObject f program@Program
---    { city = c@City{activeObjSnapshot = Just obj}
---    , controls = Controls{ selectedObject = i }
---    } = program
---    { city = setObject i (f (camera program) obj) c
---    }
---transformCity _ program = program
 
 
 unionsSnd :: [Event (a -> (Maybe b, a))] -> Event (a -> (Maybe b, a))
@@ -189,7 +182,7 @@ buildCity :: CitySettings -- ^ desired diagonal length of the city
           -> ([JSString], City) -- ^ Errors and the city itself
 buildCity sets scenario = (,) errors City
     { activeObjId = 0
-    , activeObjSnapshot = Nothing
+--    , activeObjSnapshot = Nothing
     , objectsIn = objects
     , ground = buildGround (groundDilate sets) objects
     , cityTransform = (cscale, cshift)
@@ -240,7 +233,7 @@ isEmptyCity c = collectionLength (objectsIn c) == 0
 clearCity :: City -> City
 clearCity city = city
     { activeObjId = 0
-    , activeObjSnapshot = Nothing
+--    , activeObjSnapshot = Nothing
     , objectsIn = emptyCollection
     , cityTransform = (0, 0)
     , ground = emptyGround
@@ -283,8 +276,6 @@ scenarioViewScaling :: (Int->GLfloat) -- ^ desired diameter of a scenario based 
 scenarioViewScaling diam scenario = ( diam n / normL2 (h-l) , (l + h) / 2)
     where (n,l,h) = js_boundScenario scenario
 
-
-{-# INLINE js_boundScenario #-}
 foreign import javascript unsafe "var r = gm$boundNestedArray($1['features'].map(function(co){return co['geometry']['coordinates'];}));\
                           \if(!r){ $r2 = [Infinity,Infinity];\
                           \        $r3 = [-Infinity,-Infinity];}\
