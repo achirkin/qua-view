@@ -26,3 +26,6 @@ cabal.config
 *.lkshf
 *.lkshw
 *.lkshs
+
+# idea stuff
+.idea
