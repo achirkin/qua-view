@@ -171,14 +171,14 @@ main = do
 
 parseLuciMessages :: MessageHeader -> IO ()
 parseLuciMessages (MsgResult callID duration serviceName taskID result) = do
-  putStrLn $ "Luci service '" ++ unpack' serviceName ++ "' finished!"
-  printJSVal result
+  putStrLn $ "Luci service '" ++ unServiceName serviceName ++ "' finished!"
+  printJSVal $ JS.asJSVal result
   print (callID, duration, taskID)
 parseLuciMessages (MsgError err) = putStrLn "Luci returned error" >> print err
 parseLuciMessages (MsgProgress callID duration serviceName taskID percentage progress) = do
-  putStrLn $ "Luci service '" ++ unpack' serviceName
-           ++ "' is in progress, done " ++ show percentage ++ "%"
-  printJSVal progress
+  putStrLn $ "Luci service '" ++ unServiceName serviceName
+           ++ "' is in progress, done " ++ show percentage
+  printJSVal $ JS.asJSVal progress
   print (callID, duration, taskID)
 parseLuciMessages (MsgNewCallID i) = putStrLn $ "Luci assigned new callID " ++ show i
 parseLuciMessages msg = do

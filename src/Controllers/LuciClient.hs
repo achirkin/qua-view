@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts, OverloadedStrings, GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ForeignFunctionInterface,  JavaScriptFFI, GHCForeignImportPrim, UnliftedFFITypes #-}
 {-# LANGUAGE DataKinds, FlexibleInstances, MultiParamTypeClasses #-}
 -----------------------------------------------------------------------------
@@ -21,6 +21,8 @@ module Controllers.LuciClient
     , LuciMessage (..), sendMessage
     , msgHeaderValue, toLuciMessage
     , MessageHeader (..)
+    , ServiceResult (..)
+    , ServiceName (..), unServiceName
 --    , LuciScenario ()
     --, runLuciService
 --     LuciClient (), hostOf, portOf, localPathOf, connectionString
@@ -38,10 +40,12 @@ module Controllers.LuciClient
 --import JsHs.JSString (JSString, append,unpack',pack)
 
 import Data.List (foldl')
+import Data.String (IsString)
 
 ---- import GHCJS.Foreign
 import JsHs.Types
 import JsHs.LikeJS.Class
+import JsHs.JSString (unpack')
 --import Data.Geometry.Structure.Feature (FeatureCollection)
 import qualified JsHs.Array as JS
 import qualified JsHs.TypedArray as JSTA
@@ -50,6 +54,7 @@ import qualified JsHs.Callback as JS (Callback, asyncCallback2)
 --import Control.Arrow (first)
 import Reactive.Banana.Frameworks
 import Reactive.Banana.Combinators
+import Reactive.Banana.JsHs.Types (Time)
 
 ----------------------------------------------------------------------------------------------------
 -- * Client
@@ -113,25 +118,62 @@ foreign import javascript safe "$1.sendMessage($2,$3)"
 
 
 ----------------------------------------------------------------------------------------------------
--- * Messages
+-- * Message core types
 ----------------------------------------------------------------------------------------------------
+
+-- | JSON Value representing result of a luci service work
+newtype ServiceResult = ServiceResult JSVal
+instance LikeJS "Object" ServiceResult
+
+-- | Luci callID is used to reference client's calls to luci and services
+newtype CallId = CallId Int
+  deriving (Eq,Ord,Show,Enum,Num,Real,Integral)
+instance LikeJS "Number" CallId where
+  asLikeJS = CallId . asLikeJS
+  asJSVal (CallId v) = asJSVal v
+
+-- | Luci taskID is used in the context of luci workflows to refer to tasks
+newtype TaskId = TaskId Int
+  deriving (Eq,Ord,Show,Enum,Num,Real,Integral)
+instance LikeJS "Number" TaskId where
+  asLikeJS = TaskId . asLikeJS
+  asJSVal (TaskId v) = asJSVal v
+
+-- | Percentage [0..100]%; used in luci messages to indicate state of a service computation
+newtype Percentage = Percentage Double
+  deriving (Eq,Ord,Num,Real,RealFrac,RealFloat,Fractional,Floating)
+instance LikeJS "Number" Percentage where
+  asLikeJS = Percentage . asLikeJS
+  asJSVal (Percentage v) = asJSVal v
+instance Show Percentage where
+  show (Percentage x) = show (fromIntegral (round $ x*100 :: Int) / 100 :: Double) ++ "%"
+
+-- | Luci service name
+newtype ServiceName = ServiceName JSString
+  deriving (Eq,Ord,Show,IsString)
+instance LikeJS "String" ServiceName where
+  asLikeJS = ServiceName . asLikeJS
+  asJSVal (ServiceName v) = asJSVal v
+
+unServiceName :: ServiceName -> String
+unServiceName (ServiceName a) = unpack' a
 
 -- | All possible message headers
 data MessageHeader
-  = MsgRun JSString [(JSString, JSVal)]
+  = MsgRun ServiceName [(JSString, JSVal)]
     -- ^ run service message, e.g. {'run': 'ServiceList'};
     -- params: 'run', [(name, value)]
-  | MsgCancel Int
+  | MsgCancel CallId
     -- ^ cancel service message, e.g. {'cancel': 25};
     -- params: 'callID'
-  | MsgNewCallID Int
+  | MsgNewCallID CallId
     -- ^ Luci call id, { newCallID: 57 };
     -- params: 'newCallID'
-  | MsgResult Int Double JSString Int JSVal
+  | MsgResult CallId Time ServiceName TaskId ServiceResult
     -- ^ result of a service execution,
     -- e.g. { callID: 57, duration: 0, serviceName: "ServiceList", taskID: 0, result: Object };
     -- params: 'callID', 'duration', 'serviceName', 'taskID', 'result'
-  | MsgProgress Int Double JSString Int Double JSVal
+  | MsgProgress CallId Time ServiceName TaskId Percentage ServiceResult
     -- ^ result of a service execution,
     -- e.g. { callID: 57, duration: 0, serviceName: "St", taskID: 0, percentage: 0, progress: null};
     -- params: 'callID', 'duration', 'serviceName', 'taskID', 'percentage', 'progress'
