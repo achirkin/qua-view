@@ -17,23 +17,16 @@
 module Controllers.LuciClient
     ( -- * Client
       LuciClient, luciHandler, connectionString
-      -- * Messages
+      -- * Core message types
     , LuciMessage (..), sendMessage
     , msgHeaderValue, toLuciMessage
     , MessageHeader (..)
     , ServiceResult (..)
     , ServiceName (..), unServiceName
---    , LuciScenario ()
-    --, runLuciService
---     LuciClient (), hostOf, portOf, localPathOf, connectionString
---    , connectToLuci
-----    , authenticate
---    , getServicesList
---    , getServiceInfo
---    , LuciScenario (), createLuciScenario
---    , scenarioId, scenarioName, scenarioMqttTopic, scenarioTimestamp
---    , runLuciService
---    , LuciServiceInput (..), LuciServiceOutput (..)
+      -- * Specific messages
+    , LuciResultServiceList (..), runServiceList
+    , LuciResultTestFibonacci, runTestFibonacci
+    , LuciScenario (..), runScenarioGet, runScenarioUpdate, runScenarioCreate
     ) where
 
 --import Data.Int (Int64)
@@ -46,7 +39,7 @@ import Data.String (IsString)
 import JsHs.Types
 import JsHs.LikeJS.Class
 import JsHs.JSString (unpack')
---import Data.Geometry.Structure.Feature (FeatureCollection)
+import Data.Geometry.Structure.Feature (FeatureCollection)
 import qualified JsHs.Array as JS
 import qualified JsHs.TypedArray as JSTA
 import qualified JsHs.Callback as JS (Callback, asyncCallback2)
@@ -180,6 +173,8 @@ data MessageHeader
   | MsgError JSString
     -- ^ error message, e.g. {'error': 'We are in trouble!'};
     -- params: 'error'
+  | MsgPanic JSString
+    -- ^ Initiate the panic recovery procedure
   | MsgUnknown JSVal
     -- ^ unknown type of message; passed as-is
 
@@ -200,6 +195,7 @@ instance LikeJS "Object" MessageHeader where
                                                    <*> getProp "percentage" jsv
                                                    <*> Just r
                | Just i <- getProp "cancel"    jsv = MsgCancel i
+               | Just p <- getProp "panic"     jsv = MsgPanic p
                | Just n <- getProp "run"       jsv = MsgRun n [] -- TODO: use .getOwnPropertyNames()
                | otherwise = MsgUnknown jsv
     where
@@ -218,7 +214,90 @@ instance LikeJS "Object" MessageHeader where
         . setProp "duration" duration . setProp "taskID" taskID . setProp "percentage" percentage
         . setProp "serviceName" serviceName $ setProp "result" result newObj
   asJSVal (MsgError err) = setProp "error" err newObj
+  asJSVal (MsgPanic panic) = setProp "panic" panic newObj
   asJSVal (MsgUnknown j) = j
+
+
+----------------------------------------------------------------------------------------------------
+-- * Pre-defined messages
+----------------------------------------------------------------------------------------------------
+
+-- | A message to get list of available services from luci
+runServiceList :: LuciMessage
+runServiceList = toLuciMessage (MsgRun "ServiceList" []) []
+
+newtype LuciResultServiceList = ServiceList (JS.Array JSString)
+  deriving (Show)
+instance LikeJS "Object" LuciResultServiceList where
+  asLikeJS b = case getProp "serviceNames" b of
+                 Just x  -> ServiceList x
+                 Nothing -> ServiceList JS.emptyArray
+  asJSVal (ServiceList v) = js_setProp "serviceNames" (asJSVal v) newObj
+
+-- | run a testing service test.Fibonacci
+runTestFibonacci :: Int -> LuciMessage
+runTestFibonacci n = toLuciMessage (MsgRun "test.Fibonacci" [("amount", JS.asJSVal n)]) []
+
+newtype LuciResultTestFibonacci = TestFibonacci [Int]
+  deriving (Show, Eq)
+instance LikeJS "Object" LuciResultTestFibonacci where
+  asLikeJS b = case getProp "fibonacci_sequence" b of
+                 Just x  -> TestFibonacci $ JS.asLikeJS x
+                 Nothing -> TestFibonacci []
+  asJSVal (TestFibonacci xs) = js_setProp "fibonacci_sequence" (JS.asJSVal xs) newObj
+
+
+-- | Luci callID is used to reference client's calls to luci and services
+newtype ScenarioId = ScenarioId Int
+  deriving (Eq,Ord,Show,Enum,Num,Real,Integral)
+instance LikeJS "Number" ScenarioId where
+  asLikeJS = ScenarioId . asLikeJS
+  asJSVal (ScenarioId v) = asJSVal v
+
+-- | Luci scenario
+data LuciScenario = LuciResultScenario ScenarioId FeatureCollection
+instance LikeJS "Object" LuciScenario where
+  asLikeJS jsv = case (,) <$> getProp "ScID" jsv <*> getProp "FeatureCollection" jsv of
+                  Just (scId, fc) -> LuciResultScenario scId fc
+                  Nothing -> LuciResultScenario 0 $ JS.fromJSArray JS.emptyArray
+  asJSVal (LuciResultScenario scId fc) =
+            setProp "ScID"  (JS.asJSVal scId)
+          $ setProp "FeatureCollection" fc newObj
+
+runScenarioCreate :: JSString -- ^ name of the scenario
+                  -> FeatureCollection -- ^ content of the scenario
+                  -> LuciMessage
+runScenarioCreate name collection = toLuciMessage
+  ( MsgRun "scenario.geojson.Create"
+      [ ("name", JS.asJSVal name)
+      , ("geometry_input"
+        ,   setProp "format"  ("GeoJSON" :: JSString)
+          $ setProp "geometry" collection newObj
+        )
+      ]
+  ) []
+
+runScenarioUpdate :: ScenarioId -- ^ id of the scenario
+                  -> FeatureCollection -- ^ content of the scenario update
+                  -> LuciMessage
+runScenarioUpdate scId collection = toLuciMessage
+  ( MsgRun "scenario.geojson.Update"
+      [ ("ScID", JS.asJSVal scId)
+      , ("geometry_input"
+        ,   setProp "format"  ("GeoJSON" :: JSString)
+          $ setProp "geometry" collection newObj
+        )
+      ]
+  ) []
+
+runScenarioGet :: ScenarioId -- ^ id of the scenario
+               -> LuciMessage
+runScenarioGet scId = toLuciMessage
+  ( MsgRun "scenario.geojson.Get"
+      [ ("ScID", JS.asJSVal scId)
+      ]
+  ) []
+
 
 ----------------------------------------------------------------------------------------------------
 -- Helpers
