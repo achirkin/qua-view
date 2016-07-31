@@ -16,7 +16,7 @@
 
 module Controllers.LuciClient
     ( -- * Client
-      LuciClient, luciHandler, connectionString
+      LuciClient (..), luciHandler, connectionString
       -- * Core message types
     , LuciMessage (..), sendMessage
     , msgHeaderValue, toLuciMessage
@@ -36,27 +36,43 @@ import Data.List (foldl')
 import Data.String (IsString)
 
 ---- import GHCJS.Foreign
-import JsHs.Types
-import JsHs.LikeJS.Class
+import JsHs
+import JsHs.Types.Prim (jsNull)
 import JsHs.JSString (unpack')
 import Data.Geometry.Structure.Feature (FeatureCollection)
 import qualified JsHs.Array as JS
 import qualified JsHs.TypedArray as JSTA
-import qualified JsHs.Callback as JS (Callback, asyncCallback2)
+import qualified JsHs.Callback as JS (Callback, asyncCallback2, asyncCallback1, asyncCallback)
 
 --import Control.Arrow (first)
 import Reactive.Banana.Frameworks
 import Reactive.Banana.Combinators
 import Reactive.Banana.JsHs.Types (Time)
+import Control.Concurrent (threadDelay, forkIO)
+import Control.Monad (void)
 
 ----------------------------------------------------------------------------------------------------
 -- * Client
 ----------------------------------------------------------------------------------------------------
 
--- | Object for Luci connection
-newtype LuciClient = LuciClient JSVal
-instance LikeJS "Luci.Client" LuciClient
 
+-- | Object for Luci connection
+data LuciClient
+  = LuciClient JSVal -- ^ ready state
+  | LuciClientOpening -- ^ opening connection
+  | LuciClientClosed  -- ^ websocket connection closed
+  | LuciClientError JSString -- ^ error occured
+
+instance LikeJS "Luci.Client" LuciClient where
+  asLikeJS jsv = case asLikeJS $ js_Luci jsv of
+                  Nothing -> LuciClientError "Not a valid Luci.Client object"
+                  Just l -> LuciClient l
+  asJSVal (LuciClient jsv) = jsv
+  asJSVal _ = jsNull
+
+foreign import javascript unsafe "($1 && $1['constructor'] && \
+                                 \$1['constructor']['name'] == 'LuciClient') \
+                                 \ ? $1 : null" js_Luci :: JSVal -> JSVal
 
 
 -- | Luci messages - send and receive
@@ -75,38 +91,74 @@ toLuciMessage h bs = LuciMessage (jsonStringify $ asJSVal h) (JS.fromList bs)
 
 
 -- | Create LuciClient and register events on message receive
-luciHandler :: JSString -> MomentIO (LuciClient, Event LuciMessage)
+luciHandler :: JSString -> MomentIO (Behavior LuciClient, Event LuciClient, Event LuciMessage)
 luciHandler str = do
-  (ah, luci) <- liftIO $ do
-    (ah', fire) <- newAddHandler
-    (,) ah' <$> newLuciClient str fire
-  luciMsgs <- fromAddHandler ah
-  return (luci, luciMsgs)
+  (eLuciClient, onMessageH, onOpenH, onCloseH, onErrorH, onErrorFire) <- liftIO $ do
+    (onMessageH', onMessageFire) <- newAddHandler
+    (onOpenH', onOpenFire) <- newAddHandler
+    (onCloseH', onCloseFire) <- newAddHandler
+    (onErrorH', onErrorFire') <- newAddHandler
+    eLuciClient' <- newLuciClient str onMessageFire
+                          (onOpenFire ())
+                          (onCloseFire LuciClientClosed)
+                          (onErrorFire' . LuciClientError)
+    return (eLuciClient', onMessageH', onOpenH', onCloseH', onErrorH', onErrorFire')
+  case eLuciClient of
+    Left err -> do
+      luciErrorE <- fromAddHandler onErrorH
+      luciB <- stepper LuciClientOpening luciErrorE
+      liftIO $ void . forkIO $ do
+        threadDelay 5000000
+        onErrorFire (LuciClientError err)
+      return (luciB, luciErrorE, never)
+    Right lc -> do
+      luciMsgs <- fromAddHandler onMessageH
+      luciOpenE <- (lc <$) <$> fromAddHandler onOpenH
+      luciCloseE <- fromAddHandler onCloseH
+      luciErrorE <- fromAddHandler onErrorH
+      let luciE = luciOpenE +*+ luciCloseE +*+ luciErrorE
+          (+*+) = unionWith (const id)
+      luciB <- stepper LuciClientOpening luciE
+      return (luciB, luciE, luciMsgs)
 
 
-foreign import javascript interruptible "new Luci.Client($1,$2,$c);"
+foreign import javascript interruptible "try{$c(new LikeHS.Either(new Luci.Client($1,$2,$3,$4,$5),true));}\
+                                        \catch(e){$c(new LikeHS.Either(e['message'] ? e['message'] : 'Luci client initialization error.',false));}"
   js_newLuciClient :: JSString -- ^ Connection string
                    -> JS.Callback (JSVal -> JSVal -> IO ()) -- ^ onmessage
-                   -> IO LuciClient
+                   -> JS.Callback (IO ()) -- ^ onopen
+                   -> JS.Callback (IO ()) -- ^ onclose
+                   -> JS.Callback (JSVal -> IO ()) -- ^ onerror
+                   -> IO JSVal
 
 -- | Create a new luci instance and connect
 newLuciClient :: JSString  -- ^ connection string (i.e. ws://localhost:8080/luci)
               -> (LuciMessage -> IO ()) -- ^ onmessage callback
-              -> IO LuciClient
-newLuciClient connStr callback = do
-  jsCall <- JS.asyncCallback2 (\h d -> callback $ LuciMessage (asLikeJS h) (asLikeJS d))
-  js_newLuciClient connStr jsCall
+              -> (IO ()) -- ^ onopen callback
+              -> (IO ()) -- ^ onclose callback
+              -> (JSString -> IO ()) -- ^ onerror callback
+              -> IO (Either JSString LuciClient)
+newLuciClient connStr onMsgCall onOpenCall onCloseCall onErrorCall = do
+  jsOnMessage <- JS.asyncCallback2 (\h d -> onMsgCall $ LuciMessage (asLikeJS h) (asLikeJS d))
+  jsOnOpen <- JS.asyncCallback onOpenCall
+  jsOnClose <- JS.asyncCallback onCloseCall
+  jsOnError <- JS.asyncCallback1 (onErrorCall . asLikeJS)
+  asLikeJS <$> js_newLuciClient connStr jsOnMessage jsOnOpen jsOnClose jsOnError
 
 -- | Full string passed into WebSocket constructor
+connectionString :: LuciClient -> JSString
+connectionString (LuciClient c) = js_connectionString c
+connectionString _ = ""
 foreign import javascript safe "$1.connectionString"
-  connectionString :: LuciClient -> JSString
+  js_connectionString :: JSVal -> JSString
 
 -- | Send Luci message
 sendMessage :: LuciClient -> LuciMessage -> IO ()
-sendMessage luci (LuciMessage h a) = js_sendMessage luci h a
+sendMessage (LuciClient luci) (LuciMessage h a) = js_sendMessage luci h a
+sendMessage _ _ = return ()
 
 foreign import javascript safe "$1.sendMessage($2,$3)"
-  js_sendMessage :: LuciClient -> JSString -> JS.Array JSTA.ArrayBuffer -> IO ()
+  js_sendMessage :: JSVal -> JSString -> JS.Array JSTA.ArrayBuffer -> IO ()
 
 
 
