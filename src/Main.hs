@@ -153,10 +153,18 @@ main = do
       updateE <- updateEvents heh
       viewB <- viewBehavior canv resizeE cityChanges updateE programB
 
-      (luciClient, luciMessageE) <- luciHandler "wss://qua-kit.ethz.ch/luci"
-      _unitE <- mapEventIO id $ (parseLuciMessages . msgHeaderValue) <$> luciMessageE
-      liftIO $ sendMessage luciClient runServiceList
-      liftIO $ sendMessage luciClient $ runTestFibonacci 10
+      -- Luci Client testing
+      (luciClientB, luciClientE, luciMessageE) <- luciHandler "wss://qua-kit.ethz.ch/luci"
+      _unitE1 <- mapEventIO id $ (parseLuciMessages . msgHeaderValue) <$> luciMessageE
+      let doLuciAction _ LuciClientOpening = putStrLn "Opening connection."
+          doLuciAction _ LuciClientClosed = putStrLn "LuciClient WebSocket connection closed."
+          doLuciAction _ (LuciClientError err) = putStrLn $ "LuciClient error: " ++ unpack' err
+          doLuciAction _ luciClient = do
+            sendMessage luciClient runServiceList
+            sendMessage luciClient $ runTestFibonacci 10
+      _unitE2 <- mapEventIO id $ doLuciAction <$> luciClientB <@> luciClientE
+--      let _unitEs = unionWith (const id) _unitE1 _unitE2
+
 --      selHelB <- stepper (Nothing, Nothing) selHelE
 --      let selHelE = filterApply ((/=) <$> selHelB) $ (,) <$> selObjIdB <*> heldObjIdB <@ updateE
 --      voidE <-  mapEventIO id $ (\c t -> putStrLn (show (activeObjId c) ++ " " ++ show t)) <$> cityB <@> selHelE

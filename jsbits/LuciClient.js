@@ -70,12 +70,13 @@ var Luci = (function () {
     var LuciClient = (function () {
         var socket, onmessage;
 
-        LuciClient = function (connString, onMsg, onOpen) {
+        LuciClient = function LuciClient(connString, onMsg, onOpen, onClose, onError) {
             this.connectionString = connString;
-            var lc = this;
             socket = new WebSocket(this.connectionString);
             socket.binaryType = "arraybuffer";
-            socket.onopen = function(){ onOpen(lc); };
+            socket.onopen = onOpen;
+            socket.onclose = onClose;
+            socket.onerror = function(e){console.log(e);onError(e['message'] ? e['message'] : 'WebSocket onerror event occured.')};
             onmessage = onMsg;
 
 
