@@ -11,10 +11,11 @@ module Main (
 -- Various thins I use
 --import Control.Arrow (second)
 import Data.Geometry
+--import JsHs
 import JsHs.JSString (unpack') -- JSString, append
 --import Control.Monad (void, when)
 import GHCJS.Useful
-import Text.Read (readMaybe)
+--import Text.Read (readMaybe)
 import Data.Coerce
 import qualified JsHs.Array as JS
 import JsHs.WebGL.Types (GLfloat)
@@ -47,7 +48,11 @@ import Program.Settings
 import JsHs.Debug
 
 main :: IO ()
-main = do
+main = gracefulStart >> do
+    -- get program settings
+    lsettings <- loadSettings
+    putStrLn "Getting program input settings:"
+    print lsettings
     -- whole document
 --    body <- documentBody
 
@@ -59,9 +64,6 @@ main = do
     -- geoJSON updates
     geoJSONImportsHandler <- JFI.geoJSONImports
     JFI.registerButton geoJSONImportsHandler importButton
-
-    -- get default scaling level
-    let geomScale = readMaybe . unpack' $ getHtmlArg "scale"
 
     -- get request processing
     let userProfile = case getHtmlArg "role" of
@@ -137,7 +139,7 @@ main = do
 
 
 
-      let settingsB = pure defaultSettings { objectScale = geomScale}
+      let settingsB = pure lsettings
 
       -- city
       (cityChanges, cityB) <- cityBehavior settingsB
@@ -154,15 +156,20 @@ main = do
       viewB <- viewBehavior canv resizeE cityChanges updateE programB
 
       -- Luci Client testing
-      (luciClientB, luciClientE, luciMessageE) <- luciHandler "wss://qua-kit.ethz.ch/luci"
-      _unitE1 <- mapEventIO id $ (parseLuciMessages . msgHeaderValue) <$> luciMessageE
-      let doLuciAction _ LuciClientOpening = putStrLn "Opening connection."
-          doLuciAction _ LuciClientClosed = putStrLn "LuciClient WebSocket connection closed."
-          doLuciAction _ (LuciClientError err) = putStrLn $ "LuciClient error: " ++ unpack' err
-          doLuciAction _ luciClient = do
-            sendMessage luciClient runServiceList
-            sendMessage luciClient $ runTestFibonacci 10
-      _unitE2 <- mapEventIO id $ doLuciAction <$> luciClientB <@> luciClientE
+      case luciRoute lsettings of
+        Nothing -> return ()
+        Just lcroute -> do
+          (luciClientB, luciClientE, luciMessageE) <- luciHandler lcroute
+          liftIO . putStrLn $ "Connecting to luci on " ++ unpack' lcroute
+          _unitE1 <- mapEventIO id $ (parseLuciMessages . msgHeaderValue) <$> luciMessageE
+          let doLuciAction _ LuciClientOpening = putStrLn "Opening connection."
+              doLuciAction _ LuciClientClosed = putStrLn "LuciClient WebSocket connection closed."
+              doLuciAction _ (LuciClientError err) = putStrLn $ "LuciClient error: " ++ unpack' err
+              doLuciAction _ luciClient = do
+                sendMessage luciClient runServiceList
+                sendMessage luciClient $ runTestFibonacci 10
+          _unitE2 <- mapEventIO id $ doLuciAction <$> luciClientB <@> luciClientE
+          return ()
 --      let _unitEs = unionWith (const id) _unitE1 _unitE2
 
 --      selHelB <- stepper (Nothing, Nothing) selHelE
@@ -173,7 +180,7 @@ main = do
 
     actuate network
     play heh
-    putStrLn "Hello world!"
+    putStrLn "Program started."
     programIdle
 
 parseLuciMessages :: MessageHeader -> IO ()
@@ -203,3 +210,7 @@ parseLuciMessages msg = do
 combinePointers :: JS.Array Coords2D -> JS.Array Coords2D -> [(Vector2 GLfloat, Vector2 GLfloat)]
 combinePointers a b = zipWith (\p1 p2 -> ( asVector p1, asVector p2)
                               ) (JS.toList a) (JS.toList b)
+
+foreign import javascript interruptible "window.onload = $c;"
+  gracefulStart :: IO ()
+

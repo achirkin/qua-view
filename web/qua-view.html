@@ -14,6 +14,10 @@
     <link href="qua-view.css" rel="stylesheet" type="text/css">
     <script type="text/javascript" src="misc.js"></script>
     <script type="text/javascript" src="numeric.min.js"></script>
+    <script language="javascript">
+      window['getQuaViewSettings'] = function getQuaViewSettings(f){ f({}); };
+    </script>
+    <script type="text/javascript" src="qua-view.js"></script>
   </head>
 <body>
 <svg id="loadingSplash" fill="none" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 72 72">
@@ -483,12 +487,4 @@ Use three fingers to rotate camera in all directions
 </div>
 
 </body>
-<script type="text/javascript" defer>
-window.onload = function() {
-var mainjs=document.createElement('script')
-mainjs.setAttribute("type","text/javascript")
-mainjs.setAttribute("src", "qua-view.js")
-document.head.appendChild(mainjs);
-}
-</script>
 </html>
