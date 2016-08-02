@@ -134,7 +134,7 @@ var Luci = (function () {
             socket.onmessage = processMessage;
 
         };
-
+        LuciClient.prototype.objectName = 'LuciClient';
 
 
         /*

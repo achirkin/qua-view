@@ -45,6 +45,7 @@ import qualified JsHs.TypedArray as JSTA
 import qualified JsHs.Callback as JS (Callback, asyncCallback2, asyncCallback1, asyncCallback)
 
 --import Control.Arrow (first)
+import Program.Settings
 import Reactive.Banana.Frameworks
 import Reactive.Banana.Combinators
 import Reactive.Banana.JsHs.Types (Time)
@@ -70,8 +71,7 @@ instance LikeJS "Luci.Client" LuciClient where
   asJSVal (LuciClient jsv) = jsv
   asJSVal _ = jsNull
 
-foreign import javascript unsafe "($1 && $1['constructor'] && \
-                                 \$1['constructor']['name'] == 'LuciClient') \
+foreign import javascript unsafe "($1 && $1.objectName == 'LuciClient') \
                                  \ ? $1 : null" js_Luci :: JSVal -> JSVal
 
 
@@ -284,7 +284,7 @@ instance LikeJS "Object" LuciResultServiceList where
   asLikeJS b = case getProp "serviceNames" b of
                  Just x  -> ServiceList x
                  Nothing -> ServiceList JS.emptyArray
-  asJSVal (ServiceList v) = js_setProp "serviceNames" (asJSVal v) newObj
+  asJSVal (ServiceList v) = setProp "serviceNames" v newObj
 
 -- | run a testing service test.Fibonacci
 runTestFibonacci :: Int -> LuciMessage
@@ -296,7 +296,7 @@ instance LikeJS "Object" LuciResultTestFibonacci where
   asLikeJS b = case getProp "fibonacci_sequence" b of
                  Just x  -> TestFibonacci $ JS.asLikeJS x
                  Nothing -> TestFibonacci []
-  asJSVal (TestFibonacci xs) = js_setProp "fibonacci_sequence" (JS.asJSVal xs) newObj
+  asJSVal (TestFibonacci xs) = setProp "fibonacci_sequence" xs newObj
 
 
 -- | Luci callID is used to reference client's calls to luci and services
@@ -351,85 +351,7 @@ runScenarioGet scId = toLuciMessage
   ) []
 
 
-----------------------------------------------------------------------------------------------------
--- Helpers
-----------------------------------------------------------------------------------------------------
 
-foreign import javascript unsafe "JSON.stringify($1)"
-    jsonStringify :: JSVal -> JSString
-
-foreign import javascript unsafe "JSON.parse($1)"
-    jsonParse :: JSString -> JSVal
-
-foreign import javascript unsafe "$r = {};"
-    newObj :: JSVal
-
-
-{-# INLINE getProp #-}
-getProp :: LikeJS s a => JSString -> JSVal -> Maybe a
-getProp name = asLikeJS . js_getProp name
-
-foreign import javascript unsafe "$2[$1]"
-    js_getProp :: JSString -> JSVal -> JSVal
-
-{-# INLINE setProp #-}
-setProp :: LikeJS s a => JSString -> a -> JSVal -> JSVal
-setProp name = js_setProp name . asJSVal
-
-foreign import javascript unsafe "$3[$1] = $2; $r = $3;"
-    js_setProp :: JSString -> JSVal -> JSVal -> JSVal
-
-
----- | Scenario Object
---newtype LuciScenario = LuciScenario JSVal
---instance LikeJS "Object" LuciScenario
---
----- | Full string passed into WebSocket constructor
---connectionString :: LuciClient -> JSString
---connectionString lc = "ws://" `append` hostOf lc `append` ":" `append` pack (show (portOf lc)) `append` "/" `append` localPathOf lc
---
---
----- | Local path of the connection on server
---{-# NOINLINE localPathOf #-}
---foreign import javascript unsafe "$r = $1.localpath;"
---    localPathOf :: LuciClient -> JSString
---
---
----- | Port of the connection on server
---{-# NOINLINE portOf #-}
---foreign import javascript unsafe "$r = $1.port;"
---    portOf :: LuciClient -> Int
---
---
----- | Connection server
---{-# NOINLINE hostOf #-}
---foreign import javascript unsafe "$r = $1.host;"
---    hostOf :: LuciClient -> JSString
---
---
----- | ScID
---{-# NOINLINE scenarioId #-}
---foreign import javascript unsafe "$r = $1['ScID'];"
---    scenarioId :: LuciScenario -> Int
---
---
----- | Name of the scenario
---{-# NOINLINE scenarioName #-}
---foreign import javascript unsafe "$r = $1['name'];"
---    scenarioName :: LuciScenario -> JSString
---
----- | Name of the scenario
---{-# NOINLINE scenarioMqttTopic #-}
---foreign import javascript unsafe "$r = $1['mqtt_topic'];"
---    scenarioMqttTopic :: LuciScenario -> JSString
---
----- | Timestamp of the scenario
---{-# NOINLINE scenarioTimestamp #-}
---foreign import javascript unsafe "$r = $1['timestamp'];"
---    scenarioTimestamp :: LuciScenario -> Int64
---
-
---
 --
 --runLuciService :: LuciClient -> JSString -> LuciServiceInput -> LuciScenario -> IO (Either JSString LuciServiceOutput)
 --runLuciService lc service inputs scenario = eitherError "service output" <$>
