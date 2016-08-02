@@ -1,7 +1,7 @@
 name: qua-view
 version: 0.3
 cabal-version: >=1.22
-build-type: Simple
+build-type: Custom
 license: MIT
 license-file: LICENSE
 copyright: (c) Artem Chirkin
