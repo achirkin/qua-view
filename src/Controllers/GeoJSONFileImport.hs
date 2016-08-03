@@ -16,7 +16,7 @@
 module Controllers.GeoJSONFileImport
     ( GeoJSONImports, GeoJSONLoaded (..)
     , addHandler, registerButton, loadFromLink
-    , geoJSONImports
+    , geoJSONFileImports -- geoJSONImports
     ) where
 
 
@@ -51,27 +51,41 @@ data GeoJSONImports = GeoJSONImports
   , loadFromLink :: JSString -> Bool -> IO ()
   }
 
-geoJSONImports :: IO GeoJSONImports
-geoJSONImports = do
-  (h,fire) <- newAddHandler
-  return GeoJSONImports
-    { addHandler = h
-    , registerButton = flip onGeoJSONFileImport fire
-    , loadFromLink = \s d -> loadGeoJSONFromLink s d fire
-    }
 
-onGeoJSONFileImport :: HTMLElement -> GeoJSONLoadCallBack -> IO ()
-onGeoJSONFileImport importButton callback = elementOnChange importButton $ do
-    programInProgress
-    logText "Trying to parse GeoJSON FeatureCollection..."
-    gfc <- coerce <$> getElementFiles importButton
-    isBehChecked <- isElementChecked  "dynamicstaticswitcher"
-    logText "GeoJSON FeatureCollection is imported."
-    callback GeoJSONLoaded
-        { isDynamic          = isBehChecked
-        , featureCollection  = gfc
-        }
-    programIdle
+geoJSONFileImports :: IO (AddHandler GeoJSONLoaded)
+geoJSONFileImports =  do
+    (h,fire) <- newAddHandler
+    registerLoadingFile $ f fire
+    return h
+  where
+    f _ (Left str) = logText' str
+    f fire (Right fc) = fire GeoJSONLoaded
+          { isDynamic         = True
+          , featureCollection = fc
+          }
+
+--geoJSONImports :: IO GeoJSONImports
+--geoJSONImports = do
+--  (h,fire) <- newAddHandler
+--  return GeoJSONImports
+--    { addHandler = h
+--    , registerButton = flip onGeoJSONFileImport fire
+--    , loadFromLink = \s d -> loadGeoJSONFromLink s d fire
+--    }
+
+
+--onGeoJSONFileImport :: HTMLElement -> GeoJSONLoadCallBack -> IO ()
+--onGeoJSONFileImport importButton callback = elementOnChange importButton $ do
+--    programInProgress
+--    logText "Trying to parse GeoJSON FeatureCollection..."
+--    gfc <- coerce <$> getElementFiles importButton
+----    isBehChecked <- isElementChecked  "dynamicstaticswitcher"
+--    logText "GeoJSON FeatureCollection is imported."
+--    callback GeoJSONLoaded
+--        { isDynamic          = True
+--        , featureCollection  = gfc
+--        }
+--    programIdle
 
 loadGeoJSONFromLink :: JSString -> Bool -> GeoJSONLoadCallBack -> IO ()
 loadGeoJSONFromLink url isDyn callback = do
@@ -82,25 +96,34 @@ loadGeoJSONFromLink url isDyn callback = do
           { isDynamic         = isDyn
           , featureCollection = c
           }
+-- | Register callback on file loaded
+registerLoadingFile :: (Either JSString FeatureCollection -> IO ()) -> IO ()
+registerLoadingFile callback = do
+  callbackSuccess <- asyncCallback1 $ callback . Right . asLikeJS
+  callbackFailure <- asyncCallback1 $ callback . Left . asLikeJS
+  js_registerLoadingFile callbackSuccess callbackFailure
 
+foreign import javascript safe "registerLoadingFile($1,$2)"
+  js_registerLoadingFile :: Callback (JSVal -> IO ()) -> Callback (JSVal -> IO ()) -> IO ()
 
-foreign import javascript unsafe "$r = document.getElementById($1).checked;"
-    isElementChecked :: JSString -> IO Bool
+--foreign import javascript unsafe "$r = document.getElementById($1).checked;"
+--    isElementChecked :: JSString -> IO Bool
+--
+---- | If checkbox element is checked
+--foreign import javascript interruptible "var r = new FileReader(); \
+--    \ var load = function() { \
+--    \ if (r.readyState != FileReader.EMPTY ) { \
+--    \   var json = null; \
+--    \   try { \
+--    \       json = JSON.parse(r.result); \
+--    \   } catch (err) { logText('Your browser does not like JSON file you have chosen: ' + err); } \
+--    \   $c(json); }}; \
+--    \ var errfun = function() {logText('Your browser cannot open file.'); $c(null);}; \
+--    \ r.onloadend = load;  \
+--    \ r.onerror = errfun; \
+--    \ r.readAsText($1.files[0]);"
+--    getElementFiles :: HTMLElement -> IO FeatureCollection
 
--- | If checkbox element is checked
-foreign import javascript interruptible "var r = new FileReader(); \
-    \ var load = function() { \
-    \ if (r.readyState != FileReader.EMPTY ) { \
-    \   var json = null; \
-    \   try { \
-    \       json = JSON.parse(r.result); \
-    \   } catch (err) { logText('Your browser does not like JSON file you have chosen: ' + err); } \
-    \   $c(json); }}; \
-    \ var errfun = function() {logText('Your browser cannot open file.'); $c(null);}; \
-    \ r.onloadend = load;  \
-    \ r.onerror = errfun; \
-    \ r.readAsText($1.files[0]);"
-    getElementFiles :: HTMLElement -> IO FeatureCollection
 
 
 foreign import javascript interruptible "var xmlHttp = new XMLHttpRequest(); \
