@@ -4,6 +4,7 @@ closure-compiler --warning_level=QUIET\
                  --compilation_level=ADVANCED_OPTIMIZATIONS\
                  --define='DEBUG=false'\
                  --externs=web/numeric.min.js\
+                 --externs=jsbits/qua-server-externs.js\
  dist/build/qua-view/qua-view.jsexe/all.js > web/qua-view.js
 
 # copy qua-view.js to qua-server if possible

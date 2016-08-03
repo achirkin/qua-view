@@ -90,36 +90,62 @@ toLuciMessage :: LikeJS s a => a -> [JSTA.ArrayBuffer] -> LuciMessage
 toLuciMessage h bs = LuciMessage (jsonStringify $ asJSVal h) (JS.fromList bs)
 
 
+--luciHandler :: JSString -> MomentIO (Behavior LuciClient, Event LuciClient, Event LuciMessage)
+--luciHandler str = do
+--  connectH <- liftIO $ do
+--    (userClickH, userClickFire) <- newAddHandler
+--    registerUserConnectToLuci userClickFire
+--    return userClickH
+--  connectE <- fromAddHandler connectH
+--  connectedE <- execute $ luciHandler' <$> connectE
+--
+
 -- | Create LuciClient and register events on message receive
 luciHandler :: JSString -> MomentIO (Behavior LuciClient, Event LuciClient, Event LuciMessage)
 luciHandler str = do
-  (eLuciClient, onMessageH, onOpenH, onCloseH, onErrorH, onErrorFire) <- liftIO $ do
-    (onMessageH', onMessageFire) <- newAddHandler
-    (onOpenH', onOpenFire) <- newAddHandler
-    (onCloseH', onCloseFire) <- newAddHandler
-    (onErrorH', onErrorFire') <- newAddHandler
-    eLuciClient' <- newLuciClient str onMessageFire
+  -- create all handlers
+  (connectH, (onMessageH, onMessageFire)
+           , (onOpenH, onOpenFire)
+           , (onCloseH, onCloseFire)
+           , (onErrorH, onErrorFire)
+           ) <- liftIO $ do
+    -- setup connection form
+    showLuciConnectForm str
+    (userClickH, userClickFire) <- newAddHandler
+    -- register user click
+    registerUserConnectToLuci userClickFire
+    (,,,,) userClickH
+            <$> newAddHandler
+            <*> newAddHandler
+            <*> newAddHandler
+            <*> newAddHandler
+  -- when user clicked on connect button
+  connectE <- fromAddHandler connectH
+  -- create Luci Client
+  eLuciClientE <- flip mapEventIO connectE $ \url -> newLuciClient url onMessageFire
                           (onOpenFire ())
                           (onCloseFire LuciClientClosed)
-                          (onErrorFire' . LuciClientError)
-    return (eLuciClient', onMessageH', onOpenH', onCloseH', onErrorH', onErrorFire')
-  case eLuciClient of
+                          (onErrorFire . LuciClientError)
+  luciMsgs <- fromAddHandler onMessageH
+
+  luciOpenEM <- fmap filterJust
+      . flip mapEventIO eLuciClientE
+      $ \eLuciClient -> case eLuciClient of
     Left err -> do
-      luciErrorE <- fromAddHandler onErrorH
-      luciB <- stepper LuciClientOpening luciErrorE
-      liftIO $ void . forkIO $ do
-        threadDelay 5000000
-        onErrorFire (LuciClientError err)
-      return (luciB, luciErrorE, never)
-    Right lc -> do
-      luciMsgs <- fromAddHandler onMessageH
-      luciOpenE <- (lc <$) <$> fromAddHandler onOpenH
-      luciCloseE <- fromAddHandler onCloseH
-      luciErrorE <- fromAddHandler onErrorH
-      let luciE = luciOpenE +*+ luciCloseE +*+ luciErrorE
-          (+*+) = unionWith (const id)
-      luciB <- stepper LuciClientOpening luciE
-      return (luciB, luciE, luciMsgs)
+      onErrorFire (LuciClientError err)
+      return Nothing
+    Right lc -> return . Just $ (lc <$) <$> fromAddHandler onOpenH
+  luciOpenE <- execute luciOpenEM >>= switchE
+  luciCloseE <- fromAddHandler onCloseH
+  luciErrorE <- fromAddHandler onErrorH
+  let luciE = luciOpenE +*+ luciCloseE +*+ luciErrorE
+      (+*+) = unionWith (const id)
+  luciB <- stepper LuciClientOpening luciE
+  lastUrlB <- stepper str connectE
+  _closeE <- mapEventIO id $ showLuciConnectForm <$> lastUrlB <@ luciCloseE
+  _errorE <- mapEventIO id $ showLuciConnectForm <$> lastUrlB <@ luciErrorE
+  _openE <- mapEventIO id $ showLuciConnected <$> lastUrlB <@ luciOpenE
+  return (luciB, luciE, luciMsgs)
 
 
 foreign import javascript interruptible "try{$c(new LikeHS.Either(new Luci.Client($1,$2,$3,$4,$5),true));}\
@@ -134,8 +160,8 @@ foreign import javascript interruptible "try{$c(new LikeHS.Either(new Luci.Clien
 -- | Create a new luci instance and connect
 newLuciClient :: JSString  -- ^ connection string (i.e. ws://localhost:8080/luci)
               -> (LuciMessage -> IO ()) -- ^ onmessage callback
-              -> (IO ()) -- ^ onopen callback
-              -> (IO ()) -- ^ onclose callback
+              -> IO () -- ^ onopen callback
+              -> IO () -- ^ onclose callback
               -> (JSString -> IO ()) -- ^ onerror callback
               -> IO (Either JSString LuciClient)
 newLuciClient connStr onMsgCall onOpenCall onCloseCall onErrorCall = do
@@ -350,6 +376,20 @@ runScenarioGet scId = toLuciMessage
       ]
   ) []
 
+
+
+----------------------------------------------------------------------------------------------------
+-- * Qua-server integration
+----------------------------------------------------------------------------------------------------
+
+
+foreign import javascript safe "showLuciConnectForm($1)" showLuciConnectForm :: JSString -> IO ()
+foreign import javascript safe "showLuciConnected($1)" showLuciConnected :: JSString -> IO ()
+foreign import javascript safe "registerUserConnectToLuci($1)"
+  js_registerUserConnectToLuci :: JS.Callback (JSVal -> IO ()) -> IO ()
+registerUserConnectToLuci :: (JSString -> IO ()) -> IO ()
+registerUserConnectToLuci c =
+  JS.asyncCallback1 (c . asLikeJS) >>= js_registerUserConnectToLuci
 
 
 --

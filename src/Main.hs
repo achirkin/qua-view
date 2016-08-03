@@ -46,6 +46,7 @@ import Program.View
 import Program.Settings
 
 import JsHs.Debug
+import Data.Maybe (fromMaybe)
 
 main :: IO ()
 main = gracefulStart >> do
@@ -59,11 +60,11 @@ main = gracefulStart >> do
     -- drawing area
     canvas <- getElementById "glcanvas"
     -- "import geometry" button converts GeoJSON into internal representation
-    importButton <- getElementById "jsonfileinput"
+--    importButton <- getElementById "jsonfileinput"
     clearGeomHandler <- getElementById "cleargeombutton" >>= clickHandler
     -- geoJSON updates
-    geoJSONImportsHandler <- JFI.geoJSONImports
-    JFI.registerButton geoJSONImportsHandler importButton
+    geoJSONImportsHandler <- JFI.geoJSONFileImports
+--    JFI.registerButton geoJSONImportsHandler importButton
 
     -- get request processing
     let userProfile = case getHtmlArg "role" of
@@ -88,7 +89,7 @@ main = gracefulStart >> do
                                       , viewDist   = 30 }
 
       -- GeoJSON updates
-      geoJSONImportE <- fromAddHandler $ JFI.addHandler geoJSONImportsHandler
+      geoJSONImportE <- fromAddHandler geoJSONImportsHandler
       clearGeometryE <- fmap (const ClearingGeometry) <$> clickEvents clearGeomHandler
 
       -- canvas events
@@ -156,25 +157,21 @@ main = gracefulStart >> do
       viewB <- viewBehavior canv resizeE cityChanges updateE programB
 
       -- Luci Client testing
-      case luciRoute lsettings of
-        Nothing -> return ()
-        Just lcroute -> do
-          (luciClientB, luciClientE, luciMessageE) <- luciHandler lcroute
-          liftIO . putStrLn $ "Connecting to luci on " ++ unpack' lcroute
-          _unitE1 <- mapEventIO id $ (parseLuciMessages . msgHeaderValue) <$> luciMessageE
-          let doLuciAction _ LuciClientOpening = putStrLn "Opening connection."
-              doLuciAction _ LuciClientClosed = putStrLn "LuciClient WebSocket connection closed."
-              doLuciAction _ (LuciClientError err) = putStrLn $ "LuciClient error: " ++ unpack' err
-              doLuciAction _ luciClient = do
-                sendMessage luciClient runServiceList
-                sendMessage luciClient $ runTestFibonacci 10
-          _unitE2 <- mapEventIO id $ doLuciAction <$> luciClientB <@> luciClientE
-          return ()
+      (luciClientB, luciClientE, luciMessageE) <- luciHandler (fromMaybe "" $ luciRoute lsettings)
+      _unitE1 <- mapEventIO id $ (parseLuciMessages . msgHeaderValue) <$> luciMessageE
+      let doLuciAction _ LuciClientOpening = putStrLn "Opening connection."
+          doLuciAction _ LuciClientClosed = putStrLn "LuciClient WebSocket connection closed."
+          doLuciAction _ (LuciClientError err) = putStrLn $ "LuciClient error: " ++ unpack' err
+          doLuciAction _ luciClient = do
+            sendMessage luciClient runServiceList
+            sendMessage luciClient $ runTestFibonacci 10
+      _unitE2 <- mapEventIO id $ doLuciAction <$> luciClientB <@> luciClientE
+      return ()
 --      let _unitEs = unionWith (const id) _unitE1 _unitE2
 
 --      selHelB <- stepper (Nothing, Nothing) selHelE
 --      let selHelE = filterApply ((/=) <$> selHelB) $ (,) <$> selObjIdB <*> heldObjIdB <@ updateE
---      voidE <-  mapEventIO id $ (\c t -> putStrLn (show (activeObjId c) ++ " " ++ show t)) <$> cityB <@> selHelE
+--      _voidE <-  mapEventIO id $ (\c t -> putStrLn (show (activeObjId c) ++ " " ++ show t)) <$> cityB <@> selHelE
 
       return ()
 
