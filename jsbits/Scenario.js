@@ -59,7 +59,7 @@ function gm$boundCombine(r,q) {
 function gm$boundNestedArrayInner(x) {
     'use strict';
     return x.reduce(function(r,e) {
-        if(e.constructor !== Array) {return null;}
+        if(e.constructor !== Array || e.length === 0) {return null;}
         if(e[0].constructor === Number) {
             return gm$boundX(r,e);
         } else {
@@ -100,6 +100,7 @@ function gm$resizeNestedArrayInner(r,x) {
         }
     });
 }
+
 
 function gm$resizeNestedArray(r,x) {
     'use strict';

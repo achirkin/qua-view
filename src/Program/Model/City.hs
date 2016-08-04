@@ -252,7 +252,7 @@ processScenario :: GLfloat -- ^ default height of buildings in camera space
 processScenario h e sc sh collection | sc <= 0 = ([pack $ "processScenario: Scale is not possible (" ++ show sc ++ ")"], JS.fromList [], JS.fromList [])
                                      | otherwise = (berrs ++ lerrs, buildings, mlns)
     where (berrs, buildings) = (JS.toList *** JS.fromJSArray) $ JS.mapEither (processPolygonFeature h sc sh) plgs
-          (_pts,lns,plgs) = filterGeometryTypes collection
+          (_pts,lns,plgs, _other) = filterGeometryTypes collection
           (lerrs, mlns) = (JS.toList *** (JS.fromJSArray . JS.join)) $ JS.mapEither (processLineFeature e sc sh) lns
 
 

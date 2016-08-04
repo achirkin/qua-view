@@ -126,8 +126,8 @@ foreign import javascript unsafe "$r = $1.value;"
 foreign import javascript unsafe "$r = $1.parentNode;"
     elementParent :: HTMLElement -> IO HTMLElement
 
-foreign import javascript unsafe "$r = httpArgs[$1]; if(!$r){$r='';}"
-    getHtmlArg :: JSString -> JSString
+--foreign import javascript unsafe "$r = httpArgs[$1]; if(!$r){$r='';}"
+--    getHtmlArg :: JSString -> JSString
 
 
 --class JSNum a where
