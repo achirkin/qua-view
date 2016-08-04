@@ -76,7 +76,7 @@ var Luci = (function () {
             socket.binaryType = "arraybuffer";
             socket.onopen = onOpen;
             socket.onclose = onClose;
-            socket.onerror = function(e){console.log(e);onError(e['message'] ? e['message'] : 'WebSocket onerror event occured.')};
+            socket.onerror = function(e){onError(e['message'] ? e['message'] : 'WebSocket onerror event occured.')};
             onmessage = onMsg;
 
 

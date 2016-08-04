@@ -71,15 +71,29 @@ foreign import javascript unsafe "var r = gm$boundNestedArray(($1['geometry'] &&
 
 
 {-# INLINE filterGeometryTypes #-}
-filterGeometryTypes :: FeatureCollection -> (JS.Array Feature, JS.Array Feature, JS.Array Feature)
+filterGeometryTypes :: FeatureCollection -> (JS.Array Feature, JS.Array Feature, JS.Array Feature, JS.Array Feature)
 filterGeometryTypes = js_filterGeometryTypes . toJSArray
 
 {-# INLINE js_filterGeometryTypes #-}
-foreign import javascript unsafe "var t = $1.filter(function(e){return e && e['geometry'] && e['geometry']['type'];});\
-                                 \$r1 = t.filter(function(e){return e['geometry']['type'] === 'Point' || e['geometry']['type'] === 'MultiPoint';});\
-                                 \$r2 = t.filter(function(e){return e['geometry']['type'] === 'LineString' || e['geometry']['type'] === 'MultiLineString';});\
-                                 \$r3 = t.filter(function(e){return e['geometry']['type'] === 'Polygon' || e['geometry']['type'] === 'MultiPolygon';});"
-    js_filterGeometryTypes :: JS.Array Feature -> (JS.Array Feature, JS.Array Feature, JS.Array Feature)
+foreign import javascript unsafe "var t = $1.filter(function(e){return e && e['geometry'] && e['geometry']['type'] && e['geometry']['coordinates'];});\
+                                 \$r1 = t.filter(function(e){return (e['geometry']['type'] === 'Point' || e['geometry']['type'] === 'MultiPoint') && e['geometry']['coordinates'][0] != null;});\
+                                 \$r2 = t.filter(function(e){return (e['geometry']['type'] === 'LineString' || e['geometry']['type'] === 'MultiLineString') && e['geometry']['coordinates'][0] != null && e['geometry']['coordinates'][0][0] != null;});\
+                                 \$r3 = t.filter(function(e){return (e['geometry']['type'] === 'Polygon' || e['geometry']['type'] === 'MultiPolygon') && e['geometry']['coordinates'][0] != null && e['geometry']['coordinates'][0][0] != null && e['geometry']['coordinates'][0][0][0] != null;});\
+                                 \$r4 = [];"
+    js_filterGeometryTypes :: JS.Array Feature -> (JS.Array Feature, JS.Array Feature, JS.Array Feature, JS.Array Feature)
+
+--foreign import javascript unsafe "($1 != null && $1['geometry'] && $1['geometry']['coordinates'] && $1['geometry']['type'] == 'Point' && $1['geometry'][0] != null)"
+--    checkPoint :: Feature -> Bool
+--foreign import javascript unsafe "($1 != null && $1['geometry'] && $1['geometry']['coordinates'] && $1['geometry']['type'] == 'MultiPoint' && $1['geometry']['coordinates'][0] != null && $1['geometry']['coordinates'][0][0] != null)"
+--    checkMultiPoint :: Feature -> Bool
+--foreign import javascript unsafe "($1 != null && $1['geometry'] && $1['geometry']['coordinates'] && $1['geometry']['type'] == 'LineString' && $1['geometry']['coordinates'][0] != null && $1['geometry']['coordinates'][0][0] != null)"
+--    checkLineString :: Feature -> Bool
+--foreign import javascript unsafe "($1 != null && $1['geometry'] && $1['geometry']['coordinates'] && $1['geometry']['type'] == 'MultiLineString' && $1['geometry']['coordinates'][0] != null && $1['geometry']['coordinates'][0][0] != null && $1['geometry']['coordinates'][0][0][0] != null)"
+--    checkMultiLineString :: Feature -> Bool
+--foreign import javascript unsafe "($1 != null && $1['geometry'] && $1['geometry']['coordinates'] && $1['geometry']['type'] == 'Polygon' && $1['geometry']['coordinates'][0] != null && $1['geometry']['coordinates'][0][0] != null && $1['geometry']['coordinates'][0][0][0] != null)"
+--    checkPolygon :: Feature -> Bool
+--foreign import javascript unsafe "($1 != null && $1['geometry'] && $1['geometry']['coordinates'] && $1['geometry']['type'] == 'MultiPolygon' && $1['geometry']['coordinates'][0] != null && $1['geometry']['coordinates'][0][0] != null && $1['geometry']['coordinates'][0][0][0] != null && $1['geometry']['coordinates'][0][0][0][0] != null)"
+--    checkMultiPolygon :: Feature -> Bool
 
 setFeature :: GeoJsonGeometry n x -> Feature -> Feature
 setFeature geom = js_setFeature (asJSVal geom)
@@ -149,6 +163,8 @@ instance LikeJS "Array" (GeoJsonGeometry n x) where
     asJSVal (GeoMultiPolygon x)    = asJSVal x
     asLikeJS _ = undefined
 
+
+
 -- | Get Feature GeoJSON geometry, without knowledge of how many dimensions there are in geometry
 getGeoJSONGeometry :: Feature -> Either JSString (GeoJsonGeometryND x)
 getGeoJSONGeometry fe = if not (jsIsNullOrUndef js)
@@ -164,6 +180,13 @@ getGeoJSONGeometry fe = if not (jsIsNullOrUndef js)
 getGeoJSONGeometryN :: JSVal -> Either JSString (GeoJsonGeometry n x)
 getGeoJSONGeometryN js = if not (jsIsNullOrUndef js)
         then case getGeoJSONType js of
+--            "Point"           -> if checkPoint js then Right . GeoPoint $ asLikeJS js else Left "Not a proper GeoJSON Feature."
+--            "MultiPoint"      -> if checkMultiPoint js then Right . GeoMultiPoint $ asLikeJS js else Left "Not a proper GeoJSON Feature."
+--            "LineString"      -> if checkLineString js then Right . GeoLineString $ asLikeJS js else Left "Not a proper GeoJSON Feature."
+--            "MultiLineString" -> if checkMultiLineString js then Right . GeoMultiLineString $ asLikeJS js else Left "Not a proper GeoJSON Feature."
+--            "Polygon"         -> if checkPolygon js then Right . GeoPolygon $ asLikeJS js else Left "Not a proper GeoJSON Feature."
+--            "MultiPolygon"    -> if checkMultiPolygon js then Right . GeoMultiPolygon $ asLikeJS js else Left "Not a proper GeoJSON Feature."
+--            t                 -> Left $ "Cannot parse GeoJsonGeometry: type " `append` t `append` " is not supported."
             "Point"           -> Right . GeoPoint $ asLikeJS js
             "MultiPoint"      -> Right . GeoMultiPoint $ asLikeJS js
             "LineString"      -> Right . GeoLineString $ asLikeJS js
@@ -180,6 +203,8 @@ getSizedGeoJSONGeometry v fe = if not (jsIsNullOrUndef js)
     then getGeoJSONGeometryN $ js_getSizedGeoJSONGeometry v js
     else Left "Cannot parse GeoJsonGeometry: it is falsy!"
     where js = getGeoJSONGeometry' fe
+
+
 
 foreign import javascript unsafe "var res = gm$resizeNestedArray($1,$2['coordinates']); $r = {}; $r['coordinates'] = res; $r['type'] = $2['type'];"
     js_getSizedGeoJSONGeometry :: Vector n x -> JSVal -> JSVal

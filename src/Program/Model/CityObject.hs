@@ -104,7 +104,8 @@ processPolygonFeature :: GLfloat -- ^ default height in camera space
                       -> GLfloat -- ^ scale objects before processing
                       -> Vector2 GLfloat -- ^ shift objects before processing
                       -> Feature -> Either JSString LocatedCityObject
-processPolygonFeature defHeight scale shift sObj = if isSlave sObj then Left "Skipping a slave scenario object." else
+processPolygonFeature defHeight scale shift sObj = if not (checkPolygon sObj) && not (checkMultiPolygon sObj) then Left "Skipping invalid object." else
+                                                   if isSlave sObj then Left "Skipping a slave scenario object." else
     getSizedGeoJSONGeometry (vector3 0 0 (defHeight / scale)) sObj
     >>= \geom -> toBuildingMultiPolygon geom
     >>= \mpoly ->
@@ -112,6 +113,18 @@ processPolygonFeature defHeight scale shift sObj = if isSlave sObj then Left "Sk
         pdata = buildingPointData locMPoly
     in Right . flip T.wrap qt  $ js_FeatureToCityObject sObj pdata locMPoly tshift trotScale
 
+foreign import javascript unsafe "($1 != null && $1['geometry'] && $1['geometry']['coordinates'] && $1['geometry']['type'] == 'Point' && $1['geometry'][0] != null)"
+    checkPoint :: Feature -> Bool
+foreign import javascript unsafe "($1 != null && $1['geometry'] && $1['geometry']['coordinates'] && $1['geometry']['type'] == 'MultiPoint' && $1['geometry']['coordinates'][0] != null && $1['geometry']['coordinates'][0][0] != null)"
+    checkMultiPoint :: Feature -> Bool
+foreign import javascript unsafe "($1 != null && $1['geometry'] && $1['geometry']['coordinates'] && $1['geometry']['type'] == 'LineString' && $1['geometry']['coordinates'][0] != null && $1['geometry']['coordinates'][0][0] != null)"
+    checkLineString :: Feature -> Bool
+foreign import javascript unsafe "($1 != null && $1['geometry'] && $1['geometry']['coordinates'] && $1['geometry']['type'] == 'MultiLineString' && $1['geometry']['coordinates'][0] != null && $1['geometry']['coordinates'][0][0] != null && $1['geometry']['coordinates'][0][0][0] != null)"
+    checkMultiLineString :: Feature -> Bool
+foreign import javascript unsafe "($1 != null && $1['geometry'] && $1['geometry']['coordinates'] && $1['geometry']['type'] == 'Polygon' && $1['geometry']['coordinates'][0] != null && $1['geometry']['coordinates'][0][0] != null && $1['geometry']['coordinates'][0][0][0] != null)"
+    checkPolygon :: Feature -> Bool
+foreign import javascript unsafe "($1 != null && $1['geometry'] && $1['geometry']['coordinates'] && $1['geometry']['type'] == 'MultiPolygon' && $1['geometry']['coordinates'][0] != null && $1['geometry']['coordinates'][0][0] != null && $1['geometry']['coordinates'][0][0][0] != null && $1['geometry']['coordinates'][0][0][0][0] != null)"
+    checkMultiPolygon :: Feature -> Bool
 
 data StoreMode = PlainFeature
                | QuaternionTranformedFeature

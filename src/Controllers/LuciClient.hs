@@ -27,6 +27,7 @@ module Controllers.LuciClient
     , LuciResultServiceList (..), runServiceList
     , LuciResultTestFibonacci, runTestFibonacci
     , LuciScenario (..), runScenarioGet, runScenarioUpdate, runScenarioCreate
+    , LuciResultScenarioList (..), ScenarioDescription (..), runScenarioList
     ) where
 
 --import Data.Int (Int64)
@@ -49,8 +50,13 @@ import Program.Settings
 import Reactive.Banana.Frameworks
 import Reactive.Banana.Combinators
 import Reactive.Banana.JsHs.Types (Time)
-import Control.Concurrent (threadDelay, forkIO)
-import Control.Monad (void)
+--import Control.Concurrent (threadDelay, forkIO)
+--import Control.Monad (void)
+import Data.Maybe (fromMaybe)
+
+import Data.Time
+--import Data.Time.Clock (secondsToDiffTime)
+import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
 
 ----------------------------------------------------------------------------------------------------
 -- * Client
@@ -342,6 +348,7 @@ instance LikeJS "Object" LuciScenario where
             setProp "ScID"  (JS.asJSVal scId)
           $ setProp "FeatureCollection" fc newObj
 
+-- | Pass the name of the scenario and a feature collection with geometry
 runScenarioCreate :: JSString -- ^ name of the scenario
                   -> FeatureCollection -- ^ content of the scenario
                   -> LuciMessage
@@ -376,6 +383,40 @@ runScenarioGet scId = toLuciMessage
       ]
   ) []
 
+
+runScenarioList :: LuciMessage
+runScenarioList = toLuciMessage  (MsgRun "scenario.GetList" []) []
+
+newtype LuciResultScenarioList = ScenarioList [ScenarioDescription]
+  deriving (Show)
+instance LikeJS "Object" LuciResultScenarioList where
+  asLikeJS b = case getProp "scenarios" b of
+                 Just x  -> ScenarioList x
+                 Nothing -> ScenarioList []
+  asJSVal (ScenarioList v) = setProp "scenarios" v newObj
+
+
+data ScenarioDescription = ScenarioDescription
+  { scCreated  :: UTCTime
+  , scModified :: UTCTime
+  , scName     :: JSString
+  , sscId      :: ScenarioId
+  }
+  deriving (Eq,Ord,Show)
+instance LikeJS "Object" ScenarioDescription where
+  asLikeJS jsv = ScenarioDescription
+    { scCreated  = f $ getProp "created" jsv
+    , scModified = f $ getProp "lastmodified" jsv
+    , scName     = fromMaybe "" $ getProp "name" jsv
+    , sscId      = fromMaybe (-1) $ getProp "ScID" jsv
+    }
+      where
+        f = posixSecondsToUTCTime . realToFrac . secondsToDiffTime . flip div 1000 . fromMaybe 0
+  asJSVal scd =
+          setProp "ScID" (sscId scd) . setProp "name" (scName scd)
+        . setProp "lastmodified" (f $ scModified scd :: Int) $ setProp "created" (f $ scCreated scd :: Int) newObj
+      where
+        f = (1000 *) . round . utcTimeToPOSIXSeconds
 
 
 ----------------------------------------------------------------------------------------------------

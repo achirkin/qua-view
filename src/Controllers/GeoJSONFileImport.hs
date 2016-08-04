@@ -52,11 +52,11 @@ data GeoJSONImports = GeoJSONImports
   }
 
 
-geoJSONFileImports :: IO (AddHandler GeoJSONLoaded)
+geoJSONFileImports :: IO (AddHandler GeoJSONLoaded, GeoJSONLoadCallBack)
 geoJSONFileImports =  do
     (h,fire) <- newAddHandler
     registerLoadingFile $ f fire
-    return h
+    return (h, fire)
   where
     f _ (Left str) = logText' str
     f fire (Right fc) = fire GeoJSONLoaded
