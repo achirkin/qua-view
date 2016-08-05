@@ -17,6 +17,7 @@ module Controllers.GeoJSONFileImport
     ( GeoJSONImports, GeoJSONLoaded (..)
     , addHandler, registerButton, loadFromLink
     , geoJSONFileImports -- geoJSONImports
+    , registerClearGeometry
     ) where
 
 
@@ -105,6 +106,16 @@ registerLoadingFile callback = do
 
 foreign import javascript safe "registerLoadingFile($1,$2)"
   js_registerLoadingFile :: Callback (JSVal -> IO ()) -> Callback (JSVal -> IO ()) -> IO ()
+
+-- | Register callback on geometry clear click
+registerClearGeometry :: (() -> IO ()) -> IO ()
+registerClearGeometry callback = do
+  call <- asyncCallback $ callback ()
+  js_registerClearGeometry call
+
+foreign import javascript safe "registerClearGeometry($1)"
+  js_registerClearGeometry :: Callback (IO ()) -> IO ()
+
 
 --foreign import javascript unsafe "$r = document.getElementById($1).checked;"
 --    isElementChecked :: JSString -> IO Bool
