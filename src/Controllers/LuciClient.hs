@@ -28,6 +28,7 @@ module Controllers.LuciClient
     , LuciResultTestFibonacci, runTestFibonacci
     , LuciScenario (..), runScenarioGet, runScenarioUpdate, runScenarioCreate
     , LuciResultScenarioList (..), ScenarioDescription (..), runScenarioList
+    , registerAskLuciForScenario, displayScenarios, registerGetScenarioList
     ) where
 
 --import Data.Int (Int64)
@@ -114,14 +115,16 @@ luciHandler str = do
            , (onOpenH, onOpenFire)
            , (onCloseH, onCloseFire)
            , (onErrorH, onErrorFire)
+           , (onAskForScenarioH, onAskForScenarioFire)
            ) <- liftIO $ do
     -- setup connection form
     showLuciConnectForm str
     (userClickH, userClickFire) <- newAddHandler
     -- register user click
     registerUserConnectToLuci userClickFire
-    (,,,,) userClickH
+    (,,,,,) userClickH
             <$> newAddHandler
+            <*> newAddHandler
             <*> newAddHandler
             <*> newAddHandler
             <*> newAddHandler
@@ -432,6 +435,26 @@ registerUserConnectToLuci :: (JSString -> IO ()) -> IO ()
 registerUserConnectToLuci c =
   JS.asyncCallback1 (c . asLikeJS) >>= js_registerUserConnectToLuci
 
+
+
+foreign import javascript safe "displayScenarios($1['scenarios'])"
+  displayScenarios :: ServiceResult -> IO ()
+
+
+
+
+foreign import javascript safe "registerGetScenarioList($1)"
+  js_registerGetScenarioList :: JS.Callback (IO ()) -> IO ()
+registerGetScenarioList :: (() -> IO ()) -> IO ()
+registerGetScenarioList c =
+  JS.asyncCallback (c ()) >>= js_registerGetScenarioList
+
+registerAskLuciForScenario :: (ScenarioId -> IO ()) -> IO ()
+registerAskLuciForScenario c =
+  JS.asyncCallback1 (c . asLikeJS) >>= js_registerAskLuciForScenario
+
+foreign import javascript safe "registerAskLuciForScenario($1)"
+  js_registerAskLuciForScenario :: JS.Callback (JSVal -> IO ()) -> IO ()
 
 --
 --runLuciService :: LuciClient -> JSString -> LuciServiceInput -> LuciScenario -> IO (Either JSString LuciServiceOutput)

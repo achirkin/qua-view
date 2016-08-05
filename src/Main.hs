@@ -11,7 +11,7 @@ module Main (
 -- Various thins I use
 --import Control.Arrow (second)
 import Data.Geometry
---import JsHs
+import JsHs
 import JsHs.JSString (unpack') -- JSString, append
 --import Control.Monad (void, when)
 import GHCJS.Useful
@@ -61,10 +61,17 @@ main = do
     canvas <- getElementById "glcanvas"
     -- "import geometry" button converts GeoJSON into internal representation
 --    importButton <- getElementById "jsonfileinput"
-    clearGeomHandler <- getElementById "cleargeombutton" >>= clickHandler
     -- geoJSON updates
+    (clearGeomHandler, clearFire) <- newAddHandler
+    JFI.registerClearGeometry clearFire
     (geoJSONImportsHandler, geoJSONImportTrigger) <- JFI.geoJSONFileImports
 --    JFI.registerButton geoJSONImportsHandler importButton
+
+    -- register user clicking on "get scenario" button
+    (onAskForScenarioH, onAskForScenarioFire) <- newAddHandler
+    registerAskLuciForScenario onAskForScenarioFire
+    (getScListHandler, getScListFire) <- newAddHandler
+    registerGetScenarioList getScListFire
 
     -- get request processing
 --    let userProfile = case getHtmlArg "role" of
@@ -91,7 +98,7 @@ main = do
 
       -- GeoJSON updates
       geoJSONImportE <- fromAddHandler geoJSONImportsHandler
-      clearGeometryE <- fmap (const ClearingGeometry) <$> clickEvents clearGeomHandler
+      clearGeometryE <- fmap (const ClearingGeometry) <$> fromAddHandler clearGeomHandler
 
       -- canvas events
       pointerE <- pointerEvents heh
@@ -159,17 +166,24 @@ main = do
 
       -- Luci Client testing
       (luciClientB, luciClientE, luciMessageE) <- luciHandler (fromMaybe "" $ luciRoute lsettings)
-      let _unitE1 = (\c -> parseLuciMessages geoJSONImportTrigger c . msgHeaderValue) <$> luciClientB <@> luciMessageE
-      let doLuciAction _ _ LuciClientOpening = putStrLn "Opening connection."
+      let (+^^+) = unionWith (\a b -> a >> b)
+          _unitE1 = (\c -> parseLuciMessages geoJSONImportTrigger c . msgHeaderValue) <$> luciClientB <@> luciMessageE
+          _unitE2 = doLuciAction <$> cityB <*> luciClientB <@> luciClientE
+          doLuciAction _ _ LuciClientOpening = putStrLn "Opening connection."
           doLuciAction _ _ LuciClientClosed = putStrLn "LuciClient WebSocket connection closed."
           doLuciAction _ _ (LuciClientError err) = putStrLn $ "LuciClient error: " ++ unpack' err
           doLuciAction ci _ luciClient = do
-            sendMessage luciClient $ runScenarioCreate "Our first scenario" (storeCityAsIs ci)
+--            sendMessage luciClient $ runScenarioCreate "Our first scenario" (storeCityAsIs ci)
             sendMessage luciClient runServiceList
-            sendMessage luciClient runScenarioList
+--            sendMessage luciClient runScenarioList
             sendMessage luciClient $ runTestFibonacci 10
-      let _unitE2 = doLuciAction <$> cityB <*> luciClientB <@> luciClientE
-      _unitEs <- mapEventIO id $ unionWith (\a b -> a >> b) _unitE1 _unitE2
+
+      getScListE <- fromAddHandler getScListHandler
+      _ <- mapEventIO id $ flip sendMessage runScenarioList <$> luciClientB <@  getScListE
+      askForScenarioE <- fmap runScenarioGet <$> fromAddHandler onAskForScenarioH
+      let _unitE3 = sendMessage <$> luciClientB <@> askForScenarioE
+
+      _unitEs <- mapEventIO id $ _unitE1 +^^+ _unitE2 +^^+ _unitE3
       return ()
 
 --      selHelB <- stepper (Nothing, Nothing) selHelE
@@ -184,20 +198,20 @@ main = do
     programIdle
 
 parseLuciMessages :: (JFI.GeoJSONLoaded -> IO ()) -> LuciClient -> MessageHeader -> IO ()
-parseLuciMessages jsonLoadedTrigger luci (MsgResult callID duration serviceName taskID result) = do
+parseLuciMessages jsonLoadedTrigger _ (MsgResult callID duration serviceName taskID result) = do
   putStrLn $ "Luci service '" ++ unServiceName serviceName ++ "' finished!"
   case serviceName of
     "ServiceList" -> print (JS.asLikeJS $ JS.asJSVal result :: LuciResultServiceList)
     "test.Fibonacci" -> print (JS.asLikeJS $ JS.asJSVal result :: LuciResultTestFibonacci)
-    "scenario.GetList" -> do
-      let ScenarioList xs = JS.asLikeJS $ JS.asJSVal result :: LuciResultScenarioList
-      print xs
-      case xs of
-        scd:_ -> sendMessage luci $ runScenarioGet (sscId scd)
-        _ -> return ()
+    "scenario.GetList" -> displayScenarios result
+--      let ScenarioList xs = JS.asLikeJS $ JS.asJSVal result :: LuciResultScenarioList
+--      print xs
+--      case xs of
+--        scd:_ -> sendMessage luci $ runScenarioGet (sscId scd)
+--        _ -> return ()
     "scenario.geojson.Get" ->
        let LuciResultScenario _scId fc = (JS.asLikeJS $ JS.asJSVal result :: LuciScenario)
-       in printJSVal (JS.asJSVal fc) >> jsonLoadedTrigger (JFI.GeoJSONLoaded True fc)
+       in jsonLoadedTrigger (JFI.GeoJSONLoaded True fc)
     s -> putStrLn ("Got some JSVal as a result of service " ++ show s) >> printJSVal (JS.asJSVal result)
   print (callID, duration, taskID)
 parseLuciMessages _ _ (MsgError err) = putStrLn "Luci returned error" >> print err
@@ -207,7 +221,7 @@ parseLuciMessages _ _ (MsgProgress callID duration serviceName taskID percentage
   case serviceName of
     "ServiceList" -> print (JS.asLikeJS $ JS.asJSVal progress :: LuciResultServiceList)
     "test.Fibonacci" -> print (JS.asLikeJS $ JS.asJSVal progress :: LuciResultTestFibonacci)
-    "scenario.GetList" -> print (JS.asLikeJS $ JS.asJSVal progress :: LuciResultScenarioList)
+--    "scenario.GetList" -> print (JS.asLikeJS $ JS.asJSVal progress :: LuciResultScenarioList)
     s -> putStrLn ("Got some JSVal as a progress of service " ++ show s) >> printJSVal (JS.asJSVal progress)
   print (callID, duration, taskID)
 parseLuciMessages _ _ (MsgNewCallID i) = putStrLn $ "Luci assigned new callID " ++ show i
@@ -221,6 +235,4 @@ combinePointers :: JS.Array Coords2D -> JS.Array Coords2D -> [(Vector2 GLfloat, 
 combinePointers a b = zipWith (\p1 p2 -> ( asVector p1, asVector p2)
                               ) (JS.toList a) (JS.toList b)
 
-foreign import javascript interruptible "window.onload = function(){$c();};"
-  gracefulStart :: IO ()
 
