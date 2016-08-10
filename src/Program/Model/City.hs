@@ -30,6 +30,7 @@ module Program.Model.City
     , storeCityAsIs
     -- | reactive-banana
     , cityBehavior
+    , CityUpdate (..)
     ) where
 
 import Control.Arrow ((***), first)
@@ -55,13 +56,12 @@ import Program.Model.Camera
 import Program.Settings
 import Program.Types
 
-import Controllers.GeoJSONFileImport
-
 import Reactive.Banana.Combinators
 import Control.Monad.Fix (MonadFix)
+import Control.Monad.Writer.Strict
 --import JsHs.Debug
 
---import JsHs.Debug
+import JsHs.Debug
 --import Debug.Trace
 
 -- | Map of all city objects (buildings, roads, etc).
@@ -111,10 +111,12 @@ emptyCity = City
 
 -- | An event that represents all possible city changes
 data CityUpdate
-  = EraseCity
-  | UpdateCity FeatureCollection
-  | NewCity FeatureCollection
-
+  = CityErase
+    -- ^ clear all geometry
+  | CityUpdate FeatureCollection
+    -- ^ update geometry
+  | CityNew FeatureCollection
+    -- ^ create whole new geometry
 
 -- | This is a main module export.
 --   Describes logic of city changes.
@@ -123,28 +125,24 @@ cityBehavior :: (MonadMoment m, MonadFix m)
              -> Behavior (Maybe Int) -- ^ selected object id
              -> Event (Maybe Int) -- ^ held object id
              -> Event (ObjectTransform T.QFTransform CityObject)
-             -> Event GeoJSONLoaded
-             -> Event ClearingGeometry
-             -> m (Event (RequireViewUpdate City), Behavior City)
-cityBehavior psets selIdB heldIdE otransform updateEvent clearEvent = mdo
+             -> Event CityUpdate
+             -> m (Event (RequireViewUpdate City), Behavior City, Event [JSString])
+cityBehavior psets selIdB heldIdE otransform cityChange = mdo
     activeObjectSnapshot <- stepper Nothing $ osnapshotF <$> cityBeh <*> selIdB <@> heldIdE
-    let objectMove = fmap ((,) Nothing .)
+    let objectMove = fmap ((,) (Nothing, []) .)
                     $ objectMoveF <$> activeObjectSnapshot <@> otransform
-    (cityUE,cityBeh) <- fmap (first filterJust)
-              . mapAccum emptyCity
-              $ unionsSnd
+    (cityUE',cityBeh) <- mapAccum emptyCity
+              $ unionsChanges
                 [ objectMove
-                , cityUpdate
-                , cityClear
+                , cityUpdates
                 ]
-    return (cityUE, addSelId <$> selIdB <*> cityBeh)
+    let cityUE = filterJust $ fst <$> cityUE'
+        cityErrors = filterE (not . Prelude.null) $ snd <$> cityUE'
+    return (cityUE, addSelId <$> selIdB <*> cityBeh, cityErrors)
   where
     addSelId Nothing city = city{activeObjId = 0}
     addSelId (Just i) city = city{activeObjId = i}
-    applySets = (\s f -> f $ defaultCitySettings { defScale = objectScale s}) <$> psets
-    cityUpdate = fmap u $ applySets <@> loadingCityJSONEvent updateEvent
-    cityClear  = fmap u $ clearCity <$ clearEvent
-    u f x = let y = f x in (Just (RequireViewUpdate y), y)
+    cityUpdates = manageCityUpdates psets cityChange
     osnapshotF _ Nothing _ = Nothing
     osnapshotF _ _ Nothing = Nothing
     osnapshotF city (Just i) (Just j) | i /= j = Nothing
@@ -156,15 +154,26 @@ cityBehavior psets selIdB heldIdE otransform updateEvent clearEvent = mdo
 
 
 
-unionsSnd :: [Event (a -> (Maybe b, a))] -> Event (a -> (Maybe b, a))
-unionsSnd [] = never
-unionsSnd xs = foldr1 (unionWith comb) xs
+--unionsSnd :: [Event (a -> (Maybe b, a))] -> Event (a -> (Maybe b, a))
+--unionsSnd [] = never
+--unionsSnd xs = foldr1 (unionWith comb) xs
+--  where
+--    comb f g x = case f x of
+--        (Nothing, r) -> g r
+--        (Just y , r) -> case g r of
+--            (Nothing, v) -> (Just y, v)
+--            (Just z , v) -> (Just z, v)
+
+unionsChanges :: [Event (a -> ((Maybe b, [JSString]), a))] -> Event (a -> ((Maybe b, [JSString]), a))
+unionsChanges [] = never
+unionsChanges as = foldr1 (unionWith comb) as
   where
     comb f g x = case f x of
-        (Nothing, r) -> g r
-        (Just y , r) -> case g r of
-            (Nothing, v) -> (Just y, v)
-            (Just z , v) -> (Just z, v)
+        ((Nothing, xs), r) -> ins xs $ g r
+        ((Just y, xs), r) -> case g r of
+            ((Nothing, ys), v) -> ((Just y, xs++ys), v)
+            ((Just z, ys), v) -> ((Just z, xs++ys), v)
+    ins xs ((ma, ys), b) = ((ma, xs ++ ys), b)
 
 
 -- | Basic entity in the program; Defines the logic of the interaction and visualization
@@ -173,15 +182,32 @@ instance JS.LikeJS "Array" CityObjectCollection
 instance JS.LikeJSArray "Object" CityObjectCollection where
     type ArrayElem CityObjectCollection = LocatedCityObject
 
-loadingCityJSONEvent :: Event GeoJSONLoaded -> Event (CitySettings -> City -> City)
-loadingCityJSONEvent = fmap c
-  where
-    c e sets = snd . loadingCityJSON sets e
 
-loadingCityJSON :: CitySettings -> GeoJSONLoaded -> City -> ([JSString], City)
-loadingCityJSON citySettings GeoJSONLoaded { featureCollection = col } ci =
-  if isEmptyCity ci then buildCity citySettings col
-                    else updateCity col ci
+-- | Pure city transform given a feature collection to apply
+manageCityUpdate :: Settings -> CityUpdate -> City -> ([JSString], City)
+manageCityUpdate _ CityErase _ = ([], emptyCity)
+manageCityUpdate sets (CityNew fc) _ = buildCity (defaultCitySettings { defScale = objectScale sets}) fc
+manageCityUpdate _ (CityUpdate fc) city = updateCity fc city
+
+-- | City transforms in Event style
+manageCityUpdates :: Behavior Settings
+                  -> Event CityUpdate
+                  -> Event (City -> ((Maybe (RequireViewUpdate City), [JSString]), City))
+manageCityUpdates bsets ev = u <$> transforms
+  where
+    transforms :: Event (City -> ([JSString], City))
+    transforms = manageCityUpdate <$> bsets <@> ev
+    u f x = let (ss, y) = f x in ((Just (RequireViewUpdate y), ss), y)
+
+--loadingCityJSONEvent :: Event GeoJSONLoaded -> Event (CitySettings -> City -> City)
+--loadingCityJSONEvent = fmap c
+--  where
+--    c e sets = snd . loadingCityJSON sets e
+--
+--loadingCityJSON :: CitySettings -> GeoJSONLoaded -> City -> ([JSString], City)
+--loadingCityJSON citySettings GeoJSONLoaded { featureCollection = col } ci =
+--  if isEmptyCity ci then buildCity citySettings col
+--                    else updateCity col ci
 
 
 buildCity :: CitySettings -- ^ desired diagonal length of the city

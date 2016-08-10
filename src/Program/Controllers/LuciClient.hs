@@ -3,7 +3,7 @@
 {-# LANGUAGE DataKinds, FlexibleInstances, MultiParamTypeClasses #-}
 -----------------------------------------------------------------------------
 -- |
--- Module      :  Controllers.LuciClient
+-- Module      :  Program.Controllers.LuciClient
 -- Copyright   :  (c) Artem Chirkin
 -- License     :  MIT
 --
@@ -14,7 +14,7 @@
 --
 -----------------------------------------------------------------------------
 
-module Controllers.LuciClient
+module Program.Controllers.LuciClient
     ( -- * Client
       LuciClient (..), luciHandler, connectionString
       -- * Core message types
@@ -32,7 +32,7 @@ module Controllers.LuciClient
     ) where
 
 
-import qualified Controllers.GUI as GUI
+import qualified Program.Controllers.GUI as GUI
 --import Data.Int (Int64)
 --import JsHs.JSString (JSString, append,unpack',pack)
 
@@ -50,6 +50,7 @@ import qualified JsHs.Callback as JS (Callback, asyncCallback2, asyncCallback1, 
 
 --import Control.Arrow (first)
 import Program.Settings
+import Program.Types
 import Reactive.Banana.Frameworks
 import Reactive.Banana.Combinators
 import Reactive.Banana.JsHs.Types (Time)
@@ -279,8 +280,7 @@ instance LikeJS "Object" MessageHeader where
     where
       maybeUnknown j Nothing  = MsgUnknown j
       maybeUnknown _ (Just v) = v
-  asJSVal (MsgRun run props) = flip (foldl' (\x (n,v) -> setProp n v x)) props
-                             $ setProp "run" run newObj
+  asJSVal (MsgRun run props) = fromProps $ ("run", JS.asJSVal run):props
   asJSVal (MsgCancel callID) = setProp "callID" callID newObj
   asJSVal (MsgNewCallID newCallID) = setProp "newCallID" newCallID newObj
   asJSVal (MsgResult callID duration serviceName taskID result) =
@@ -325,12 +325,6 @@ instance LikeJS "Object" LuciResultTestFibonacci where
   asJSVal (TestFibonacci xs) = setProp "fibonacci_sequence" xs newObj
 
 
--- | Luci callID is used to reference client's calls to luci and services
-newtype ScenarioId = ScenarioId Int
-  deriving (Eq,Ord,Show,Enum,Num,Real,Integral)
-instance LikeJS "Number" ScenarioId where
-  asLikeJS = ScenarioId . asLikeJS
-  asJSVal (ScenarioId v) = asJSVal v
 
 -- | Luci scenario
 data LuciScenario = LuciResultScenario ScenarioId FeatureCollection
@@ -423,7 +417,7 @@ displayScenarios = GUI.displayScenarios . asJSVal
 -- | Registers one callback; comes from Handler.Home.PanelGeometry.
 --   h :: ScID -> IO ()
 --   return :: IO ()
-registerAskLuciForScenario :: (ScenarioId -> IO ()) -> IO ()
+registerAskLuciForScenario :: (ScenarioId -> JSString -> IO ()) -> IO ()
 registerAskLuciForScenario f = GUI.registerAskLuciForScenario (f . ScenarioId)
 
 --

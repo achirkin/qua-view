@@ -19,7 +19,7 @@ function registerClearGeometry(onClick) {}
 function displayScenarios(xs) {}
 
 /** Registers one callback; comes from Handler.Home.PanelGeometry.
- *  h :: ScID -> IO ()
+ *  h :: ScID -> JSString -> IO ()
  *  return :: IO ()
  */
 function registerAskLuciForScenario(sendMsg) {}
@@ -47,3 +47,16 @@ function showLuciConnected(connectedHost){}
  *  return :: IO ()
  */
 function showLuciConnectForm(defaultHost){}
+
+/** Registers one callback; comes from Handler.Home.PanelGeometry.
+ *  sendMsg :: JSString -> IO ()
+ *  return :: IO ()
+ */
+function registerSaveScenario(sendMsg) {}
+
+/** call it to setup scenario buttons state; comes from Handler.Home.PanelGeometry.
+ *  showButton :: Bool -- whether to show "save scenario" button
+ *  scName :: JSString -- name of the scenario displayed on a panel
+ *  return :: IO ()
+ */
+function toggleSaveScenarioButton(showButton, scName) {}

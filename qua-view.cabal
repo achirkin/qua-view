@@ -21,15 +21,14 @@ executable qua-view
     main-is: Main.hs
     build-depends:
         base >=4.8 && <5,
-        ghc-prim >=0.4,
         fastvec -any,
         ghcjs-hs-interop -any,
         ghcjs-webgl -any,
         reactive-banana -any,
         reactive-banana-ghcjs -any,
-        stm >=2.4,
         transformers -any,
-        time -any
+        time -any,
+        mtl -any
     cpp-options: -DGHCJS_BROWSER
     js-sources:
         jsbits/PointSet.js
@@ -40,9 +39,6 @@ executable qua-view
     default-language: Haskell2010
     hs-source-dirs: src
     other-modules:
-        Controllers.GUI
-        Controllers.GeoJSONFileImport
-        Controllers.LuciClient
         Data.Geometry.Structure
         Data.Geometry.Structure.Feature
         Data.Geometry.Structure.LineString
@@ -50,13 +46,11 @@ executable qua-view
         Data.Geometry.Structure.Point
         Data.Geometry.Structure.PointSet
         Data.Geometry.Structure.Polygon
-        GHCJS.Useful
-        Program.Settings
-        Program.Types
-        SmallGL.Helpers
-        SmallGL.Shader
-        SmallGL.WritableVectors
+        JsHs.Useful
         Program
+        Program.Controllers.GUI
+        Program.Controllers.GeoJSONFileImport
+        Program.Controllers.LuciClient
         Program.Model.Camera
         Program.Model.WiredGeometry
         Program.Model.City
@@ -73,10 +67,15 @@ executable qua-view
         Program.Reactions.ServiceRun
         Program.Reactions.ViewRendering
         Program.Reactions.ViewSubmitPopup
+        Program.Settings
+        Program.Types
         Program.View
         Program.View.CityView
         Program.View.CityObjectView
         Program.View.CityGroundView
         Program.View.WiredGeometryView
-    ghc-options: -Wall -O2 -ddump-splices
+        SmallGL.Helpers
+        SmallGL.Shader
+        SmallGL.WritableVectors
+    ghc-options: -Wall -fwarn-tabs -O2
 
