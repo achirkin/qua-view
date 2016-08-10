@@ -23,7 +23,7 @@ module Program where
 --import JavaScript.Web.Canvas (Canvas)
 import JsHs.WebGL
 import qualified JsHs.Array as JS
-import GHCJS.Useful
+import JsHs.Useful
 import Data.Geometry
 
 --import Controllers.LuciClient

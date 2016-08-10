@@ -15,17 +15,12 @@
 module Program.Settings
   ( Settings (..), defaultSettings, loadSettings
   -- * JSON helpers
-  , getProp, setProp, newObj, jsonParse, jsonStringify
+  , getProp, setProp, newObj, jsonParse, jsonStringify, fromProps
   ) where
 
 import JsHs (JSVal, JSString, LikeJS (..))
 import JsHs.WebGL (GLfloat)
---import Data.Geometry
---
---import Services
---import qualified Services.Isovist as Services
---import qualified Services.Radius as Services
-
+import qualified JsHs.Array as JS
 
 data Settings = Settings
     { -- activeService     :: !ServiceBox
@@ -90,3 +85,12 @@ setProp name = js_setProp name . asJSVal
 
 foreign import javascript unsafe "$3[$1] = $2; $r = $3;"
     js_setProp :: JSString -> JSVal -> JSVal -> JSVal
+
+fromProps :: [(JSString, JSVal)] -> JSVal
+fromProps xs = js_fromProps (JS.fromList keys) (JS.fromList vals)
+  where
+    (keys, vals) = unzip xs
+
+foreign import javascript unsafe "var r = {}; $1.forEach(function(e,i){ r[e] = $2[i];}); $r = r;"
+  js_fromProps :: JS.Array JSString -> JS.Array JSVal -> JSVal
+

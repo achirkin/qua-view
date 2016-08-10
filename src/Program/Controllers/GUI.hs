@@ -1,6 +1,6 @@
 -----------------------------------------------------------------------------
 -- |
--- Module      :  Controllers.GUI
+-- Module      :  Program.Controllers.GUI
 -- Copyright   :  (c) Artem Chirkin
 -- License     :  MIT
 --
@@ -11,7 +11,7 @@
 --
 -----------------------------------------------------------------------------
 
-module Controllers.GUI
+module Program.Controllers.GUI
   ( registerLoadingFile
   , registerClearGeometry
   , displayScenarios
@@ -20,6 +20,8 @@ module Controllers.GUI
   , registerUserConnectToLuci
   , showLuciConnected
   , showLuciConnectForm
+  , registerSaveScenario
+  , toggleSaveScenarioButton
   ) where
 
 
@@ -62,9 +64,9 @@ foreign import javascript safe "displayScenarios($1['scenarios'])" displayScenar
 -- | Registers one callback; comes from Handler.Home.PanelGeometry.
 --   h :: ScID -> IO ()
 --   return :: IO ()
-registerAskLuciForScenario :: (Int -> IO ()) -> IO ()
-registerAskLuciForScenario c = asyncCallback1 (c . asLikeJS) >>= js_registerAskLuciForScenario
-foreign import javascript safe "registerAskLuciForScenario($1)" js_registerAskLuciForScenario :: Callback (JSVal -> IO ()) -> IO ()
+registerAskLuciForScenario :: (Int -> JSString -> IO ()) -> IO ()
+registerAskLuciForScenario c = asyncCallback2 (\i s -> c (asLikeJS i) (asLikeJS s)) >>= js_registerAskLuciForScenario
+foreign import javascript safe "registerAskLuciForScenario($1)" js_registerAskLuciForScenario :: Callback (JSVal -> JSVal ->  IO ()) -> IO ()
 
 
 -- | Registers one callback; comes from Handler.Home.PanelGeometry.
@@ -93,5 +95,20 @@ foreign import javascript safe "showLuciConnected($1)" showLuciConnected :: JSSt
 --   defaultHost :: JSString -- default address of websocket host
 --   return :: IO ()
 foreign import javascript safe "showLuciConnectForm($1)" showLuciConnectForm :: JSString -> IO ()
+
+
+-- | Registers one callback; comes from Handler.Home.PanelGeometry.
+--   sendMsg :: JSString -> IO ()
+--   return :: IO ()
+registerSaveScenario :: (JSString -> IO ()) -> IO ()
+registerSaveScenario c = asyncCallback1 (c . asLikeJS) >>= js_registerSaveScenario
+foreign import javascript safe "registerSaveScenario($1)" js_registerSaveScenario :: Callback (JSVal -> IO ()) -> IO ()
+
+
+-- | call it to setup scenario buttons state; comes from Handler.Home.PanelGeometry.
+--   showButton :: Bool -- whether to show "save scenario" button
+--   scName :: JSString -- name of the scenario displayed on a panel
+--   return :: IO ()
+foreign import javascript safe "toggleSaveScenarioButton($1, $2)" toggleSaveScenarioButton :: Bool -> JSString -> IO ()
 
 

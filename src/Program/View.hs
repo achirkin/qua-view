@@ -29,9 +29,7 @@ import Control.Arrow ((***))
 --import JsHs.Types
 import JsHs.WebGL
 import qualified JsHs.Array as JS
----- import GHCJS.Foreign
---import GHCJS.Marshal.Pure (pFromJSVal)
-import GHCJS.Useful (asVector)
+import JsHs.Useful (asVector)
 
 import Data.Geometry
 import Data.Geometry.Transform
