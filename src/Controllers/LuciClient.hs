@@ -28,9 +28,11 @@ module Controllers.LuciClient
     , LuciResultTestFibonacci, runTestFibonacci
     , LuciScenario (..), runScenarioGet, runScenarioUpdate, runScenarioCreate
     , LuciResultScenarioList (..), ScenarioDescription (..), runScenarioList
-    , registerAskLuciForScenario, displayScenarios, registerGetScenarioList
+    , registerAskLuciForScenario, displayScenarios, GUI.registerGetScenarioList
     ) where
 
+
+import qualified Controllers.GUI as GUI
 --import Data.Int (Int64)
 --import JsHs.JSString (JSString, append,unpack',pack)
 
@@ -97,15 +99,6 @@ toLuciMessage :: LikeJS s a => a -> [JSTA.ArrayBuffer] -> LuciMessage
 toLuciMessage h bs = LuciMessage (jsonStringify $ asJSVal h) (JS.fromList bs)
 
 
---luciHandler :: JSString -> MomentIO (Behavior LuciClient, Event LuciClient, Event LuciMessage)
---luciHandler str = do
---  connectH <- liftIO $ do
---    (userClickH, userClickFire) <- newAddHandler
---    registerUserConnectToLuci userClickFire
---    return userClickH
---  connectE <- fromAddHandler connectH
---  connectedE <- execute $ luciHandler' <$> connectE
---
 
 -- | Create LuciClient and register events on message receive
 luciHandler :: JSString -> MomentIO (Behavior LuciClient, Event LuciClient, Event LuciMessage)
@@ -115,16 +108,14 @@ luciHandler str = do
            , (onOpenH, onOpenFire)
            , (onCloseH, onCloseFire)
            , (onErrorH, onErrorFire)
-           , (onAskForScenarioH, onAskForScenarioFire)
            ) <- liftIO $ do
     -- setup connection form
-    showLuciConnectForm str
+    GUI.showLuciConnectForm str
     (userClickH, userClickFire) <- newAddHandler
     -- register user click
-    registerUserConnectToLuci userClickFire
-    (,,,,,) userClickH
+    GUI.registerUserConnectToLuci userClickFire
+    (,,,,) userClickH
             <$> newAddHandler
-            <*> newAddHandler
             <*> newAddHandler
             <*> newAddHandler
             <*> newAddHandler
@@ -151,9 +142,9 @@ luciHandler str = do
       (+*+) = unionWith (const id)
   luciB <- stepper LuciClientOpening luciE
   lastUrlB <- stepper str connectE
-  _closeE <- mapEventIO id $ showLuciConnectForm <$> lastUrlB <@ luciCloseE
-  _errorE <- mapEventIO id $ showLuciConnectForm <$> lastUrlB <@ luciErrorE
-  _openE <- mapEventIO id $ showLuciConnected <$> lastUrlB <@ luciOpenE
+  reactimate $ GUI.showLuciConnectForm <$> lastUrlB <@ luciCloseE
+  reactimate $ GUI.showLuciConnectForm <$> lastUrlB <@ luciErrorE
+  reactimate $ GUI.showLuciConnected <$> lastUrlB <@ luciOpenE
   return (luciB, luciE, luciMsgs)
 
 
@@ -426,35 +417,14 @@ instance LikeJS "Object" ScenarioDescription where
 -- * Qua-server integration
 ----------------------------------------------------------------------------------------------------
 
+displayScenarios ::  ServiceResult -> IO ()
+displayScenarios = GUI.displayScenarios . asJSVal
 
-foreign import javascript safe "showLuciConnectForm($1)" showLuciConnectForm :: JSString -> IO ()
-foreign import javascript safe "showLuciConnected($1)" showLuciConnected :: JSString -> IO ()
-foreign import javascript safe "registerUserConnectToLuci($1)"
-  js_registerUserConnectToLuci :: JS.Callback (JSVal -> IO ()) -> IO ()
-registerUserConnectToLuci :: (JSString -> IO ()) -> IO ()
-registerUserConnectToLuci c =
-  JS.asyncCallback1 (c . asLikeJS) >>= js_registerUserConnectToLuci
-
-
-
-foreign import javascript safe "displayScenarios($1['scenarios'])"
-  displayScenarios :: ServiceResult -> IO ()
-
-
-
-
-foreign import javascript safe "registerGetScenarioList($1)"
-  js_registerGetScenarioList :: JS.Callback (IO ()) -> IO ()
-registerGetScenarioList :: (() -> IO ()) -> IO ()
-registerGetScenarioList c =
-  JS.asyncCallback (c ()) >>= js_registerGetScenarioList
-
+-- | Registers one callback; comes from Handler.Home.PanelGeometry.
+--   h :: ScID -> IO ()
+--   return :: IO ()
 registerAskLuciForScenario :: (ScenarioId -> IO ()) -> IO ()
-registerAskLuciForScenario c =
-  JS.asyncCallback1 (c . asLikeJS) >>= js_registerAskLuciForScenario
-
-foreign import javascript safe "registerAskLuciForScenario($1)"
-  js_registerAskLuciForScenario :: JS.Callback (JSVal -> IO ()) -> IO ()
+registerAskLuciForScenario f = GUI.registerAskLuciForScenario (f . ScenarioId)
 
 --
 --runLuciService :: LuciClient -> JSString -> LuciServiceInput -> LuciScenario -> IO (Either JSString LuciServiceOutput)
