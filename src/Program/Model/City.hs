@@ -109,6 +109,13 @@ emptyCity = City
     , clutter = emptyLineSet (vector4 0.8 0.4 0.4 1)
     }
 
+-- | An event that represents all possible city changes
+data CityUpdate
+  = EraseCity
+  | UpdateCity FeatureCollection
+  | NewCity FeatureCollection
+
+
 -- | This is a main module export.
 --   Describes logic of city changes.
 cityBehavior :: (MonadMoment m, MonadFix m)

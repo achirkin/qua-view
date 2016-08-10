@@ -25,19 +25,12 @@ import Data.Geometry.Structure.Feature (FeatureCollection)
 import JsHs.LikeJS.Class
 import JsHs.Types
 import JsHs.Types.Prim
---import GHCJS.Marshal
-import JsHs.Callback
---import JsHs.Debug
--- import GHCJS.Foreign (isTruthy)
 
 import GHCJS.Useful
---import Controllers.GUIEvents
-import Data.Coerce (coerce)
+import Controllers.GUI (registerLoadingFile, registerClearGeometry)
 
 import Reactive.Banana.Frameworks
 import Reactive.Banana.JsHs
---import Reactive.Banana.Combinators
---import Control.Monad.IO.Class
 
 -- | When valid GeoJSON comes from somewhere
 data GeoJSONLoaded = GeoJSONLoaded
@@ -97,24 +90,7 @@ loadGeoJSONFromLink url isDyn callback = do
           { isDynamic         = isDyn
           , featureCollection = c
           }
--- | Register callback on file loaded
-registerLoadingFile :: (Either JSString FeatureCollection -> IO ()) -> IO ()
-registerLoadingFile callback = do
-  callbackSuccess <- asyncCallback1 $ callback . Right . asLikeJS
-  callbackFailure <- asyncCallback1 $ callback . Left . asLikeJS
-  js_registerLoadingFile callbackSuccess callbackFailure
 
-foreign import javascript safe "registerLoadingFile($1,$2)"
-  js_registerLoadingFile :: Callback (JSVal -> IO ()) -> Callback (JSVal -> IO ()) -> IO ()
-
--- | Register callback on geometry clear click
-registerClearGeometry :: (() -> IO ()) -> IO ()
-registerClearGeometry callback = do
-  call <- asyncCallback $ callback ()
-  js_registerClearGeometry call
-
-foreign import javascript safe "registerClearGeometry($1)"
-  js_registerClearGeometry :: Callback (IO ()) -> IO ()
 
 
 --foreign import javascript unsafe "$r = document.getElementById($1).checked;"
@@ -166,18 +142,3 @@ foreign import javascript interruptible "var xmlHttp = new XMLHttpRequest(); \
     \ } catch (err) { logText(err); if(i == 0){i++;$c(null);}} "
     getUrlJSON :: JSString -> IO FeatureCollection
 
-
--- | Simple event when HTMLElement is changed (e.g. one picked file in "file" button)
-elementOnChange :: HTMLElement -> IO () -> IO ()
-elementOnChange element clickFun = do
-    clickCallBack <- asyncCallback clickFun
-    elementOnChange' element clickCallBack
-foreign import javascript unsafe "\
-    \ $1.addEventListener('change', function(event){ \
-    \     var e = window.event || event; \
-    \     e.preventDefault(); \
-    \     e.stopPropagation(); \
-    \     $2(); \
-    \     return false; \
-    \ });"
-    elementOnChange' :: HTMLElement -> Callback (IO ()) -> IO ()

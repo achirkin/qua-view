@@ -28,9 +28,7 @@ function registerAskLuciForScenario(sendMsg) {}
  *  onClick :: IO ()
  *  return :: IO ()
  */
-function registerGetScenarioList(onClick) {
-  document.getElementById('#{rawJS browseScenarios}').addEventListener("click", onClick);
-}
+function registerGetScenarioList(onClick) {}
 
 /** Registers one callback; comes from Handler.Home.PanelServices.
  *  onClick :: JSString -> IO () -- address of websocket host

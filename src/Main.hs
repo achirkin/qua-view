@@ -11,7 +11,7 @@ module Main (
 -- Various thins I use
 --import Control.Arrow (second)
 import Data.Geometry
-import JsHs
+--import JsHs
 import JsHs.JSString (unpack') -- JSString, append
 --import Control.Monad (void, when)
 import GHCJS.Useful
@@ -166,24 +166,28 @@ main = do
 
       -- Luci Client testing
       (luciClientB, luciClientE, luciMessageE) <- luciHandler (fromMaybe "" $ luciRoute lsettings)
-      let (+^^+) = unionWith (\a b -> a >> b)
-          _unitE1 = (\c -> parseLuciMessages geoJSONImportTrigger c . msgHeaderValue) <$> luciClientB <@> luciMessageE
-          _unitE2 = doLuciAction <$> cityB <*> luciClientB <@> luciClientE
-          doLuciAction _ _ LuciClientOpening = putStrLn "Opening connection."
-          doLuciAction _ _ LuciClientClosed = putStrLn "LuciClient WebSocket connection closed."
-          doLuciAction _ _ (LuciClientError err) = putStrLn $ "LuciClient error: " ++ unpack' err
-          doLuciAction ci _ luciClient = do
+      let doLuciAction LuciClientOpening = putStrLn "Opening connection."
+          doLuciAction LuciClientClosed = putStrLn "LuciClient WebSocket connection closed."
+          doLuciAction (LuciClientError err) = putStrLn $ "LuciClient error: " ++ unpack' err
+          doLuciAction luciClient = do
 --            sendMessage luciClient $ runScenarioCreate "Our first scenario" (storeCityAsIs ci)
             sendMessage luciClient runServiceList
---            sendMessage luciClient runScenarioList
             sendMessage luciClient $ runTestFibonacci 10
 
-      getScListE <- fromAddHandler getScListHandler
-      _ <- mapEventIO id $ flip sendMessage runScenarioList <$> luciClientB <@  getScListE
-      askForScenarioE <- fmap runScenarioGet <$> fromAddHandler onAskForScenarioH
-      let _unitE3 = sendMessage <$> luciClientB <@> askForScenarioE
+      -- general response to luci messages
+      reactimate $ (parseLuciMessages geoJSONImportTrigger . msgHeaderValue) <$>  luciMessageE
 
-      _unitEs <- mapEventIO id $ _unitE1 +^^+ _unitE2 +^^+ _unitE3
+      -- actions to do when luci state changes
+      reactimate $ doLuciAction <$> luciClientE
+
+      -- asking luci for a scenario list on button click
+      getScListE <- fromAddHandler getScListHandler
+      reactimate $ flip sendMessage runScenarioList <$> luciClientB <@  getScListE
+
+      -- Asking luci for a scenario on button click
+      askForScenarioE <- fmap runScenarioGet <$> fromAddHandler onAskForScenarioH
+      reactimate $ sendMessage <$> luciClientB <@> askForScenarioE
+
       return ()
 
 --      selHelB <- stepper (Nothing, Nothing) selHelE
@@ -197,8 +201,8 @@ main = do
     putStrLn "Program started."
     programIdle
 
-parseLuciMessages :: (JFI.GeoJSONLoaded -> IO ()) -> LuciClient -> MessageHeader -> IO ()
-parseLuciMessages jsonLoadedTrigger _ (MsgResult callID duration serviceName taskID result) = do
+parseLuciMessages :: (JFI.GeoJSONLoaded -> IO ()) -> MessageHeader -> IO ()
+parseLuciMessages jsonLoadedTrigger (MsgResult callID duration serviceName taskID result) = do
   putStrLn $ "Luci service '" ++ unServiceName serviceName ++ "' finished!"
   case serviceName of
     "ServiceList" -> print (JS.asLikeJS $ JS.asJSVal result :: LuciResultServiceList)
@@ -214,8 +218,8 @@ parseLuciMessages jsonLoadedTrigger _ (MsgResult callID duration serviceName tas
        in jsonLoadedTrigger (JFI.GeoJSONLoaded True fc)
     s -> putStrLn ("Got some JSVal as a result of service " ++ show s) >> printJSVal (JS.asJSVal result)
   print (callID, duration, taskID)
-parseLuciMessages _ _ (MsgError err) = putStrLn "Luci returned error" >> print err
-parseLuciMessages _ _ (MsgProgress callID duration serviceName taskID percentage progress) = do
+parseLuciMessages _ (MsgError err) = putStrLn "Luci returned error" >> print err
+parseLuciMessages _ (MsgProgress callID duration serviceName taskID percentage progress) = do
   putStrLn $ "Luci service '" ++ unServiceName serviceName
            ++ "' is in progress, done " ++ show percentage
   case serviceName of
@@ -224,8 +228,8 @@ parseLuciMessages _ _ (MsgProgress callID duration serviceName taskID percentage
 --    "scenario.GetList" -> print (JS.asLikeJS $ JS.asJSVal progress :: LuciResultScenarioList)
     s -> putStrLn ("Got some JSVal as a progress of service " ++ show s) >> printJSVal (JS.asJSVal progress)
   print (callID, duration, taskID)
-parseLuciMessages _ _ (MsgNewCallID i) = putStrLn $ "Luci assigned new callID " ++ show i
-parseLuciMessages _ _ msg = do
+parseLuciMessages _ (MsgNewCallID i) = putStrLn $ "Luci assigned new callID " ++ show i
+parseLuciMessages _ msg = do
   putStrLn "Got unexpected message"
   printJSVal $ JS.asJSVal msg
 
