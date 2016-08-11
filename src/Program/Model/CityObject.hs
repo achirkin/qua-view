@@ -19,7 +19,7 @@
 -----------------------------------------------------------------------------
 
 module Program.Model.CityObject
-    ( CityObject (), LocatedCityObject, behavior, objPolygons, objPoints
+    ( CityObject (), LocatedCityObject, behavior, objPolygons, objPoints, geomId
     , GeoJsonGeometry (..)
     , PointData (), vertexArray, indexArray, vertexArrayLength, indexArrayLength
     , processPolygonFeature
@@ -33,7 +33,7 @@ module Program.Model.CityObject
 import JsHs.Callback (Callback)
 
 import Data.Coerce (coerce)
-import JsHs.JSString (unpack')
+--import JsHs.JSString (unpack')
 
 ---- import GHCJS.Foreign
 --import GHCJS.Marshal.Pure
@@ -54,17 +54,7 @@ import Data.Geometry.Structure.Polygon
 import Data.Geometry.Structure.PointSet (PointArray, PointSet (..), shrinkVectors, boundingRectangle2D)
 import Data.Geometry.Structure.Feature
 import Unsafe.Coerce
-
--- | Id of geometry in Luci
-newtype GeomID = GeomID JSVal
-instance Eq GeomID where
-    (==) = cmpIDs
-instance Show GeomID where
-    show (GeomID jv) = unpack' (asLikeJS jv)
-{-# INLINE cmpIDs #-}
-foreign import javascript unsafe "$1 === $2" cmpIDs :: GeomID -> GeomID -> Bool
-
-
+import Program.Types
 
 -- | Whether one could interact with an object or not
 data ObjectBehavior = Static | Dynamic deriving (Eq,Show)
@@ -104,27 +94,13 @@ processPolygonFeature :: GLfloat -- ^ default height in camera space
                       -> GLfloat -- ^ scale objects before processing
                       -> Vector2 GLfloat -- ^ shift objects before processing
                       -> Feature -> Either JSString LocatedCityObject
-processPolygonFeature defHeight scale shift sObj = if not (checkPolygon sObj) && not (checkMultiPolygon sObj) then Left "Skipping invalid object." else
-                                                   if isSlave sObj then Left "Skipping a slave scenario object." else
+processPolygonFeature defHeight scale shift sObj = if isSlave sObj then Left "Skipping a slave scenario object." else
     getSizedGeoJSONGeometry (vector3 0 0 (defHeight / scale)) sObj
     >>= \geom -> toBuildingMultiPolygon geom
     >>= \mpoly ->
     let qt@(T.QFTransform trotScale tshift locMPoly) = locateMultiPolygon scale shift mpoly
         pdata = buildingPointData locMPoly
     in Right . flip T.wrap qt  $ js_FeatureToCityObject sObj pdata locMPoly tshift trotScale
-
-foreign import javascript unsafe "($1 != null && $1['geometry'] && $1['geometry']['coordinates'] && $1['geometry']['type'] == 'Point' && $1['geometry'][0] != null)"
-    checkPoint :: Feature -> Bool
-foreign import javascript unsafe "($1 != null && $1['geometry'] && $1['geometry']['coordinates'] && $1['geometry']['type'] == 'MultiPoint' && $1['geometry']['coordinates'][0] != null && $1['geometry']['coordinates'][0][0] != null)"
-    checkMultiPoint :: Feature -> Bool
-foreign import javascript unsafe "($1 != null && $1['geometry'] && $1['geometry']['coordinates'] && $1['geometry']['type'] == 'LineString' && $1['geometry']['coordinates'][0] != null && $1['geometry']['coordinates'][0][0] != null)"
-    checkLineString :: Feature -> Bool
-foreign import javascript unsafe "($1 != null && $1['geometry'] && $1['geometry']['coordinates'] && $1['geometry']['type'] == 'MultiLineString' && $1['geometry']['coordinates'][0] != null && $1['geometry']['coordinates'][0][0] != null && $1['geometry']['coordinates'][0][0][0] != null)"
-    checkMultiLineString :: Feature -> Bool
-foreign import javascript unsafe "($1 != null && $1['geometry'] && $1['geometry']['coordinates'] && $1['geometry']['type'] == 'Polygon' && $1['geometry']['coordinates'][0] != null && $1['geometry']['coordinates'][0][0] != null && $1['geometry']['coordinates'][0][0][0] != null)"
-    checkPolygon :: Feature -> Bool
-foreign import javascript unsafe "($1 != null && $1['geometry'] && $1['geometry']['coordinates'] && $1['geometry']['type'] == 'MultiPolygon' && $1['geometry']['coordinates'][0] != null && $1['geometry']['coordinates'][0][0] != null && $1['geometry']['coordinates'][0][0][0] != null && $1['geometry']['coordinates'][0][0][0][0] != null)"
-    checkMultiPolygon :: Feature -> Bool
 
 data StoreMode = PlainFeature
                | QuaternionTranformedFeature
@@ -189,6 +165,9 @@ foreign import javascript unsafe "$1['geometry']"
 {-# INLINE objPoints #-}
 foreign import javascript unsafe "$1['pointData']"
     objPoints :: CityObject -> PointData
+
+foreign import javascript unsafe "$1['properties']['geomID']"
+    geomId :: CityObject -> GeomId
 
 
 {-# INLINE isSlave #-}
