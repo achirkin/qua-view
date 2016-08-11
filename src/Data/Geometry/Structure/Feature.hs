@@ -23,6 +23,7 @@ module Data.Geometry.Structure.Feature
     , FeatureGeometryType (..), featureGeometryType
     , getGeoJSONGeometry, getSizedGeoJSONGeometry
     , boundingBox2D, filterGeometryTypes
+    , ParsedFeatureCollection (..), smartProcessFeatureCollection
     ) where
 
 
@@ -62,6 +63,32 @@ instance LikeJSArray "Object" FeatureCollection where
 ----------------------------------------------------------------------------------------------------
 -- Some Functions
 ----------------------------------------------------------------------------------------------------
+
+data ParsedFeatureCollection n x = ParsedFeatureCollection
+  { pfcPoints  :: JS.Array Feature
+  , pfcLines   :: JS.Array Feature
+  , pfcPolys   :: JS.Array Feature
+  , pfcDeletes :: JS.Array Int
+  , pfcErrors  :: JS.Array JSString
+  , pfcMin     :: Vector n x
+  , pfcMax     :: Vector n x
+  , pfcDims    :: Int
+  }
+
+smartProcessFeatureCollection :: Int -- ^ maximum geomId in current City
+                              -> Vector n x -- ^ default vector to substitute
+                              -> FeatureCollection
+                              -> ParsedFeatureCollection n x
+smartProcessFeatureCollection n defVals fc = ParsedFeatureCollection points lins polys deletes errors cmin cmax cdims
+  where
+    (points, lins, polys, deletes, errors, cmin, cmax, cdims) = js_smartProcessFeatureCollection fc defVals n
+
+
+foreign import javascript unsafe "var a = gm$smartProcessFeatureCollection($1, $2, $3);$r1=a[0];$r2=a[1];$r3=a[2];$r4=a[3];$r5=a[4];$r6=a[5];$r7=a[6];$r8=a[7];"
+    js_smartProcessFeatureCollection
+      :: FeatureCollection -> Vector n x -> Int
+      -> (JS.Array Feature, JS.Array Feature, JS.Array Feature, JS.Array Int, JS.Array JSString, Vector n x, Vector n x, Int)
+
 
 foreign import javascript unsafe "var r = gm$boundNestedArray(($1['geometry'] && $1['geometry']['coordinates']) ? $1['geometry']['coordinates'] : []);\
                           \if(!r){ $r1 = Array.apply(null, Array(2)).map(Number.prototype.valueOf,Infinity);\

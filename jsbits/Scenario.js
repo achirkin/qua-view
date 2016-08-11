@@ -1,5 +1,270 @@
 "use strict";
 
+
+/**
+ * Parse a feature collection.
+ *
+ * Returns nicely sorted points, lines, surfaces + deletes and errors.
+ * Add geomID to all features that miss it.
+ *
+ * @param fc - FeatureCollection
+ * @returns {[points:Feature,lines:Feature,surfaces:Feature,deletes:Number(geomID),errors:string,cmin,cmax,dims]}
+ */
+function gm$smartProcessFeatureCollection(fc, defVec, maxGeomId) {
+    'use strict';
+    if (!fc) {
+        return [[],[],[],[],["FeatureCollection is null."]];
+    }
+    if (fc['type'] !== "FeatureCollection")  {
+        return [[],[],[],[],["No valid 'obj.type = \"FeatureCollection\"'"]];
+    }
+    if (!fc['features'] || fc['features'].constructor !== Array)  {
+        return [[],[],[],[],["No valid 'obj.features':array"]];
+    }
+    // so now we have a more-or-less valid feature collection
+    var points = [],lines = [],surfaces = [],deletes = [],errors = [],
+        f, cmin = [], cmax = [], dims = 0, i;
+    fc['features'].forEach(function(feature, n) {
+        try{
+            f = gm$smartProcessFeature(feature, defVec);
+            switch (f['type'] ) {
+                case "Delete":
+                    maxGeomId = Math.max(f['properties']['geomID'], maxGeomId);
+                    deletes.push(f['properties']['geomID']);
+                    break;
+                case "Error":
+                    errors.push("(" + n + ") " + f['properties']['error']);
+                    break;
+                case "Feature":
+                    if (f['properties']['geomID']) {
+                        maxGeomId = Math.max(f['properties']['geomID'], maxGeomId);
+                    }
+                    for(i = 0; i < Math.min(dims, f.dim); i++) {
+                        cmin[i] = Math.min(cmin[i],f.min[i]);
+                        cmax[i] = Math.max(cmax[i],f.max[i]);
+                    }
+                    for(i = dims; i < f.dim; i++) {
+                        cmin[i] = f.min[i];
+                        cmax[i] = f.max[i];
+                    }
+                    dims = Math.max(dims,f.dim);
+
+                    switch (f['geometry']['type']) {
+                        case "Point":
+                        case "MultiPoint":
+                            points.push(f);
+                            break;
+                        case "LineString":
+                        case "MultiLineString":
+                            lines.push(f);
+                            break;
+                        case "Polygon":
+                        case "MultiPolygon":
+                            surfaces.push(f);
+                            break;
+                        default:
+                            return errors.push("(" + n + ") Unknown feature geometry type: " + f['geometry']['type']);
+                    }
+                    break;
+                default:
+                    errors.push("(" + n + ") Unknown feature type: " + f['type']);
+            }
+        } catch (ex) {
+            errors.push("(" + n + ") JavaScript error: " + JSON.stringify(ex));
+        }
+    });
+    var addGeomID = function(f) {
+        if (!f['properties']['geomID'] || f['properties']['geomID'] < 0) {
+            f['properties']['geomID'] = ++maxGeomId;
+        }
+    };
+    points.forEach(addGeomID);
+    lines.forEach(addGeomID);
+    surfaces.forEach(addGeomID);
+    return [points,lines,surfaces,deletes,errors,gm$resizeX(defVec, cmin),gm$resizeX(defVec, cmax),dims];
+}
+
+
+/** Process geometry in a smart way to make sure it is valid.
+ *
+ *  Return feature types are a little bit different from standard GeoJSON; possible values:
+ *  * Feature - standard type, geometries are (MultiPolygon, MultiLineString, MultiPoint);
+ *  * Error - there was some error while processing; then has an explanatory property "properties.error":text;
+ *  * Delete - empty geometry in original feature means delete object; then must have "properties.geomID":number to delete.
+ *
+ * @param feature - GeoJSON Feature
+ * @returns {rez} - updated augmented GeoJSON Feature
+ */
+function gm$smartProcessFeature(feature, defVec) {
+    'use strict';
+    if (!feature) {
+        return gm$createErrorFeature("Feature is null.");
+    }
+    if (feature['type'] !== "Feature") {
+        return gm$createErrorFeature("No valid 'obj.type = \"Feature\"'");
+    }
+    if (!feature['geometry']) { // parse Delete Feature
+        if(!feature['properties'] || !feature['properties']['geomID'] || feature['properties']['geomID'].constructor !== Number){
+            return gm$createErrorFeature("No valid 'obj.properties.geomID':number");
+        }
+        return gm$createDeleteFeature(feature['properties']['geomID']);
+    }
+    if (!feature['geometry']['type'] || feature['geometry']['type'].constructor !== String) {
+        return gm$createErrorFeature("No valid 'obj.geometry.type':string");
+    }
+    // parse geometry and check it for errors
+    var geominfo = gm$smartProcessGeometry(feature['geometry']['coordinates'], defVec);
+    if (geominfo.error) {
+        return gm$createErrorFeature("Invalid feature geometry: " + geominfo.error);
+    }
+    // by this time we have a proper feature with geometry and some info about coordinates
+    // let's test all advances properties!
+    switch (feature['geometry']['type']) {
+        case "Point":
+            if (geominfo.nesting !== 1) {
+                return gm$createErrorFeature("Point feature must have nesting 1, but has " + geominfo.nesting);
+            }
+            break;
+        case "MultiPoint":
+            if (geominfo.nesting !== 2) {
+                return  gm$createErrorFeature("MultiPoint feature must have nesting 2, but has " + geominfo.nesting);
+            }
+            break;
+        case "LineString":
+            if (geominfo.nesting !== 2) {
+                return gm$createErrorFeature("LineString feature must have nesting 2, but has " + geominfo.nesting);
+            }
+            if (geominfo.dim[1] < 2) {
+                return gm$createErrorFeature("LineString feature must have at least 2 points " + geominfo.dim[1]);
+            }
+            break;
+        case "MultiLineString":
+            if (geominfo.nesting !== 3) {
+                return  gm$createErrorFeature("MultiLineString feature must have nesting 3, but has " + geominfo.nesting);
+            }
+            if (geominfo.dim[1] < 2) {
+                return gm$createErrorFeature("MultiLineString feature must have at least 2 points inside each LineString, but has " + geominfo.dim[1]);
+            }
+            break;
+        case "Polygon":
+            if (geominfo.nesting !== 3) {
+                return gm$createErrorFeature("Polygon feature must have nesting 3, but has " + geominfo.nesting);
+            }
+            if (geominfo.dim[1] < 4) {
+                return gm$createErrorFeature("Polygon feature must have at least 4 points inside each LinearRing, but has " + geominfo.dim[1]);
+            }
+            break;
+        case "MultiPolygon":
+            if (geominfo.nesting !== 4) {
+                return  gm$createErrorFeature("MultiPolygon feature must have nesting 4, but has " + geominfo.nesting);
+            }
+            if (geominfo.dim[1] < 4) {
+                return gm$createErrorFeature("Polygon feature must have at least 4 points inside each LinearRing, but has " + geominfo.dim[1]);
+            }
+            break;
+        default:
+            return gm$createErrorFeature("Unknown feature geometry type: " + feature['geometry']['type']);
+    }
+
+    var rez = {};
+    rez['properties'] = feature['properties'];
+    rez['type'] = "Feature";
+    rez['geometry'] = {};
+    rez['geometry']['coordinates'] = feature['geometry']['coordinates']; // feature['geometry']['coordinates']; // geominfo.val;
+    rez['geometry']['type'] = feature['geometry']['type'];
+    rez.min = geominfo.min;
+    rez.max = geominfo.max;
+    rez.dim = geominfo.dim[0];
+    rez.nesting = geominfo.nesting;
+    return rez;
+}
+
+function gm$createErrorFeature(err) {
+    'use strict';
+    var rez = {};
+    rez['type'] = "Error";
+    rez['properties'] = {};
+    rez['properties']['error'] = err;
+    return rez;
+}
+
+function gm$createDeleteFeature(geomID) {
+    'use strict';
+    var rez = {};
+    rez['type'] = "Delete";
+    rez['properties'] = {};
+    rez['properties']['geomID'] = geomID;
+    return rez;
+}
+
+/** Checks validity of a geometry array;
+ * evaluates bounding box (min, max);
+ * evaluates nesting level of an array (nesting);
+ * evaluates dimensionality of an array (dim).
+ *
+ * @param x - array with unknown nesting
+ * @returns {*}
+ */
+function gm$smartProcessGeometry(x, defVec) {
+    'use strict';
+    if (!x || x.constructor !== Array || x.length === 0) {
+        return { error : "Invalid coordinates (level 0)" };
+    } else {
+        return gm$smartProcessGeometryInner(x, 1, defVec);
+    }
+}
+
+function gm$smartProcessGeometryInner(x, i, defVec) {
+    'use strict';
+    if ( x[0].constructor === Number ) {
+        return {
+            nesting: i,
+            dim: [x.length],
+            min: x,
+            max: x,
+            val: gm$resizeX(defVec,x)
+        };
+    }
+    if ( x[0].constructor !== Array ) {
+        return { error : "Invalid coordinates (level " + i + "): wrong element data type '" + typeof x[0] + "'." };
+    }
+    if ( x[0].length === 0 ) {
+        return { error : "Invalid coordinates (level " + i + "): zero-length array." };
+    }
+    var re, z, z0;
+    z0 = gm$smartProcessGeometryInner(x[0], i+1, defVec);
+    z0.val = [z0.val];
+    z = x.slice(1).reduce(function(r,e) {
+        // at this moment we assume the elements are non-empty arrays
+        if (r.error) {
+            return r;
+        }
+        re = gm$smartProcessGeometryInner(e, i+1, defVec);
+        if (re.error) {
+            return re;
+        }
+        if (re.dim[0] !== r.dim[0]) {
+            return { error : "Invalid coordinates (level " + i + "): dimension mismatch." };
+        }
+        if ( re.nesting !== r.nesting) {
+            return { error : "Invalid coordinates (level " + i + "): nesting mismatch." };
+        }
+        // now both r and re are valid result objects
+        return {
+            nesting: r.nesting,
+            dim: r.dim.map(function(e,i){return Math.min(e,re.dim[i]);}),
+            min: r.min.map(function(e,i){return Math.min(e,re.min[i]);}),
+            max: r.max.map(function(e,i){return Math.max(e,re.max[i]);}),
+            val: r.val.concat([re.val])
+        }
+    }, z0);
+    if (!z.error) {
+        z.dim.push(x.length);
+    }
+    return z;
+}
+
+
 // cloning
 
 function gm$cloneCityObject(obj) {
@@ -101,7 +366,6 @@ function gm$resizeNestedArrayInner(r,x) {
     });
 }
 
-
 function gm$resizeNestedArray(r,x) {
     'use strict';
     if (!x || x.constructor !== Array || x.length === 0) {
@@ -109,185 +373,4 @@ function gm$resizeNestedArray(r,x) {
     }
     if (x[0].constructor === Number){return gm$resizeX(r,x);}
     return gm$resizeNestedArrayInner(r, x);
-}
-
-
-
-/*
-    cycle.js
-    2016-05-01
-    Public Domain.
-    NO WARRANTY EXPRESSED OR IMPLIED. USE AT YOUR OWN RISK.
-    This code should be minified before deployment.
-    See http://javascript.crockford.com/jsmin.html
-    USE YOUR OWN COPY. IT IS EXTREMELY UNWISE TO LOAD CODE FROM SERVERS YOU DO
-    NOT CONTROL.
-*/
-
-/*jslint eval, for */
-
-/*property
-    $ref, decycle, forEach, isArray, keys, length, push, retrocycle, stringify,
-    test
-*/
-
-if (typeof JSON.decycle !== "function") {
-    JSON.decycle = function decycle(object, replacer) {
-        "use strict";
-
-// Make a deep copy of an object or array, assuring that there is at most
-// one instance of each object or array in the resulting structure. The
-// duplicate references (which might be forming cycles) are replaced with
-// an object of the form
-
-//      {"$ref": PATH}
-
-// where the PATH is a JSONPath string that locates the first occurance.
-
-// So,
-
-//      var a = [];
-//      a[0] = a;
-//      return JSON.stringify(JSON.decycle(a));
-
-// produces the string '[{"$ref":"$"}]'.
-
-// If a replacer function is provided, then it will be called for each value.
-// A replacer function receives a value and returns a replacement value.
-
-// JSONPath is used to locate the unique object. $ indicates the top level of
-// the object or array. [NUMBER] or [STRING] indicates a child element or
-// property.
-
-        var objects = [];   // Keep a reference to each unique object or array
-        var paths = [];     // Keep the path to each unique object or array
-
-        return (function derez(value, path) {
-
-// The derez function recurses through the object, producing the deep copy.
-
-            var i;          // The loop counter
-            var nu;         // The new object or array
-
-// If a replacer function was provided, then call it to get a replacement value.
-
-            if (replacer !== undefined) {
-                value = replacer(value);
-            }
-
-// typeof null === "object", so go on if this value is really an object but not
-// one of the weird builtin objects.
-
-            if (
-                typeof value === "object" && value !== null &&
-                !(value instanceof Boolean) &&
-                !(value instanceof Date) &&
-                !(value instanceof Number) &&
-                !(value instanceof RegExp) &&
-                !(value instanceof String)
-            ) {
-
-// If the value is an object or array, look to see if we have already
-// encountered it. If so, return a {"$ref":PATH} object. This is a hard
-// linear search that will get slower as the number of unique objects grows.
-// Someday, this should be replaced with an ES6 WeakMap.
-
-                i = objects.indexOf(value);
-                if (i >= 0) {
-                    return {$ref: paths[i]};
-                }
-
-// Otherwise, accumulate the unique value and its path.
-
-                objects.push(value);
-                paths.push(path);
-
-// If it is an array, replicate the array.
-
-                if (Array.isArray(value)) {
-                    nu = [];
-                    value.forEach(function (element, i) {
-                        nu[i] = derez(element, path + "[" + i + "]");
-                    });
-                } else {
-
-// If it is an object, replicate the object.
-
-                    nu = {};
-                    Object.keys(value).forEach(function (name) {
-                        nu[name] = derez(
-                            value[name],
-                            path + "[" + JSON.stringify(name) + "]"
-                        );
-                    });
-                }
-                return nu;
-            }
-            return value;
-        }(object, "$"));
-    };
-}
-
-
-if (typeof JSON.retrocycle !== "function") {
-    JSON.retrocycle = function retrocycle($) {
-        "use strict";
-
-// Restore an object that was reduced by decycle. Members whose values are
-// objects of the form
-//      {$ref: PATH}
-// are replaced with references to the value found by the PATH. This will
-// restore cycles. The object will be mutated.
-
-// The eval function is used to locate the values described by a PATH. The
-// root object is kept in a $ variable. A regular expression is used to
-// assure that the PATH is extremely well formed. The regexp contains nested
-// * quantifiers. That has been known to have extremely bad performance
-// problems on some browsers for very long strings. A PATH is expected to be
-// reasonably short. A PATH is allowed to belong to a very restricted subset of
-// Goessner's JSONPath.
-
-// So,
-//      var s = '[{"$ref":"$"}]';
-//      return JSON.retrocycle(JSON.parse(s));
-// produces an array containing a single element which is the array itself.
-
-        var px = /^\$(?:\[(?:\d+|\"(?:[^\\\"\u0000-\u001f]|\\([\\\"\/bfnrt]|u[0-9a-zA-Z]{4}))*\")\])*$/;
-
-        (function rez(value) {
-
-// The rez function walks recursively through the object looking for $ref
-// properties. When it finds one that has a value that is a path, then it
-// replaces the $ref object with a reference to the value that is found by
-// the path.
-
-            if (value && typeof value === "object") {
-                if (Array.isArray(value)) {
-                    value.forEach(function (element, i) {
-                        if (typeof element === "object" && element !== null) {
-                            var path = element.$ref;
-                            if (typeof path === "string" && px.test(path)) {
-                                value[i] = eval(path);
-                            } else {
-                                rez(element);
-                            }
-                        }
-                    });
-                } else {
-                    Object.keys(value).forEach(function (name) {
-                        var item = value[name];
-                        if (typeof item === "object" && item !== null) {
-                            var path = item.$ref;
-                            if (typeof path === "string" && px.test(path)) {
-                                value[name] = eval(path);
-                            } else {
-                                rez(item);
-                            }
-                        }
-                    });
-                }
-            }
-        }($));
-        return $;
-    };
 }

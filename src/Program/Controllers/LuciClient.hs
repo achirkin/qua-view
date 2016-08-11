@@ -29,6 +29,7 @@ module Program.Controllers.LuciClient
     , LuciScenario (..), runScenarioGet, runScenarioUpdate, runScenarioCreate
     , LuciResultScenarioList (..), ScenarioDescription (..), runScenarioList
     , registerAskLuciForScenario, displayScenarios, GUI.registerGetScenarioList
+    , LuciScenarioCreated (..)
     ) where
 
 
@@ -331,10 +332,22 @@ data LuciScenario = LuciResultScenario ScenarioId FeatureCollection
 instance LikeJS "Object" LuciScenario where
   asLikeJS jsv = case (,) <$> getProp "ScID" jsv <*> getProp "FeatureCollection" jsv of
                   Just (scId, fc) -> LuciResultScenario scId fc
-                  Nothing -> LuciResultScenario 0 $ JS.fromJSArray JS.emptyArray
+                  Nothing -> anotherTry
+     where
+       anotherTry = LuciResultScenario (fromMaybe 0 $ getProp "ScID" jsv) $
+              fromMaybe (JS.fromJSArray JS.emptyArray) (getProp "geometry_output" jsv >>= getProp "geometry")
   asJSVal (LuciResultScenario scId fc) =
             setProp "ScID"  (JS.asJSVal scId)
           $ setProp "FeatureCollection" fc newObj
+
+-- | Luci scenario
+data LuciScenarioCreated = LuciResultScenarioCreated ScenarioId UTCTime
+instance LikeJS "Object" LuciScenarioCreated where
+  asLikeJS jsv = LuciResultScenarioCreated (fromMaybe 0 $ getProp "ScID" jsv)
+                                     (posixSecondsToUTCTime . realToFrac . secondsToDiffTime . fromMaybe 0 $ getProp "lastmodified" jsv)
+  asJSVal (LuciResultScenarioCreated scId lm) =
+            setProp "ScID"  (JS.asJSVal scId)
+          $ setProp "lastmodified" (round $ utcTimeToPOSIXSeconds lm :: Int) newObj
 
 -- | Pass the name of the scenario and a feature collection with geometry
 runScenarioCreate :: JSString -- ^ name of the scenario
@@ -349,6 +362,8 @@ runScenarioCreate name collection = toLuciMessage
         )
       ]
   ) []
+-- returns: "{"created":1470932237,"lastmodified":1470932237,"name":"dgdsfg","ScID":4}"
+
 
 runScenarioUpdate :: ScenarioId -- ^ id of the scenario
                   -> FeatureCollection -- ^ content of the scenario update
@@ -363,6 +378,7 @@ runScenarioUpdate scId collection = toLuciMessage
       ]
   ) []
 
+
 runScenarioGet :: ScenarioId -- ^ id of the scenario
                -> LuciMessage
 runScenarioGet scId = toLuciMessage
@@ -370,7 +386,7 @@ runScenarioGet scId = toLuciMessage
       [ ("ScID", JS.asJSVal scId)
       ]
   ) []
-
+-- returns: "{"lastmodified":1470932237,"ScID":4}"
 
 runScenarioList :: LuciMessage
 runScenarioList = toLuciMessage  (MsgRun "scenario.GetList" []) []
@@ -399,12 +415,12 @@ instance LikeJS "Object" ScenarioDescription where
     , sscId      = fromMaybe (-1) $ getProp "ScID" jsv
     }
       where
-        f = posixSecondsToUTCTime . realToFrac . secondsToDiffTime . flip div 1000 . fromMaybe 0
+        f = posixSecondsToUTCTime . realToFrac . secondsToDiffTime . fromMaybe 0
   asJSVal scd =
           setProp "ScID" (sscId scd) . setProp "name" (scName scd)
         . setProp "lastmodified" (f $ scModified scd :: Int) $ setProp "created" (f $ scCreated scd :: Int) newObj
       where
-        f = (1000 *) . round . utcTimeToPOSIXSeconds
+        f = round . utcTimeToPOSIXSeconds
 
 
 ----------------------------------------------------------------------------------------------------

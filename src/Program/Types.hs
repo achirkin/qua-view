@@ -21,7 +21,7 @@ import JsHs
 newtype RequireViewUpdate a = RequireViewUpdate a
 
 
--- | Luci callID is used to reference client's calls to luci and services
+-- | Luci ScID is used to reference luci scenarios
 newtype ScenarioId = ScenarioId Int
   deriving (Eq,Ord,Show,Enum,Num,Real,Integral)
 instance LikeJS "Number" ScenarioId where
@@ -38,3 +38,12 @@ data ScenarioSync
 --  = CityEmpty
 --  | LuciDisconnected
 --  | ScenarioNotSynced
+
+
+
+-- | Luci geomID is used to reference scenario objects
+newtype GeomId = GeomId Int
+  deriving (Eq,Ord,Show,Enum,Num,Real,Integral)
+instance LikeJS "Number" GeomId where
+  asLikeJS = GeomId . asLikeJS
+  asJSVal (GeomId v) = asJSVal v

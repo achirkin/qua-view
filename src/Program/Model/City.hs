@@ -27,7 +27,7 @@ module Program.Model.City
     -- | Load geometry
     , processScenario, scenarioViewScaling
     -- | Store geometry
-    , storeCityAsIs
+    , storeCityAsIs, storeObjectsAsIs
     -- | reactive-banana
     , cityBehavior
     , CityUpdate (..)
@@ -61,7 +61,7 @@ import Control.Monad.Fix (MonadFix)
 import Control.Monad.Writer.Strict
 --import JsHs.Debug
 
-import JsHs.Debug
+--import JsHs.Debug
 --import Debug.Trace
 
 -- | Map of all city objects (buildings, roads, etc).
@@ -126,11 +126,12 @@ cityBehavior :: (MonadMoment m, MonadFix m)
              -> Event (Maybe Int) -- ^ held object id
              -> Event (ObjectTransform T.QFTransform CityObject)
              -> Event CityUpdate
-             -> m (Event (RequireViewUpdate City), Behavior City, Event [JSString])
+             -> m (Event (RequireViewUpdate City), Behavior City, Event [JSString], Event (GeomId, Matrix4 GLfloat))
 cityBehavior psets selIdB heldIdE otransform cityChange = mdo
     activeObjectSnapshot <- stepper Nothing $ osnapshotF <$> cityBeh <*> selIdB <@> heldIdE
     let objectMove = fmap ((,) (Nothing, []) .)
                     $ objectMoveF <$> activeObjectSnapshot <@> otransform
+        objectMovedRecord = filterJust $ objectMotionRecord <$> activeObjectSnapshot <@> otransform
     (cityUE',cityBeh) <- mapAccum emptyCity
               $ unionsChanges
                 [ objectMove
@@ -138,7 +139,7 @@ cityBehavior psets selIdB heldIdE otransform cityChange = mdo
                 ]
     let cityUE = filterJust $ fst <$> cityUE'
         cityErrors = filterE (not . Prelude.null) $ snd <$> cityUE'
-    return (cityUE, addSelId <$> selIdB <*> cityBeh, cityErrors)
+    return (cityUE, addSelId <$> selIdB <*> cityBeh, cityErrors, objectMovedRecord)
   where
     addSelId Nothing city = city{activeObjId = 0}
     addSelId (Just i) city = city{activeObjId = i}
@@ -151,6 +152,9 @@ cityBehavior psets selIdB heldIdE otransform cityChange = mdo
     objectMoveF (Just (i,o)) TransformCancel       city = setObject i o city
     objectMoveF (Just (i,o)) (TransformProgress t) city = setObject i (t o) city
     objectMoveF (Just (i,o)) (ObjectTransform   t) city = setObject i (t o) city
+    objectMotionRecord (Just (i,o)) (ObjectTransform t) = Just (GeomId i,m)
+        where T.MTransform m _ = T.mergeSecond (pure id) $ t (pure $ T.unwrap o)
+    objectMotionRecord _ _ = Nothing
 
 
 
@@ -187,7 +191,8 @@ instance JS.LikeJSArray "Object" CityObjectCollection where
 manageCityUpdate :: Settings -> CityUpdate -> City -> ([JSString], City)
 manageCityUpdate _ CityErase _ = ([], emptyCity)
 manageCityUpdate sets (CityNew fc) _ = buildCity (defaultCitySettings { defScale = objectScale sets}) fc
-manageCityUpdate _ (CityUpdate fc) city = updateCity fc city
+manageCityUpdate sets (CityUpdate fc) city | isEmptyCity city = buildCity (defaultCitySettings { defScale = objectScale sets}) fc
+                                           | otherwise = updateCity fc city
 
 -- | City transforms in Event style
 manageCityUpdates :: Behavior Settings
@@ -222,9 +227,21 @@ buildCity sets scenario = (,) errors City
     , csettings = sets
     , clutter = createLineSet (vector4 0.8 0.4 0.4 1) liness
     }
-    where (rcscale,cshift)  = scenarioViewScaling (diagFunction sets) scenario
-          (errors,objects, liness) = processScenario (defHeight sets) (defElevation sets) cscale cshift scenario
+    where (rcscale,cshift)  = scenarioViewScaling (diagFunction sets) parsedCollection
+          (errors,objects, liness) = processScenario (defHeight sets) (defElevation sets) cscale cshift parsedCollection
           cscale = fromMaybe rcscale (defScale sets)
+          parsedCollection = smartProcessFeatureCollection 0 (vector3 0 0 (defElevation sets)) scenario
+
+
+--  { pfcPoints  :: JS.Array Feature
+--  , pfcLines   :: JS.Array Feature
+--  , pfcPolys   :: JS.Array Feature
+--  , pfcDeletes :: JS.Array Int
+--  , pfcErrors  :: JS.Array JSString
+--  , pfcMin     :: Vector n x
+--  , pfcMax     :: Vector n x
+--  , pfcDims    :: Int
+
 
 updateCity ::FeatureCollection -> City -> ([JSString], City)
 updateCity scenario
@@ -234,8 +251,13 @@ updateCity scenario
              , ground = buildGround (groundDilate $ csettings city) allobjects
              , clutter = appendLineSet liness (clutter city)
              }
-    where (errors,objects, liness) = processScenario (defHeight $ csettings city)  (defElevation $ csettings city) cscale cshift scenario
-          allobjects = JS.concat (objectsIn city) objects
+    where (errors,objects, liness) = processScenario (defHeight $ csettings city)  (defElevation $ csettings city) cscale cshift parsedCollection
+          updates = JS.map (geomId . T.unwrap) objects
+          deletes = JS.toList $ JS.concat (JS.map GeomId $ pfcDeletes parsedCollection) updates
+          afterDelete = JS.filter (\o -> geomId (T.unwrap o) `notElem` deletes) $ objectsIn city
+          allobjects = JS.concat afterDelete objects
+          prevMaxGeomId = fromIntegral . Prelude.maximum . JS.toList . JS.map (geomId . T.unwrap) $ objectsIn city
+          parsedCollection = smartProcessFeatureCollection prevMaxGeomId (vector3 0 0 (defElevation $ csettings city)) scenario
 
 
 
@@ -281,12 +303,11 @@ processScenario :: GLfloat -- ^ default height of buildings in camera space
                 -> GLfloat -- ^ default elevation of lines in camera space
                 -> GLfloat -- ^ scale objects before processing
                 -> Vector2 GLfloat -- ^ shift objects before processing
-                -> FeatureCollection -> ([JSString],CityObjectCollection, LS.MultiLineString 3 GLfloat)
+                -> ParsedFeatureCollection 3 GLfloat -> ([JSString],CityObjectCollection, LS.MultiLineString 3 GLfloat)
 processScenario h e sc sh collection | sc <= 0 = ([pack $ "processScenario: Scale is not possible (" ++ show sc ++ ")"], JS.fromList [], JS.fromList [])
-                                     | otherwise = (berrs ++ lerrs, buildings, mlns)
-    where (berrs, buildings) = (JS.toList *** JS.fromJSArray) $ JS.mapEither (processPolygonFeature h sc sh) plgs
-          (_pts,lns,plgs, _other) = filterGeometryTypes collection
-          (lerrs, mlns) = (JS.toList *** (JS.fromJSArray . JS.join)) $ JS.mapEither (processLineFeature e sc sh) lns
+                                     | otherwise = (JS.toList (pfcErrors collection) ++ berrs ++ lerrs, buildings, mlns)
+    where (berrs, buildings) = (JS.toList *** JS.fromJSArray) $ JS.mapEither (processPolygonFeature h sc sh) (pfcPolys collection)
+          (lerrs, mlns) = (JS.toList *** (JS.fromJSArray . JS.join)) $ JS.mapEither (processLineFeature e sc sh) (pfcLines collection)
 
 
 processLineFeature :: GLfloat -- ^ default z-position in camera space
@@ -303,17 +324,30 @@ processLineFeature defz scale shift sObj = JS.mapSame (PS.mapSet (\vec -> (vec -
 
 -- | Calculate scale and shift coefficients for scenario
 --   dependent on desired diameter of the scene
-scenarioViewScaling :: (Int->GLfloat) -- ^ desired diameter of a scenario based on number of objects
-                    -> FeatureCollection
-                    -> (GLfloat, Vector2 GLfloat) -- ^ scale and shift coefficients
-scenarioViewScaling diam scenario = ( diam n / normL2 (h-l) , (l + h) / 2)
-    where (n,l,h) = js_boundScenario scenario
+scenarioViewScaling :: (Int -> GLfloat)
+                    -> ParsedFeatureCollection 3 GLfloat
+                    -> (GLfloat, Vector2 GLfloat)
+scenarioViewScaling diam scenario = ( diam n / normL2 (h-l) , vector2 x y)
+    where
+      n = JS.length (pfcPolys scenario) + 1 + JS.length (pfcLines scenario) `div` 5
+      l = pfcMin scenario
+      h = pfcMax scenario
+      (x,y,_) = unpackV3 $ (l + h) / 2
 
-foreign import javascript unsafe "var r = gm$boundNestedArray($1['features'].map(function(co){return co['geometry']['coordinates'];}));\
-                          \if(!r){ $r2 = [Infinity,Infinity];\
-                          \        $r3 = [-Infinity,-Infinity];}\
-                          \else { $r2 = r[0].slice(0,2); $r3 = r[1].slice(0,2); } $r1 = $1['features'].length;"
-    js_boundScenario :: FeatureCollection -> (Int, Vector2 x, Vector2 x)
+
+
+
+--scenarioViewScaling :: (Int->GLfloat) -- ^ desired diameter of a scenario based on number of objects
+--                    -> FeatureCollection
+--                    -> (GLfloat, Vector2 GLfloat) -- ^ scale and shift coefficients
+--scenarioViewScaling diam scenario = ( diam n / normL2 (h-l) , (l + h) / 2)
+--    where (n,l,h) = js_boundScenario scenario
+--
+--foreign import javascript unsafe "var r = gm$boundNestedArray($1['features'].map(function(co){return co['geometry']['coordinates'];}));\
+--                          \if(!r){ $r2 = [Infinity,Infinity];\
+--                          \        $r3 = [-Infinity,-Infinity];}\
+--                          \else { $r2 = r[0].slice(0,2); $r3 = r[1].slice(0,2); } $r1storeObjectsAsIs = $1['features'].length;"
+--    js_boundScenario :: FeatureCollection -> (Int, Vector2 x, Vector2 x)
 
 ----------------------------------------------------------------------------------------------------
 -- Scenario Store
@@ -324,13 +358,20 @@ storeCityAsIs :: City -> FeatureCollection
 storeCityAsIs City
     { objectsIn = buildings
     , clutter = (mline, _)
---    , cityTransform = (scale, shift)
+    , cityTransform = (scale, shift)
     } = JS.fromJSArray . JS.fromList $
-        (feature . GeoMultiLineString $ mline)
-        : JS.toList (JS.map (storeCityObject 1 0 PlainFeature) buildings)
---        (feature . GeoMultiLineString $ PS.mapSet (\vec -> vec * broadcastVector (1/scale) + resizeVector shift ) mline)
---        : toList (JS.map (storeCityObject scale shift PlainFeature) buildings)
+       (feature . PS.mapSet (\x -> x*scale3 + shift3) . GeoMultiLineString $ mline)
+        : JS.toList (JS.map (storeCityObject scale shift PlainFeature) buildings)
+  where
+    shift3 = resizeVector shift
+    scale3 = broadcastVector (1/scale)
 
+storeObjectsAsIs :: [GeomId] -> City -> FeatureCollection
+storeObjectsAsIs xs City
+    { objectsIn = buildings
+--    , clutter = (mline, _)
+    , cityTransform = (scale, shift)
+    } = JS.fromJSArray . JS.map (storeCityObject scale shift PlainFeature) $ JS.filter (\o -> geomId (T.unwrap o) `elem` xs) buildings
 
 
 
