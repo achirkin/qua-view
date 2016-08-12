@@ -59,4 +59,23 @@ function registerSaveScenario(sendMsg) {}
  *  scName :: JSString -- name of the scenario displayed on a panel
  *  return :: IO ()
  */
+
 function toggleSaveScenarioButton(showButton, scName) {}
+
+/** Registers one callback; comes from Handler.Home.UIButtons.
+ *  onClick :: IO ()
+ *  return :: IO ()
+ */
+function registerServiceClear(onClick) {}
+
+/** Registers one callback; comes from Handler.Home.UIButtons.
+ *  onClick :: IO ()
+ *  return :: IO ()
+ */
+function registerServiceRun(onClick) {}
+
+/** Shows or hides button "clear"; comes from Handler.Home.UIButtons.
+ *  state :: Bool
+ *  return :: IO ()
+ */
+function toggleServiceClear(state) {}

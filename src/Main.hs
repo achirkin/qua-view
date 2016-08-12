@@ -31,6 +31,7 @@ import qualified Program.Controllers.GUI as GUI
 
 import qualified Data.Geometry.Transform as T
 import Data.Geometry.Structure.Feature (FeatureCollection)
+import qualified Data.Geometry.Structure.PointSet as PS
 import Program.Model.CityObject
 
 -- Get EventSense instances so that we can pass events into processing cycle
@@ -45,6 +46,8 @@ import Program.Model.City
 import Program.View
 import Program.Settings
 import Program.Types
+import Program.VisualService
+import Program.Model.CityGround
 
 import JsHs.Debug
 import Data.Maybe (fromMaybe)
@@ -77,6 +80,11 @@ main = do
     (onAskSaveScenarioH, onAskSaveScenarioFire) <- newAddHandler
     GUI.registerSaveScenario onAskSaveScenarioFire
     (onScenarioIdH, onScenarioIdFire) <- newAddHandler
+
+    -- ground draws and updates
+    (groundUpdateRequestH, groundUpdateRequestFire) <- newAddHandler
+    GUI.registerServiceClear (const $ groundUpdateRequestFire GroundClearRequest >> GUI.toggleServiceClear False)
+    GUI.registerServiceRun (const $ groundUpdateRequestFire GroundUpdateRequest >> GUI.toggleServiceClear True)
 
     -- get request processing
 --    let userProfile = case getHtmlArg "role" of
@@ -156,12 +164,14 @@ main = do
 
       let settingsB = pure lsettings
 
+      groundUpdateRequestE <- fromAddHandler groundUpdateRequestH
       -- city
-      (cityChanges, cityB, errsE, motionRecordsE) <- cityBehavior settingsB
+      (cityChanges, cityB, errsE, motionRecordsE, groundUpdatedE) <- cityBehavior settingsB
                                            selObjIdB
                                            heldObjIdE
                                            objectTransformE
                                            cityChangeE
+                                           groundUpdateRequestE
 
       -- a little bit of logging
       reactimate $ mapM_ logText' <$> errsE
@@ -172,7 +182,7 @@ main = do
 
       -- render scene
       updateE <- updateEvents heh
-      viewB <- viewBehavior canv resizeE cityChanges updateE programB
+      viewB <- viewBehavior canv resizeE cityChanges updateE never programB
 
       -- Luci Client testing
       (luciClientB, luciClientE, luciMessageE) <- luciHandler (fromMaybe "" $ luciRoute lsettings)
@@ -230,6 +240,12 @@ main = do
           updateScenarioA (Just 0) _ _ _ = putStrLn "Warning! ScID == 0 again!"
           updateScenarioA (Just sid) lc@(LuciClient _) ci gId = sendMessage lc $ runScenarioUpdate sid (storeObjectsAsIs [gId] ci)
           updateScenarioA _ _ _ _ = return ()
+
+          serviceRunsE = filterJust $ serviceRunsF <$> scenarioIdB <@> groundUpdatedE
+          serviceRunsF (Just sid) (GroundUpdated points) = Just $ VisualServiceRunPoints sid [] [] [] (fromJSArrayToTypedArray $ PS.flatten points)
+          serviceRunsF _ _ = Nothing
+          runIsovistServiceA lc@(LuciClient _) vsr = sendMessage lc $ makeRunRequest (VisualService "Isovist") vsr
+          runIsovistServiceA _ _ = return ()
       scenarioNameB <- stepper "" scenarioNameE
       showSaveButtonB <- stepper False showSaveButtonE
       reactimate $ GUI.toggleSaveScenarioButton <$> showSaveButtonB <@> scenarioNameE
@@ -240,6 +256,8 @@ main = do
       lateObjectRecordsE <- execute $ return . fst <$> motionRecordsE
       reactimate $ updateScenarioA <$> scenarioIdB <*> luciClientB <*> cityB <@> lateObjectRecordsE
 
+      -- run luci service!
+      reactimate $ runIsovistServiceA <$> luciClientB <@> serviceRunsE
 
       -- Tracking sync status of Luci and City
 --      let syncE1 = cityChangeToSync <$> cityChangeE
@@ -302,7 +320,7 @@ parseLuciMessages _ _ (MsgProgress callID duration serviceName taskID percentage
     s -> putStrLn ("Got some JSVal as a progress of service " ++ show s) -- >> printJSVal (JS.asJSVal progress)
   print (callID, duration, taskID)
 parseLuciMessages _ _ (MsgNewCallID i) = putStrLn $ "Luci assigned new callID " ++ show i
-parseLuciMessages _ _ _msg = do
+parseLuciMessages _ _ _msg =
   logText' "Got unexpected message"
 --  printJSVal $ JS.asJSVal msg
 

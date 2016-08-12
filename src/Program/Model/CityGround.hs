@@ -20,6 +20,7 @@ module Program.Model.CityGround
     , groundEvalGrid
     , groundGridToTexArray
     , isEmptyGround
+    , fromJSArrayToTypedArray
     ) where
 
 import Unsafe.Coerce (unsafeCoerce)
@@ -37,6 +38,8 @@ import JsHs.TypedArray
 import SmallGL.WritableVectors
 
 import Program.Model.CityObject
+import Program.Settings
+
 
 data CityGround = CityGround
     { groundPoints :: !PointData
@@ -168,7 +171,7 @@ groundEvalGrid CityGround{..} cellSize = fromJSArray . JS.map f $ js_groundEvalG
                    (i,j) -> groundCorner + broadcastVector i * dx
                                          + broadcastVector j * dy
 
-foreign import javascript unsafe "$r = new Array($1*$2); for(i = 0; i < $1; i++){for(j = 0; j < $2; j++){$r[i+j*$1] = [i+0.5,j+0.5];}}"
+foreign import javascript unsafe "$r = new Array($1*$2); for(var i = 0; i < $1; i++){for(var j = 0; j < $2; j++){$r[i+j*$1] = [i+0.5,j+0.5];}}"
     js_groundEvalGrid :: Int -> Int -> PS.PointArray 2 GLfloat
 
 
@@ -193,26 +196,6 @@ fromJSArrayToTypedArray = fromArray . unsafeFromJSArrayCoerce
 
 unsafeFromJSArrayCoerce :: JS.Array a -> TypedArray a
 unsafeFromJSArrayCoerce = unsafeCoerce
-
---foreign import javascript unsafe "$r = new Array($1*$2); for(i = 0; i < $1; i++){for(j = 0; j < $2; j++){$r[i+j*$1] = [i,j]}}"
---    js_groundEvalGrid :: Int -> Int -> TypedArray GL
-
---groundGridToTexArray :: CityGround
---                     -> GLfloat
---                     -> [Vector4 GLubyte]
---                     -> ([Vector4 GLubyte], Maybe (ByteArray, Vector2 GLsizei))
---groundGridToTexArray CityGround{groundBox = bb} cellSize colors = runST $ do
---    arr <- newByteArray (nx*nz * sizeOf (undefined :: Vector4 GLubyte))
---    let f i (x:xs) | i < nx*nz = writeByteArray arr i x >> f (i+1) xs
---                   | otherwise = return (i,x:xs)
---        f i [] = return (i, [])
---    (n, colors') <- f 0 colors
---    a <- unsafeFreezeByteArray arr
---    return (colors', if n >= nx*nz then Just (a, size) else Nothing)
---    where Vector2 sx sz = highBound bb .- lowBound bb
---          nx = max 1 . round $ sx / cellSize :: Int
---          nz = max 1 . round $ sz / cellSize :: Int
---          size = fromIntegral <$> Vector2 nx nz
 
 
 

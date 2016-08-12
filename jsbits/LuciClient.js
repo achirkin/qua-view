@@ -173,6 +173,7 @@ var Luci = (function () {
 
     // these are the functions we expose in the namespace Luci
     return {
-        Client: LuciClient
+        Client: LuciClient,
+        decodeUTF8: decodeUTF8
     };
 }());

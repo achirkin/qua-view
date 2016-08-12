@@ -31,6 +31,8 @@ module Program.Model.City
     -- | reactive-banana
     , cityBehavior
     , CityUpdate (..)
+    , GroundUpdated (..)
+    , GroundUpdateRequest (..)
     ) where
 
 import Control.Arrow ((***), first)
@@ -126,8 +128,9 @@ cityBehavior :: (MonadMoment m, MonadFix m)
              -> Event (Maybe Int) -- ^ held object id
              -> Event (ObjectTransform T.QFTransform CityObject)
              -> Event CityUpdate
-             -> m (Event (RequireViewUpdate City), Behavior City, Event [JSString], Event (GeomId, Matrix4 GLfloat))
-cityBehavior psets selIdB heldIdE otransform cityChange = mdo
+             -> Event GroundUpdateRequest
+             -> m (Event (RequireViewUpdate City), Behavior City, Event [JSString], Event (GeomId, Matrix4 GLfloat), Event GroundUpdated)
+cityBehavior psets selIdB heldIdE otransform cityChange grounUpdateRequestE = mdo
     activeObjectSnapshot <- stepper Nothing $ osnapshotF <$> cityBeh <*> selIdB <@> heldIdE
     let objectMove = fmap ((,) (Nothing, []) .)
                     $ objectMoveF <$> activeObjectSnapshot <@> otransform
@@ -137,12 +140,14 @@ cityBehavior psets selIdB heldIdE otransform cityChange = mdo
                 [ objectMove
                 , cityUpdates
                 ]
+    (groundB, groundUpdatedE) <- groundBehavior cityBeh grounUpdateRequestE
     let cityUE = filterJust $ fst <$> cityUE'
         cityErrors = filterE (not . Prelude.null) $ snd <$> cityUE'
-    return (cityUE, addSelId <$> selIdB <*> cityBeh, cityErrors, objectMovedRecord)
+    return (cityUE, addGroundB <$> groundB <*> (addSelId <$> selIdB <*> cityBeh), cityErrors, objectMovedRecord, groundUpdatedE)
   where
     addSelId Nothing city = city{activeObjId = 0}
     addSelId (Just i) city = city{activeObjId = i}
+    addGroundB gr city = city{ground = gr}
     cityUpdates = manageCityUpdates psets cityChange
     osnapshotF _ Nothing _ = Nothing
     osnapshotF _ _ Nothing = Nothing
@@ -375,4 +380,28 @@ storeObjectsAsIs xs City
 
 
 
+----------------------------------------------------------------------------------------------------
+-- City Ground behavior Store
+----------------------------------------------------------------------------------------------------
+
+data GroundUpdateRequest = GroundUpdateRequest | GroundClearRequest
+  deriving (Eq, Show)
+newtype GroundUpdated = GroundUpdated (PS.PointArray 3 GLfloat)
+
+-- | Behavior of a colourfull grid under the city
+groundBehavior :: (MonadMoment m, MonadFix m) -- , MonadFix m
+             => Behavior City
+             -> Event GroundUpdateRequest
+             -> m (Behavior CityGround, Event GroundUpdated)
+groundBehavior cityB updateE = do
+    groundB <- stepper emptyGround groundE
+    return (groundB, updateGrid <$> cityB <@> filterE (not . isEmptyGround) groundE)
+  where
+    groundE = updateGround <$> cityB <@> updateE
+    updateGround ci GroundUpdateRequest = buildGround (groundDilate $ csettings ci) $ objectsIn ci
+    updateGround _  GroundClearRequest  = emptyGround
+    updateGrid ci g = GroundUpdated $ groundEvalGrid g (evalCellSize $ csettings ci)
+--groundEvalGrid :: CityGround
+--               -> GLfloat  -- ^ desired cell size
+--               -> PS.PointArray 3 GLfloat -- half size in 111 direction
 
