@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleContexts, OverloadedStrings, GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ForeignFunctionInterface,  JavaScriptFFI, GHCForeignImportPrim, UnliftedFFITypes #-}
 {-# LANGUAGE DataKinds, FlexibleInstances, MultiParamTypeClasses #-}
+{-# LANGUAGE RecordWildCards #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Program.Controllers.LuciClient
@@ -30,6 +31,7 @@ module Program.Controllers.LuciClient
     , LuciResultScenarioList (..), ScenarioDescription (..), runScenarioList
     , registerAskLuciForScenario, displayScenarios, GUI.registerGetScenarioList
     , LuciScenarioCreated (..)
+    , MessageAttachment (..), makeAttDesc
     ) where
 
 
@@ -37,7 +39,7 @@ import qualified Program.Controllers.GUI as GUI
 --import Data.Int (Int64)
 --import JsHs.JSString (JSString, append,unpack',pack)
 
-import Data.List (foldl')
+--import Data.List (foldl')
 import Data.String (IsString)
 
 ---- import GHCJS.Foreign
@@ -296,6 +298,40 @@ instance LikeJS "Object" MessageHeader where
   asJSVal (MsgPanic panic) = setProp "panic" panic newObj
   asJSVal (MsgUnknown j) = j
 
+
+data MessageAttachment = MessageAttachment
+  { maFormat   :: !JSString
+  , maLength   :: !Int
+  , maMD5      :: !JSString
+  , maPosition :: !Int
+  } deriving (Show, Eq)
+instance LikeJS "Object" MessageAttachment where
+  asLikeJS jsv = MessageAttachment
+    { maFormat   = fromMaybe "binary" $ getProp "format" jsv
+    , maLength   = fromMaybe 0  $ att >>= getProp "length"
+    , maMD5      = fromMaybe "" $ att >>= getProp "checksum"
+    , maPosition = fromMaybe 0  $ att >>= getProp "position"
+    } where att = getProp "attachment" jsv
+  asJSVal MessageAttachment { .. } = fromProps
+    [ ( "format", JS.asJSVal maFormat )
+    , ( "attachment", fromProps
+        [ ("length", JS.asJSVal maLength)
+        , ("checksum", JS.asJSVal maMD5)
+        , ("position", JS.asJSVal maPosition)
+        ]
+      )
+    ]
+
+makeAttDesc :: Int -> JSString -> JSTA.ArrayBuffer -> MessageAttachment
+makeAttDesc pos tt ab = MessageAttachment
+  { maFormat   = tt
+  , maLength   = JSTA.byteLength ab
+  , maMD5      = js_md5 ab
+  , maPosition = pos
+  }
+
+foreign import javascript unsafe "var cr = new goog.crypt.Md5(); cr.update(new Uint8Array($1)); $r = cr.digest().reduce(function(s,e){return s + e.toString(16);}, '');"
+    js_md5 :: JSTA.ArrayBuffer -> JSString
 
 ----------------------------------------------------------------------------------------------------
 -- * Pre-defined messages

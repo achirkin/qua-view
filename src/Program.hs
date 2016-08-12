@@ -26,18 +26,19 @@ import qualified JsHs.Array as JS
 import JsHs.Useful
 import Data.Geometry
 
---import Controllers.LuciClient
+import Program.VisualService
 
 import Program.Model.Camera
 import Program.Model.City
 --import Program.Model.CityObject
 import Program.Model.WiredGeometry
-import Program.View.CityView ()
+import Program.View.CityView (groundView)
 import Program.View.WiredGeometryView ()
+import Program.View.CityGroundView
 import Program.View
 import Program.Settings
 import Program.Types
-
+import Program.Model.CityGround
 
 import Reactive.Banana.Combinators
 import Reactive.Banana.Frameworks
@@ -106,9 +107,10 @@ viewBehavior :: WebGLCanvas
              -> Event ResizeEvent -- ^ resize
              -> Event (RequireViewUpdate City)
              -> Event Time -- ^ renderings
+             -> Event VisualServiceResult
              -> Behavior Program
              -> MomentIO (Behavior PView)
-viewBehavior canvas resEvents cityUpdates renderings programB = mdo
+viewBehavior canvas resEvents cityUpdates renderings vsResultsE programB = mdo
     -- initial values
     itime <- liftIO getTime
     iprog <- valueB programB
@@ -145,7 +147,10 @@ viewBehavior canvas resEvents cityUpdates renderings programB = mdo
     let pviewEAll :: Event PView
         pviewEAll = unionWith (const id) pviewE2 pviewE1
     pviewB <- stepper ipview pviewEAll :: MomentIO (Behavior PView)
-    return pviewB
+    grvB <- groundViewBehavior programB (glctx . context <$> pviewB) vsResultsE
+    return $ injectGrview <$> grvB <*> pviewB
+  where
+    injectGrview grv pview@PView{cityView = cv} = pview { cityView = cv{groundView = grv}}
 
 
 
@@ -194,4 +199,69 @@ selectionConfirm beh ev = fmap filterJust
                          else Nothing
     spawnEvent _ = undefined
     getCoord e = asVector (pointers e JS.! 0)
+
+
+
+
+
+groundViewBehavior :: Behavior Program
+                   -> Behavior WebGLRenderingContext
+                   -> Event VisualServiceResult
+                   -> MomentIO (Behavior CityGroundView)
+groundViewBehavior programB glctxB vsResultE = mdo
+   groundE <- mapEventIO groundViewUpdateF $ (,,,) <$> programB <*> glctxB <*> groundB <@> vsResultE
+   ictx <- valueB glctxB
+   igrv <- liftIO $ createView ictx emptyGround
+   groundB <- stepper igrv groundE
+   return groundB
+  where
+   groundViewUpdateF
+      ( Program { city = City {ground = gr, csettings = set}}
+      , gl
+      , grv
+      , VisualServiceResultPoints _ values
+      ) = case groundGridToTexArray gr (evalCellSize set) colors of
+            (_, Nothing) ->
+                updateGroundView gl gr Nothing grv
+            (_, Just (texbuf, texsize)) ->
+                updateGroundView gl
+                                 gr
+                                 (Just (Right (texbuf, texsize)))
+                                 grv
+        where colors = makeColors palette values
+   groundViewUpdateF (_,_,grv,_) = return grv
+   palette = Bezier3Palette (vector4 0 0 255 255)
+                            (vector4 0 255 100 255)
+                            (vector4 100 255 0 255)
+                            (vector4 255 0 0 255)
+
+
+--updateGroundView :: WebGLRenderingContext
+--                 -> CityGround
+--                 -> Maybe (Either TexImageSource (TypedArray GLubyte, (GLsizei, GLsizei)))
+--                 -> View CityGround
+--                 -> IO (View CityGround)
+
+
+--    response _ _ (ServiceRunFinish sf) Program
+--            { city = City {ground = gr, settings = set}
+--            } view@PView{cityView = cv} = do
+--        ngr <- case groundGridToTexArray gr (evalCellSize set) colors of
+--            (_, Nothing) -> do
+--                getElementById "clearbutton" >>= elementParent >>= hideElement
+--                updateGroundView (glctx $ context view) gr Nothing (groundView cv)
+--            (_, Just (texbuf, texsize)) -> do
+--                getElementById "clearbutton" >>= elementParent >>= showElement
+--                updateGroundView (glctx $ context view)
+--                                 gr
+--                                 (Just (Right (texbuf, texsize)))
+--                                 (groundView cv)
+--        programIdle
+--        return view{cityView = cv{groundView = ngr}}
+--        where colors = makeColors palette sf
+--              palette = Bezier3Palette (vector4 0 0 255 255)
+--                                       (vector4 0 255 100 255)
+--                                       (vector4 100 255 0 255)
+--                                       (vector4 255 0 0 255)
+
 

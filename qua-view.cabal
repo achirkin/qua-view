@@ -74,6 +74,7 @@ executable qua-view
         Program.View.CityObjectView
         Program.View.CityGroundView
         Program.View.WiredGeometryView
+        Program.VisualService
         SmallGL.Helpers
         SmallGL.Shader
         SmallGL.WritableVectors

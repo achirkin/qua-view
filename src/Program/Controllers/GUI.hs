@@ -22,6 +22,9 @@ module Program.Controllers.GUI
   , showLuciConnectForm
   , registerSaveScenario
   , toggleSaveScenarioButton
+  , registerServiceClear
+  , registerServiceRun
+  , toggleServiceClear
   ) where
 
 
@@ -112,3 +115,21 @@ foreign import javascript safe "registerSaveScenario($1)" js_registerSaveScenari
 foreign import javascript safe "toggleSaveScenarioButton($1, $2)" toggleSaveScenarioButton :: Bool -> JSString -> IO ()
 
 
+-- | Registers one callback; comes from Handler.Home.UIButtons.
+--   onClick :: IO ()
+--   return :: IO ()
+registerServiceClear :: (() -> IO ())  -> IO ()
+registerServiceClear c = asyncCallback (c ()) >>= js_registerServiceClear
+foreign import javascript safe "registerServiceClear($1)" js_registerServiceClear  :: Callback (IO ()) -> IO ()
+
+-- | Registers one callback; comes from Handler.Home.UIButtons.
+--   onClick :: IO ()
+--   return :: IO ()
+registerServiceRun :: (() -> IO ()) -> IO ()
+registerServiceRun c = asyncCallback (c ()) >>= js_registerServiceRun
+foreign import javascript safe "registerServiceRun($1)" js_registerServiceRun :: Callback (IO ()) -> IO ()
+
+-- | Shows or hides button "clear"; comes from Handler.Home.UIButtons.
+--   state :: Bool
+--   return :: IO ()
+foreign import javascript safe "toggleServiceClear($1)" toggleServiceClear :: Bool -> IO ()
