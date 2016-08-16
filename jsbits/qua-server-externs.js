@@ -80,6 +80,13 @@ function registerServiceRun(onClick) {}
  */
 function toggleServiceClear(state) {}
 
+
+/** Registers one callback; comes from Handler.Home.PanelInfo.
+ *  f :: JSString -> IO ()
+ *  return :: IO ()
+ */
+function registerColorizeProperty(f) {}
+
 /** Show info (pairs of key-value); comes from Handler.Home.PanelInfo.
  *  obj :: Object -- all property names and values inside an object
  *  return :: IO ()

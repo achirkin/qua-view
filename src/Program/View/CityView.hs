@@ -29,6 +29,7 @@ import Data.Geometry.Transform
 --import Geometry.Space
 --import Geometry.Space.Transform
 import JsHs.Array as JS
+import Data.Geometry.Structure.PointSet as PS
 
 import Program.Model.City
 import Program.Model.CityObject
@@ -113,11 +114,7 @@ instance Drawable City where
         disableVertexAttribArray gl nloc
         disableVertexAttribArray gl ploc
         where drawObject i tobj oview = applyTransform vc tobj >>= \obj -> do
-                case behavior obj of
-                    Static  -> uniform4f gl colLoc 0.5 0.5 0.55 1
-                    Dynamic -> if i+1 == ai
-                               then uniform4f gl colLoc 1 0.6 0.6 1
-                               else uniform4f gl colLoc 0.75 0.75 0.7 1
+                setColor (buildingColors city) i obj
                 drawSurface gl alocs obj oview
               colLoc = unifLoc prog "uVertexColor"
               userLoc = unifLoc prog "uTexUser"
@@ -125,6 +122,15 @@ instance Drawable City where
                       ( attrLoc prog "aVertexPosition"
                       , Just ( attrLoc prog "aVertexNormal"
                              , attrLoc prog "aTextureCoord"))
+              setColor Nothing i obj = case behavior obj of
+                    Static  -> uniform4f gl colLoc 0.5 0.5 0.55 1
+                    Dynamic -> if i+1 == ai
+                               then uniform4f gl colLoc 1 0.6 0.6 1
+                               else uniform4f gl colLoc 0.75 0.75 0.7 1
+              setColor (Just arr) i obj = case unpackV4 $ PS.index i arr of
+                    (r, g, b, a)  -> if behavior obj == Dynamic && i+1 == ai
+                                     then uniform4f gl colLoc (g*0.5) (g*0.2) (b*0.2) a
+                                     else uniform4f gl colLoc r g b a
     updateDrawState _ CityView{viewShader = prog} cs = cs
         { vGLProjLoc = unifLoc prog "uProjM"
         , vGLViewLoc = unifLoc prog "uModelViewM"

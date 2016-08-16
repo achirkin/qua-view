@@ -1,5 +1,50 @@
 "use strict";
 
+
+/**
+ * Normalize all values in an array to be a four-element vector in range [0..1]
+ * Substitue a fiven number without any processing instead of null.
+ *
+ * @param sourceArray -- array of numbers or strings
+ * @param nullSub
+ * @returns {Array}
+ */
+function gm$smartNormalizeValues(sourceArray, nullSub) {
+    var sorted = sourceArray.slice().sort(),
+        uniques = sorted.map(function(e,i){if(e==sorted[i+1]){return null;}else{return e;}}).filter(function(e){return e!=null;}),
+        categorical = uniques.some(function(e){return e != null && e.constructor == String});
+    if(categorical){
+        return gm$normalizeValues(sourceArray.map(function(e){ return e != null ? uniques.indexOf(e) : null;}), nullSub);
+    } else {
+        return gm$normalizeValues(sourceArray, nullSub);
+    }
+}
+
+/**
+ * Normalize all values in an array to be a four-element vector in range [0..1]
+ * Substitue a fiven number without any processing instead of null.
+ *
+ * @param sourceArray -- array of numbers
+ * @param nullSub
+ * @returns {Array}
+ */
+function gm$normalizeValues(sourceArray, nullSub) {
+    var bs = sourceArray.reduce( function(a,x) {
+                return x != null ? [Math.min(a[0],x),Math.max(a[0],x)] : a;
+            }, [Infinity,-Infinity]),
+        xspan = Math.max(bs[1] - bs[0], 0.000001),
+        f = function(e) {return e != null ? Math.min(1,Math.max(0,(e - bs[0]) / xspan)) : null;},
+        t = 0;
+    return sourceArray.map( function(n) {
+            if(n != null) {
+                t = f(n);
+                return [t, t, t, t];
+            } else {
+                return [nullSub, nullSub, nullSub, nullSub];
+            }
+        });
+}
+
 /**
  *
  * @param bArray -- collection of buildings

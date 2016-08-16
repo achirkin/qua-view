@@ -33,6 +33,7 @@ module Program.Model.City
     , CityUpdate (..)
     , GroundUpdated (..)
     , GroundUpdateRequest (..)
+    , colorizeObjects
     ) where
 
 import Control.Arrow ((***))
@@ -57,6 +58,7 @@ import Program.Model.WiredGeometry
 import Program.Model.Camera
 import Program.Settings
 import Program.Types
+import Program.VisualService
 
 import Reactive.Banana.Combinators
 --import Control.Monad.Fix (MonadFix)
@@ -75,6 +77,7 @@ data City = City
     , ground            :: !CityGround
     , csettings         :: !CitySettings
     , clutter           :: !(LS.MultiLineString 3 GLfloat, WiredGeometry)
+    , buildingColors    :: !(Maybe (PS.PointArray 4 GLfloat))
     --, drawTextures      :: !Bool
     }
 
@@ -109,6 +112,7 @@ emptyCity = City
     , cityTransform = (0, 0)
     , csettings = defaultCitySettings
     , clutter = emptyLineSet (vector4 0.8 0.4 0.4 1)
+    , buildingColors = Nothing
     }
 
 -- | An event that represents all possible city changes
@@ -125,12 +129,13 @@ data CityUpdate
 cityBehavior :: (MonadMoment m, MonadFix m)
              => Behavior Settings
              -> Behavior (Maybe Int) -- ^ selected object id
+             -> Event (Maybe JSString) -- ^ click on some property to view colormap
              -> Event (Maybe Int) -- ^ held object id
              -> Event (ObjectTransform T.QFTransform CityObject)
              -> Event CityUpdate
              -> Event GroundUpdateRequest
              -> m (Event (RequireViewUpdate City), Behavior City, Event [JSString], Event (GeomId, Matrix4 GLfloat), Event GroundUpdated)
-cityBehavior psets selIdB heldIdE otransform cityChange grounUpdateRequestE = mdo
+cityBehavior psets selIdB colorizeE heldIdE otransform cityChange grounUpdateRequestE = mdo
     activeObjectSnapshot <- stepper Nothing $ osnapshotF <$> cityBeh <*> selIdB <@> heldIdE
     let objectMove = fmap ((,) (Nothing, []) .)
                     $ objectMoveF <$> activeObjectSnapshot <@> otransform
@@ -143,11 +148,14 @@ cityBehavior psets selIdB heldIdE otransform cityChange grounUpdateRequestE = md
     (groundB, groundUpdatedE) <- groundBehavior cityBeh grounUpdateRequestE
     let cityUE = filterJust $ fst <$> cityUE'
         cityErrors = filterE (not . Prelude.null) $ snd <$> cityUE'
-    return (cityUE, addGroundB <$> groundB <*> (addSelId <$> selIdB <*> cityBeh), cityErrors, objectMovedRecord, groundUpdatedE)
+        cityB2 = addGroundB <$> groundB <*> (addSelId <$> selIdB <*> cityBeh)
+    colorizeObjectsB <- colorizeObjects colorizeE cityB2
+    return (cityUE, addColorObject <$> colorizeObjectsB <*> cityB2, cityErrors, objectMovedRecord, groundUpdatedE)
   where
     addSelId Nothing city = city{activeObjId = 0}
     addSelId (Just i) city = city{activeObjId = i}
     addGroundB gr city = city{ground = gr}
+    addColorObject col city = city{buildingColors = col}
     cityUpdates = manageCityUpdates psets cityChange
     osnapshotF _ Nothing _ = Nothing
     osnapshotF _ _ Nothing = Nothing
@@ -231,6 +239,7 @@ buildCity sets scenario = (,) errors City
     , cityTransform = (cscale, cshift)
     , csettings = sets
     , clutter = createLineSet (vector4 0.8 0.4 0.4 1) liness
+    , buildingColors = Nothing
     }
     where (rcscale,cshift)  = scenarioViewScaling (diagFunction sets) parsedCollection
           (errors,objects, liness) = processScenario (defHeight sets) (defElevation sets) cscale cshift parsedCollection
@@ -407,4 +416,35 @@ groundBehavior cityB updateE = do
 --groundEvalGrid :: CityGround
 --               -> GLfloat  -- ^ desired cell size
 --               -> PS.PointArray 3 GLfloat -- half size in 111 direction
+
+
+
+
+----------------------------------------------------------------------------------------------------
+-- Coloring buildings
+----------------------------------------------------------------------------------------------------
+
+colorizeObjects ::  (MonadMoment m, MonadFix m)
+                => Event (Maybe JSString)
+                -> Behavior City -- ^ selected object id
+                -> m (Behavior (Maybe (PS.PointArray 4 GLfloat)))
+colorizeObjects colorizeE cityB = stepper Nothing propValuesE
+  where
+    propValuesE :: Event (Maybe (PS.PointArray 4 GLfloat))
+    propValuesE = propValues <$> cityB <@> colorizeE
+    propValues ci (Just pname) = Just . JS.fromJSArray
+                                      . JS.map (\x -> fromIntegral x / 255)
+                                      . applyPalette palette  subs
+                                      . js_smartColors (-1) $ JS.map (js_getThisProp pname . allProps . T.unwrap) (objectsIn ci)
+    propValues _ Nothing = Nothing
+    subs = Just (broadcastVector $ -1, vector4 100 100 100 200)
+    palette = Bezier3Palette (vector4 0 0 255 255)
+                             (vector4 0 255 100 255)
+                             (vector4 100 255 0 255)
+                             (vector4 255 0 0 255)
+
+
+foreign import javascript safe "gm$smartNormalizeValues($2,$1)" js_smartColors :: GLfloat -> JS.Array JSVal -> PS.PointArray 4 GLfloat
+foreign import javascript safe "$2[$1]" js_getThisProp :: JSString -> JSVal -> JSVal
+
 

@@ -236,32 +236,3 @@ groundViewBehavior programB glctxB vsResultE = mdo
                             (vector4 255 0 0 255)
 
 
---updateGroundView :: WebGLRenderingContext
---                 -> CityGround
---                 -> Maybe (Either TexImageSource (TypedArray GLubyte, (GLsizei, GLsizei)))
---                 -> View CityGround
---                 -> IO (View CityGround)
-
-
---    response _ _ (ServiceRunFinish sf) Program
---            { city = City {ground = gr, settings = set}
---            } view@PView{cityView = cv} = do
---        ngr <- case groundGridToTexArray gr (evalCellSize set) colors of
---            (_, Nothing) -> do
---                getElementById "clearbutton" >>= elementParent >>= hideElement
---                updateGroundView (glctx $ context view) gr Nothing (groundView cv)
---            (_, Just (texbuf, texsize)) -> do
---                getElementById "clearbutton" >>= elementParent >>= showElement
---                updateGroundView (glctx $ context view)
---                                 gr
---                                 (Just (Right (texbuf, texsize)))
---                                 (groundView cv)
---        programIdle
---        return view{cityView = cv{groundView = ngr}}
---        where colors = makeColors palette sf
---              palette = Bezier3Palette (vector4 0 0 255 255)
---                                       (vector4 0 255 100 255)
---                                       (vector4 100 255 0 255)
---                                       (vector4 255 0 0 255)
-
-

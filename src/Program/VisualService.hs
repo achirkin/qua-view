@@ -14,7 +14,7 @@
 
 module Program.VisualService
   ( VisualService (..), VisualServiceResult (..), VisualServiceRun (..)
-  , parseResult, makeRunRequest, ColorPalette (..), makeColors
+  , parseResult, makeRunRequest, ColorPalette (..), makeColors, applyPalette
   , VisualServiceMode (..), VSManager (..), runQuaServiceList
   , vsManagerBehavior
   ) where
@@ -186,15 +186,40 @@ data ColorPalette = LinearPalette  !(Vector4 GLubyte) !(Vector4 GLubyte)
 makeColors :: ColorPalette
            -> JSTA.TypedArray GLfloat
            -> PS.PointArray 4 GLubyte -- ^ set of values in RGBA form [0..255]
-makeColors (LinearPalette p0 p1) sf = JS.fromJSArray . JS.map f $ normalized sf
+makeColors pal sf = applyPalette pal Nothing $ normalized sf
+
+
+-- | Generate list of colors
+applyPalette :: ColorPalette
+             -> Maybe (Vector4 GLfloat, Vector4 GLubyte) -- ^ substitute a certain color
+             -> PS.PointArray 4 GLfloat
+             -> PS.PointArray 4 GLubyte -- ^ set of values in RGBA form [0..255]
+applyPalette (LinearPalette p0 p1) Nothing sf = JS.fromJSArray . JS.map f $ sf
     where f x = round $ (1-x) * v p0
                       +    x  * v p1
-makeColors (Bezier2Palette p0 p1 p2) sf = JS.fromJSArray . JS.map f $ normalized sf
+applyPalette (Bezier2Palette p0 p1 p2) Nothing sf = JS.fromJSArray . JS.map f $ sf
     where f x | y <- 1-x = round $   y*y * v p0
                                  + 2*x*y * v p1
                                  +   x*x * v p2
-makeColors (Bezier3Palette p0 p1 p2 p3) sf = JS.fromJSArray . JS.map f $ normalized sf
+applyPalette (Bezier3Palette p0 p1 p2 p3) Nothing sf = JS.fromJSArray . JS.map f $ sf
     where f x | y <- 1-x = round $   y*y*y * v p0
+                                 + 3*x*y*y * v p1
+                                 + 3*x*x*y * v p2
+                                 +   x*x*x * v p3
+applyPalette (LinearPalette p0 p1) (Just (i,o)) sf = JS.fromJSArray . JS.map f $ sf
+    where f x | x == i    = o
+              | otherwise = round $ (1-x) * v p0
+                                  +    x  * v p1
+applyPalette (Bezier2Palette p0 p1 p2) (Just (i,o)) sf = JS.fromJSArray . JS.map f $ sf
+    where f x | x == i   = o
+              | otherwise
+              , y <- 1-x = round $   y*y * v p0
+                                 + 2*x*y * v p1
+                                 +   x*x * v p2
+applyPalette (Bezier3Palette p0 p1 p2 p3) (Just (i,o)) sf = JS.fromJSArray . JS.map f $ sf
+    where f x | x == i   = o
+              | otherwise
+              , y <- 1-x = round $   y*y*y * v p0
                                  + 3*x*y*y * v p1
                                  + 3*x*x*y * v p2
                                  +   x*x*x * v p3
@@ -206,9 +231,7 @@ v :: Vector4 GLubyte -> Vector4 GLfloat
 v = coerce
 
 
-foreign import javascript safe "var bs = Array.prototype.reduce.call($1, function(a,x){return [Math.min(a[0],x),Math.max(a[0],x)];}, [Infinity,-Infinity]);\
-      \ var xspan = Math.max(bs[1] - bs[0], 0.000001), f = function(e) {return Math.min(1,Math.max(0,(e - bs[0]) / xspan));}, t = 0; \
-      \ $r = Array.prototype.map.call( $1, function(n){t = f(n); return [t,t,t,t];});" normalized :: JSTA.TypedArray GLfloat -> PS.PointArray 4 GLfloat
+foreign import javascript safe "gm$normalizeValues($1,0);" normalized :: JSTA.TypedArray GLfloat -> PS.PointArray 4 GLfloat
 
 
 

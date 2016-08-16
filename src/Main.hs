@@ -53,7 +53,7 @@ import Program.Types
 import Program.VisualService
 import Program.Model.CityGround
 
---import JsHs.Debug
+import JsHs.Debug
 import Data.Maybe (fromMaybe)
 ----import Control.Arrow (Arrow(..))
 
@@ -178,9 +178,16 @@ main = do
       let settingsB = pure lsettings
 
       groundUpdateRequestE <- fromAddHandler groundUpdateRequestH
+      (colorizePropertyE, colorizePropertyFire) <- newEvent
+      liftIO $ GUI.registerColorizeProperty colorizePropertyFire
+      reactimate $ (\mx -> case mx of
+                            Nothing -> colorizePropertyFire Nothing
+                            _ -> return ()
+                   ) <$> selObjIdE
       -- city
       (cityChanges, cityB, errsE, motionRecordsE, groundUpdatedE) <- cityBehavior settingsB
                                            selObjIdB
+                                           colorizePropertyE
                                            heldObjIdE
                                            objectTransformE
                                            cityChangeE
@@ -194,6 +201,7 @@ main = do
       -- a little bit of logging
       reactimate $ mapM_ logText' <$> errsE
       reactimate $ print <$> motionRecordsE
+
 
 
       let programB = initProgram userProfile settingsB cameraB cityB
