@@ -10,7 +10,7 @@
 -- Foreign imports for all GUI html elements on qua-server side
 --
 -----------------------------------------------------------------------------
-
+{-# LANGUAGE OverloadedStrings #-}
 module Program.Controllers.GUI
   ( registerLoadingFile
   , registerClearGeometry
@@ -25,6 +25,7 @@ module Program.Controllers.GUI
   , registerServiceClear
   , registerServiceRun
   , toggleServiceClear
+  , registerColorizeProperty
   , showInfo
   ) where
 
@@ -135,6 +136,17 @@ foreign import javascript safe "registerServiceRun($1)" js_registerServiceRun ::
 --   state :: Bool
 --   return :: IO ()
 foreign import javascript safe "toggleServiceClear($1)" toggleServiceClear :: Bool -> IO ()
+
+
+-- | Registers one callback; comes from Handler.Home.PanelInfo.
+--   f :: JSString -> IO ()
+--   return :: IO ()
+registerColorizeProperty :: (Maybe JSString -> IO ()) -> IO ()
+registerColorizeProperty c = asyncCallback1 (c . f . asLikeJS) >>= js_registerColorizeProperty
+  where
+    f (Just "") = Nothing
+    f x = x
+foreign import javascript safe "registerColorizeProperty($1)" js_registerColorizeProperty :: Callback (JSVal -> IO ()) -> IO ()
 
 -- | Show info (pairs of key-value); comes from Handler.Home.PanelInfo.
 --   obj :: Object -- all property names and values inside an object
