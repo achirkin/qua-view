@@ -19,7 +19,7 @@
 -----------------------------------------------------------------------------
 
 module Program.Model.CityObject
-    ( CityObject (), LocatedCityObject, behavior, objPolygons, objPoints, geomId
+    ( CityObject (), LocatedCityObject, behavior, objPolygons, objPoints, geomId, allProps
     , GeoJsonGeometry (..)
     , PointData (), vertexArray, indexArray, vertexArrayLength, indexArrayLength
     , processPolygonFeature
@@ -175,7 +175,8 @@ foreign import javascript unsafe "$1['properties']['isSlave']"
     isSlave :: Feature -> Bool
 
 
-
+foreign import javascript unsafe "$1['properties']"
+    allProps :: CityObject -> JSVal
 
 type LocatedCityObject = T.QFTransform CityObject
 

@@ -147,13 +147,15 @@ main = do
 
       -- selection must go first for some reason (otherwise blocked by MVar)
       (heldObjIdB, heldObjIdE) <- heldObjectIdBehavior pointerE cameraB (context <$> viewB)
-      selObjIdB  <- selectedObjectIdBehavior pointerE cameraB (context <$> viewB)
+      (selObjIdB, selObjIdE)  <- selectedObjectIdBehavior pointerE cameraB (context <$> viewB)
       let allowCameraMoveB = f <$> selObjIdB <*> heldObjIdB
             where
               f _ Nothing = True
               f Nothing _ = True
               f (Just i) (Just j) | j /= i    = True
                                   | otherwise = False
+
+
 
       -- conrol camera
       cameraB <- cameraBehavior icamera
@@ -183,6 +185,11 @@ main = do
                                            objectTransformE
                                            cityChangeE
                                            groundUpdateRequestE
+
+      -- show building info on selection
+      let showInfoA _  Nothing  = GUI.showInfo newObj
+          showInfoA ci (Just i) = GUI.showInfo . fromMaybe newObj . fmap (allProps . T.unwrap ) $ getObject i ci
+      reactimate $ showInfoA <$> cityB <@> selObjIdE
 
       -- a little bit of logging
       reactimate $ mapM_ logText' <$> errsE

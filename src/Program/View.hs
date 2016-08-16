@@ -80,12 +80,13 @@ type AttribLocation = GLuint
 selectedObjectIdBehavior :: Event PointerEvent
                          -> Behavior Camera
                          -> Behavior ViewContext
-                         -> MomentIO (Behavior (Maybe Int))
+                         -> MomentIO (Behavior (Maybe Int), Event (Maybe Int))
 selectedObjectIdBehavior pointerE cameraB viewB = do
     events <- fmap (fmap g)
             . mapEventIO id
             $ getSelection <$> viewB <*> cameraB <@> filterJust (f <$> pointerE)
-    stepper Nothing events
+    beh <- stepper Nothing events
+    return (beh, events)
   where
     g (SelectionEvent i) | i <= 0 = Nothing
                          | otherwise = Just i
