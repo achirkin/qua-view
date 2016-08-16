@@ -47,11 +47,18 @@ import Data.Geometry.Structure.Polygon (Polygon (), MultiPolygon ())
 
 -- | GeoJSON Feature
 newtype Feature = Feature JSVal
-instance LikeJS "Object" Feature
+instance LikeJS "Object" Feature where
+  asJSVal = js_deleteTimestamp
+
+foreign import javascript unsafe "delete $1['properties']['timestamp']; $r = $1;"
+  js_deleteTimestamp :: Feature -> JSVal
+foreign import javascript unsafe "$1['features'].forEach(function(e){delete e['properties']['timestamp'];}); $r = $1;"
+  js_deleteFcTimestamp :: FeatureCollection -> JSVal
 
 -- | GeoJSON FeatureCollection
 newtype FeatureCollection = FeatureCollection JSVal
-instance LikeJS "Object" FeatureCollection
+instance LikeJS "Object" FeatureCollection where
+  asJSVal = js_deleteFcTimestamp
 
 instance LikeJSArray "Object" FeatureCollection where
     type ArrayElem FeatureCollection = Feature

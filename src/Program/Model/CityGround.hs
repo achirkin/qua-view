@@ -38,7 +38,7 @@ import JsHs.TypedArray
 import SmallGL.WritableVectors
 
 import Program.Model.CityObject
-import Program.Settings
+--import Program.Settings
 
 
 data CityGround = CityGround

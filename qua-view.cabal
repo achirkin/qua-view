@@ -28,7 +28,9 @@ executable qua-view
         reactive-banana-ghcjs -any,
         transformers -any,
         time -any,
-        mtl -any
+        mtl -any,
+        unordered-containers >=0.2.5.1 && <0.3,
+        hashable >=1.2.3.2 && <1.3
     cpp-options: -DGHCJS_BROWSER
     js-sources:
         jsbits/PointSet.js
@@ -56,17 +58,6 @@ executable qua-view
         Program.Model.City
         Program.Model.CityObject
         Program.Model.CityGround
-        Program.Model.ScalarField
-        Program.Reactions
-        Program.Reactions.CameraBehavior
-        Program.Reactions.CitySelection
-        Program.Reactions.GeometryChanges
-        Program.Reactions.LuciProcesses
-        Program.Reactions.SelectorRendering
-        Program.Reactions.ServiceFinish
-        Program.Reactions.ServiceRun
-        Program.Reactions.ViewRendering
-        Program.Reactions.ViewSubmitPopup
         Program.Settings
         Program.Types
         Program.View

@@ -15,8 +15,11 @@
 {-# LANGUAGE DataKinds, FlexibleInstances, MultiParamTypeClasses #-}
 module Program.Types where
 
+import Data.Time (UTCTime)
+import Data.Hashable
+import Data.String (IsString())
 import JsHs
-
+import JsHs.JSString (unpack')
 
 newtype RequireViewUpdate a = RequireViewUpdate a
 
@@ -28,16 +31,18 @@ instance LikeJS "Number" ScenarioId where
   asLikeJS = ScenarioId . asLikeJS
   asJSVal (ScenarioId v) = asJSVal v
 
-
+-- | Represent synchronization state with a remote server (luci)
 data ScenarioSync
-  = CityNotBound
-  | CityUpdated ScenarioId JSString [Int]
-  | CitySynced ScenarioId JSString
-
---data CityNotBoundDetails
---  = CityEmpty
---  | LuciDisconnected
---  | ScenarioNotSynced
+  = SSEmpty
+    -- ^ There is no geometry loaded
+  | SSNotBound
+    -- ^ Not synchronized with luci
+  | SSPendingCreate ScenarioName
+    -- ^ Run "scenario.geojson.Create", but not received result yet
+  | SSPendingGet ScenarioId ScenarioName
+    -- ^ Run "scenario.geojson.Get", but not received result yet
+  | SSSynced ScenarioId ScenarioName UTCTime
+    -- ^ Last synchronized at a given time
 
 
 
@@ -47,3 +52,25 @@ newtype GeomId = GeomId Int
 instance LikeJS "Number" GeomId where
   asLikeJS = GeomId . asLikeJS
   asJSVal (GeomId v) = asJSVal v
+
+
+-- | Luci scenario name
+newtype ScenarioName = ScenarioName JSString
+  deriving (Eq,Ord,Show,IsString, Monoid)
+instance LikeJS "String" ScenarioName where
+  asLikeJS = ScenarioName . asLikeJS
+  asJSVal (ScenarioName v) = asJSVal v
+
+-- | Luci service name
+newtype ServiceName = ServiceName JSString
+  deriving (Eq,Ord,Show,IsString, Monoid)
+instance LikeJS "String" ServiceName where
+  asLikeJS = ServiceName . asLikeJS
+  asJSVal (ServiceName v) = asJSVal v
+
+unServiceName :: ServiceName -> String
+unServiceName (ServiceName a) = unpack' a
+
+instance Hashable ServiceName where
+  hash = hash . unServiceName
+  hashWithSalt i = hashWithSalt i . unServiceName

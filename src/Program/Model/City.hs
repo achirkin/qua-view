@@ -35,7 +35,7 @@ module Program.Model.City
     , GroundUpdateRequest (..)
     ) where
 
-import Control.Arrow ((***), first)
+import Control.Arrow ((***))
 import JsHs.Types
 import JsHs.WebGL
 --import GHCJS.Marshal.Pure
@@ -59,7 +59,7 @@ import Program.Settings
 import Program.Types
 
 import Reactive.Banana.Combinators
-import Control.Monad.Fix (MonadFix)
+--import Control.Monad.Fix (MonadFix)
 import Control.Monad.Writer.Strict
 --import JsHs.Debug
 
@@ -157,7 +157,7 @@ cityBehavior psets selIdB heldIdE otransform cityChange grounUpdateRequestE = md
     objectMoveF (Just (i,o)) TransformCancel       city = setObject i o city
     objectMoveF (Just (i,o)) (TransformProgress t) city = setObject i (t o) city
     objectMoveF (Just (i,o)) (ObjectTransform   t) city = setObject i (t o) city
-    objectMotionRecord (Just (i,o)) (ObjectTransform t) = Just (GeomId i,m)
+    objectMotionRecord (Just (_,o)) (ObjectTransform t) = Just (geomId $ T.unwrap o,m)
         where T.MTransform m _ = T.mergeSecond (pure id) $ t (pure $ T.unwrap o)
     objectMotionRecord _ _ = Nothing
 
@@ -257,14 +257,17 @@ updateCity scenario
              , clutter = appendLineSet liness (clutter city)
              }
     where (errors,objects, liness) = processScenario (defHeight $ csettings city)  (defElevation $ csettings city) cscale cshift parsedCollection
-          updates = JS.map (geomId . T.unwrap) objects
-          deletes = JS.toList $ JS.concat (JS.map GeomId $ pfcDeletes parsedCollection) updates
-          afterDelete = JS.filter (\o -> geomId (T.unwrap o) `notElem` deletes) $ objectsIn city
-          allobjects = JS.concat afterDelete objects
+--          updates = JS.map (geomId . T.unwrap) objects
+--          deletes = JS.toList $ JS.concat (JS.map GeomId $ pfcDeletes parsedCollection) updates
+--          afterDelete = JS.filter (\o -> geomId (T.unwrap o) `notElem` deletes) $ objectsIn city
+--          allobjects = JS.concat afterDelete objects
+          allobjects = js_smartUpdateCity (objectsIn city) objects (JS.map GeomId $ pfcDeletes parsedCollection)
           prevMaxGeomId = fromIntegral . Prelude.maximum . JS.toList . JS.map (geomId . T.unwrap) $ objectsIn city
           parsedCollection = smartProcessFeatureCollection prevMaxGeomId (vector3 0 0 (defElevation $ csettings city)) scenario
 
 
+foreign import javascript unsafe "gm$smartUpdateBArray($1, $2, $3)"
+    js_smartUpdateCity :: CityObjectCollection -> CityObjectCollection -> JS.Array GeomId -> CityObjectCollection
 
 
 foreign import javascript unsafe "[]"

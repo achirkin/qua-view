@@ -1,5 +1,41 @@
 "use strict";
 
+/**
+ *
+ * @param bArray -- collection of buildings
+ * @param updateArray -- collection of buildings to update
+ * @param deleteArray -- array of building ids to delete
+ * @returns {Array.<*>} -- updated collection of buildings
+ */
+function gm$smartUpdateBArray(bArray, updateArray, deleteArray) {
+    var i,t,emptys = [],rez1 = bArray.map(function (b,j) {
+        for(i = 0; i < updateArray.length; i++){
+            if (updateArray[i] && b['properties']['geomID'] === updateArray[i]['properties']['geomID']) {
+                t = updateArray[i];
+                updateArray[i] = null;
+                return t;
+            }
+        }
+        for(i = 0; i < deleteArray.length; i++) {
+            if (b['properties']['geomID'] === deleteArray[i]) {
+                emptys.push(j);
+                return null;
+            }
+        }
+        return b;
+    });
+    updateArray.forEach(function(e){
+       if(e != null){
+           if(emptys.length > 0){
+               rez1[emptys.pop()] = e;
+           } else {
+               rez1.push(e);
+           }
+       }
+    });
+    return rez1.filter(function(e){return e != null;});
+}
+
 
 /**
  * Parse a feature collection.
@@ -29,8 +65,10 @@ function gm$smartProcessFeatureCollection(fc, defVec, maxGeomId) {
             f = gm$smartProcessFeature(feature, defVec);
             switch (f['type'] ) {
                 case "Delete":
-                    maxGeomId = Math.max(f['properties']['geomID'], maxGeomId);
-                    deletes.push(f['properties']['geomID']);
+                    f['properties']['deleted_geomIDs'].forEach(function(gId){
+                        maxGeomId = Math.max(gId, maxGeomId);
+                        deletes.push(gId);
+                    });
                     break;
                 case "Error":
                     errors.push("(" + n + ") " + f['properties']['error']);
@@ -74,7 +112,7 @@ function gm$smartProcessFeatureCollection(fc, defVec, maxGeomId) {
         }
     });
     var addGeomID = function(f) {
-        if (!f['properties']['geomID'] || f['properties']['geomID'] < 0) {
+        if (!f['properties'].hasOwnProperty('geomID') || f['properties']['geomID'] < 0) {
             f['properties']['geomID'] = ++maxGeomId;
         }
     };
@@ -104,10 +142,10 @@ function gm$smartProcessFeature(feature, defVec) {
         return gm$createErrorFeature("No valid 'obj.type = \"Feature\"'");
     }
     if (!feature['geometry']) { // parse Delete Feature
-        if(!feature['properties'] || !feature['properties']['geomID'] || feature['properties']['geomID'].constructor !== Number){
-            return gm$createErrorFeature("No valid 'obj.properties.geomID':number");
+        if(!feature['properties'] || !feature['properties']['deleted_geomIDs'] || feature['properties']['deleted_geomIDs'].constructor !== Array){
+            return gm$createErrorFeature("No valid 'obj.properties.deleted_geomIDs':array");
         }
-        return gm$createDeleteFeature(feature['properties']['geomID']);
+        return gm$createDeleteFeature(feature['properties']['deleted_geomIDs']);
     }
     if (!feature['geometry']['type'] || feature['geometry']['type'].constructor !== String) {
         return gm$createErrorFeature("No valid 'obj.geometry.type':string");
@@ -188,12 +226,12 @@ function gm$createErrorFeature(err) {
     return rez;
 }
 
-function gm$createDeleteFeature(geomID) {
+function gm$createDeleteFeature(geomIDs) {
     'use strict';
     var rez = {};
     rez['type'] = "Delete";
     rez['properties'] = {};
-    rez['properties']['geomID'] = geomID;
+    rez['properties']['deleted_geomIDs'] = geomIDs;
     return rez;
 }
 

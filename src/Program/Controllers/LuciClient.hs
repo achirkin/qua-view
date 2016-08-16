@@ -27,25 +27,23 @@ module Program.Controllers.LuciClient
       -- * Specific messages
     , LuciResultServiceList (..), runServiceList
     , LuciResultTestFibonacci, runTestFibonacci
-    , LuciScenario (..), runScenarioGet, runScenarioUpdate, runScenarioCreate
+    , LuciScenario (..), runScenarioGet, runScenarioUpdate, runScenarioCreate, runScenarioSubscribe
     , LuciResultScenarioList (..), ScenarioDescription (..), runScenarioList
-    , registerAskLuciForScenario, displayScenarios, GUI.registerGetScenarioList
+    , GUI.registerAskLuciForScenario, displayScenarios, GUI.registerGetScenarioList
     , LuciScenarioCreated (..)
     , MessageAttachment (..), makeAttDesc
+    , CallId (..), TaskId (..)
+    , runQuaServiceList
     ) where
 
 
+
 import qualified Program.Controllers.GUI as GUI
---import Data.Int (Int64)
---import JsHs.JSString (JSString, append,unpack',pack)
+--import Data.String (IsString)
 
---import Data.List (foldl')
-import Data.String (IsString)
-
----- import GHCJS.Foreign
 import JsHs
 import JsHs.Types.Prim (jsNull)
-import JsHs.JSString (unpack')
+--import JsHs.JSString (unpack')
 import Data.Geometry.Structure.Feature (FeatureCollection)
 import qualified JsHs.Array as JS
 import qualified JsHs.TypedArray as JSTA
@@ -57,12 +55,9 @@ import Program.Types
 import Reactive.Banana.Frameworks
 import Reactive.Banana.Combinators
 import Reactive.Banana.JsHs.Types (Time)
---import Control.Concurrent (threadDelay, forkIO)
---import Control.Monad (void)
 import Data.Maybe (fromMaybe)
 
 import Data.Time
---import Data.Time.Clock (secondsToDiffTime)
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
 
 ----------------------------------------------------------------------------------------------------
@@ -223,16 +218,6 @@ instance LikeJS "Number" Percentage where
 instance Show Percentage where
   show (Percentage x) = show (fromIntegral (round $ x*100 :: Int) / 100 :: Double) ++ "%"
 
--- | Luci service name
-newtype ServiceName = ServiceName JSString
-  deriving (Eq,Ord,Show,IsString)
-instance LikeJS "String" ServiceName where
-  asLikeJS = ServiceName . asLikeJS
-  asJSVal (ServiceName v) = asJSVal v
-
-unServiceName :: ServiceName -> String
-unServiceName (ServiceName a) = unpack' a
-
 -- | All possible message headers
 data MessageHeader
   = MsgRun ServiceName [(JSString, JSVal)]
@@ -330,7 +315,7 @@ makeAttDesc pos tt ab = MessageAttachment
   , maPosition = pos
   }
 
-foreign import javascript unsafe "var cr = new goog.crypt.Md5(); cr.update(new Uint8Array($1)); $r = cr.digest().reduce(function(s,e){return s + e.toString(16);}, '');"
+foreign import javascript unsafe "var cr = new goog.crypt.Md5(); cr.update(new Uint8Array($1)); $r = cr.digest().reduce(function(s,e){return s + ('0' + e.toString(16)).slice(-2);}, '');"
     js_md5 :: JSTA.ArrayBuffer -> JSString
 
 ----------------------------------------------------------------------------------------------------
@@ -340,6 +325,13 @@ foreign import javascript unsafe "var cr = new goog.crypt.Md5(); cr.update(new U
 -- | A message to get list of available services from luci
 runServiceList :: LuciMessage
 runServiceList = toLuciMessage (MsgRun "ServiceList" []) []
+
+-- | A message to get list of available services from luci;
+--   list only qua-view-compliant services
+runQuaServiceList :: LuciMessage
+runQuaServiceList = toLuciMessage (MsgRun "FilterServices" [ ("rcrLevel", JS.asJSVal (1::Int))
+                                                           , ("keys", JS.asJSVal ["qua-view-compliant"::JSString])
+                                                           ]) []
 
 newtype LuciResultServiceList = ServiceList (JS.Array JSString)
   deriving (Show)
@@ -364,15 +356,16 @@ instance LikeJS "Object" LuciResultTestFibonacci where
 
 
 -- | Luci scenario
-data LuciScenario = LuciResultScenario ScenarioId FeatureCollection
+data LuciScenario = LuciResultScenario ScenarioId FeatureCollection UTCTime
 instance LikeJS "Object" LuciScenario where
   asLikeJS jsv = case (,) <$> getProp "ScID" jsv <*> getProp "FeatureCollection" jsv of
-                  Just (scId, fc) -> LuciResultScenario scId fc
+                  Just (scId, fc) -> LuciResultScenario scId fc t
                   Nothing -> anotherTry
      where
-       anotherTry = LuciResultScenario (fromMaybe 0 $ getProp "ScID" jsv) $
-              fromMaybe (JS.fromJSArray JS.emptyArray) (getProp "geometry_output" jsv >>= getProp "geometry")
-  asJSVal (LuciResultScenario scId fc) =
+       t = posixSecondsToUTCTime . realToFrac . secondsToDiffTime . fromMaybe 0 $ getProp "lastmodified" jsv
+       anotherTry = LuciResultScenario (fromMaybe 0 $ getProp "ScID" jsv)
+              (fromMaybe (JS.fromJSArray JS.emptyArray) (getProp "geometry_output" jsv >>= getProp "geometry")) t
+  asJSVal (LuciResultScenario scId fc _) =
             setProp "ScID"  (JS.asJSVal scId)
           $ setProp "FeatureCollection" fc newObj
 
@@ -386,7 +379,7 @@ instance LikeJS "Object" LuciScenarioCreated where
           $ setProp "lastmodified" (round $ utcTimeToPOSIXSeconds lm :: Int) newObj
 
 -- | Pass the name of the scenario and a feature collection with geometry
-runScenarioCreate :: JSString -- ^ name of the scenario
+runScenarioCreate :: ScenarioName -- ^ name of the scenario
                   -> FeatureCollection -- ^ content of the scenario
                   -> LuciMessage
 runScenarioCreate name collection = toLuciMessage
@@ -424,6 +417,16 @@ runScenarioGet scId = toLuciMessage
   ) []
 -- returns: "{"lastmodified":1470932237,"ScID":4}"
 
+runScenarioSubscribe :: ScenarioId -- ^ id of the scenario
+                     -> LuciMessage
+runScenarioSubscribe scId = toLuciMessage
+  ( MsgRun "scenario.SubscribeTo"
+      [ ("ScIDs", JS.asJSVal [scId])
+      , ("format", JS.asJSVal ("geojson" :: JSString))
+      ]
+  ) []
+
+
 runScenarioList :: LuciMessage
 runScenarioList = toLuciMessage  (MsgRun "scenario.GetList" []) []
 
@@ -439,7 +442,7 @@ instance LikeJS "Object" LuciResultScenarioList where
 data ScenarioDescription = ScenarioDescription
   { scCreated  :: UTCTime
   , scModified :: UTCTime
-  , scName     :: JSString
+  , scName     :: ScenarioName
   , sscId      :: ScenarioId
   }
   deriving (Eq,Ord,Show)
@@ -465,12 +468,6 @@ instance LikeJS "Object" ScenarioDescription where
 
 displayScenarios ::  ServiceResult -> IO ()
 displayScenarios = GUI.displayScenarios . asJSVal
-
--- | Registers one callback; comes from Handler.Home.PanelGeometry.
---   h :: ScID -> IO ()
---   return :: IO ()
-registerAskLuciForScenario :: (ScenarioId -> JSString -> IO ()) -> IO ()
-registerAskLuciForScenario f = GUI.registerAskLuciForScenario (f . ScenarioId)
 
 --
 --runLuciService :: LuciClient -> JSString -> LuciServiceInput -> LuciScenario -> IO (Either JSString LuciServiceOutput)
