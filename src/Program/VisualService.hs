@@ -15,6 +15,8 @@
 module Program.VisualService
   ( VisualService (..), VisualServiceResult (..), VisualServiceRun (..)
   , parseResult, makeRunRequest, ColorPalette (..), makeColors
+  , VisualServiceMode (..), VSManager (..), runQuaServiceList
+  , vsManagerBehavior
   ) where
 
 import Control.Arrow (Arrow(..))
@@ -22,6 +24,7 @@ import Data.Time (UTCTime,secondsToDiffTime)
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import Data.Monoid
 import Data.Coerce (coerce)
+import qualified Data.HashMap.Strict as HashMap
 
 import Data.Geometry (Vector4)
 import qualified Data.Geometry.Structure.PointSet as PS
@@ -36,6 +39,9 @@ import JsHs.WebGL (GLfloat, GLubyte)
 import Program.Types
 import Program.Controllers.LuciClient
 import Program.Settings
+
+import Reactive.Banana.Combinators
+--import Reactive.Banana.Frameworks
 
 -- | Working mode of a service
 data VisualServiceMode
@@ -57,14 +63,35 @@ instance LikeJS "String" VisualServiceMode where
   asJSVal VS_NEW         = asJSVal ("new" :: JSString)
   asJSVal (VS_UNKNOWN s) = s
 
-
--- | Encapsulate runtime service parameters
-data VisualService = VisualService
-  { vsName :: !ServiceName
+-- | Manage available visual services
+newtype VSManager = VSManager
+  { registeredServices :: HashMap.HashMap ServiceName VisualService
   }
 
---data ServiceInputDescription
---  =
+
+vsManagerBehavior :: MonadMoment m
+                  => Event (ServiceName, ServiceResult, JS.Array JSTA.ArrayBuffer)
+                  -> m (Behavior VSManager, Event VisualServiceResult)
+vsManagerBehavior serviceFinE = do
+    manB <- accumB  (VSManager HashMap.empty) serviceListUpdatesE
+    let registeredSRE = filterJust $ filterSR <$> manB <@> serviceResultE
+    return (manB, registeredSRE)
+  where
+    nameFilterServices ("FilterServices", ServiceResult r, _) = Left (JS.asLikeJS r :: LuciResultServiceList)
+    nameFilterServices (n,r,b) = Right (VisualService n, parseResult r b)
+    (serviceListE, serviceResultE) = split $ nameFilterServices <$> serviceFinE
+    filterSR _ (_, VisualServiceResultUnknown _ _) = Nothing
+    filterSR VSManager{registeredServices = rs} (s, rez) | HashMap.member (vsName s) rs = Just rez
+                                                         | otherwise                    = Nothing
+    serviceListUpdatesE = (\(ServiceList ls) vs -> vs{ registeredServices = HashMap.fromList
+                                                                          . map ((\n -> (n,VisualService n)) . ServiceName)
+                                                                          $ JS.toList ls
+                                                     } ) <$> serviceListE
+
+-- | Encapsulate runtime service parameters
+newtype VisualService = VisualService
+  { vsName  :: ServiceName
+  }
 
 
 -- | Result of a service execution
@@ -82,12 +109,6 @@ data VisualServiceRun
   | VisualServiceRunScenario !ScenarioId ![(JSString, JSString)] ![(JSString, GLfloat)] ![(JSString, Bool)]
   | VisualServiceRunNew !(Maybe ScenarioId) ![(JSString, JSString)] ![(JSString, GLfloat)] ![(JSString, Bool)]
 
---MessageAttachment = MessageAttachment
---  { maFormat   :: !JSString
---  , maLength   :: !Int
---  , maMD5      :: !JSString
---  , maPosition :: !Int
---  }
 
 makeRunRequest :: VisualService -> VisualServiceRun -> LuciMessage
 makeRunRequest s (VisualServiceRunPoints scid strings numbers bools points) = toLuciMessage

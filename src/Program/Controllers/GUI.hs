@@ -31,6 +31,7 @@ module Program.Controllers.GUI
 import JsHs (JSString, JSVal, LikeJS(..))
 import JsHs.Callback
 import Data.Geometry.Structure.Feature
+import Program.Types
 
 
 
@@ -67,7 +68,7 @@ foreign import javascript safe "displayScenarios($1['scenarios'])" displayScenar
 -- | Registers one callback; comes from Handler.Home.PanelGeometry.
 --   h :: ScID -> IO ()
 --   return :: IO ()
-registerAskLuciForScenario :: (Int -> JSString -> IO ()) -> IO ()
+registerAskLuciForScenario :: (ScenarioId -> ScenarioName -> IO ()) -> IO ()
 registerAskLuciForScenario c = asyncCallback2 (\i s -> c (asLikeJS i) (asLikeJS s)) >>= js_registerAskLuciForScenario
 foreign import javascript safe "registerAskLuciForScenario($1)" js_registerAskLuciForScenario :: Callback (JSVal -> JSVal ->  IO ()) -> IO ()
 
@@ -103,7 +104,7 @@ foreign import javascript safe "showLuciConnectForm($1)" showLuciConnectForm :: 
 -- | Registers one callback; comes from Handler.Home.PanelGeometry.
 --   sendMsg :: JSString -> IO ()
 --   return :: IO ()
-registerSaveScenario :: (JSString -> IO ()) -> IO ()
+registerSaveScenario :: (ScenarioName -> IO ()) -> IO ()
 registerSaveScenario c = asyncCallback1 (c . asLikeJS) >>= js_registerSaveScenario
 foreign import javascript safe "registerSaveScenario($1)" js_registerSaveScenario :: Callback (JSVal -> IO ()) -> IO ()
 
@@ -112,7 +113,7 @@ foreign import javascript safe "registerSaveScenario($1)" js_registerSaveScenari
 --   showButton :: Bool -- whether to show "save scenario" button
 --   scName :: JSString -- name of the scenario displayed on a panel
 --   return :: IO ()
-foreign import javascript safe "toggleSaveScenarioButton($1, $2)" toggleSaveScenarioButton :: Bool -> JSString -> IO ()
+foreign import javascript safe "toggleSaveScenarioButton($1, $2)" toggleSaveScenarioButton :: Bool -> ScenarioName -> IO ()
 
 
 -- | Registers one callback; comes from Handler.Home.UIButtons.
