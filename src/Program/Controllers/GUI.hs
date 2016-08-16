@@ -25,6 +25,7 @@ module Program.Controllers.GUI
   , registerServiceClear
   , registerServiceRun
   , toggleServiceClear
+  , showInfo
   ) where
 
 
@@ -134,3 +135,9 @@ foreign import javascript safe "registerServiceRun($1)" js_registerServiceRun ::
 --   state :: Bool
 --   return :: IO ()
 foreign import javascript safe "toggleServiceClear($1)" toggleServiceClear :: Bool -> IO ()
+
+-- | Show info (pairs of key-value); comes from Handler.Home.PanelInfo.
+--   obj :: Object -- all property names and values inside an object
+--   return :: IO ()
+foreign import javascript safe "showInfo($1)" showInfo :: JSVal -> IO ()
+

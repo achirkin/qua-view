@@ -79,3 +79,9 @@ function registerServiceRun(onClick) {}
  *  return :: IO ()
  */
 function toggleServiceClear(state) {}
+
+/** Show info (pairs of key-value); comes from Handler.Home.PanelInfo.
+ *  obj :: Object -- all property names and values inside an object
+ *  return :: IO ()
+ */
+function showInfo(obj) {}
