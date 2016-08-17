@@ -231,7 +231,7 @@ v :: Vector4 GLubyte -> Vector4 GLfloat
 v = coerce
 
 
-foreign import javascript safe "gm$normalizeValues($1,0);" normalized :: JSTA.TypedArray GLfloat -> PS.PointArray 4 GLfloat
+foreign import javascript safe "gm$normalizeValues($1,0)" normalized :: JSTA.TypedArray GLfloat -> PS.PointArray 4 GLfloat
 
 
 

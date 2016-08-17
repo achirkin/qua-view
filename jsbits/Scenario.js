@@ -29,13 +29,13 @@ function gm$smartNormalizeValues(sourceArray, nullSub) {
  * @returns {Array}
  */
 function gm$normalizeValues(sourceArray, nullSub) {
-    var bs = sourceArray.reduce( function(a,x) {
-                return x != null ? [Math.min(a[0],x),Math.max(a[0],x)] : a;
+    var bs = Array.prototype.reduce.call(sourceArray, function(a,x) {
+                return x != null ? [Math.min(a[0],x),Math.max(a[1],x)] : a;
             }, [Infinity,-Infinity]),
         xspan = Math.max(bs[1] - bs[0], 0.000001),
         f = function(e) {return e != null ? Math.min(1,Math.max(0,(e - bs[0]) / xspan)) : null;},
         t = 0;
-    return sourceArray.map( function(n) {
+    return Array.prototype.map.call(sourceArray, function(n) {
             if(n != null) {
                 t = f(n);
                 return [t, t, t, t];
