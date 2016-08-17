@@ -53,7 +53,7 @@ import Program.Types
 import Program.VisualService
 import Program.Model.CityGround
 
-import JsHs.Debug
+--import JsHs.Debug
 import Data.Maybe (fromMaybe)
 ----import Control.Arrow (Arrow(..))
 
@@ -195,7 +195,7 @@ main = do
 
       -- show building info on selection
       let showInfoA _  Nothing  = GUI.showInfo newObj
-          showInfoA ci (Just i) = GUI.showInfo . fromMaybe newObj . fmap (allProps . T.unwrap ) $ getObject i ci
+          showInfoA ci (Just i) = GUI.showInfo . maybe newObj (allProps . T.unwrap) $ getObject i ci
       reactimate $ showInfoA <$> cityB <@> selObjIdE
 
       -- a little bit of logging
@@ -215,7 +215,9 @@ main = do
       let doLuciAction LuciClientOpening = logText' "Opening connection."
           doLuciAction LuciClientClosed = logText' "LuciClient WebSocket connection closed."
           doLuciAction (LuciClientError err) = logText' $ "LuciClient error: " <> err
-          doLuciAction _luciClient = logText' "Luci is ready"
+          doLuciAction luciClient = do
+            logText' "Luci is ready"
+            sendMessage luciClient runQuaServiceList
 --            sendMessage luciClient $ runScenarioCreate "Our first scenario" (storeCityAsIs ci)
 --            sendMessage luciClient runServiceList
 --            sendMessage luciClient $ runTestFibonacci 10
@@ -285,7 +287,7 @@ main = do
           serviceRunsF (SSSynced sid _ _) (GroundUpdated points) = Just $ VisualServiceRunPoints sid [] [] [] (fromJSArrayToTypedArray $ PS.flatten points)
           serviceRunsF _ _ = Nothing
 
-          runIsovistServiceA lc@(LuciClient _) vsr = sendMessage lc $ makeRunRequest (VisualService "Isovist") vsr
+          runIsovistServiceA lc@(LuciClient _) vsr = sendMessage lc $ makeRunRequest (VisualService "DistanceToWalls") vsr
           runIsovistServiceA _ _ = return ()
 
           askSubscribeForScenario (LuciClient _) SSSynced{} SSSynced{} = return ()
@@ -306,9 +308,6 @@ main = do
       -- run luci service!
       reactimate $ runIsovistServiceA <$> luciClientB <@> serviceRunsE
 
-
-
-      return ()
 
       return ()
 
@@ -347,8 +346,11 @@ parseLuciMessages _ _ _ (MsgProgress callID duration serviceName taskID percenta
     s -> putStrLn ("Got some JSVal as a progress of service " ++ show s) -- >> printJSVal (JS.asJSVal progress)
   print (callID, duration, taskID)
 parseLuciMessages _ _ _ (MsgNewCallID _, _) = return ()
-parseLuciMessages _ _ _ _msg =
-  logText' "Got unexpected message"
+parseLuciMessages _ _ _ (MsgRun{} , _) = return ()
+parseLuciMessages _ _ _ (MsgCancel{} , _) = return ()
+parseLuciMessages _ _ _ (MsgPanic{} , _) = putStrLn "Luci panicked. Can do nothing about it :("
+parseLuciMessages _ _ _ (MsgUnknown msg, _) =
+  logText' $ "Got unexpected message" <> jsonStringify (JS.asJSVal msg)
 --  printJSVal $ JS.asJSVal msg
 
 unionsStepper :: [Event a] -> Event a

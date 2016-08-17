@@ -32,7 +32,7 @@ import Program.Model.Camera
 import Program.Model.City
 --import Program.Model.CityObject
 import Program.Model.WiredGeometry
-import Program.View.CityView (groundView)
+import Program.View.CityView (groundView, CityView (CityView))
 import Program.View.WiredGeometryView ()
 import Program.View.CityGroundView
 import Program.View
@@ -144,15 +144,47 @@ viewBehavior canvas resEvents cityUpdates renderings vsResultsE programB = mdo
           , scUpToDate   = False
           }) <$> ctxB <@> cviewE
     pviewE2 <- mapEventIO id $ renderScene <$> programB <*> pviewB <@> renderings
+--    grvB <- groundViewBehavior programB (glctx . context <$> pviewB) vsResultsE
+    grvE <- groundViewEvents programB pviewB vsResultsE
     let pviewEAll :: Event PView
-        pviewEAll = unionWith (const id) pviewE2 pviewE1
+        pviewEAll = unionWith (const id) (unionWith (const id) pviewE2 pviewE1) (injectGrview <$> pviewB <@> grvE)
     pviewB <- stepper ipview pviewEAll :: MomentIO (Behavior PView)
-    grvB <- groundViewBehavior programB (glctx . context <$> pviewB) vsResultsE
-    return $ injectGrview <$> grvB <*> pviewB
+    return pviewB
   where
-    injectGrview grv pview@PView{cityView = cv} = pview { cityView = cv{groundView = grv}}
+    injectGrview pview@PView{cityView = cv} grv = pview { cityView = cv{groundView = grv}}
 
-
+--    -- done!
+--    let ipview = PView
+--          { context      = ictx
+--          , dgView       = dgview
+--          , cityView     = cview
+--  --        , luciClient   = Nothing
+--  --        , luciScenario = Nothing
+--          , scUpToDate   = False
+--          }
+--        pviewE1 = (\ctx cv pview -> pview
+--          { context      = ctx
+--          , dgView       = dgview
+--          , cityView     = cv
+--  --        , luciClient   = Nothing
+--  --        , luciScenario = Nothing
+--          , scUpToDate   = False
+--          }) <$> ctxB <@> cviewE
+--        pviewE3 = (\grv pview -> pview
+--          { cityView     = (cityView pview)
+--            { groundView = grv
+--            }
+--          }) <$> grvE
+--    pviewE2 <-fmap (const) . mapEventIO id $ renderScene <$> programB <*> pviewB <@> renderings
+--    grvE <- groundViewEvents programB pviewB vsResultsE
+----    grvB <- groundViewBehavior programB (glctx . context <$> pviewB) vsResultsE
+--    let pviewEAll :: Event (PView -> PView)
+--        pviewEAll = unions [pviewE2, pviewE1]
+--    pviewB <- stepper ipview pviewEAll
+----    pviewB <- (injectGrview <$> grvB <*>) <$> stepper ipview pviewEAll :: MomentIO (Behavior PView)
+--    return pviewB
+--  where
+--    injectGrview grv pview@PView{cityView = cv} = pview { cityView = cv{groundView = grv}}
 
 
 
@@ -203,6 +235,34 @@ selectionConfirm beh ev = fmap filterJust
 
 
 
+groundViewEvents :: Behavior Program
+                 -> Behavior PView
+                 -> Event VisualServiceResult
+                 -> MomentIO (Event CityGroundView)
+groundViewEvents programB pviewB vsResultE = mapEventIO groundViewUpdateF $ (,,) <$> programB <*> pviewB <@> vsResultE
+  where
+   groundViewUpdateF
+      ( Program { city = City {ground = gr, csettings = set}}
+      , PView
+          { context      = ViewContext {glctx = gl}
+          , cityView     = CityView { groundView = grv}
+          }
+      , VisualServiceResultPoints _ values
+      ) = case groundGridToTexArray gr (evalCellSize set) colors of
+            (_, Nothing) ->
+                updateGroundView gl gr Nothing grv
+            (_, Just (texbuf, texsize)) ->
+                updateGroundView gl
+                                 gr
+                                 (Just (Right (texbuf, texsize)))
+                                 grv
+        where colors =  makeColors palette values
+   groundViewUpdateF (_,PView { cityView     = CityView { groundView = grv} },_) = return grv
+   palette = Bezier3Palette (vector4 0 0 255 255)
+                            (vector4 0 255 100 255)
+                            (vector4 100 255 0 255)
+                            (vector4 255 0 0 255)
+
 
 groundViewBehavior :: Behavior Program
                    -> Behavior WebGLRenderingContext
@@ -228,7 +288,7 @@ groundViewBehavior programB glctxB vsResultE = mdo
                                  gr
                                  (Just (Right (texbuf, texsize)))
                                  grv
-        where colors = makeColors palette values
+        where colors =  makeColors palette values
    groundViewUpdateF (_,_,grv,_) = return grv
    palette = Bezier3Palette (vector4 0 0 255 255)
                             (vector4 0 255 100 255)
