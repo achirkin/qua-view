@@ -35,7 +35,6 @@ function gm$normalizeValues(sourceArray, nullSub) {
         xspan = Math.max(bs[1] - bs[0], 0.000001),
         f = function(e) {return e != null ? Math.min(1,Math.max(0,(e - bs[0]) / xspan)) : null;},
         t = 0;
-    console.log(xspan, bs[1], bs[0]);
     return Array.prototype.map.call(sourceArray, function(n) {
             if(n != null) {
                 t = f(n);

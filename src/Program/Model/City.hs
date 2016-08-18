@@ -438,10 +438,10 @@ colorizeObjects colorizeE cityB = stepper Nothing propValuesE
                                       . js_smartColors (-1) $ JS.map (js_getThisProp pname . allProps . T.unwrap) (objectsIn ci)
     propValues _ Nothing = Nothing
     subs = Just (broadcastVector $ -1, vector4 100 100 100 200)
-    palette = Bezier3Palette (vector4 0 0 255 255)
-                             (vector4 0 255 100 255)
-                             (vector4 100 255 0 255)
-                             (vector4 255 0 0 255)
+    palette = Bezier3Palette (vector4 50 50 240 255)
+                             (vector4 50 240 100 255)
+                             (vector4 100 240 50 255)
+                             (vector4 240 50 50 255)
 
 
 foreign import javascript safe "gm$smartNormalizeValues($2,$1)" js_smartColors :: GLfloat -> JS.Array JSVal -> PS.PointArray 4 GLfloat
