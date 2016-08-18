@@ -39,6 +39,7 @@ import SmallGL.WritableVectors
 
 import Program.Model.CityObject
 --import Program.Settings
+--import Debug.Trace
 
 
 data CityGround = CityGround
@@ -161,15 +162,17 @@ isEmptyGround gr = indexArrayLength (groundPoints gr) == 1
 
 groundEvalGrid :: CityGround
                -> GLfloat  -- ^ desired cell size
+               -> (GLfloat, Vector2 GLfloat)
                -> PS.PointArray 3 GLfloat -- half size in 111 direction
-groundEvalGrid CityGround{..} cellSize = fromJSArray . JS.map f $ js_groundEvalGrid nx ny
+groundEvalGrid CityGround{..} cellSize (scale',shift') = dx `seq` dy `seq` corn `seq` fromJSArray . JS.map f $ js_groundEvalGrid nx ny
     where nx = max 1 . round $ normL2 groundX / cellSize :: Int
           ny = max 1 . round $ normL2 groundY / cellSize :: Int
-          dx = groundX / broadcastVector (fromIntegral nx)
-          dy = groundY / broadcastVector (fromIntegral ny)
+          dx = groundX / broadcastVector (fromIntegral nx * scale')
+          dy = groundY / broadcastVector (fromIntegral ny * scale')
+          corn = groundCorner * broadcastVector (1/scale') + resizeVector shift'
           f ij = case unpackV2 ij of
-                   (i,j) -> groundCorner + broadcastVector i * dx
-                                         + broadcastVector j * dy
+                   (i,j) -> corn + broadcastVector i * dx
+                                 + broadcastVector j * dy
 
 foreign import javascript unsafe "$r = new Array($1*$2); for(var i = 0; i < $1; i++){for(var j = 0; j < $2; j++){$r[i+j*$1] = [i+0.5,j+0.5];}}"
     js_groundEvalGrid :: Int -> Int -> PS.PointArray 2 GLfloat

@@ -350,7 +350,7 @@ parseLuciMessages _ _ _ (MsgRun{} , _) = return ()
 parseLuciMessages _ _ _ (MsgCancel{} , _) = return ()
 parseLuciMessages _ _ _ (MsgPanic{} , _) = putStrLn "Luci panicked. Can do nothing about it :("
 parseLuciMessages _ _ _ (MsgUnknown msg, _) =
-  logText' $ "Got unexpected message" <> jsonStringify (JS.asJSVal msg)
+  logText' $ "Got unexpected message: " <> jsonStringify (JS.asJSVal msg)
 --  printJSVal $ JS.asJSVal msg
 
 unionsStepper :: [Event a] -> Event a

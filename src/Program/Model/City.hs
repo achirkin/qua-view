@@ -412,7 +412,7 @@ groundBehavior cityB updateE = do
     groundE = updateGround <$> cityB <@> updateE
     updateGround ci GroundUpdateRequest = buildGround (groundDilate $ csettings ci) $ objectsIn ci
     updateGround _  GroundClearRequest  = emptyGround
-    updateGrid ci g = GroundUpdated $ groundEvalGrid g (evalCellSize $ csettings ci)
+    updateGrid ci g = GroundUpdated $ groundEvalGrid g (evalCellSize $ csettings ci) (cityTransform ci)
 --groundEvalGrid :: CityGround
 --               -> GLfloat  -- ^ desired cell size
 --               -> PS.PointArray 3 GLfloat -- half size in 111 direction
