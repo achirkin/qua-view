@@ -220,29 +220,29 @@ instance Show Percentage where
 
 -- | All possible message headers
 data MessageHeader
-  = MsgRun ServiceName [(JSString, JSVal)]
+  = MsgRun !ServiceName ![(JSString, JSVal)]
     -- ^ run service message, e.g. {'run': 'ServiceList'};
     -- params: 'run', [(name, value)]
-  | MsgCancel CallId
+  | MsgCancel !CallId
     -- ^ cancel service message, e.g. {'cancel': 25};
     -- params: 'callID'
-  | MsgNewCallID CallId
+  | MsgNewCallID !CallId
     -- ^ Luci call id, { newCallID: 57 };
     -- params: 'newCallID'
-  | MsgResult CallId Time ServiceName TaskId ServiceResult
+  | MsgResult !CallId !Time !ServiceName !TaskId !ServiceResult
     -- ^ result of a service execution,
     -- e.g. { callID: 57, duration: 0, serviceName: "ServiceList", taskID: 0, result: Object };
     -- params: 'callID', 'duration', 'serviceName', 'taskID', 'result'
-  | MsgProgress CallId Time ServiceName TaskId Percentage ServiceResult
+  | MsgProgress !CallId !Time !ServiceName !TaskId !Percentage !(Maybe ServiceResult)
     -- ^ result of a service execution,
     -- e.g. { callID: 57, duration: 0, serviceName: "St", taskID: 0, percentage: 0, progress: null};
     -- params: 'callID', 'duration', 'serviceName', 'taskID', 'percentage', 'progress'
-  | MsgError JSString
+  | MsgError !JSString
     -- ^ error message, e.g. {'error': 'We are in trouble!'};
     -- params: 'error'
-  | MsgPanic JSString
+  | MsgPanic !JSString
     -- ^ Initiate the panic recovery procedure
-  | MsgUnknown JSVal
+  | MsgUnknown !JSVal
     -- ^ unknown type of message; passed as-is
 
 instance LikeJS "Object" MessageHeader where
@@ -259,8 +259,8 @@ instance LikeJS "Object" MessageHeader where
                                                    <*> getProp "duration" jsv
                                                    <*> getProp "serviceName" jsv
                                                    <*> getProp "taskID" jsv
-                                                   <*> getProp "percentage" jsv
                                                    <*> Just r
+                                                   <*> Just (getProp "intermediateResult" jsv)
                | Just i <- getProp "cancel"    jsv = MsgCancel i
                | Just p <- getProp "panic"     jsv = MsgPanic p
                | Just n <- getProp "run"       jsv = MsgRun n [] -- TODO: use .getOwnPropertyNames()
@@ -277,8 +277,8 @@ instance LikeJS "Object" MessageHeader where
         . setProp "serviceName" serviceName $ setProp "result" result newObj
   asJSVal (MsgProgress callID duration serviceName taskID percentage result) =
           setProp "callID" callID
-        . setProp "duration" duration . setProp "taskID" taskID . setProp "percentage" percentage
-        . setProp "serviceName" serviceName $ setProp "result" result newObj
+        . setProp "duration" duration . setProp "taskID" taskID . setProp "progress" percentage
+        . setProp "serviceName" serviceName $ setProp "intermediateResult" result newObj
   asJSVal (MsgError err) = setProp "error" err newObj
   asJSVal (MsgPanic panic) = setProp "panic" panic newObj
   asJSVal (MsgUnknown j) = j
