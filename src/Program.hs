@@ -258,41 +258,10 @@ groundViewEvents programB pviewB vsResultE = mapEventIO groundViewUpdateF $ (,,)
                                  grv
         where colors =  makeColors palette values
    groundViewUpdateF (_,PView { cityView     = CityView { groundView = grv} },_) = return grv
-   palette = Bezier3Palette (vector4 0 0 255 255)
-                            (vector4 0 255 100 255)
-                            (vector4 100 255 0 255)
-                            (vector4 255 0 0 255)
+   palette = Bezier3Palette (vector4 0 0 255 240)
+                            (vector4 50 255 0 240)
+                            (vector4 155 255 0 240)
+                            (vector4 255 0 0 240)
 
-
-groundViewBehavior :: Behavior Program
-                   -> Behavior WebGLRenderingContext
-                   -> Event VisualServiceResult
-                   -> MomentIO (Behavior CityGroundView)
-groundViewBehavior programB glctxB vsResultE = mdo
-   groundE <- mapEventIO groundViewUpdateF $ (,,,) <$> programB <*> glctxB <*> groundB <@> vsResultE
-   ictx <- valueB glctxB
-   igrv <- liftIO $ createView ictx emptyGround
-   groundB <- stepper igrv groundE
-   return groundB
-  where
-   groundViewUpdateF
-      ( Program { city = City {ground = gr, csettings = set}}
-      , gl
-      , grv
-      , VisualServiceResultPoints _ values
-      ) = case groundGridToTexArray gr (evalCellSize set) colors of
-            (_, Nothing) ->
-                updateGroundView gl gr Nothing grv
-            (_, Just (texbuf, texsize)) ->
-                updateGroundView gl
-                                 gr
-                                 (Just (Right (texbuf, texsize)))
-                                 grv
-        where colors =  makeColors palette values
-   groundViewUpdateF (_,_,grv,_) = return grv
-   palette = Bezier3Palette (vector4 0 0 255 255)
-                            (vector4 0 255 100 255)
-                            (vector4 100 255 0 255)
-                            (vector4 255 0 0 255)
 
 
