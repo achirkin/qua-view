@@ -244,7 +244,7 @@ buildCity sets scenario = (,) errors City
     where (rcscale,cshift)  = scenarioViewScaling (diagFunction sets) parsedCollection
           (errors,objects, liness) = processScenario (defHeight sets) (defElevation sets) cscale cshift parsedCollection
           cscale = fromMaybe rcscale (defScale sets)
-          parsedCollection = smartProcessFeatureCollection 0 (vector3 0 0 (defElevation sets)) scenario
+          parsedCollection = smartProcessFeatureCollection 2 (vector3 0 0 (defElevation sets)) scenario
 
 
 --  { pfcPoints  :: JS.Array Feature
@@ -271,7 +271,7 @@ updateCity scenario
 --          afterDelete = JS.filter (\o -> geomId (T.unwrap o) `notElem` deletes) $ objectsIn city
 --          allobjects = JS.concat afterDelete objects
           allobjects = js_smartUpdateCity (objectsIn city) objects (JS.map GeomId $ pfcDeletes parsedCollection)
-          prevMaxGeomId = fromIntegral . Prelude.maximum . JS.toList . JS.map (geomId . T.unwrap) $ objectsIn city
+          prevMaxGeomId = max 2 . fromIntegral . Prelude.maximum . JS.toList . JS.map (geomId . T.unwrap) $ objectsIn city
           parsedCollection = smartProcessFeatureCollection prevMaxGeomId (vector3 0 0 (defElevation $ csettings city)) scenario
 
 
@@ -346,7 +346,7 @@ scenarioViewScaling :: (Int -> GLfloat)
                     -> (GLfloat, Vector2 GLfloat)
 scenarioViewScaling diam scenario = ( diam n / normL2 (h-l) , vector2 x y)
     where
-      n = JS.length (pfcPolys scenario) + 1 + JS.length (pfcLines scenario) `div` 5
+      n = JS.length (pfcPolys scenario) + 1 + JS.length (pfcLines scenario) * 2
       l = pfcMin scenario
       h = pfcMax scenario
       (x,y,_) = unpackV3 $ (l + h) / 2
