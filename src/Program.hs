@@ -46,8 +46,6 @@ import Reactive.Banana.JsHs
 
 --import JsHs.Debug
 
-data Profile = Full | ExternalEditor | ExternalViewer deriving (Show, Eq)
-
 
 
 -- | Data type representing the whole program state
@@ -55,22 +53,19 @@ data Program = Program
     { camera   :: !Camera
     , decGrid  :: !WiredGeometry
     , city     :: !City
-    , userRole :: !Profile
     , settings :: !Settings
     }
 
 
-initProgram :: Profile -- ^ determine the functionality of the program
-            -> Behavior Settings
+initProgram :: Behavior Settings
             -> Behavior Camera
             -> Behavior City
             -> Behavior Program
-initProgram userProfile ctrlsB camB ciB = (\cls cam ci -> Program
+initProgram ctrlsB camB ciB = (\cls cam ci -> Program
     { camera = cam
     , decGrid = dg
     , city = ci
     , settings = cls
-    , userRole = userProfile
     }) <$> ctrlsB <*> camB <*> ciB
   where
     dg = createDecorativeGrid 500 100 (vector4 0.6 0.6 0.8 1)

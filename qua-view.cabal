@@ -52,8 +52,10 @@ executable qua-view
         Program
         Program.Controllers.GUI
         Program.Controllers.GeoJSONFileImport
+        Program.Controllers.Logging
         Program.Controllers.LuciClient
         Program.Model.Camera
+        Program.Model.LuciConnection
         Program.Model.WiredGeometry
         Program.Model.City
         Program.Model.CityObject

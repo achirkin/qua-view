@@ -14,6 +14,7 @@
 
 module Program.Settings
   ( Settings (..), defaultSettings, loadSettings
+  , Profile (..)
   -- * JSON helpers
   , getProp, setProp, newObj, jsonParse, jsonStringify, fromProps
   ) where
@@ -21,6 +22,11 @@ module Program.Settings
 import JsHs (JSVal, JSString, LikeJS (..))
 import JsHs.WebGL (GLfloat)
 import qualified JsHs.Array as JS
+--import Data.Maybe (fromMaybe)
+
+
+data Profile = Full | ExternalEditor | ExternalViewer deriving (Show, Eq)
+
 
 data Settings = Settings
     { -- activeService     :: !ServiceBox
@@ -31,6 +37,14 @@ data Settings = Settings
       -- ^ url of the application
     , luciRoute   :: !(Maybe JSString)
       -- ^ url of luci websocket proxy
+    , scenarioUrl :: !(Maybe JSString)
+      -- ^ url of default scenario to load
+    , profile :: !Profile
+      -- ^ user profile -- defines editor capabilities
+    , submitUrl :: !(Maybe JSString)
+      -- ^ url to save scenario
+    , loggingUrl :: !(Maybe JSString)
+      -- ^ url to log actions
     } deriving (Show, Eq)
 
 defaultSettings :: Settings
@@ -41,6 +55,10 @@ defaultSettings = Settings
           objectScale = Nothing
         , viewRoute   = Nothing
         , luciRoute   = Nothing
+        , scenarioUrl = Nothing
+        , profile     = Full
+        , submitUrl   = Nothing
+        , loggingUrl  = Nothing
         } --where radService = ServiceBox . Services.Radius $ vector3 0 3 5
         --        isovistService = ServiceBox (Services.Isovist Services.Area)
 
@@ -54,6 +72,13 @@ instance LikeJS "Object" Settings where
    { objectScale = getProp "objectScale" jsv
    , viewRoute   = getProp "viewRoute" jsv
    , luciRoute   = getProp "luciRoute" jsv
+   , scenarioUrl = getProp "scenarioUrl" jsv
+   , profile     = case getProp "profile" jsv :: Maybe JSString of
+                    Just "edit" -> ExternalEditor
+                    Just "view" -> ExternalViewer
+                    _ -> Full
+   , submitUrl   = getProp "submitUrl" jsv
+   , loggingUrl  = getProp "loggingUrl" jsv
    }
 
 
