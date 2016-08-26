@@ -4,7 +4,10 @@
 module Main ( main ) where
 
 
+import JsHs.LikeJS.Class (asJSVal)
 import JsHs.Useful
+--import JsHs.Nullable (Nullable(..))
+import Control.Monad (when)
 import Data.Geometry
 import Data.Coerce
 import qualified Data.Geometry.Transform as T
@@ -22,6 +25,7 @@ import Program.Model.CityObject
 import Program.Model.LuciConnection
 import Program.View
 import Program.Settings
+import Program.Types
 -- Events
 import qualified Program.Controllers.GeoJSONFileImport as JFI
 import qualified Program.Controllers.GUI as GUI
@@ -42,9 +46,7 @@ main = do
 --    importButton <- getElementById "jsonfileinput"
     -- geoJSON updates
     (clearGeomHandler, clearFire) <- newAddHandler
-    JFI.registerClearGeometry clearFire
     (geoJSONImportsHandler, geoJSONImportFire) <- newAddHandler
-    JFI.registerJSONFileImports (geoJSONImportFire . Left)
 --    JFI.registerButton geoJSONImportsHandler importButton
 
 
@@ -53,8 +55,11 @@ main = do
 
     -- ground draws and updates
     (groundUpdateRequestH, groundUpdateRequestFire) <- newAddHandler
-    GUI.registerServiceClear (const $ groundUpdateRequestFire GroundClearRequest >> GUI.toggleServiceClear False)
-    GUI.registerServiceRun (const $ groundUpdateRequestFire GroundUpdateRequest >> GUI.toggleServiceClear True)
+    when (profile lsettings == Full) $ do
+      JFI.registerClearGeometry clearFire
+      JFI.registerJSONFileImports (geoJSONImportFire . Left)
+      GUI.registerServiceClear (const $ groundUpdateRequestFire GroundClearRequest >> GUI.toggleServiceClear False)
+      GUI.registerServiceRun (const $ groundUpdateRequestFire GroundUpdateRequest >> GUI.toggleServiceClear True)
 
 
     canv <- getCanvasById "glcanvas"
@@ -162,7 +167,8 @@ main = do
 
       -- render scene
       updateE <- updateEvents heh
-      viewB <- viewBehavior canv resizeE cityChanges updateE vsResultsE programB
+      (wantPictureE, wantPictureFire) <- newEvent
+      (viewB, pictureE) <- viewBehavior canv wantPictureE resizeE cityChanges updateE vsResultsE programB
 
       -- use luci only in ful profile
       vsResultsE <- case profile lsettings of
@@ -173,6 +179,19 @@ main = do
       case loggingUrl lsettings of
         Nothing -> return ()
         Just url -> Logging.logActions url motionRecordsE
+
+
+      -- save submission if in edit mode
+      when (profile lsettings == ExternalEditor) $ do
+          (submissionE, submissionFire) <- newEvent
+          liftIO $ GUI.registerSubmit submissionFire
+          waitForPictureE <- mapEventIO (\f -> wantPictureFire WantPicture >> return f) submissionE
+          waitForPictureB <- stepper (return (return ())) waitForPictureE
+          reactimate $ (\s c f p -> let construct Nothing = return ()
+                                        construct (Just url) = f (url, storeCityAsIs c, asJSVal p)
+                                    in construct $ submitUrl s
+                       ) <$> settingsB <*> cityB <*> waitForPictureB <@> pictureE
+
 
       return ()
 

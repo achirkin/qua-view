@@ -74,3 +74,10 @@ unServiceName (ServiceName a) = unpack' a
 instance Hashable ServiceName where
   hash = hash . unServiceName
   hashWithSalt i = hashWithSalt i . unServiceName
+
+
+
+data WantPicture = WantPicture
+
+newtype PictureVal = PictureVal JSVal
+instance LikeJS "Object" PictureVal
