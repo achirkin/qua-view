@@ -22,6 +22,7 @@ module Program where
 
 --import JavaScript.Web.Canvas (Canvas)
 import JsHs.WebGL
+import JsHs.Types
 import qualified JsHs.Array as JS
 import JsHs.Useful
 import Data.Geometry
@@ -84,8 +85,8 @@ data PView = PView
 
 
 
-renderScene :: Program -> PView -> Time -> IO PView
-renderScene program view ctime = do
+renderScene :: IO (Maybe PictureVal) -> Program -> PView -> Time -> IO (PView, Maybe PictureVal)
+renderScene getPicture program view ctime = do
     -- selector rendering
     ctx' <- applySelector (context view) (camera program) (city program) (cityView view)
     -- prepare rendering
@@ -94,18 +95,22 @@ renderScene program view ctime = do
     clearScreen ctx
     draw ctx (decGrid program) (dgView view)
     draw ctx (city program) (cityView view)
+    -- render to picture if needed
+    mpic <- getPicture
     -- done!
-    return view{ context = ctx }
+    return (view{ context = ctx }, mpic)
+
 
 
 viewBehavior :: WebGLCanvas
+             -> Event WantPicture -- ^ resize
              -> Event ResizeEvent -- ^ resize
              -> Event (RequireViewUpdate City)
              -> Event Time -- ^ renderings
              -> Event VisualServiceResult
              -> Behavior Program
-             -> MomentIO (Behavior PView)
-viewBehavior canvas resEvents cityUpdates renderings vsResultsE programB = mdo
+             -> MomentIO (Behavior PView, Event PictureVal)
+viewBehavior canvas wantPicE resEvents cityUpdates renderings vsResultsE programB = mdo
     -- initial values
     itime <- liftIO getTime
     iprog <- valueB programB
@@ -138,13 +143,18 @@ viewBehavior canvas resEvents cityUpdates renderings vsResultsE programB = mdo
   --        , luciScenario = Nothing
           , scUpToDate   = False
           }) <$> ctxB <@> cviewE
-    pviewE2 <- mapEventIO id $ renderScene <$> programB <*> pviewB <@> renderings
+    wantPictureB <- stepper (return Nothing) ( unionWith (const id)
+                                   (return Nothing <$ renderings)
+                                   ((Just <$> js_CanvToDataUrl canvas) <$ wantPicE))
+    pviewE2pictureE <- mapEventIO id $ renderScene <$> wantPictureB <*> programB <*> pviewB <@> renderings
+    let pviewE2 = fst <$> pviewE2pictureE
+        pictureE = filterJust $ snd <$> pviewE2pictureE
 --    grvB <- groundViewBehavior programB (glctx . context <$> pviewB) vsResultsE
     grvE <- groundViewEvents programB pviewB vsResultsE
     let pviewEAll :: Event PView
         pviewEAll = unionWith (const id) (unionWith (const id) pviewE2 pviewE1) (injectGrview <$> pviewB <@> grvE)
     pviewB <- stepper ipview pviewEAll :: MomentIO (Behavior PView)
-    return pviewB
+    return (pviewB, pictureE)
   where
     injectGrview pview@PView{cityView = cv} grv = pview { cityView = cv{groundView = grv}}
 
@@ -259,4 +269,5 @@ groundViewEvents programB pviewB vsResultE = mapEventIO groundViewUpdateF $ (,,)
                             (vector4 255 0 0 240)
 
 
-
+foreign import javascript unsafe "$1.toDataURL(\"image/png\", 1)"
+  js_CanvToDataUrl :: WebGLCanvas -> IO PictureVal

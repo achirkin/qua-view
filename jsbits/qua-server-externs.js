@@ -92,3 +92,9 @@ function registerColorizeProperty(f) {}
  *  return :: IO ()
  */
 function showInfo(obj) {}
+
+/** Registers one callback; comes from Handler.Home.UIButtons.
+*  onClick :: (submitUrl -> FeatureCollection -> Image -> IO ()) -> IO ()
+*  return :: IO ()
+*/
+function registerSubmit(onClick) {}
