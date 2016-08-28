@@ -82,6 +82,8 @@ instance LikeJS "Object" Settings where
    }
 
 
+
+
 foreign import javascript interruptible "getQuaViewSettings($c);"
   js_getQuaViewSettings :: IO JSVal
 
