@@ -73,9 +73,9 @@ main = do
       isize <- viewPortSize heh >>= valueB
       let icamera = initCamera (realToFrac $ coordX isize)
                                (realToFrac $ coordY isize)
-                               CState { viewPoint  = vector3 3 0 0
-                                      , viewAngles = (-pi/5, pi/12)
-                                      , viewDist   = 30 }
+                               CState { viewPoint  = vector3 (-17.5) (-17) 0
+                                      , viewAngles = (0.345, 0.825)
+                                      , viewDist   = 138 }
 
       -- GeoJSON updates
       geoJSONImportE <- fromAddHandler geoJSONImportsHandler
@@ -134,7 +134,7 @@ main = do
 
 
 
-      let settingsB = pure lsettings
+      settingsB <- stepper lsettings (lsettings{objectScale = Nothing} <$ clearGeometryE)
 
       groundUpdateRequestE <- fromAddHandler groundUpdateRequestH
       (colorizePropertyE, colorizePropertyFire) <- newEvent
@@ -170,7 +170,7 @@ main = do
       (wantPictureE, wantPictureFire) <- newEvent
       (viewB, pictureE) <- viewBehavior canv wantPictureE resizeE cityChanges updateE vsResultsE programB
 
-      -- use luci only in ful profile
+      -- use luci only in full profile
       vsResultsE <- case profile lsettings of
         Full -> luciBehavior lsettings geoJSONImportFire cityB groundUpdatedE geoJSONImportE clearGeometryE motionRecordsE
         _ -> return never
