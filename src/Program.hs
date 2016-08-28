@@ -268,6 +268,5 @@ groundViewEvents programB pviewB vsResultE = mapEventIO groundViewUpdateF $ (,,)
                             (vector4 155 255 0 240)
                             (vector4 255 0 0 240)
 
-
-foreign import javascript unsafe "$1.toDataURL(\"image/png\", 1)"
+foreign import javascript unsafe "h$makePreview($1)"
   js_CanvToDataUrl :: WebGLCanvas -> IO PictureVal
