@@ -36,3 +36,20 @@ function logExternalProcess(text) {
 function notifyFinishExternalProcess(pId) {
   document.getElementById(pId).style.display = 'none';
 }
+
+/**
+  * Create rectangular preview out of the game canvas
+ **/
+function h$makePreview(sCanvas) {
+  var dCanvas = document.createElement("canvas"),
+      dCtx = dCanvas.getContext("2d"),
+      sw = sCanvas.width,
+      sh = sCanvas.height,
+      ss = Math.min(sw,sh),
+      sx = (sw - ss)/2,
+      sy = (sh - ss)/2;
+  dCanvas.width = 800;
+  dCanvas.height = 800;
+  dCtx.drawImage(sCanvas, sx, sy, ss, ss, 0, 0, 800, 800);
+  return dCanvas.toDataURL("image/png", 1);
+}
