@@ -28,6 +28,7 @@ module Program.Controllers.GUI
   , registerColorizeProperty
   , showInfo
   , registerSubmit
+  , registerResetCamera
   ) where
 
 import Control.Concurrent.MVar
@@ -163,3 +164,11 @@ registerSubmit c =  asyncCallback1  (c . (\f (u,d,i) -> f u d i) . js_uncallback
 foreign import javascript safe "registerSubmit($1)" js_registerSubmit :: Callback (JSVal -> IO ()) -> IO ()
 foreign import javascript safe "$1($2,$3,$4)"
   js_uncallback3 :: JSVal -> JSString -> FeatureCollection -> JSVal -> IO ()
+
+
+-- | Registers one callback; comes from Handler.Home.UIButtons.
+--   onClick :: IO ()
+--   return :: IO ()
+registerResetCamera :: (() -> IO ())  -> IO ()
+registerResetCamera c = asyncCallback (c ()) >>= js_registerResetCamera
+foreign import javascript safe "registerResetCamera($1)" js_registerResetCamera  :: Callback (IO ()) -> IO ()

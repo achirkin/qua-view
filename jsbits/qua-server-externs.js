@@ -98,3 +98,10 @@ function showInfo(obj) {}
 *  return :: IO ()
 */
 function registerSubmit(onClick) {}
+/** Registers one callback; comes from Handler.Home.UIButtons.
+ *  onClick :: IO ()
+ *  return :: IO ()
+ */
+function registerResetCamera(onClick) {
+  document.getElementById('#resetposbutton').addEventListener("click", onClick);
+}

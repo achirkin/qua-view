@@ -47,16 +47,18 @@ cameraBehavior :: MonadMoment m
                -> Event PointerEvent -- ^ pointer actions
                -> Event WheelEvent -- ^ wheel
                -> Event ResizeEvent -- ^ resize
+               -> Event () -- ^ reset camera
                -> Behavior Int -- ^ buttons
                -> Behavior [(Vector2 GLfloat, Vector2 GLfloat)] -- ^ [(old, new)] coordinates
                -> Behavior Bool -- ^ allow to move camera (is there object dragging or not)
                -> m (Behavior Camera)
-cameraBehavior cam pointerE wheelE resizeE buttonsB coordsB alowMoveB = accumB cam events
+cameraBehavior cam pointerE wheelE resizeE resetCamE buttonsB coordsB alowMoveB = accumB cam events
   where
     events = whenE alowMoveB
            $ unions [ wheelT <$> wheelE
                     , pointerT <$> buttonsB <*> coordsB <@> pointerE
                     , resizeT <$> resizeE
+                    , resetCamT <$> resetCamE
                     ]
     -- Modify camera with will zooming
     wheelT :: WheelEvent -> Camera -> Camera
@@ -65,6 +67,8 @@ cameraBehavior cam pointerE wheelE resizeE buttonsB coordsB alowMoveB = accumB c
     -- Modify camera according to viewport changes
     resizeT :: ResizeEvent -> Camera -> Camera
     resizeT (ResizeEvent e) c = initCamera (realToFrac $ coordX e) (realToFrac $ coordY e) (newState c)
+    resetCamT :: () -> Camera -> Camera
+    resetCamT _ c = c{ newState = newState cam, oldState = oldState cam }
     pointerT :: Int -> [(Vector2 GLfloat, Vector2 GLfloat)] -> PointerEvent -> Camera -> Camera
     -- freeze camera state on pointer up
     pointerT _ _ (PointerClick  _) c@Camera{ newState = nstate} = c{oldState = nstate}

@@ -117,10 +117,13 @@ main = do
 
 
       -- conrol camera
+      (resetCamE, resetCamFire) <- newEvent
+      liftIO $ GUI.registerResetCamera resetCamFire
       cameraB <- cameraBehavior icamera
                                 pointerE
                                 wheelE
                                 resizeE
+                                resetCamE
                                 buttonsB
                                 coordsB
                                 allowCameraMoveB
@@ -176,9 +179,18 @@ main = do
         _ -> return never
 
       -- log all actions if there is a place to log to
-      case loggingUrl lsettings of
+      when (profile lsettings /= ExternalViewer) $
+       case loggingUrl lsettings of
         Nothing -> return ()
-        Just url -> Logging.logActions url motionRecordsE
+        Just url -> let onlyNew _ (CityNew _) = Just ()
+                        onlyNew ci (CityUpdate _) = if isEmptyCity ci then Just () else Nothing
+                        onlyNew _ _ = Nothing
+                        onlyUpd ci (CityUpdate fc) = if isEmptyCity ci then Nothing else Just fc
+                        onlyUpd _ _ = Nothing
+                        getNew ci () = (storeCityAsIs ci, fst $ cityTransform ci)
+                    in do
+          cityNews <- mapEventIO (const $ return ()) $ filterJust $ onlyNew <$> cityB <@> cityChangeE
+          Logging.logActions url motionRecordsE (getNew <$> cityB <@> cityNews) (filterJust $ onlyUpd <$> cityB <@> cityChangeE)
 
 
       -- save submission if in edit mode

@@ -19,6 +19,7 @@ module Program.Controllers.Logging
 
 
 import Data.Geometry
+import Data.Geometry.Structure.Feature (FeatureCollection)
 import Program.Types
 import Program.Settings (jsonStringify, fromProps)
 import JsHs.WebGL (GLfloat)
@@ -31,16 +32,28 @@ import Reactive.Banana.Combinators
 
 
 
-logActions :: JSString -> Event (GeomId, Matrix4 GLfloat) -> MomentIO ()
-logActions url ev = do
+logActions :: JSString
+           -> Event (GeomId, Matrix4 GLfloat)
+           -> Event (FeatureCollection, GLfloat)
+           -> Event FeatureCollection
+           -> MomentIO ()
+logActions url actionE rebuildE updateE = do
     logger <- liftIO $ registerLogging url
-    reactimate $ (sendMessage logger . jsonStringify . action) <$> ev
+    reactimate $ (sendMessage logger . jsonStringify . action ) <$> actionE
+    reactimate $ (sendMessage logger . jsonStringify . rebuild) <$> rebuildE
+    reactimate $ (sendMessage logger . jsonStringify . update ) <$> updateE
   where
     action (GeomId i, mat) = fromProps
        [ ("geomID", asJSVal i)
        , ("transform", asJSVal mat)
        ]
-
+    rebuild (fc, s) = fromProps
+       [ ("scale", asJSVal s)
+       , ("load", asJSVal . jsonStringify $ asJSVal fc)
+       ]
+    update fc = fromProps
+       [ ("update", asJSVal . jsonStringify $ asJSVal fc)
+       ]
 
 foreign import javascript interruptible "var t = true, s = new WebSocket($1); s.onopen = function(){if(t){t=false;$c(s);}}; s.onerror = function(){if(t){t=false;$c(null);}};"
   registerLogging :: JSString -> IO JSVal
