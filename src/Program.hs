@@ -22,7 +22,7 @@ module Program where
 
 --import JavaScript.Web.Canvas (Canvas)
 import JsHs.WebGL
-import JsHs.Types
+--import JsHs.Types
 import qualified JsHs.Array as JS
 import JsHs.Useful
 import Data.Geometry
