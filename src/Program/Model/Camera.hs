@@ -62,8 +62,8 @@ cameraBehavior cam pointerE wheelE resizeE resetCamE buttonsB coordsB alowMoveB 
                     ]
     -- Modify camera with will zooming
     wheelT :: WheelEvent -> Camera -> Camera
-    wheelT WheelUp = scroll 0.2
-    wheelT WheelDown = scroll (-0.15)
+    wheelT WheelUp = scroll 0.15
+    wheelT WheelDown = scroll (-0.1)
     -- Modify camera according to viewport changes
     resizeT :: ResizeEvent -> Camera -> Camera
     resizeT (ResizeEvent e) c = initCamera (realToFrac $ coordX e) (realToFrac $ coordY e) (newState c)
@@ -118,7 +118,7 @@ objectTransformEvents pointerE buttonsB coordsB cameraB =
     f _ 0 _  _ = Nothing -- early stop if no button pressed
     f _ _ _ (PointerClick  _) = Just TransformCancel
     f _ _ _ (PointerDown   _) = Just TransformCancel
-    f _ _ _ (PointerCancel _) = Just TransformCancel
+--    f _ _ _ (PointerCancel _) = Just TransformCancel
     -- move & rotate with two fingers pressed
     f cam _ ((o1,n1):(o2,n2):_) p  = Just . g p $ twoFingerObject (o1,o2) (n1,n2) cam
     -- rotate object with secondary button
