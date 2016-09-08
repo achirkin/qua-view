@@ -398,7 +398,7 @@ storeObjectsAsIs xs City
 
 data GroundUpdateRequest = GroundUpdateRequest | GroundClearRequest
   deriving (Eq, Show)
-newtype GroundUpdated = GroundUpdated (PS.PointArray 3 GLfloat)
+data GroundUpdated = GroundUpdated (PS.PointArray 3 GLfloat) | GroundCleared
 
 -- | Behavior of a colourfull grid under the city
 groundBehavior :: (MonadMoment m, MonadFix m) -- , MonadFix m
@@ -406,17 +406,15 @@ groundBehavior :: (MonadMoment m, MonadFix m) -- , MonadFix m
              -> Event GroundUpdateRequest
              -> m (Behavior CityGround, Event GroundUpdated)
 groundBehavior cityB updateE = do
-    groundB <- stepper emptyGround groundE
-    return (groundB, updateGrid <$> cityB <@> filterE (not . isEmptyGround) groundE)
+    groundB <- stepper emptyGround (fst <$> groundE)
+    return (groundB, snd <$> groundE)
   where
     groundE = updateGround <$> cityB <@> updateE
-    updateGround ci GroundUpdateRequest = buildGround (groundDilate $ csettings ci) $ objectsIn ci
-    updateGround _  GroundClearRequest  = emptyGround
-    updateGrid ci g = GroundUpdated $ groundEvalGrid g (evalCellSize $ csettings ci) (cityTransform ci)
---groundEvalGrid :: CityGround
---               -> GLfloat  -- ^ desired cell size
---               -> PS.PointArray 3 GLfloat -- half size in 111 direction
-
+    updateGround ci GroundUpdateRequest = let g = buildGround (groundDilate $ csettings ci) $ objectsIn ci
+                                          in ( g
+                                             , GroundUpdated $ groundEvalGrid g (evalCellSize $ csettings ci) (cityTransform ci)
+                                             )
+    updateGround _  GroundClearRequest  = (emptyGround, GroundCleared)
 
 
 

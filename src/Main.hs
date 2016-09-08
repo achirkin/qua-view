@@ -58,8 +58,8 @@ main = do
     when (profile lsettings == Full) $ do
       JFI.registerClearGeometry clearFire
       JFI.registerJSONFileImports (geoJSONImportFire . Left)
-      GUI.registerServiceClear (const $ groundUpdateRequestFire GroundClearRequest >> GUI.toggleServiceClear False)
-      GUI.registerServiceRun (const $ groundUpdateRequestFire GroundUpdateRequest >> GUI.toggleServiceClear True)
+      GUI.registerServiceClear (const $ groundUpdateRequestFire GroundClearRequest)
+      GUI.registerServiceRun (const $ groundUpdateRequestFire GroundUpdateRequest)
 
 
     canv <- getCanvasById "glcanvas"
@@ -154,6 +154,10 @@ main = do
                                            objectTransformE
                                            cityChangeE
                                            groundUpdateRequestE
+
+      -- when in full mode, we have a grid. Reset it on object motion!
+      when (profile lsettings == Full) $
+        reactimate $ groundUpdateRequestFire GroundClearRequest <$ motionRecordsE
 
       -- show building info on selection
       let showInfoA _  Nothing  = GUI.showInfo newObj

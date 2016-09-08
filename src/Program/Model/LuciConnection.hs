@@ -143,6 +143,9 @@ luciBehavior lsettings geoJSONImportFire cityB groundUpdatedE
           serviceRunsF (SSSynced sid _ _) (GroundUpdated points) = Just $ VisualServiceRunPoints sid [] [] [] (fromJSArrayToTypedArray $ PS.flatten points)
           serviceRunsF _ _ = Nothing
 
+          serviceButtonF GroundUpdated{} = GUI.toggleServiceClear True
+          serviceButtonF GroundCleared{} = GUI.toggleServiceClear False
+
           runIsovistServiceA lc@(LuciClient _) vsr = sendMessage lc $ makeRunRequest (VisualService "DistanceToWalls") vsr
           runIsovistServiceA _ _ = return ()
 
@@ -153,15 +156,16 @@ luciBehavior lsettings geoJSONImportFire cityB groundUpdatedE
       -- show reflect scenario sync state
       reactimate $ toggleSaveScenarioA <$> scenarioSyncE
 
+
       -- sync geometry with Luci
       lateObjectRecordsE <- execute $ return . fst <$> motionRecordsE
       reactimate $ updateScenarioA <$> scenarioSyncB <*> luciClientB <*> cityB <@> lateObjectRecordsE
       reactimate $ askSubscribeForScenario <$> luciClientB <*> scenarioSyncB <@> scenarioSyncE_obtained
-
       (_vsManagerB, vsResultsE) <- vsManagerBehavior serviceFinishE
 
       -- run luci service!
       reactimate $ runIsovistServiceA <$> luciClientB <@> serviceRunsE
+      reactimate $ serviceButtonF <$> groundUpdatedE
 
       return vsResultsE
 
