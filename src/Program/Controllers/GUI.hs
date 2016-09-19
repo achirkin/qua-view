@@ -31,7 +31,7 @@ module Program.Controllers.GUI
   , registerResetCamera
   ) where
 
-import Control.Concurrent.MVar
+--import Control.Concurrent.MVar
 import JsHs (JSString, JSVal, LikeJS(..))
 import JsHs.Callback
 import Data.Geometry.Structure.Feature

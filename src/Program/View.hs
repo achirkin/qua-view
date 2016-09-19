@@ -133,7 +133,7 @@ viewContextBehavior :: WebGLRenderingContext
                     -> (GLfloat,GLfloat) -- ^ initial vp size
                     -> Vector3 GLfloat -- ^ sun direction
                     -> Event ResizeEvent -- ^ resize
-                    -> MomentIO (Behavior ViewContext)
+                    -> MomentIO (Behavior ViewContext, Event ViewContext)
 viewContextBehavior gl t vpsize sd resEv = mdo
   iview <- liftIO $ setupViewContext gl vpsize t sd
 
@@ -143,7 +143,7 @@ viewContextBehavior gl t vpsize sd resEv = mdo
 
 
   viewB <- stepper iview viewE
-  return viewB
+  return (viewB, viewE)
 
 
 -- | Our meshes together with transforms could be drawn - so they implement this interface
