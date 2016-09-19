@@ -169,7 +169,6 @@ main = do
 --      reactimate $ print <$> motionRecordsE
 
 
-
       let programB = initProgram settingsB cameraB cityB
 
       -- render scene

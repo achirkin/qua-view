@@ -117,7 +117,7 @@ viewBehavior canvas wantPicE resEvents cityUpdates renderings vsResultsE program
     -- init GL
     gl <- liftIO $ getWebGLContext canvas
     -- init Context
-    ctxB <- viewContextBehavior gl itime (viewportSize $ camera iprog)
+    (ctxB, ctxE) <- viewContextBehavior gl itime (viewportSize $ camera iprog)
                                          (vector3 (-0.5) (-0.6) (-1)) resEvents
     ictx <- valueB ctxB
     -- init object views
@@ -135,28 +135,31 @@ viewBehavior canvas wantPicE resEvents cityUpdates renderings vsResultsE program
   --        , luciScenario = Nothing
           , scUpToDate   = False
           }
-        pviewE1 = (\ctx cv -> PView
-          { context      = ctx
-          , dgView       = dgview
+        pviewE1 = (\cv pview -> pview
+          { dgView       = dgview
           , cityView     = cv
   --        , luciClient   = Nothing
   --        , luciScenario = Nothing
           , scUpToDate   = False
-          }) <$> ctxB <@> cviewE
+          }) <$> cviewE
+        pviewE0 = (\ctx pview -> pview{context = ctx}) <$> ctxE
+        pviewE3 = (\grv pview@PView{cityView = cv} -> pview { cityView = cv{groundView = grv}}) <$> grvE
     wantPictureB <- stepper (return Nothing) ( unionWith (const id)
                                    (return Nothing <$ renderings)
                                    ((Just <$> js_CanvToDataUrl canvas) <$ wantPicE))
     pviewE2pictureE <- mapEventIO id $ renderScene <$> wantPictureB <*> programB <*> pviewB <@> renderings
-    let pviewE2 = fst <$> pviewE2pictureE
+    let pviewE2 = const . fst <$> pviewE2pictureE
         pictureE = filterJust $ snd <$> pviewE2pictureE
 --    grvB <- groundViewBehavior programB (glctx . context <$> pviewB) vsResultsE
     grvE <- groundViewEvents programB pviewB vsResultsE
-    let pviewEAll :: Event PView
-        pviewEAll = unionWith (const id) (unionWith (const id) pviewE2 pviewE1) (injectGrview <$> pviewB <@> grvE)
-    pviewB <- stepper ipview pviewEAll :: MomentIO (Behavior PView)
+    let pviewEAll :: Event (PView -> PView)
+        pviewEAll = unions [pviewE0, pviewE1, pviewE2, pviewE3]
+
+--        unionWith (const id) (unionWith (const id) pviewE2 pviewE1) (injectGrview <$> pviewB <@> grvE)
+    pviewB <- accumB ipview pviewEAll :: MomentIO (Behavior PView)
     return (pviewB, pictureE)
-  where
-    injectGrview pview@PView{cityView = cv} grv = pview { cityView = cv{groundView = grv}}
+--  where
+--    injectGrview pview@PView{cityView = cv} grv = pview { cityView = cv{groundView = grv}}
 
 --    -- done!
 --    let ipview = PView
@@ -195,14 +198,14 @@ viewBehavior canvas wantPicE resEvents cityUpdates renderings vsResultsE program
 
 --- Marking area for selection and firing an event with selection Id
 
-selectOnScene :: Event a -> Event ((Program, IO PView) -> (Program,  IO PView))
-selectOnScene = fmap xxx
-  where
-    xxx _ (program, ioview) = ( program
-                              ,ioview >>= \view -> do
-      ctx <- applySelector (context view) (camera program) (city program) (cityView view)
-      return view{context = ctx}
-      )
+--selectOnScene :: Event a -> Event ((Program, IO PView) -> (Program,  IO PView))
+--selectOnScene = fmap xxx
+--  where
+--    xxx _ (program, ioview) = ( program
+--                              ,ioview >>= \view -> do
+--      ctx <- applySelector (context view) (camera program) (city program) (cityView view)
+--      return view{context = ctx}
+--      )
 
 
 --- Selecting object on click
