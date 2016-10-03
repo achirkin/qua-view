@@ -43,7 +43,7 @@ loadGeoJSONFromLink url callback = do
 
 
 
-foreign import javascript safe "var xmlHttp = new XMLHttpRequest(); \
+foreign import javascript unsafe "var xmlHttp = new XMLHttpRequest(); \
     \ var json = null; \
     \ var loadjson = function() { \
     \   try { \
