@@ -14,7 +14,7 @@
 
 module Program.VisualService
   ( VisualService (..), VisualServiceResult (..), VisualServiceRun (..)
-  , parseResult, makeRunRequest, ColorPalette (..), makeColors, applyPalette
+  , parseResult, runVService, ColorPalette (..), makeColors, applyPalette
   , VisualServiceMode (..), VSManager (..), runQuaServiceList
   , vsManagerBehavior
   ) where
@@ -29,9 +29,10 @@ import qualified Data.HashMap.Strict as HashMap
 import Data.Geometry (Vector4)
 import qualified Data.Geometry.Structure.PointSet as PS
 
-import JsHs.Types (JSVal)
+import JsHs.Types (JSVal,)
 import JsHs.JSString (JSString, pack)
 import JsHs.LikeJS.Class (LikeJS(..))
+import JsHs.Types.Prim (jsNull)
 import qualified JsHs.Array as JS
 import qualified JsHs.TypedArray as JSTA
 import JsHs.WebGL (GLfloat, GLubyte)
@@ -41,7 +42,7 @@ import Program.Controllers.LuciClient
 import Program.Settings
 
 import Reactive.Banana.Combinators
---import Reactive.Banana.Frameworks
+import Reactive.Banana.Frameworks
 
 -- | Working mode of a service
 data VisualServiceMode
@@ -110,26 +111,33 @@ data VisualServiceRun
   | VisualServiceRunNew !(Maybe ScenarioId) ![(JSString, JSString)] ![(JSString, GLfloat)] ![(JSString, Bool)]
 
 
-makeRunRequest :: VisualService -> VisualServiceRun -> LuciMessage
-makeRunRequest s (VisualServiceRunPoints scid strings numbers bools points) = toLuciMessage
-    ( MsgRun (vsName s) (("ScID", asJSVal scid)
+runVService :: ServiceInvocation -> VisualService -> VisualServiceRun -> MomentIO (Event (Either JSString VisualServiceResult))
+runVService run s (VisualServiceRunPoints scid strings numbers bools points) = runHelper (vsName s) (("ScID", asJSVal scid)
                         :("points", asJSVal $ makeAttDesc 1 "Float32x3Array" ab)
-                        :("mode", asJSVal VS_POINTS):sndToJSVal strings ++ sndToJSVal numbers ++ sndToJSVal bools))
-    [ab]
+                        :("mode", asJSVal VS_POINTS):sndToJSVal strings ++ sndToJSVal numbers ++ sndToJSVal bools)
+    [ab] run
   where
     ab = JSTA.arrayBuffer points
-makeRunRequest s (VisualServiceRunObjects scid strings numbers bools) = toLuciMessage
-  ( MsgRun (vsName s) (("ScID", asJSVal scid):("mode", asJSVal VS_OBJECTS):sndToJSVal strings ++ sndToJSVal numbers ++ sndToJSVal bools))
-  []
-makeRunRequest s (VisualServiceRunScenario scid strings numbers bools) = toLuciMessage
-  ( MsgRun (vsName s) (("ScID", asJSVal scid):("mode", asJSVal VS_SCENARIO):sndToJSVal strings ++ sndToJSVal numbers ++ sndToJSVal bools))
-  []
-makeRunRequest s (VisualServiceRunNew (Just scid) strings numbers bools) = toLuciMessage
-  ( MsgRun (vsName s) (("ScID", asJSVal scid):("mode", asJSVal VS_NEW):sndToJSVal strings ++ sndToJSVal numbers ++ sndToJSVal bools))
-  []
-makeRunRequest s (VisualServiceRunNew Nothing strings numbers bools) = toLuciMessage
-  ( MsgRun (vsName s) (("mode", asJSVal VS_NEW):sndToJSVal strings ++ sndToJSVal numbers ++ sndToJSVal bools))
-  []
+runVService run s (VisualServiceRunObjects scid strings numbers bools) = runHelper (vsName s)
+  (("ScID", asJSVal scid):("mode", asJSVal VS_OBJECTS):sndToJSVal strings ++ sndToJSVal numbers ++ sndToJSVal bools)
+  [] run
+runVService run s (VisualServiceRunScenario scid strings numbers bools) = runHelper (vsName s)
+  (("ScID", asJSVal scid):("mode", asJSVal VS_SCENARIO):sndToJSVal strings ++ sndToJSVal numbers ++ sndToJSVal bools)
+  [] run
+runVService run s (VisualServiceRunNew (Just scid) strings numbers bools) = runHelper (vsName s)
+  (("ScID", asJSVal scid):("mode", asJSVal VS_NEW):sndToJSVal strings ++ sndToJSVal numbers ++ sndToJSVal bools)
+  [] run
+runVService run s (VisualServiceRunNew Nothing strings numbers bools) = runHelper (vsName s)
+  (("mode", asJSVal VS_NEW):sndToJSVal strings ++ sndToJSVal numbers ++ sndToJSVal bools)
+  [] run
+
+
+runHelper :: ServiceName -> [(JSString, JSVal)] -> [JSTA.ArrayBuffer] -> ServiceInvocation -> MomentIO (Event (Either JSString VisualServiceResult))
+runHelper sname pams atts run = filterJust . fmap f <$> run sname pams atts
+  where
+    f (SRResult _ r x) = Just . Right $ parseResult r x
+    f SRProgress{} = Nothing
+    f (SRError _ s) = Just $ Left s
 
 
 sndToJSVal :: LikeJS s a => [(JSString, a)] -> [(JSString, JSVal)]

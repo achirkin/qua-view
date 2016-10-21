@@ -42,6 +42,12 @@ function registerUserConnectToLuci(onClick){}
  */
 function showLuciConnected(connectedHost){}
 
+/** Display "luci connecting message"; comes from Handler.Home.PanelServices.
+ *  connectedHost :: JSString -- address of websocket host
+ *  return :: IO ()
+ */
+function showLuciConnecting(connectedHost){}
+
 /** Display "connect to luci" form; comes from Handler.Home.PanelServices.
  *  defaultHost :: JSString -- default address of websocket host
  *  return :: IO ()
