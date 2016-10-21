@@ -19,6 +19,7 @@ module Program.Controllers.GUI
   , registerGetScenarioList
   , registerUserConnectToLuci
   , showLuciConnected
+  , showLuciConnecting
   , showLuciConnectForm
   , registerSaveScenario
   , toggleSaveScenarioButton
@@ -97,6 +98,12 @@ foreign import javascript safe "registerUserConnectToLuci($1)" js_registerUserCo
 --   connectedHost :: JSString -- address of websocket host
 --   return :: IO ()
 foreign import javascript safe "showLuciConnected($1)" showLuciConnected :: JSString -> IO ()
+
+
+-- | Display "luci connecting message"; comes from Handler.Home.PanelServices.
+--   connectedHost :: JSString -- address of websocket host
+--   return :: IO ()
+foreign import javascript safe "showLuciConnecting($1)" showLuciConnecting :: JSString -> IO ()
 
 
 -- | Display "connect to luci" form; comes from Handler.Home.PanelServices.

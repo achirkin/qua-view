@@ -2,6 +2,7 @@
 {-# LANGUAGE ForeignFunctionInterface,  JavaScriptFFI, GHCForeignImportPrim, UnliftedFFITypes #-}
 {-# LANGUAGE DataKinds, FlexibleInstances, MultiParamTypeClasses #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE RecursiveDo #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Program.Controllers.LuciClient
@@ -19,14 +20,14 @@ module Program.Controllers.LuciClient
     ( -- * Client
       LuciClient (..), luciHandler, connectionString
       -- * Core message types
-    , LuciMessage (..), sendMessage
+    , LuciMessage (..) -- , sendMessage
     , msgHeaderValue, toLuciMessage
-    , MessageHeader (..)
+    , MessageHeader (..), getMsgCallId
     , ServiceResult (..)
     , ServiceName (..), unServiceName
       -- * Specific messages
     , LuciResultServiceList (..), runServiceList
-    , LuciResultTestFibonacci, runTestFibonacci
+--    , LuciResultTestFibonacci, runTestFibonacci
     , LuciScenario (..), runScenarioGet, runScenarioUpdate, runScenarioCreate, runScenarioSubscribe
     , LuciResultScenarioList (..), ScenarioDescription (..), runScenarioList
     , GUI.registerAskLuciForScenario, displayScenarios, GUI.registerGetScenarioList
@@ -34,16 +35,19 @@ module Program.Controllers.LuciClient
     , MessageAttachment (..), makeAttDesc
     , CallId (..), TaskId (..)
     , runQuaServiceList
+    , ServiceInvocation
+    , ServiceResponse (..)
     ) where
 
 
 
 import qualified Program.Controllers.GUI as GUI
 --import Data.String (IsString)
+import JsHs.Useful
 
 import JsHs
 import JsHs.Types.Prim (jsNull)
---import JsHs.JSString (unpack')
+import JsHs.JSString (unpack')
 import Data.Geometry.Structure.Feature (FeatureCollection)
 import qualified JsHs.Array as JS
 import qualified JsHs.TypedArray as JSTA
@@ -57,8 +61,15 @@ import Reactive.Banana.Combinators
 import Reactive.Banana.JsHs.Types (Time)
 import Data.Maybe (fromMaybe)
 
+import Data.IORef
 import Data.Time
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
+
+
+import qualified Data.Map.Strict as Map
+
+
+import JsHs.Debug
 
 ----------------------------------------------------------------------------------------------------
 -- * Client
@@ -83,6 +94,96 @@ foreign import javascript unsafe "($1 && $1.objectName == 'LuciClient') \
                                  \ ? $1 : null" js_Luci :: JSVal -> JSVal
 
 
+type ServiceInvocation = ServiceName -> [(JSString, JSVal)] -> [JSTA.ArrayBuffer] -> MomentIO (Event ServiceResponse)
+
+-- | Run arbitrary Luci service and wait for responses
+runLuciService :: LuciClient
+               -> ServiceName
+               -> [(JSString, JSVal)] -- ^ service JSON parameters
+               -> [JSTA.ArrayBuffer] -- ^ attachments to send
+               -> IO CallId
+runLuciService luci serviceName params atts = do
+  newCallId <-  genCallId luci
+  sendMessage luci $ toLuciMessage (
+      MsgRun serviceName $ ("callID", JS.asJSVal newCallId) : params
+    ) atts
+  return newCallId
+
+
+-- TODO: have couple issues:
+--   1. I am using now a dirty hack to not terminate "scenario.SubscribeTo" receiving
+--   2. Need to expose a list of pending task to be able to terminate them
+--       a) on scenario change
+--       b) on GUI event cancel service execution
+parseLuciMessages :: Behavior LuciClient
+                  -> Event (MessageHeader, JS.Array JSTA.ArrayBuffer)
+                  -> MomentIO ServiceInvocation
+parseLuciMessages luciB incomings = do
+    subscribeToHack <- liftIO $ newIORef (const $ return ())
+    sessionMapRef <- liftIO $ newIORef Map.empty
+    reactimate $ parseResponses sessionMapRef subscribeToHack <$> responsesE
+    reactimate $ (\(msg, _) -> print $ "Ignoring message: " ++ (unpack' . jsonStringify $ JS.asJSVal msg)) <$> otherMsgs
+    return $ invoke sessionMapRef subscribeToHack
+  where
+    (otherMsgs, responsesE) = split $ toServiceResponse <$> incomings
+    -- another dirty hack to make luci working since subscribeTo results in "callID":0,"serviceName":"scenario.geojson.Get"
+    parseResponses _ subscribeToHack r@(SRResult 0 _ _) = readIORef subscribeToHack >>= \a -> a r
+    parseResponses sessionMapRef _ r@(SRResult callId _ _) = readIORef sessionMapRef >>= \m -> case Map.lookup callId m of
+          Nothing -> logText' "Got a result for non-existing callID."
+          Just a  -> a r >> modifyIORef' sessionMapRef (Map.delete callId)
+    parseResponses sessionMapRef _ r@(SRError callId _) = readIORef sessionMapRef >>= \m -> case Map.lookup callId m of
+          Nothing -> logText' "Got an error for non-existing callID."
+          Just a  -> a r >> modifyIORef' sessionMapRef (Map.delete callId)
+    parseResponses sessionMapRef _ r@(SRProgress callId _ _ _) = readIORef sessionMapRef >>= \m -> case Map.lookup callId m of
+          Nothing -> logText' "Got a progress message for non-existing callID."
+          Just a  -> a r
+    invoke :: IORef (Map.Map CallId (Handler ServiceResponse))
+           -> IORef (Handler ServiceResponse)
+           -> ServiceName -> [(JSString, JSVal)] -> [JSTA.ArrayBuffer] -> MomentIO (Event ServiceResponse)
+    invoke sessionMapRef subscribeToHack "scenario.SubscribeTo" pams atts = do
+      luci <- valueB luciB
+      newCallId <- liftIO $ runLuciService luci "scenario.SubscribeTo" pams atts
+      (responseE, responseFire) <- newEvent
+      liftIO $ modifyIORef' sessionMapRef (Map.insert newCallId responseFire)
+      liftIO $ writeIORef subscribeToHack responseFire
+      return responseE
+    invoke sessionMapRef _ sname pams atts = do
+      luci <- valueB luciB
+      newCallId <- liftIO $ runLuciService luci sname pams atts
+      (responseE, responseFire) <- newEvent
+      liftIO $ modifyIORef' sessionMapRef (Map.insert newCallId responseFire)
+      return responseE
+
+
+--parseLuciMessages :: Behavior LuciClient
+--                  -> Event (MessageHeader, JS.Array JSTA.ArrayBuffer)
+--                  -> MomentIO ServiceInvocation
+--parseLuciMessages luciB incomings = do
+--    sessionMapRef <- liftIO $ newIORef Map.empty
+--    reactimate $ parseResponses sessionMapRef <$> responsesE
+--    reactimate $ (\(msg, _) -> print $ "Ignoring message: " ++ (unpack' . jsonStringify $ JS.asJSVal msg)) <$> otherMsgs
+--    return $ invoke sessionMapRef
+--  where
+--    (otherMsgs, responsesE) = split $ toServiceResponse <$> incomings
+--    parseResponses sessionMapRef r@(SRResult callId _ _) = readIORef sessionMapRef >>= \m -> case Map.lookup callId m of
+--          Nothing -> logText' "Got a result for non-existing callID."
+--          Just a  -> a r >> modifyIORef' sessionMapRef (Map.delete callId)
+--    parseResponses sessionMapRef r@(SRError callId _) = readIORef sessionMapRef >>= \m -> case Map.lookup callId m of
+--          Nothing -> logText' "Got an error for non-existing callID."
+--          Just a  -> a r >> modifyIORef' sessionMapRef (Map.delete callId)
+--    parseResponses sessionMapRef r@(SRProgress callId _ _ _) = readIORef sessionMapRef >>= \m -> case Map.lookup callId m of
+--          Nothing -> logText' "Got a progress message for non-existing callID."
+--          Just a  -> a r
+--    invoke :: IORef (Map.Map CallId (Handler ServiceResponse))
+--           -> ServiceName -> [(JSString, JSVal)] -> [JSTA.ArrayBuffer] -> MomentIO (Event ServiceResponse)
+--    invoke sessionMapRef sname pams atts = do
+--      luci <- valueB luciB
+--      newCallId <- liftIO $ runLuciService luci sname pams atts
+--      (responseE, responseFire) <- newEvent
+--      liftIO $ modifyIORef' sessionMapRef (Map.insert newCallId responseFire)
+--      return responseE
+
+
 -- | Luci messages - send and receive
 data LuciMessage = LuciMessage
   { header      :: !JSString
@@ -100,7 +201,7 @@ toLuciMessage h bs = LuciMessage (jsonStringify $ asJSVal h) (JS.fromList bs)
 
 
 -- | Create LuciClient and register events on message receive
-luciHandler :: JSString -> MomentIO (Behavior LuciClient, Event LuciClient, Event LuciMessage)
+luciHandler :: JSString -> MomentIO (Behavior LuciClient, Event LuciClient, ServiceInvocation)
 luciHandler str = do
   -- create all handlers
   (connectH, (onMessageH, onMessageFire)
@@ -143,8 +244,25 @@ luciHandler str = do
   lastUrlB <- stepper str connectE
   reactimate $ GUI.showLuciConnectForm <$> lastUrlB <@ luciCloseE
   reactimate $ GUI.showLuciConnectForm <$> lastUrlB <@ luciErrorE
-  reactimate $ GUI.showLuciConnected <$> lastUrlB <@ luciOpenE
-  return (luciB, luciE, luciMsgs)
+  reactimate $ GUI.showLuciConnecting <$> lastUrlB <@ luciOpenE
+  -- At this moment luciE says "opened" if websockets are open;
+  -- however, we should wait until success message received from luci connection.
+  let eitherWsOrLuci (MsgWebSocketState e, _) = Left e
+      eitherWsOrLuci e = Right e
+      (wsMsgs, luciMsgs') = split $ (\m -> eitherWsOrLuci (msgHeaderValue m, attachments m)) <$> luciMsgs
+      wsChangeConn (LuciClient c) (WsSuccess _) _ = LuciClient c
+      wsChangeConn  _ (WsSuccess _) s = s
+      wsChangeConn _ (WsError e) _ = LuciClientError e
+      wsChangeConn _ (WsTerminate _) _ = LuciClientClosed
+      wsChangeE = wsChangeConn <$> luciB <@> wsMsgs
+      isOpen LuciClient{} = True
+      isOpen _ = False
+  luciE' <- accumE LuciClientOpening wsChangeE
+  luciB' <- stepper LuciClientOpening luciE'
+  reactimate $ GUI.showLuciConnected <$> lastUrlB <@ filterE isOpen luciE'
+  -- construct a session invoker function
+  invokeH <- parseLuciMessages luciB' luciMsgs'
+  return (luciB', luciE', invokeH)
 
 
 foreign import javascript interruptible "try{$c(new LikeHS.Either(new Luci.Client($1,$2,$3,$4,$5),true));}\
@@ -185,6 +303,13 @@ sendMessage _ _ = return ()
 foreign import javascript safe "$1.sendMessage($2,$3)"
   js_sendMessage :: JSVal -> JSString -> JS.Array JSTA.ArrayBuffer -> IO ()
 
+-- | Generate a new callId in sequential manner
+genCallId :: LuciClient -> IO CallId
+genCallId (LuciClient c) = js_genCallId c
+genCallId _ = return $ -1
+
+foreign import javascript "$1.genCallId()"
+  js_genCallId :: JSVal -> IO CallId
 
 
 ----------------------------------------------------------------------------------------------------
@@ -218,6 +343,24 @@ instance LikeJS "Number" Percentage where
 instance Show Percentage where
   show (Percentage x) = show (fromIntegral (round $ x*100 :: Int) / 100 :: Double) ++ "%"
 
+-- | Cleaned up service response
+data ServiceResponse
+  = SRResult !CallId !ServiceResult !(JS.Array JSTA.ArrayBuffer)
+  | SRProgress !CallId !Percentage !(Maybe ServiceResult) !(JS.Array JSTA.ArrayBuffer)
+  | SRError !CallId !JSString
+
+toServiceResponse :: (MessageHeader, JS.Array JSTA.ArrayBuffer) -> Either (MessageHeader, JS.Array JSTA.ArrayBuffer) ServiceResponse
+toServiceResponse (MsgResult cId _ _ _ sr, atts) = Right $ SRResult cId sr atts
+toServiceResponse (MsgProgress cId _ _ _ p msr, atts) = Right $ SRProgress cId p msr atts
+toServiceResponse (MsgError (Just cId) e, _) = Right $ SRError cId e
+toServiceResponse x = Left x
+
+responseCallId :: ServiceResponse -> CallId
+responseCallId (SRResult i _ _) = i
+responseCallId (SRProgress i _ _ _) = i
+responseCallId (SRError i _) = i
+
+
 -- | All possible message headers
 data MessageHeader
   = MsgRun !ServiceName ![(JSString, JSVal)]
@@ -235,15 +378,43 @@ data MessageHeader
     -- params: 'callID', 'duration', 'serviceName', 'taskID', 'result'
   | MsgProgress !CallId !Time !ServiceName !TaskId !Percentage !(Maybe ServiceResult)
     -- ^ result of a service execution,
-    -- e.g. { callID: 57, duration: 0, serviceName: "St", taskID: 0, percentage: 0, progress: null};
-    -- params: 'callID', 'duration', 'serviceName', 'taskID', 'percentage', 'progress'
-  | MsgError !JSString
+    -- e.g. { callID: 57, duration: 0, serviceName: "St", taskID: 0, progress: 0, intermediateResult: null};
+    -- params: 'callID', 'duration', 'serviceName', 'taskID', 'progress', 'intermediateResult'
+  | MsgError !(Maybe CallId) !JSString
     -- ^ error message, e.g. {'error': 'We are in trouble!'};
     -- params: 'error'
   | MsgPanic !JSString
     -- ^ Initiate the panic recovery procedure
   | MsgUnknown !JSVal
     -- ^ unknown type of message; passed as-is
+  | MsgWebSocketState !WebSocketMessage
+
+getMsgCallId :: MessageHeader -> Maybe CallId
+getMsgCallId MsgRun{} = Nothing
+getMsgCallId (MsgCancel i) = Just i
+getMsgCallId (MsgNewCallID i) = Just i
+getMsgCallId (MsgResult i _ _ _ _) = Just i
+getMsgCallId (MsgProgress i _ _ _ _ _) = Just i
+getMsgCallId (MsgError mi _) = mi
+getMsgCallId MsgPanic{} = Nothing
+getMsgCallId MsgUnknown{} = Nothing
+getMsgCallId MsgWebSocketState{} = Nothing
+
+
+
+
+data WebSocketMessage
+  = WsSuccess !JSString
+    -- ^ All good so far
+  | WsError !JSString
+    -- ^ Some error on a server web-socket side
+  | WsTerminate !JSString
+    -- ^ Connection with luci is terminated
+
+instance Show WebSocketMessage where
+  show (WsSuccess msg) = "websocket success: " ++ unpack' msg
+  show (WsError msg) = "websocket error: " ++ unpack' msg
+  show (WsTerminate msg) = "websocket close: " ++ unpack' msg
 
 instance LikeJS "Object" MessageHeader where
   asLikeJS jsv | Just r <- getProp "result"    jsv = maybeUnknown jsv $ MsgResult
@@ -252,7 +423,7 @@ instance LikeJS "Object" MessageHeader where
                                                    <*> getProp "serviceName" jsv
                                                    <*> getProp "taskID" jsv
                                                    <*> Just r
-               | Just e <- getProp "error"     jsv = MsgError e
+               | Just e <- getProp "error"     jsv = MsgError (getProp "callID" jsv) e
                | Just i <- getProp "newCallID" jsv = MsgNewCallID i
                | Just r <- getProp "progress"  jsv = maybeUnknown jsv $ MsgProgress
                                                    <$> getProp "callID" jsv
@@ -264,11 +435,14 @@ instance LikeJS "Object" MessageHeader where
                | Just i <- getProp "cancel"    jsv = MsgCancel i
                | Just p <- getProp "panic"     jsv = MsgPanic p
                | Just n <- getProp "run"       jsv = MsgRun n [] -- TODO: use .getOwnPropertyNames()
+               | Just s <- getProp "wsSuccess" jsv   = MsgWebSocketState $ WsSuccess s
+               | Just s <- getProp "wsError" jsv     = MsgWebSocketState $ WsError s
+               | Just s <- getProp "wsTerminate" jsv = MsgWebSocketState $ WsTerminate s
                | otherwise = MsgUnknown jsv
     where
       maybeUnknown j Nothing  = MsgUnknown j
       maybeUnknown _ (Just v) = v
-  asJSVal (MsgRun run props) = fromProps $ ("run", JS.asJSVal run):props
+  asJSVal (MsgRun r props) = fromProps $ ("run", JS.asJSVal r):props
   asJSVal (MsgCancel callID) = setProp "callID" callID newObj
   asJSVal (MsgNewCallID newCallID) = setProp "newCallID" newCallID newObj
   asJSVal (MsgResult callID duration serviceName taskID result) =
@@ -279,9 +453,12 @@ instance LikeJS "Object" MessageHeader where
           setProp "callID" callID
         . setProp "duration" duration . setProp "taskID" taskID . setProp "progress" percentage
         . setProp "serviceName" serviceName $ setProp "intermediateResult" result newObj
-  asJSVal (MsgError err) = setProp "error" err newObj
+  asJSVal (MsgError _ err) = setProp "error" err newObj
   asJSVal (MsgPanic panic) = setProp "panic" panic newObj
   asJSVal (MsgUnknown j) = j
+  asJSVal (MsgWebSocketState (WsSuccess s))   = setProp "wsSuccess" s newObj
+  asJSVal (MsgWebSocketState (WsError s))     = setProp "wsError" s newObj
+  asJSVal (MsgWebSocketState (WsTerminate s)) = setProp "wsTerminate" s newObj
 
 
 data MessageAttachment = MessageAttachment
@@ -322,16 +499,25 @@ foreign import javascript unsafe "var cr = new goog.crypt.Md5(); cr.update(new U
 -- * Pre-defined messages
 ----------------------------------------------------------------------------------------------------
 
+runHelper :: JS.LikeJS s a => ServiceName -> [(JSString, JSVal)] -> ServiceInvocation -> MomentIO (Event (Either JSString a))
+runHelper sname pams run = filterJust . fmap f <$> run sname pams []
+  where
+    f (SRResult _ (ServiceResult res) _) = Just . Right $ JS.asLikeJS res
+    f SRProgress{} = Nothing
+    f (SRError _ s) = Just $ Left s
+
 -- | A message to get list of available services from luci
-runServiceList :: LuciMessage
-runServiceList = toLuciMessage (MsgRun "ServiceList" []) []
+runServiceList :: ServiceInvocation -> MomentIO (Event (Either JSString LuciResultServiceList))
+runServiceList = runHelper "ServiceList" []
 
 -- | A message to get list of available services from luci;
 --   list only qua-view-compliant services
-runQuaServiceList :: LuciMessage
-runQuaServiceList = toLuciMessage (MsgRun "FilterServices" [ ("rcrLevel", JS.asJSVal (1::Int))
-                                                           , ("keys", JS.asJSVal ["qua-view-compliant"::JSString])
-                                                           ]) []
+runQuaServiceList :: ServiceInvocation -> MomentIO (Event (Either JSString LuciResultServiceList))
+runQuaServiceList = runHelper "FilterServices"
+    [ ("rcrLevel", JS.asJSVal (1::Int))
+    , ("keys", JS.asJSVal ["qua-view-compliant"::JSString])
+    ]
+
 
 newtype LuciResultServiceList = ServiceList (JS.Array JSString)
   deriving (Show)
@@ -341,17 +527,17 @@ instance LikeJS "Object" LuciResultServiceList where
                  Nothing -> ServiceList JS.emptyArray
   asJSVal (ServiceList v) = setProp "serviceNames" v newObj
 
--- | run a testing service test.Fibonacci
-runTestFibonacci :: Int -> LuciMessage
-runTestFibonacci n = toLuciMessage (MsgRun "test.Fibonacci" [("amount", JS.asJSVal n)]) []
+---- | run a testing service test.Fibonacci
+--runTestFibonacci :: Int -> LuciMessage
+--runTestFibonacci n = toLuciMessage (MsgRun "test.Fibonacci" [("amount", JS.asJSVal n)]) []
 
-newtype LuciResultTestFibonacci = TestFibonacci [Int]
-  deriving (Show, Eq)
-instance LikeJS "Object" LuciResultTestFibonacci where
-  asLikeJS b = case getProp "fibonacci_sequence" b of
-                 Just x  -> TestFibonacci $ JS.asLikeJS x
-                 Nothing -> TestFibonacci []
-  asJSVal (TestFibonacci xs) = setProp "fibonacci_sequence" xs newObj
+--newtype LuciResultTestFibonacci = TestFibonacci [Int]
+--  deriving (Show, Eq)
+--instance LikeJS "Object" LuciResultTestFibonacci where
+--  asLikeJS b = case getProp "fibonacci_sequence" b of
+--                 Just x  -> TestFibonacci $ JS.asLikeJS x
+--                 Nothing -> TestFibonacci []
+--  asJSVal (TestFibonacci xs) = setProp "fibonacci_sequence" xs newObj
 
 
 
@@ -379,56 +565,61 @@ instance LikeJS "Object" LuciScenarioCreated where
           $ setProp "lastmodified" (round $ utcTimeToPOSIXSeconds lm :: Int) newObj
 
 -- | Pass the name of the scenario and a feature collection with geometry
-runScenarioCreate :: ScenarioName -- ^ name of the scenario
+runScenarioCreate :: ServiceInvocation
+                  -> ScenarioName -- ^ name of the scenario
                   -> FeatureCollection -- ^ content of the scenario
-                  -> LuciMessage
-runScenarioCreate name collection = toLuciMessage
-  ( MsgRun "scenario.geojson.Create"
+                  -> MomentIO (Event (Either JSString LuciScenarioCreated))
+runScenarioCreate run name collection = runHelper "scenario.geojson.Create"
       [ ("name", JS.asJSVal name)
       , ("geometry_input"
         ,   setProp "format"  ("GeoJSON" :: JSString)
           $ setProp "geometry" collection newObj
         )
       ]
-  ) []
+      run
 -- returns: "{"created":1470932237,"lastmodified":1470932237,"name":"dgdsfg","ScID":4}"
 
 
-runScenarioUpdate :: ScenarioId -- ^ id of the scenario
+runScenarioUpdate :: ServiceInvocation
+                  -> ScenarioId -- ^ id of the scenario
                   -> FeatureCollection -- ^ content of the scenario update
-                  -> LuciMessage
-runScenarioUpdate scId collection = toLuciMessage
-  ( MsgRun "scenario.geojson.Update"
+                  -> MomentIO (Event (Either JSString JSVal))
+runScenarioUpdate run scId collection = runHelper
+      "scenario.geojson.Update"
       [ ("ScID", JS.asJSVal scId)
       , ("geometry_input"
         ,   setProp "format"  ("GeoJSON" :: JSString)
           $ setProp "geometry" collection newObj
         )
       ]
-  ) []
+      run
 
 
-runScenarioGet :: ScenarioId -- ^ id of the scenario
-               -> LuciMessage
-runScenarioGet scId = toLuciMessage
-  ( MsgRun "scenario.geojson.Get"
+runScenarioGet :: ServiceInvocation
+               -> ScenarioId -- ^ id of the scenario
+               -> MomentIO (Event (Either JSString LuciScenario))
+runScenarioGet run scId = runHelper
+      "scenario.geojson.Get"
       [ ("ScID", JS.asJSVal scId)
       ]
-  ) []
+      run
+
 -- returns: "{"lastmodified":1470932237,"ScID":4}"
 
-runScenarioSubscribe :: ScenarioId -- ^ id of the scenario
-                     -> LuciMessage
-runScenarioSubscribe scId = toLuciMessage
-  ( MsgRun "scenario.SubscribeTo"
+runScenarioSubscribe :: ServiceInvocation
+                     -> ScenarioId -- ^ id of the scenario
+                     -> MomentIO (Event (Either JSString LuciScenario))
+runScenarioSubscribe run scId = runHelper
+      "scenario.SubscribeTo"
       [ ("ScIDs", JS.asJSVal [scId])
       , ("format", JS.asJSVal ("geojson" :: JSString))
       ]
-  ) []
+      run
 
 
-runScenarioList :: LuciMessage
-runScenarioList = toLuciMessage  (MsgRun "scenario.GetList" []) []
+runScenarioList :: ServiceInvocation -> MomentIO (Event (Either JSString ServiceResult))
+runScenarioList = runHelper "scenario.GetList" []
+
 
 newtype LuciResultScenarioList = ScenarioList [ScenarioDescription]
   deriving (Show)

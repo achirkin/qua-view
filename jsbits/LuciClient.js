@@ -68,7 +68,7 @@ var Luci = (function () {
     }
 
     var LuciClient = (function () {
-        var socket, onmessage;
+        var socket, onmessage, callIdSeq = 777;
 
         LuciClient = function LuciClient(connString, onMsg, onOpen, onClose, onError) {
             this.connectionString = connString;
@@ -136,6 +136,12 @@ var Luci = (function () {
         };
         LuciClient.prototype.objectName = 'LuciClient';
 
+        /*
+         Generate a new callId to create a run message
+         */
+        LuciClient.prototype.genCallId = function () {
+          return callIdSeq++;
+        }
 
         /*
          Gets header string and array of ArrayBuffers as attachments.
