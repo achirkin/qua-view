@@ -36,7 +36,7 @@ module Program.Controllers.LuciClient
     , CallId (..), TaskId (..)
     , runQuaServiceList
     , ServiceInvocation
-    , ServiceResponse (..)
+    , ServiceResponse (..), catResponses
     ) where
 
 
@@ -69,7 +69,7 @@ import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
 import qualified Data.Map.Strict as Map
 
 
-import JsHs.Debug
+--import JsHs.Debug
 
 ----------------------------------------------------------------------------------------------------
 -- * Client
@@ -94,7 +94,8 @@ foreign import javascript unsafe "($1 && $1.objectName == 'LuciClient') \
                                  \ ? $1 : null" js_Luci :: JSVal -> JSVal
 
 
-type ServiceInvocation = ServiceName -> [(JSString, JSVal)] -> [JSTA.ArrayBuffer] -> MomentIO (Event ServiceResponse)
+type ServiceInvocation = ServiceName -> [(JSString, JSVal)] -> [JSTA.ArrayBuffer] -> MomentIO (Event (ServiceResponse ServiceResult))
+type ServiceEvent = Event (ServiceResponse ServiceResult)
 
 -- | Run arbitrary Luci service and wait for responses
 runLuciService :: LuciClient
@@ -137,9 +138,9 @@ parseLuciMessages luciB incomings = do
     parseResponses sessionMapRef _ r@(SRProgress callId _ _ _) = readIORef sessionMapRef >>= \m -> case Map.lookup callId m of
           Nothing -> logText' "Got a progress message for non-existing callID."
           Just a  -> a r
-    invoke :: IORef (Map.Map CallId (Handler ServiceResponse))
-           -> IORef (Handler ServiceResponse)
-           -> ServiceName -> [(JSString, JSVal)] -> [JSTA.ArrayBuffer] -> MomentIO (Event ServiceResponse)
+    invoke :: IORef (Map.Map CallId (Handler (ServiceResponse ServiceResult)))
+           -> IORef (Handler (ServiceResponse ServiceResult))
+           -> ServiceName -> [(JSString, JSVal)] -> [JSTA.ArrayBuffer] -> MomentIO (Event (ServiceResponse ServiceResult))
     invoke sessionMapRef subscribeToHack "scenario.SubscribeTo" pams atts = do
       luci <- valueB luciB
       newCallId <- liftIO $ runLuciService luci "scenario.SubscribeTo" pams atts
@@ -317,7 +318,7 @@ foreign import javascript "$1.genCallId()"
 ----------------------------------------------------------------------------------------------------
 
 -- | JSON Value representing result of a luci service work
-newtype ServiceResult = ServiceResult JSVal
+newtype ServiceResult = ServiceResult { srVal :: JSVal }
 instance LikeJS "Object" ServiceResult
 
 -- | Luci callID is used to reference client's calls to luci and services
@@ -344,18 +345,43 @@ instance Show Percentage where
   show (Percentage x) = show (fromIntegral (round $ x*100 :: Int) / 100 :: Double) ++ "%"
 
 -- | Cleaned up service response
-data ServiceResponse
-  = SRResult !CallId !ServiceResult !(JS.Array JSTA.ArrayBuffer)
-  | SRProgress !CallId !Percentage !(Maybe ServiceResult) !(JS.Array JSTA.ArrayBuffer)
+data ServiceResponse a
+  = SRResult !CallId !a !(JS.Array JSTA.ArrayBuffer)
+  | SRProgress !CallId !Percentage !(Maybe a) !(JS.Array JSTA.ArrayBuffer)
   | SRError !CallId !JSString
 
-toServiceResponse :: (MessageHeader, JS.Array JSTA.ArrayBuffer) -> Either (MessageHeader, JS.Array JSTA.ArrayBuffer) ServiceResponse
+
+-- | Categorize service responses into three different event types:
+--     1. Error -- string message
+--     2. Progress
+--     3. Result
+catResponses :: Event (ServiceResponse a) -> ( Event JSString
+                                             , Event (Percentage, Maybe a, JS.Array JSTA.ArrayBuffer)
+                                             , Event (a, JS.Array JSTA.ArrayBuffer)
+                                             )
+catResponses ev = (filterJust $ fromErr <$> ev, filterJust $ fromProg <$> ev, filterJust $ fromRes <$> ev)
+  where
+    fromErr (SRError _ s) = Just s
+    fromErr _ = Nothing
+    fromProg (SRProgress _ p mv a) = Just (p,mv,a)
+    fromProg _ = Nothing
+    fromRes (SRResult _ v a) = Just (v, a)
+    fromRes _ = Nothing
+
+
+instance Functor ServiceResponse where
+  fmap f (SRResult i v a) = SRResult i (f v) a
+  fmap f (SRProgress i p (Just v) a) = SRProgress i p (Just $ f v) a
+  fmap _ (SRProgress i p Nothing a) = SRProgress i p Nothing a
+  fmap _ (SRError i e) = SRError i e
+
+toServiceResponse :: (MessageHeader, JS.Array JSTA.ArrayBuffer) -> Either (MessageHeader, JS.Array JSTA.ArrayBuffer) (ServiceResponse ServiceResult)
 toServiceResponse (MsgResult cId _ _ _ sr, atts) = Right $ SRResult cId sr atts
 toServiceResponse (MsgProgress cId _ _ _ p msr, atts) = Right $ SRProgress cId p msr atts
 toServiceResponse (MsgError (Just cId) e, _) = Right $ SRError cId e
 toServiceResponse x = Left x
 
-responseCallId :: ServiceResponse -> CallId
+responseCallId :: ServiceResponse a -> CallId
 responseCallId (SRResult i _ _) = i
 responseCallId (SRProgress i _ _ _) = i
 responseCallId (SRError i _) = i
@@ -499,24 +525,24 @@ foreign import javascript unsafe "var cr = new goog.crypt.Md5(); cr.update(new U
 -- * Pre-defined messages
 ----------------------------------------------------------------------------------------------------
 
-runHelper :: JS.LikeJS s a => ServiceName -> [(JSString, JSVal)] -> ServiceInvocation -> MomentIO (Event (Either JSString a))
-runHelper sname pams run = filterJust . fmap f <$> run sname pams []
-  where
-    f (SRResult _ (ServiceResult res) _) = Just . Right $ JS.asLikeJS res
-    f SRProgress{} = Nothing
-    f (SRError _ s) = Just $ Left s
+--runHelper :: JS.LikeJS s a => ServiceName -> [(JSString, JSVal)] -> ServiceInvocation -> MomentIO (Event (Either JSString a))
+--runHelper sname pams run = filterJust . fmap f <$> run sname pams []
+--  where
+--    f (SRResult _ (ServiceResult res) _) = Just . Right $ JS.asLikeJS res
+--    f SRProgress{} = Nothing
+--    f (SRError _ s) = Just $ Left s
 
 -- | A message to get list of available services from luci
-runServiceList :: ServiceInvocation -> MomentIO (Event (Either JSString LuciResultServiceList))
-runServiceList = runHelper "ServiceList" []
+runServiceList :: ServiceInvocation -> MomentIO (Event (ServiceResponse LuciResultServiceList))
+runServiceList run = fmap (fmap $ JS.asLikeJS . srVal) <$> run "ServiceList" [] []
 
 -- | A message to get list of available services from luci;
 --   list only qua-view-compliant services
-runQuaServiceList :: ServiceInvocation -> MomentIO (Event (Either JSString LuciResultServiceList))
-runQuaServiceList = runHelper "FilterServices"
+runQuaServiceList :: ServiceInvocation -> MomentIO (Event (ServiceResponse LuciResultServiceList))
+runQuaServiceList run = fmap (fmap $ JS.asLikeJS . srVal) <$> run "FilterServices"
     [ ("rcrLevel", JS.asJSVal (1::Int))
     , ("keys", JS.asJSVal ["qua-view-compliant"::JSString])
-    ]
+    ] []
 
 
 newtype LuciResultServiceList = ServiceList (JS.Array JSString)
@@ -568,57 +594,53 @@ instance LikeJS "Object" LuciScenarioCreated where
 runScenarioCreate :: ServiceInvocation
                   -> ScenarioName -- ^ name of the scenario
                   -> FeatureCollection -- ^ content of the scenario
-                  -> MomentIO (Event (Either JSString LuciScenarioCreated))
-runScenarioCreate run name collection = runHelper "scenario.geojson.Create"
+                  -> MomentIO (Event (ServiceResponse LuciScenarioCreated))
+runScenarioCreate run name collection = fmap (fmap $ JS.asLikeJS . srVal) <$> run  "scenario.geojson.Create"
       [ ("name", JS.asJSVal name)
       , ("geometry_input"
         ,   setProp "format"  ("GeoJSON" :: JSString)
           $ setProp "geometry" collection newObj
         )
-      ]
-      run
+      ] []
 -- returns: "{"created":1470932237,"lastmodified":1470932237,"name":"dgdsfg","ScID":4}"
 
 
 runScenarioUpdate :: ServiceInvocation
                   -> ScenarioId -- ^ id of the scenario
                   -> FeatureCollection -- ^ content of the scenario update
-                  -> MomentIO (Event (Either JSString JSVal))
-runScenarioUpdate run scId collection = runHelper
+                  -> MomentIO (Event (ServiceResponse JSVal))
+runScenarioUpdate run scId collection = fmap (fmap $ JS.asLikeJS . srVal) <$> run
       "scenario.geojson.Update"
       [ ("ScID", JS.asJSVal scId)
       , ("geometry_input"
         ,   setProp "format"  ("GeoJSON" :: JSString)
           $ setProp "geometry" collection newObj
         )
-      ]
-      run
+      ] []
 
 
 runScenarioGet :: ServiceInvocation
                -> ScenarioId -- ^ id of the scenario
-               -> MomentIO (Event (Either JSString LuciScenario))
-runScenarioGet run scId = runHelper
+               -> MomentIO (Event (ServiceResponse LuciScenario))
+runScenarioGet run scId = fmap (fmap $ JS.asLikeJS . srVal) <$> run
       "scenario.geojson.Get"
       [ ("ScID", JS.asJSVal scId)
-      ]
-      run
+      ] []
 
 -- returns: "{"lastmodified":1470932237,"ScID":4}"
 
 runScenarioSubscribe :: ServiceInvocation
                      -> ScenarioId -- ^ id of the scenario
-                     -> MomentIO (Event (Either JSString LuciScenario))
-runScenarioSubscribe run scId = runHelper
+                     -> MomentIO (Event (ServiceResponse LuciScenario))
+runScenarioSubscribe run scId = fmap (fmap $ JS.asLikeJS . srVal) <$> run
       "scenario.SubscribeTo"
       [ ("ScIDs", JS.asJSVal [scId])
       , ("format", JS.asJSVal ("geojson" :: JSString))
-      ]
-      run
+      ] []
 
 
-runScenarioList :: ServiceInvocation -> MomentIO (Event (Either JSString ServiceResult))
-runScenarioList = runHelper "scenario.GetList" []
+runScenarioList :: ServiceInvocation -> MomentIO (Event (ServiceResponse ServiceResult))
+runScenarioList run = fmap (fmap $ JS.asLikeJS . srVal) <$> run "scenario.GetList" [] []
 
 
 newtype LuciResultScenarioList = ScenarioList [ScenarioDescription]
