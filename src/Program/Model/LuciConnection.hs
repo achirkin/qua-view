@@ -82,8 +82,9 @@ luciBehavior lsettings geoJSONImportFire cityB groundUpdatedE
       -- asking luci for a scenario list on button click
       (getScListE, getScListFire) <- newEvent
       liftIO $ registerGetScenarioList getScListFire
-      let gotScenarioListF (Right scenarioList) = displayScenarios scenarioList
-          gotScenarioListF (Left err) = logText' err
+      let gotScenarioListF (SRResult _ scenarioList _) = displayScenarios scenarioList
+          gotScenarioListF (SRError _ err) = logText' err
+          gotScenarioListF _ = return ()
       execute (runScenarioList runLuciService <$ getScListE) >>= switchE >>= reactimate . fmap gotScenarioListF
 
       -- asking luci to save a scenario on button click
@@ -96,8 +97,9 @@ luciBehavior lsettings geoJSONImportFire cityB groundUpdatedE
               return $ SSPendingCreate s
             )
           <$> askSaveScenarioE
-      let createdScenarioF (Right (LuciResultScenarioCreated scId t)) = onScenarioGetFire (scId, t)
-          createdScenarioF (Left err) = logText' err
+      let createdScenarioF (SRResult _ (LuciResultScenarioCreated scId t) _) = onScenarioGetFire (scId, t)
+          createdScenarioF (SRError _ err) = logText' err
+          createdScenarioF _ = return ()
       reactimate $ createdScenarioF <$> scenarioSavedE
 
       -- register user clicking on "get scenario" button
@@ -105,8 +107,9 @@ luciBehavior lsettings geoJSONImportFire cityB groundUpdatedE
       liftIO $ registerAskLuciForScenario (curry onAskForScenarioFire)
       -- Asking luci for a scenario on button click
       gotScenarioE <- execute (runScenarioGet runLuciService . fst <$> askForScenarioE) >>= switchE
-      let gotScenarioF (Right (LuciResultScenario scId fc t)) = geoJSONImportFire (Right fc) >> onScenarioGetFire (scId, t)
-          gotScenarioF (Left err) = logText' err
+      let gotScenarioF (SRResult _ (LuciResultScenario scId fc t) _) = geoJSONImportFire (Right fc) >> onScenarioGetFire (scId, t)
+          gotScenarioF (SRError _ err) = logText' err
+          gotScenarioF _ = return ()
       reactimate $ gotScenarioF <$> gotScenarioE
 
 
@@ -165,12 +168,15 @@ luciBehavior lsettings geoJSONImportFire cityB groundUpdatedE
       scenarioOutUpdatesE <- execute (updateScenarioA <$> scenarioSyncB <*> cityB <@> lateObjectRecordsE) >>= switchE
       scenarioInUpdatesE <- execute (askSubscribeForScenario <$>  scenarioSyncB <@> scenarioSyncE_obtained) >>= switchE
 --      reactimate $ gotScenarioF <$> scenarioInUpdatesE
-      reactimate $ (printJSVal . JS.asJSVal) <$> scenarioOutUpdatesE
+      let (errsOfScOutE, _, _) = catResponses scenarioOutUpdatesE
+          (errsOfScInE, _, _) = catResponses scenarioInUpdatesE
+      reactimate $ logText' <$> errsOfScInE
+      reactimate $ logText' <$> errsOfScOutE
 
       -- run luci service!
 --      (_vsManagerB, vsResultsE) <- vsManagerBehavior serviceFinishE
       (vsErrorsR, vsResultsE) <- fmap split $
-                    execute (runVService runLuciService (VisualService "GenericIsovistService") <$> serviceRunsE)
+                    execute (runVService runLuciService (VisualService "DistanceToWalls") <$> serviceRunsE) -- GenericIsovistService
                        >>= switchE
       reactimate $ (\t -> logText' t >> GUI.toggleServiceClear False) <$> vsErrorsR
       reactimate $ serviceButtonF <$> groundUpdatedE
