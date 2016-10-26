@@ -15,7 +15,8 @@
 module Program.VisualService
   ( VisualService (..), VisualServiceResult (..), VisualServiceRun (..)
   , parseResult, runVService, ColorPalette (..), makeColors, applyPalette
-  , VisualServiceMode (..), VSManager (..), runQuaServiceList
+  , VisualServiceMode (..), VSManager (), runQuaServiceList
+  , ServiceParameter (..)
   , vsManagerBehavior
   ) where
 
@@ -27,15 +28,18 @@ import Data.Coerce (coerce)
 import qualified Data.HashMap.Strict as HashMap
 
 import Data.Geometry (Vector4)
+import Data.Default.Class
+import Data.List (foldl')
 import qualified Data.Geometry.Structure.PointSet as PS
 
-import JsHs.Types (JSVal,)
+import JsHs.Types (JSVal)
 import JsHs.JSString (JSString, pack)
 import JsHs.LikeJS.Class (LikeJS(..))
-import JsHs.Types.Prim (jsNull)
+--import JsHs.Types.Prim (jsNull)
 import qualified JsHs.Array as JS
 import qualified JsHs.TypedArray as JSTA
 import JsHs.WebGL (GLfloat, GLubyte)
+import JsHs.Useful
 
 import Program.Types
 import Program.Controllers.LuciClient
@@ -43,6 +47,8 @@ import Program.Settings
 
 import Reactive.Banana.Combinators
 import Reactive.Banana.Frameworks
+
+import Control.Lens
 
 -- | Working mode of a service
 data VisualServiceMode
@@ -65,34 +71,141 @@ instance LikeJS "String" VisualServiceMode where
   asJSVal (VS_UNKNOWN s) = s
 
 -- | Manage available visual services
-newtype VSManager = VSManager
-  { registeredServices :: HashMap.HashMap ServiceName VisualService
+data VSManager = VSManager
+  { _registeredServices :: !(HashMap.HashMap ServiceName VisualService)
+  , _activeService      :: !(Maybe ServiceName)
+  , resultEventHandler  :: !(Handler VisualServiceResult)
   }
 
+registeredServices :: Lens' VSManager (HashMap.HashMap ServiceName VisualService)
+registeredServices m t = (\x -> t{_registeredServices = x }) <$> m (_registeredServices t)
 
-vsManagerBehavior :: MonadMoment m
-                  => Event (ServiceName, ServiceResult, JS.Array JSTA.ArrayBuffer)
-                  -> m (Behavior VSManager, Event VisualServiceResult)
-vsManagerBehavior serviceFinE = do
-    manB <- accumB  (VSManager HashMap.empty) serviceListUpdatesE
-    let registeredSRE = filterJust $ filterSR <$> manB <@> serviceResultE
-    return (manB, registeredSRE)
+activeService :: Lens' VSManager (Maybe ServiceName)
+activeService m t = (\x -> t{_activeService = x }) <$> m (_activeService t)
+
+
+-- | Possible optional parameters
+data ServiceParameter
+  = ServiceParameterString JSString StringEnum
+  | ServiceParameterInt    JSString RangedInt
+  | ServicePapameterFloat  JSString RangedFloat
+  | ServiceParameterBool   JSString Bool
+
+
+spToJS :: ServiceParameter -> (JSString, JSVal)
+spToJS (ServiceParameterString pname v) = (pname, JS.asJSVal $ seVal v)
+spToJS (ServiceParameterInt    pname v) = (pname, JS.asJSVal $ riVal v)
+spToJS (ServicePapameterFloat  pname v) = (pname, JS.asJSVal $ rfVal v)
+spToJS (ServiceParameterBool   pname v) = (pname, JS.asJSVal v)
+
+
+spName :: Lens' ServiceParameter JSString
+spName m t = mv t <$> m (get t)
   where
-    nameFilterServices ("FilterServices", ServiceResult r, _) = Left (JS.asLikeJS r :: LuciResultServiceList)
-    nameFilterServices (n,r,b) = Right (VisualService n, parseResult r b)
-    (serviceListE, serviceResultE) = split $ nameFilterServices <$> serviceFinE
-    filterSR _ (_, VisualServiceResultUnknown _ _) = Nothing
-    filterSR VSManager{registeredServices = rs} (s, rez) | HashMap.member (vsName s) rs = Just rez
-                                                         | otherwise                    = Nothing
-    serviceListUpdatesE = (\(ServiceList ls) vs -> vs{ registeredServices = HashMap.fromList
-                                                                          . map ((\n -> (n,VisualService n)) . ServiceName)
-                                                                          $ JS.toList ls
-                                                     } ) <$> serviceListE
+    mv (ServiceParameterString _ x) n = ServiceParameterString n x
+    mv (ServiceParameterInt    _ x) n = ServiceParameterInt    n x
+    mv (ServicePapameterFloat  _ x) n = ServicePapameterFloat  n x
+    mv (ServiceParameterBool   _ x) n = ServiceParameterBool   n x
+    get (ServiceParameterString n _) = n
+    get (ServiceParameterInt    n _) = n
+    get (ServicePapameterFloat  n _) = n
+    get (ServiceParameterBool   n _) = n
+
+--newtype LuciResultServiceList = ServiceList (JS.Array JSString)
+
+-- | Manage service parameters and executions.
+--   Returns behavior object and an event with generic service results.
+--   The event should fire whenever service results come from luci (for any service).
+vsManagerBehavior :: Event ServiceName
+                     -- ^ When user selects a service, it becomes active
+                  -> Event [ServiceParameter]
+                     -- ^ Change or set optional parameters for visual services
+                  -> Event LuciResultServiceList
+                     -- ^ Update list of available services
+                  -> MomentIO (Behavior VSManager, Event VisualServiceResult)
+vsManagerBehavior selectedServiceE changeSParamsE refreshSListE = do
+    (resultE, resultH) <- newEvent
+    manB <- accumB (VSManager HashMap.empty Nothing resultH)
+                       (unions [ set activeService . Just <$> selectedServiceE
+                               , over registeredServices . updateServiceMap <$> refreshSListE
+                               , (\pams man -> over registeredServices
+                                                ( alterService (_activeService man)
+                                                    (\s -> s{_vsParams = changeServiceParams pams $ _vsParams s})
+                                                ) man
+                                 ) <$> changeSParamsE
+                               ])
+    return (manB, resultE)
+  where
+    updateServiceMap :: LuciResultServiceList -> HashMap.HashMap ServiceName VisualService
+                                              -> HashMap.HashMap ServiceName VisualService
+    updateServiceMap (ServiceList jsarray) m = foldl'
+        (\nm x -> let s = ServiceName x
+                  in case HashMap.lookup s m of
+            Nothing -> HashMap.insert s (VisualService s [] []) nm
+            Just vs -> HashMap.insert s vs nm
+        ) HashMap.empty (JS.toList jsarray)
+    changeServiceParams :: [ServiceParameter] -> [ServiceParameter] -> [ServiceParameter]
+    changeServiceParams newpams oldpams = foldl' changeOrAdd  oldpams newpams
+    changeOrAdd (x:xs) y | view spName y == view spName x = y:xs
+                         | otherwise                      = changeOrAdd xs y
+    changeOrAdd [] y = [y]
+    alterService :: Maybe ServiceName -> (VisualService -> VisualService)
+                                      -> HashMap.HashMap ServiceName VisualService
+                                      -> HashMap.HashMap ServiceName VisualService
+    alterService Nothing _ = id
+    alterService (Just n) f = HashMap.adjust f n
+
+
+
+
+--foldl :: ( LikeJSArray tt t
+--           , LikeJS ta a)
+--        => (a -> ArrayElem t -> a)
+--        -> a -> t -> a
+--foldl f x0 arr
+--vsManagerBehavior luciClientB serviceRunsE
+
+--vsManagerBehavior :: Event ServiceName
+--                     -- ^ A service is selected in the viewer
+--                  -> Event LuciResultServiceList
+--                     -- ^ Service list is updated
+--                  -> MomentIO (Behavior VSManager)
+--vsManagerBehavior setActiveE updateSLE = do
+--
+--    manB <- accumB  (VSManager HashMap.empty) serviceListUpdatesE
+--    let registeredSRE = filterJust $ filterSR <$> manB <@> serviceResultE
+--    return (manB, registeredSRE)
+--  where
+--    updateActiveNameE = (\n m -> m{activeService = n}) <$> setActiveE
+--    updateListE = <$> updateSLE
+--    (serviceListE, serviceResultE) = split $ nameFilterServices <$> serviceFinE
+--    filterSR _ (_, VisualServiceResultUnknown _ _) = Nothing
+--    filterSR VSManager{registeredServices = rs} (s, rez) | HashMap.member (vsName s) rs = Just rez
+--                                                         | otherwise                    = Nothing
+--    serviceListUpdatesE = (\(ServiceList ls) vs -> vs{ registeredServices = HashMap.fromList
+--                                                                          . map ((\n -> (n,VisualService n)) . ServiceName)
+--                                                                          $ JS.toList ls
+--                                                     } ) <$> serviceListE
 
 -- | Encapsulate runtime service parameters
-newtype VisualService = VisualService
-  { vsName  :: ServiceName
-  }
+data VisualService
+  = VisualService
+    { _vsName   :: !ServiceName
+      -- ^ serviceName in Luci
+    , _vsModes  :: ![VisualServiceMode]
+      -- ^ supported evaluation modes
+    , _vsParams :: ![ServiceParameter]
+      -- ^ optional service parameters
+    }
+
+vsName :: Lens' VisualService ServiceName
+vsName m t = (\x -> t{_vsName = x }) <$> m (_vsName t)
+
+vsModes :: Traversal' VisualService VisualServiceMode
+vsModes f (VisualService n m p) = flip (VisualService n) p <$> traverse f m
+
+vsParams :: Traversal' VisualService ServiceParameter
+vsParams f (VisualService n m p) = VisualService n m <$> traverse f p
 
 
 -- | Result of a service execution
@@ -105,43 +218,66 @@ data VisualServiceResult
 
 -- | Request of a service to run
 data VisualServiceRun
-  = VisualServiceRunPoints !ScenarioId ![(JSString, JSString)] ![(JSString, GLfloat)] ![(JSString, Bool)] !(JSTA.TypedArray GLfloat)
-  | VisualServiceRunObjects !ScenarioId ![(JSString, JSString)] ![(JSString, GLfloat)] ![(JSString, Bool)]
-  | VisualServiceRunScenario !ScenarioId ![(JSString, JSString)] ![(JSString, GLfloat)] ![(JSString, Bool)]
-  | VisualServiceRunNew !(Maybe ScenarioId) ![(JSString, JSString)] ![(JSString, GLfloat)] ![(JSString, Bool)]
+  = VisualServiceRunPoints !ScenarioId !(JSTA.TypedArray GLfloat)
+  | VisualServiceRunObjects !ScenarioId
+  | VisualServiceRunScenario !ScenarioId
+  | VisualServiceRunNew !(Maybe ScenarioId)
 
 
-runVService :: ServiceInvocation -> VisualService -> VisualServiceRun -> MomentIO (Event (Either JSString VisualServiceResult))
-runVService run s (VisualServiceRunPoints scid strings numbers bools points) = runHelper (vsName s) (("ScID", asJSVal scid)
-                        :("points", asJSVal $ makeAttDesc 1 "Float32x3Array" ab)
-                        :("mode", asJSVal VS_POINTS):sndToJSVal strings ++ sndToJSVal numbers ++ sndToJSVal bools)
-    [ab] run
+runVService :: Behavior VSManager -> Behavior LuciClient -> Event VisualServiceRun -> MomentIO ()
+runVService vsManB lcB pamsE = do
+    responseE <- runHelper lcB (fmap toPams . filterJust $ getServRun <$> vsManB <@> pamsE)
+    reactimate $ onResponse <$> vsManB <@> responseE
   where
-    ab = JSTA.arrayBuffer points
-runVService run s (VisualServiceRunObjects scid strings numbers bools) = runHelper (vsName s)
-  (("ScID", asJSVal scid):("mode", asJSVal VS_OBJECTS):sndToJSVal strings ++ sndToJSVal numbers ++ sndToJSVal bools)
-  [] run
-runVService run s (VisualServiceRunScenario scid strings numbers bools) = runHelper (vsName s)
-  (("ScID", asJSVal scid):("mode", asJSVal VS_SCENARIO):sndToJSVal strings ++ sndToJSVal numbers ++ sndToJSVal bools)
-  [] run
-runVService run s (VisualServiceRunNew (Just scid) strings numbers bools) = runHelper (vsName s)
-  (("ScID", asJSVal scid):("mode", asJSVal VS_NEW):sndToJSVal strings ++ sndToJSVal numbers ++ sndToJSVal bools)
-  [] run
-runVService run s (VisualServiceRunNew Nothing strings numbers bools) = runHelper (vsName s)
-  (("mode", asJSVal VS_NEW):sndToJSVal strings ++ sndToJSVal numbers ++ sndToJSVal bools)
-  [] run
+    getServRun man@VSManager{_activeService = Just sname} run = flip (,) run <$> HashMap.lookup sname (_registeredServices man)
+    getServRun _ _ = Nothing
+    toPams (service, VisualServiceRunPoints scid points) =
+        ( _vsName service
+        ,    ("ScID", asJSVal scid)
+          :  ("points", asJSVal $ makeAttDesc 1 "Float32x3Array" ab)
+          :  ("mode", asJSVal VS_POINTS)
+          :  map spToJS (_vsParams service)
+        , [ab]
+        ) where ab = JSTA.arrayBuffer points
+    toPams (service, VisualServiceRunObjects scid) =
+        ( _vsName service
+        , ("ScID", asJSVal scid):("mode", asJSVal VS_OBJECTS) : map spToJS (_vsParams service)
+        , []
+        )
+    toPams (service, VisualServiceRunScenario scid) =
+        ( _vsName service
+        , ("ScID", asJSVal scid):("mode", asJSVal VS_SCENARIO) : map spToJS (_vsParams service)
+        , []
+        )
+    toPams (service, VisualServiceRunNew (Just scid)) =
+        ( _vsName service
+        , ("ScID", asJSVal scid):("mode", asJSVal VS_NEW) : map spToJS (_vsParams service)
+        , []
+        )
+    toPams (service, VisualServiceRunNew Nothing) =
+        ( _vsName service
+        , ("mode", asJSVal VS_NEW) : map spToJS (_vsParams service)
+        , []
+        )
+    onResponse :: VSManager -> ServiceResponse VisualServiceResult -> IO ()
+    onResponse man (SRResult _ r _) = resultEventHandler man r
+    onResponse man (SRProgress i p (Just r) _) = logText ("Visual service progress: " ++ show i  ++ " - " ++ show p) >> resultEventHandler man r
+    onResponse _   (SRProgress i p Nothing _) = logText ("Visual service progress: " ++ show i  ++ " - " ++ show p)
+    onResponse _   (SRError i s) = logText' $ "Visual service error [" <> pack (show i) <> "]: " <> s
 
 
-runHelper :: ServiceName -> [(JSString, JSVal)] -> [JSTA.ArrayBuffer] -> ServiceInvocation -> MomentIO (Event (Either JSString VisualServiceResult))
-runHelper sname pams atts run = filterJust . fmap f <$> run sname pams atts
+
+runHelper :: Behavior LuciClient -> Event (ServiceName, [(JSString, JSVal)], [JSTA.ArrayBuffer]) -> MomentIO (Event (ServiceResponse VisualServiceResult))
+runHelper lcB pams = fmap f <$> runService lcB pams
   where
-    f (SRResult _ r x) = Just . Right $ parseResult r x
-    f SRProgress{} = Nothing
-    f (SRError _ s) = Just $ Left s
+    f (SRResult i r x) = SRResult i (parseResult r x) x
+    f (SRProgress i p (Just r) x) = SRProgress i p (Just $ parseResult r x) x
+    f (SRProgress i p Nothing x) = SRProgress i p Nothing x
+    f (SRError i s) = SRError i s
 
 
-sndToJSVal :: LikeJS s a => [(JSString, a)] -> [(JSString, JSVal)]
-sndToJSVal = map (second asJSVal)
+--sndToJSVal :: LikeJS s a => [(JSString, a)] -> [(JSString, JSVal)]
+--sndToJSVal = map (second asJSVal)
 
 -- | Interpret Luci's ServiceResult as a result of computation of given VisualService
 parseResult :: ServiceResult -> JS.Array JSTA.ArrayBuffer -> VisualServiceResult
