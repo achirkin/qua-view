@@ -20,6 +20,7 @@ import Data.Hashable
 import Data.String (IsString())
 import JsHs
 import JsHs.JSString (unpack')
+import GHC.Exts (IsString(..))
 
 newtype RequireViewUpdate a = RequireViewUpdate a
 
@@ -43,7 +44,6 @@ data ScenarioSync
     -- ^ Run "scenario.geojson.Get", but not received result yet
   | SSSynced ScenarioId ScenarioName UTCTime
     -- ^ Last synchronized at a given time
-
 
 
 -- | Luci geomID is used to reference scenario objects
@@ -81,3 +81,83 @@ data WantPicture = WantPicture
 
 newtype PictureVal = PictureVal JSVal
 instance LikeJS "Object" PictureVal
+
+
+data RangedInt = RangedInt
+  { riMin :: !Int
+  , riMax :: !Int
+  , riVal :: !Int
+  }
+  deriving Show
+
+instance Eq RangedInt where
+  a == b = riVal a == riVal b
+
+instance Ord RangedInt where
+  a `compare` b = riVal a `compare` riVal b
+  a < b = riVal a < riVal b
+  a <= b = riVal a <= riVal b
+  a > b = riVal a > riVal b
+  a >= b = riVal a >= riVal b
+
+{-# INLINE riCombineSpreading #-}
+riCombineSpreading :: (Int -> Int -> Int) -> RangedInt -> RangedInt -> RangedInt
+riCombineSpreading f (RangedInt al ah a)  (RangedInt bl bh b) = RangedInt l h (min h . max l $ f a b)
+  where
+    l = min al bl
+    h = max ah bh
+
+instance Num RangedInt where
+  (+) = riCombineSpreading (+)
+  (-) = riCombineSpreading (-)
+  (*) = riCombineSpreading (*)
+  abs (RangedInt l h x) = RangedInt l h (min h . max l $ abs x)
+  negate (RangedInt l h x) = RangedInt l h (min h . max l $ negate x)
+  signum (RangedInt l h x) = RangedInt l h (min h . max l $ signum x)
+  fromInteger i = RangedInt minBound maxBound (fromInteger i)
+
+
+data RangedFloat = RangedFloat
+  { rfMin :: !Float
+  , rfMax :: !Float
+  , rfVal :: !Float
+  }
+  deriving Show
+
+instance Eq RangedFloat where
+  a == b = rfVal a == rfVal b
+
+instance Ord RangedFloat where
+  a `compare` b = rfVal a `compare` rfVal b
+  a < b = rfVal a < rfVal b
+  a <= b = rfVal a <= rfVal b
+  a > b = rfVal a > rfVal b
+  a >= b = rfVal a >= rfVal b
+
+{-# INLINE rfCombineSpreading #-}
+rfCombineSpreading :: (Float -> Float -> Float) -> RangedFloat -> RangedFloat -> RangedFloat
+rfCombineSpreading f (RangedFloat al ah a)  (RangedFloat bl bh b) = RangedFloat l h (min h . max l $ f a b)
+  where
+    l = min al bl
+    h = max ah bh
+
+instance Num RangedFloat where
+  (+) = rfCombineSpreading (+)
+  (-) = rfCombineSpreading (-)
+  (*) = rfCombineSpreading (*)
+  abs (RangedFloat l h x) = RangedFloat l h (min h . max l $ abs x)
+  negate (RangedFloat l h x) = RangedFloat l h (min h . max l $ negate x)
+  signum (RangedFloat l h x) = RangedFloat l h (min h . max l $ signum x)
+  fromInteger i = RangedFloat ((2^^) . fst $ floatRange (0::Float)) ((2^) . snd $ floatRange (0::Float)) (fromInteger i)
+
+
+data StringEnum = StringEnum
+  { seOptions :: [JSString]
+  , seVal :: JSString
+  }
+
+instance IsString StringEnum where
+  fromString s = let t = fromString s in StringEnum [t] t
+
+
+
