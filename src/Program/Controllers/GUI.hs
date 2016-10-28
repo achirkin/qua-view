@@ -30,6 +30,7 @@ module Program.Controllers.GUI
   , showInfo
   , registerSubmit
   , registerResetCamera
+  , registerRefreshServiceList
   ) where
 
 --import Control.Concurrent.MVar
@@ -179,3 +180,13 @@ foreign import javascript safe "$1($2,$3,$4)"
 registerResetCamera :: (() -> IO ())  -> IO ()
 registerResetCamera c = asyncCallback (c ()) >>= js_registerResetCamera
 foreign import javascript safe "registerResetCamera($1)" js_registerResetCamera  :: Callback (IO ()) -> IO ()
+
+
+
+-- | Registers one callback; comes from Handler.Home.PanelServices.
+--   onClick :: IO ()
+--   return :: IO ()
+registerRefreshServiceList :: (() -> IO ())  -> IO ()
+registerRefreshServiceList c = asyncCallback (c ()) >>= js_registerRefreshServiceList
+foreign import javascript safe "registerRefreshServiceList($1)" js_registerRefreshServiceList  :: Callback (IO ()) -> IO ()
+

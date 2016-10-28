@@ -108,6 +108,10 @@ function registerSubmit(onClick) {}
  *  onClick :: IO ()
  *  return :: IO ()
  */
-function registerResetCamera(onClick) {
-  document.getElementById('#resetposbutton').addEventListener("click", onClick);
-}
+function registerResetCamera(onClick) {}
+
+/** Registers one callback; comes from Handler.Home.PanelServices.
+ *  refreshSLRun :: IO ()
+ *  return :: IO ()
+ */
+function registerRefreshServiceList(refreshSLRun) {}

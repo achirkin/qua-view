@@ -95,7 +95,7 @@ data ClearingGeometry = ClearingGeometry
 
 defaultCitySettings :: CitySettings
 defaultCitySettings = CitySettings
-    { defHeight    = 1
+    { defHeight    = 1.5
     , diagFunction = (*5) . sqrt . fromIntegral
     , groundDilate = 1
     , evalCellSize = 0.5
@@ -344,9 +344,9 @@ processLineFeature defz scale shift sObj = JS.mapSame (PS.mapSet (\vec -> (vec -
 scenarioViewScaling :: (Int -> GLfloat)
                     -> ParsedFeatureCollection 3 GLfloat
                     -> (GLfloat, Vector2 GLfloat)
-scenarioViewScaling diam scenario = ( diam n / normL2 (h-l) , vector2 x y)
+scenarioViewScaling diam scenario = ( 2 * diam n / normL2 (h-l) , vector2 x y)
     where
-      n = JS.length (pfcPolys scenario) + 1 + JS.length (pfcLines scenario) * 2
+      n = JS.length (pfcPolys scenario) + 1 -- + JS.length (pfcLines scenario) * 2
       l = pfcMin scenario
       h = pfcMax scenario
       (x,y,_) = unpackV3 $ (l + h) / 2
