@@ -201,7 +201,8 @@ luciBehavior lsettings geoJSONImportFire cityB groundUpdatedE
       (updateSListE, updateSListFire) <- newEvent
       (changeSParamE, changeSParamFire) <- newEvent
       (vsManagerB, vsResultsE) <-vsManagerBehavior selectServiceE changeSParamE updateSListE
-      -- TODO: delete following block!
+
+      -- update list of available services
       (triggerQuaServiceListE,triggerQuaServiceListF) <- newEvent
       serviceListUpdateE <- runQuaServiceList luciClientB triggerQuaServiceListE
       let serviceListUpdateA (SRResult _ r@(ServiceList jsarray) _) = do
@@ -213,15 +214,12 @@ luciBehavior lsettings geoJSONImportFire cityB groundUpdatedE
           serviceListUpdateA (SRError _ e) = logText' e
           serviceListUpdateA _ = return ()
       reactimate $ serviceListUpdateA <$> serviceListUpdateE
-      reactimate $ triggerQuaServiceListF <$> (() <$ gotScenarioE)
+      liftIO $ GUI.registerRefreshServiceList triggerQuaServiceListF
 
 
       runVService vsManagerB luciClientB serviceRunsE
 
 
---      reactimate $ (\t -> logText' t >> GUI.toggleServiceClear False) <$> vsErrsE
---      reactimate $ logText' "Service started" <$ vsProgresE
---      reactimate $ logText' "Service finished" <$ vsResultsE
       reactimate $ serviceButtonF <$> groundUpdatedE
 
       reactimate $ (\(msg, _) -> print $ "Ignoring message: " ++ (unpack' . jsonStringify $ JS.asJSVal msg)) <$> unknownMsgE

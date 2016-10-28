@@ -260,9 +260,9 @@ runVService vsManB lcB pamsE = do
         , []
         )
     onResponse :: VSManager -> ServiceResponse VisualServiceResult -> IO ()
-    onResponse man (SRResult _ r _) = resultEventHandler man r
-    onResponse man (SRProgress i p (Just r) _) = logText ("Visual service progress: " ++ show i  ++ " - " ++ show p) >> resultEventHandler man r
-    onResponse _   (SRProgress i p Nothing _) = logText ("Visual service progress: " ++ show i  ++ " - " ++ show p)
+    onResponse man (SRResult i r _) = logText ("Visual service complete [" ++ show i ++ "]: 100%") >> resultEventHandler man r
+    onResponse man (SRProgress i p (Just r) _) = logText ("Visual service progress [" ++ show i  ++ "]: " ++ show p) >> resultEventHandler man r
+    onResponse _   (SRProgress i p Nothing _) = logText ("Visual service progress [" ++ show i  ++ "]: " ++ show p)
     onResponse _   (SRError i s) = logText' $ "Visual service error [" <> pack (show i) <> "]: " <> s
 
 

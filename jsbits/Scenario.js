@@ -122,15 +122,19 @@ function gm$smartProcessFeatureCollection(fc, defVec, maxGeomId) {
                     if (f['properties']['geomID']) {
                         maxGeomId = Math.max(f['properties']['geomID'], maxGeomId);
                     }
-                    for(i = 0; i < Math.min(dims, f.dim); i++) {
-                        cmin[i] = Math.min(cmin[i],f.min[i]);
-                        cmax[i] = Math.max(cmax[i],f.max[i]);
+                    if (f['geometry']['type'] == "Polygon" || f['geometry']['type'] == "MultiPolygon")
+                    {
+                      for(i = 0; i < Math.min(dims, f.dim); i++) {
+                          cmin[i] = Math.min(cmin[i],f.min[i]);
+                          cmax[i] = Math.max(cmax[i],f.max[i]);
+                      }
+                      for(i = dims; i < f.dim; i++) {
+                          cmin[i] = f.min[i];
+                          cmax[i] = f.max[i];
+                      }
+                      dims = Math.max(dims,f.dim);
                     }
-                    for(i = dims; i < f.dim; i++) {
-                        cmin[i] = f.min[i];
-                        cmax[i] = f.max[i];
-                    }
-                    dims = Math.max(dims,f.dim);
+
 
                     switch (f['geometry']['type']) {
                         case "Point":
