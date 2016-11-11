@@ -1,14 +1,12 @@
 -----------------------------------------------------------------------------
---
+-- |
 -- Module      :  Program.Types
 -- Copyright   :  (c) Artem Chirkin
 -- License     :  MIT
 --
 -- Maintainer  :  Artem Chirkin <chirkin@arch.ethz.ch>
 -- Stability   :  experimental
--- Portability :
 --
--- |
 --
 -----------------------------------------------------------------------------
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
