@@ -18,9 +18,10 @@ module Program.VisualService
   , VisualServiceMode (..), VSManager (), runQuaServiceList
   , ServiceParameter (..)
   , vsManagerBehavior
+  , vsName, vsModes, vsParams
   ) where
 
-import Control.Arrow (Arrow(..))
+--import Control.Arrow (Arrow(..))
 import Data.Time (UTCTime,secondsToDiffTime)
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import Data.Monoid
@@ -28,7 +29,7 @@ import Data.Coerce (coerce)
 import qualified Data.HashMap.Strict as HashMap
 
 import Data.Geometry (Vector4)
-import Data.Default.Class
+--import Data.Default.Class
 import Data.List (foldl')
 import qualified Data.Geometry.Structure.PointSet as PS
 
@@ -339,40 +340,40 @@ applyPalette :: ColorPalette
              -> PS.PointArray 4 GLfloat
              -> PS.PointArray 4 GLubyte -- ^ set of values in RGBA form [0..255]
 applyPalette (LinearPalette p0 p1) Nothing sf = JS.fromJSArray . JS.map f $ sf
-    where f x = round $ (1-x) * v p0
-                      +    x  * v p1
+    where f x = round $ (1-x) * vvv p0
+                      +    x  * vvv p1
 applyPalette (Bezier2Palette p0 p1 p2) Nothing sf = JS.fromJSArray . JS.map f $ sf
-    where f x | y <- 1-x = round $   y*y * v p0
-                                 + 2*x*y * v p1
-                                 +   x*x * v p2
+    where f x | y <- 1-x = round $   y*y * vvv p0
+                                 + 2*x*y * vvv p1
+                                 +   x*x * vvv p2
 applyPalette (Bezier3Palette p0 p1 p2 p3) Nothing sf = JS.fromJSArray . JS.map f $ sf
-    where f x | y <- 1-x = round $   y*y*y * v p0
-                                 + 3*x*y*y * v p1
-                                 + 3*x*x*y * v p2
-                                 +   x*x*x * v p3
+    where f x | y <- 1-x = round $   y*y*y * vvv p0
+                                 + 3*x*y*y * vvv p1
+                                 + 3*x*x*y * vvv p2
+                                 +   x*x*x * vvv p3
 applyPalette (LinearPalette p0 p1) (Just (i,o)) sf = JS.fromJSArray . JS.map f $ sf
     where f x | x == i    = o
-              | otherwise = round $ (1-x) * v p0
-                                  +    x  * v p1
+              | otherwise = round $ (1-x) * vvv p0
+                                  +    x  * vvv p1
 applyPalette (Bezier2Palette p0 p1 p2) (Just (i,o)) sf = JS.fromJSArray . JS.map f $ sf
     where f x | x == i   = o
               | otherwise
-              , y <- 1-x = round $   y*y * v p0
-                                 + 2*x*y * v p1
-                                 +   x*x * v p2
+              , y <- 1-x = round $   y*y * vvv p0
+                                 + 2*x*y * vvv p1
+                                 +   x*x * vvv p2
 applyPalette (Bezier3Palette p0 p1 p2 p3) (Just (i,o)) sf = JS.fromJSArray . JS.map f $ sf
     where f x | x == i   = o
               | otherwise
-              , y <- 1-x = round $   y*y*y * v p0
-                                 + 3*x*y*y * v p1
-                                 + 3*x*x*y * v p2
-                                 +   x*x*x * v p3
+              , y <- 1-x = round $   y*y*y * vvv p0
+                                 + 3*x*y*y * vvv p1
+                                 + 3*x*x*y * vvv p2
+                                 +   x*x*x * vvv p3
 
 
 -- helpers
 
-v :: Vector4 GLubyte -> Vector4 GLfloat
-v = coerce
+vvv :: Vector4 GLubyte -> Vector4 GLfloat
+vvv = coerce
 
 
 foreign import javascript safe "gm$normalizeValues($1,0)" normalized :: JSTA.TypedArray GLfloat -> PS.PointArray 4 GLfloat
