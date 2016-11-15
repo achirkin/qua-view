@@ -26,7 +26,7 @@ import JsHs.JSString (pack, unpack') -- JSString, append
 --import Control.Monad (void, when)
 import JsHs.Useful
 import JsHs
-import JsHs.Types.Prim (jsNull)
+--import JsHs.Types.Prim (jsNull)
 --import Text.Read (readMaybe)
 --import Data.Coerce
 import qualified JsHs.Array as JS
@@ -40,8 +40,9 @@ import Unsafe.Coerce (unsafeCoerce)
 
 import Data.Maybe (fromMaybe)
 import Data.Monoid ((<>))
+import Data.Coerce (coerce)
 import Data.Time
-import Data.Time.Format (formatTime, defaultTimeLocale)
+--import Data.Time.Format (formatTime, defaultTimeLocale)
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
 import Reactive.Banana.Frameworks
 import Reactive.Banana.Combinators
@@ -53,7 +54,7 @@ import Program.Types
 import Program.VisualService
 import qualified Program.Controllers.GUI as GUI
 
-import JsHs.Debug
+--import JsHs.Debug
 
 luciBehavior :: Settings
              -> (Either FeatureCollection FeatureCollection -> IO ())
@@ -67,7 +68,7 @@ luciBehavior lsettings geoJSONImportFire cityB groundUpdatedE
              geoJSONImportE clearGeometryE motionRecordsE = mdo
 
       -- Luci Client testing
-      (luciClientB,noCallIdMsgE,unknownMsgE) <- luciHandler (fromMaybe "" $ luciRoute lsettings)
+      (luciClientB,noCallIdMsgE,unknownMsgE,luciStateE) <- luciHandler (fromMaybe "" $ luciRoute lsettings)
 
 --      -- actions to do when luci state changes
 --      let doLuciAction LuciClientOpening = logText' "Opening connection."
@@ -195,27 +196,30 @@ luciBehavior lsettings geoJSONImportFire cityB groundUpdatedE
       reactimate $ logText' <$> errsOfScInE
       reactimate $ logText' <$> errsOfScOutE
 
-      -- run luci service!
-      -- vsManagerBehavior ("DistanceToWalls" <$ serviceRunsE)
+      -- | run luci service!
+      -- Event triggered when a user selects an active service from a drop-down menu
       (selectServiceE, selectServiceFire) <- newEvent
+      liftIO $ GUI.registerSetActiveService selectServiceFire
+      -- Event triggered when qua-view gets a list of available qua-compliant services
       (updateSListE, updateSListFire) <- newEvent
+      -- Event passes in service parameters (after they are retreived from luci or helen)
       (changeSParamE, changeSParamFire) <- newEvent
-      (vsManagerB, vsResultsE) <-vsManagerBehavior selectServiceE changeSParamE updateSListE
+      -- Manage visual service images
+      (vsManagerB, vsResultsE) <- vsManagerBehavior selectServiceE changeSParamE updateSListE
 
       -- update list of available services
       (triggerQuaServiceListE,triggerQuaServiceListF) <- newEvent
       serviceListUpdateE <- runQuaServiceList luciClientB triggerQuaServiceListE
       let serviceListUpdateA (SRResult _ r@(ServiceList jsarray) _) = do
-            print $ JS.toList jsarray
             updateSListFire r
-            case ServiceName <$> JS.toList jsarray of
-              [] -> return ()
-              (x:_) -> selectServiceFire x
+            GUI.updateServiceNames $ coerce jsarray
           serviceListUpdateA (SRError _ e) = logText' e
           serviceListUpdateA _ = return ()
+      -- on updated list
       reactimate $ serviceListUpdateA <$> serviceListUpdateE
+      -- when to update
       liftIO $ GUI.registerRefreshServiceList triggerQuaServiceListF
-
+      reactimate $ triggerQuaServiceListF () <$ filterE (LCSOpen ==) luciStateE
 
       runVService vsManagerB luciClientB serviceRunsE
 
@@ -247,8 +251,8 @@ luciBehavior lsettings geoJSONImportFire cityB groundUpdatedE
 --    f (SRError _ s) = Just $ Left s
 
 -- | A message to get list of available services from luci
-runServiceList :: Behavior LuciClient -> Event () -> MomentIO (Event (ServiceResponse LuciResultServiceList))
-runServiceList lcB e = runService lcB $ ("ServiceList",[],[]) <$ e
+--runServiceList :: Behavior LuciClient -> Event () -> MomentIO (Event (ServiceResponse LuciResultServiceList))
+--runServiceList lcB e = runService lcB $ ("ServiceList",[],[]) <$ e
 
 
 ---- | run a testing service test.Fibonacci

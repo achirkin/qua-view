@@ -115,3 +115,16 @@ function registerResetCamera(onClick) {}
  *  return :: IO ()
  */
 function registerRefreshServiceList(refreshSLRun) {}
+
+/** Updates visible service list; comes from Handler.Home.PanelServices.
+ *  xs :: [ServiceName]
+ *  return :: IO ()
+ */
+function updateServiceNames(xs) {}
+
+/** Registers one callback; comes from Handler.Home.PanelServices.
+ *  setActiveService :: String -> IO ()
+ *  return :: IO ()
+ */
+function registerSetActiveService(setActiveService) {}
+

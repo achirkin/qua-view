@@ -18,6 +18,7 @@
 module Program.Controllers.LuciClient
     ( -- * Client
       LuciClient, luciHandler, connectionString
+    , LCState (..)
     , lcState, lcCalls
     , LuciSession, lsServiceName, lsHandler
       -- * Core message types
@@ -106,6 +107,7 @@ data LCState
     -- ^ websocket connection closed
   | LCSError JSString
     -- ^ error occured
+  deriving Eq
 
 instance Default LCState where
   def = LCSOpen
@@ -511,12 +513,12 @@ parseLuciMessages lcRefB lstateE invocationH incomings unknownMsgFire noCallIdMs
       fromAddHandler ah
 
 
-
 -- | Create LuciClient and register events on message receive
 luciHandler :: JSString -> MomentIO
                             ( Behavior LuciClient
                             , Event (ServiceResponse ServiceResult)
                             , Event (MessageHeader, JS.Array JSTA.ArrayBuffer)
+                            , Event LCState
                             )
 luciHandler str = do
     -- create all handlers
@@ -584,8 +586,9 @@ luciHandler str = do
         luciOpenE = filterE wsIsSuccess wsMsgs
 
     -- All client-state-changing events
-    let luciStateE = unions [luciErrorE, luciCloseE, luciOpeningE, wsChangeE] :: Event (LCState -> LCState)
-    luciStateB <- accumB LCSClosed luciStateE
+    let luciStateTE = unions [luciErrorE, luciCloseE, luciOpeningE, wsChangeE] :: Event (LCState -> LCState)
+    luciStateE <- accumE LCSClosed luciStateTE
+    luciStateB <- stepper LCSClosed luciStateE
     luciRefB <- stepper jsNull luciRefE
     (luciInvokerE, luciInvokerFire) <- newEvent
     luciInvokerB <- stepper noInvocation luciInvokerE
@@ -610,7 +613,7 @@ luciHandler str = do
     reactimate $ logText' "Some error occurred." <$ luciErrorE
     reactimate $ logText' "Luci is ready." <$ luciOpenE
 
-    return (luciClientB,noCallIdMsgE,unknownMsgE)
+    return (luciClientB,noCallIdMsgE,unknownMsgE, luciStateE)
 
 
 

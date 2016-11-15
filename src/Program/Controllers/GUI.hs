@@ -31,11 +31,14 @@ module Program.Controllers.GUI
   , registerSubmit
   , registerResetCamera
   , registerRefreshServiceList
+  , updateServiceNames
+  , registerSetActiveService
   ) where
 
 --import Control.Concurrent.MVar
 import JsHs (JSString, JSVal, LikeJS(..))
 import JsHs.Callback
+import JsHs.Array (Array)
 import Data.Geometry.Structure.Feature
 import Program.Types
 
@@ -189,4 +192,18 @@ foreign import javascript safe "registerResetCamera($1)" js_registerResetCamera 
 registerRefreshServiceList :: (() -> IO ())  -> IO ()
 registerRefreshServiceList c = asyncCallback (c ()) >>= js_registerRefreshServiceList
 foreign import javascript safe "registerRefreshServiceList($1)" js_registerRefreshServiceList  :: Callback (IO ()) -> IO ()
+
+
+-- | Updates visible service list; comes from Handler.Home.PanelServices.
+--   xs :: [ServiceName]
+--   return :: IO ()
+foreign import javascript safe "updateServiceNames($1)" updateServiceNames ::  Array ServiceName -> IO ()
+
+
+-- | Registers one callback; comes from Handler.Home.PanelServices.
+--   setActiveService :: String -> IO ()
+--   return :: IO ()
+registerSetActiveService :: (ServiceName -> IO ()) -> IO ()
+registerSetActiveService c = asyncCallback1 (c . asLikeJS) >>= js_registerSetActiveService
+foreign import javascript safe "registerSetActiveService($1)" js_registerSetActiveService :: Callback (JSVal -> IO ()) -> IO ()
 
