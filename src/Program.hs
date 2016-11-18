@@ -26,6 +26,7 @@ import JsHs.WebGL
 import qualified JsHs.Array as JS
 import JsHs.Useful
 import Data.Geometry
+import Data.Monoid ((<>))
 
 import Program.VisualService
 
@@ -265,6 +266,8 @@ groundViewEvents programB pviewB vsResultE = mapEventIO groundViewUpdateF $ (,,)
                                  (Just (Right (texbuf, texsize)))
                                  grv
         where colors =  makeColors palette values
+   groundViewUpdateF (_,PView { cityView     = CityView { groundView = grv} }, VisualServiceResultUnknown _ err) =
+      logText' ("Failed to render a service result: " <> err) >> return grv
    groundViewUpdateF (_,PView { cityView     = CityView { groundView = grv} },_) = return grv
    palette = Bezier3Palette (vector4 0 0 255 240)
                             (vector4 50 255 0 240)

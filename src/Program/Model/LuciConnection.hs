@@ -164,11 +164,7 @@ luciBehavior lsettings geoJSONImportFire cityB groundUpdatedE
 
           serviceButtonF GroundUpdated{} = GUI.toggleServiceClear True
           serviceButtonF GroundCleared{} = GUI.toggleServiceClear False
---
---
---          askSubscribeForScenario SSSynced{} SSSynced{} = return never
---          askSubscribeForScenario _ (SSSynced sid _ _) = runScenarioSubscribe runLuciService sid
---          askSubscribeForScenario _ _ = return never
+
           -- TODO: Something is wrong with this logic, need to rethink
           askSubscribeForScenario SSSynced{} SSSynced{} = Nothing
           askSubscribeForScenario _ (SSSynced sid _ _) = Just sid
@@ -204,8 +200,10 @@ luciBehavior lsettings geoJSONImportFire cityB groundUpdatedE
       (updateSListE, updateSListFire) <- newEvent
       -- Event passes in service parameters (after they are retreived from luci or helen)
       (changeSParamE, changeSParamFire) <- newEvent
+      -- Event passes in a configured service after ServiceInfo request finished
+      (reconfServiceE, reconfServiceFire) <- newEvent
       -- Manage visual service images
-      (vsManagerB, vsResultsE) <- vsManagerBehavior selectServiceE changeSParamE updateSListE
+      (vsManagerB, vsResultsE) <- vsManagerBehavior selectServiceE changeSParamE updateSListE reconfServiceE
 
       -- update list of available services
       (triggerQuaServiceListE,triggerQuaServiceListF) <- newEvent
@@ -220,19 +218,56 @@ luciBehavior lsettings geoJSONImportFire cityB groundUpdatedE
       -- when to update
       liftIO $ GUI.registerRefreshServiceList triggerQuaServiceListF
       reactimate $ triggerQuaServiceListF () <$ filterE (LCSOpen ==) luciStateE
+      -- when to ask to reconfigure a service
+      serviceInfoResultsE <- fmap (fmap (fmap parseServiceInfoResult))
+        <$> runService luciClientB $ (\sname -> ("ServiceInfo",
+          [ ("inclDescr", JsHs.asJSVal True)
+          , ("serviceNames", JsHs.asJSVal [sname])
+          ] , [])) <$> selectServiceE
+      let serviceInfoResultsA (SRResult _ (errs, vss) _) = do
+            mapM_ logText' errs
+            mapM_ reconfServiceFire vss
+          serviceInfoResultsA SRProgress {} = return ()
+          serviceInfoResultsA (SRError _ err) = logText' $ "Failed to ask luci for ServiceInfo: " <> err
+      reactimate $ serviceInfoResultsA <$> serviceInfoResultsE
 
+
+      -- Run service manager! Runs a service on every request event
       runVService vsManagerB luciClientB serviceRunsE
 
 
+      -- Update Service clear/play button
       reactimate $ serviceButtonF <$> groundUpdatedE
 
+      -- a little bit of debugging into the console
       reactimate $ (\(msg, _) -> print $ "Ignoring message: " ++ (unpack' . jsonStringify $ JS.asJSVal msg)) <$> unknownMsgE
       reactimate $ (\msg -> print $ "Ignoring message: " ++ show (fmap (unpack' . jsonStringify . srVal) msg)) <$> noCallIdMsgE'
 
 
+      reactimate $ drawServiceParams . drawParameters <$> reconfServiceE
+
+--      -- Further testing
+--      let debugRunService sname pams atts lcB callE = runServiceOnEvent sname pams atts lcB callE >>= reactimate . fmap parseJSResult
+--          parseJSResult (SRResult cId v _) = print ("service finished [" ++ show cId ++ "]") >> printSI v
+--          parseJSResult (SRProgress cId p (Just v) _) = print ("service progress [" ++ show cId ++ "] " ++ show p) >> printSI v
+--          parseJSResult (SRProgress cId p Nothing _)  = print ("service progress [" ++ show cId ++ "] " ++ show p)
+--          parseJSResult (SRError cId e) = print $ "service error [" ++ show cId ++ "]: " ++ unpack' e
+--          printSI jsv = let (errs, ss) = parseServiceInfoResult jsv
+--                        in do
+--                          printJSVal jsv
+--                          mapM_ print errs
+--                          mapM_ print ss
+
+--      debugRunService "ServiceInfo"
+--        [ ("inclDescr", JsHs.asJSVal True)
+--        , ("serviceNames", JsHs.asJSVal [ "Test multi-parameter" :: JSString
+--                                        --, "DistanceToWalls"
+--                                        , "ServiceInfo"
+--                                        ])
+--        ] [] luciClientB triggerQuaServiceListE
+
+
       return vsResultsE
-
-
 
 
 
@@ -399,7 +434,8 @@ instance JS.LikeJS "Object" ScenarioDescription where
 
 
 
-
+foreign import javascript unsafe "document.getElementById('guiServiceParams').innerHTML = $1;"
+  drawServiceParams :: JSString -> IO ()
 
 
 

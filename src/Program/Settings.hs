@@ -16,7 +16,7 @@ module Program.Settings
   ( Settings (..), defaultSettings, loadSettings
   , Profile (..)
   -- * JSON helpers
-  , getProp, setProp, newObj, jsonParse, jsonStringify, fromProps
+  , getProp, setProp, newObj, jsonParse, jsonStringify, fromProps, toProps
   ) where
 
 import JsHs (JSVal, JSString, LikeJS (..))
@@ -121,3 +121,12 @@ fromProps xs = js_fromProps (JS.fromList keys) (JS.fromList vals)
 foreign import javascript unsafe "var r = {}; $1.forEach(function(e,i){ r[e] = $2[i];}); $r = r;"
   js_fromProps :: JS.Array JSString -> JS.Array JSVal -> JSVal
 
+
+foreign import javascript unsafe "Object.keys($1)"
+  js_getKeys :: JSVal -> JS.Array JSString
+
+
+toProps :: JSVal -> [(JSString, JSVal)]
+toProps jsv = map (\k -> (k, js_getProp k jsv)) keys
+  where
+    keys = JS.toList $ js_getKeys jsv

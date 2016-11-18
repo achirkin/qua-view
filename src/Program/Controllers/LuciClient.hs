@@ -33,7 +33,7 @@ module Program.Controllers.LuciClient
     , MessageAttachment (..), makeAttDesc
     , CallId (..), TaskId (..)
     , ServiceResponse (..), catResponses
-    , runService
+    , runService, runServiceOnEvent
     , LuciResultServiceList (..), runQuaServiceList
     , responseCallId
     ) where
@@ -468,6 +468,15 @@ runService lcB callE = fmap (fmap . fmap $ JS.asLikeJS . srVal) $ execute ev >>=
     ev = (\luci (sname, pams, atts) -> _lcInvoker luci sname pams atts) <$> lcB <@> callE
 
 
+runServiceOnEvent :: JS.LikeJS s a
+                  => ServiceName
+                  -> [(JSString, JSVal)]
+                  -> [JSTA.ArrayBuffer]
+                  -> Behavior LuciClient
+                  -> Event b
+                  -> MomentIO (Event (ServiceResponse a))
+runServiceOnEvent sname pams atts lcB callE = runService lcB $ (sname, pams, atts) <$ callE
+
 
 -- | React on all messages related to started sessions and ignore (print to console) unrelated messages.
 parseLuciMessages :: Behavior JSVal
@@ -641,3 +650,25 @@ instance LikeJS "Object" LuciResultServiceList where
                  Just x  -> ServiceList x
                  Nothing -> ServiceList JS.emptyArray
   asJSVal (ServiceList v) = setProp "serviceNames" v newObj
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
