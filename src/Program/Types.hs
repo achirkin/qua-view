@@ -146,13 +146,14 @@ instance Num RangedFloat where
   abs (RangedFloat l h x) = RangedFloat l h (min h . max l $ abs x)
   negate (RangedFloat l h x) = RangedFloat l h (min h . max l $ negate x)
   signum (RangedFloat l h x) = RangedFloat l h (min h . max l $ signum x)
-  fromInteger i = RangedFloat ((2^^) . fst $ floatRange (0::Float)) ((2^) . snd $ floatRange (0::Float)) (fromInteger i)
+  fromInteger i = RangedFloat ((2^^) . (+1) . fst $ floatRange (0::Float)) ((2^) . (+(-1)) . snd $ floatRange (0::Float)) (fromInteger i)
 
 
 data StringEnum = StringEnum
   { seOptions :: [JSString]
   , seVal :: JSString
   }
+  deriving Show
 
 instance IsString StringEnum where
   fromString s = let t = fromString s in StringEnum [t] t

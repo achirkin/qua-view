@@ -19,9 +19,11 @@ module Program.VisualService
   , ServiceParameter (..)
   , vsManagerBehavior
   , vsName, vsModes, vsParams
+  , parseServiceInfoResult
+  , drawParameters
   ) where
 
---import Control.Arrow (Arrow(..))
+import Control.Arrow (Arrow(..))
 import Data.Time (UTCTime,secondsToDiffTime)
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import Data.Monoid
@@ -30,13 +32,15 @@ import qualified Data.HashMap.Strict as HashMap
 
 import Data.Geometry (Vector4)
 --import Data.Default.Class
-import Data.List (foldl')
+import Data.List (foldl',sortOn)
+import Data.Maybe (fromMaybe)
 import qualified Data.Geometry.Structure.PointSet as PS
 
 import JsHs.Types (JSVal)
 import JsHs.JSString (JSString, pack)
+import qualified JsHs.JSString as JSString
 import JsHs.LikeJS.Class (LikeJS(..))
---import JsHs.Types.Prim (jsNull)
+import JsHs.Types.Prim (jsNull)
 import qualified JsHs.Array as JS
 import qualified JsHs.TypedArray as JSTA
 import JsHs.WebGL (GLfloat, GLubyte)
@@ -51,6 +55,8 @@ import Reactive.Banana.Frameworks
 
 import Control.Lens
 
+--import JsHs.Debug
+
 -- | Working mode of a service
 data VisualServiceMode
   = VS_POINTS
@@ -58,6 +64,14 @@ data VisualServiceMode
   | VS_SCENARIO
   | VS_NEW
   | VS_UNKNOWN JSVal
+
+instance Show VisualServiceMode where
+  show VS_POINTS      = "VS_POINTS"
+  show VS_OBJECTS     = "VS_OBJECTS"
+  show VS_SCENARIO    = "VS_SCENARIO"
+  show VS_NEW         = "VS_NEW"
+  show (VS_UNKNOWN _) = "VS_UNKNOWN"
+
 instance LikeJS "String" VisualServiceMode where
   asLikeJS jsv = case asLikeJS jsv :: JSString of
                    "points"   -> VS_POINTS
@@ -87,14 +101,17 @@ activeService m t = (\x -> t{_activeService = x }) <$> m (_activeService t)
 
 -- | Possible optional parameters
 data ServiceParameter
-  = ServiceParameterString JSString StringEnum
+  = ServiceParameterString JSString JSString
+  | ServiceParameterEnum   JSString StringEnum
   | ServiceParameterInt    JSString RangedInt
   | ServicePapameterFloat  JSString RangedFloat
   | ServiceParameterBool   JSString Bool
+  deriving Show
 
 
 spToJS :: ServiceParameter -> (JSString, JSVal)
-spToJS (ServiceParameterString pname v) = (pname, JS.asJSVal $ seVal v)
+spToJS (ServiceParameterString pname v) = (pname, JS.asJSVal v)
+spToJS (ServiceParameterEnum   pname v) = (pname, JS.asJSVal $ seVal v)
 spToJS (ServiceParameterInt    pname v) = (pname, JS.asJSVal $ riVal v)
 spToJS (ServicePapameterFloat  pname v) = (pname, JS.asJSVal $ rfVal v)
 spToJS (ServiceParameterBool   pname v) = (pname, JS.asJSVal v)
@@ -104,13 +121,95 @@ spName :: Lens' ServiceParameter JSString
 spName m t = mv t <$> m (get t)
   where
     mv (ServiceParameterString _ x) n = ServiceParameterString n x
+    mv (ServiceParameterEnum _   x) n = ServiceParameterEnum   n x
     mv (ServiceParameterInt    _ x) n = ServiceParameterInt    n x
     mv (ServicePapameterFloat  _ x) n = ServicePapameterFloat  n x
     mv (ServiceParameterBool   _ x) n = ServiceParameterBool   n x
     get (ServiceParameterString n _) = n
+    get (ServiceParameterEnum   n _) = n
     get (ServiceParameterInt    n _) = n
     get (ServicePapameterFloat  n _) = n
     get (ServiceParameterBool   n _) = n
+
+
+-- | Construct a ServiceParameter from Luci ServiceInfo part
+spFromInfo :: JSString    -- ^ name of a parameter
+           -> JSString    -- ^ type of a parameter
+           -> Maybe JSVal -- ^ constraint
+           -> Either JSString ServiceParameter
+spFromInfo pname "number"   Nothing   = Right $ ServicePapameterFloat  pname 0
+spFromInfo pname "string"   Nothing   = Right $ ServiceParameterString pname ""
+spFromInfo pname "boolean"  Nothing   = Right $ ServiceParameterBool   pname False
+spFromInfo pname "number"  (Just jsv) = Right $
+    if isInt then ServiceParameterInt pname   $ case (getProp "min" jsv, getProp "max" jsv) of
+               (Nothing, Nothing) -> RangedInt minBound maxBound . fromMaybe 0 $ getProp "def" jsv
+               (Nothing, Just ma) -> RangedInt minBound ma       . fromMaybe ma $ getProp "def" jsv
+               (Just mi, Nothing) -> RangedInt mi       maxBound . fromMaybe mi $ getProp "def" jsv
+               (Just mi, Just ma) -> RangedInt mi       ma       . fromMaybe ((ma - mi) `div` 2) $ getProp "def" jsv
+             else ServicePapameterFloat pname $ case (getProp "min" jsv, getProp "max" jsv) of
+               (Nothing, Nothing) -> RangedFloat minv maxv . fromMaybe 0 $ getProp "def" jsv
+               (Nothing, Just ma) -> RangedFloat minv ma   . fromMaybe ma $ getProp "def" jsv
+               (Just mi, Nothing) -> RangedFloat mi   maxv . fromMaybe mi $ getProp "def" jsv
+               (Just mi, Just ma) -> RangedFloat mi   ma   . fromMaybe ((ma - mi) / 2) $ getProp "def" jsv
+  where
+    isInt = Just True == getProp "integer" jsv
+    maxv  = (2^)  . (+ (-3)) . snd $ floatRange (0::Float)
+    minv  = (2^^) . (+3) . fst $ floatRange (0::Float)
+spFromInfo pname "string"  (Just jsv) = case xs of
+     x:_ -> Right $ ServiceParameterEnum pname $ StringEnum xs x
+     _   -> Left $ "Constraint for parameter " <> pname <> " exists, but is empty."
+  where
+   xs = JS.asLikeJS jsv
+spFromInfo pname "boolean"  (Just jsv) = Right $ ServiceParameterBool pname (Just True == getProp "def" jsv)
+spFromInfo pname t _ = Left $ "Unknown type \"" <> t <> "\" for parameter " <> pname <> "."
+
+
+vsFromInfo :: JSString -- ^ name of a service
+           -> JSVal    -- ^ content of ServiceInfo["serviceName"]
+           -> ( [JSString] , Maybe VisualService)
+vsFromInfo sname jsv = if null modes then (["Cannot parse service info for \"" <> sname <> "\": no operation modes found."], Nothing)
+   else (errs, Just $ VisualService (ServiceName sname) (map (JS.asLikeJS . JS.asJSVal) modes) pams)
+  where
+   (errs,pams) = paramsAndErrs $ mkParameters inputs constraints
+   inputs = map (second JS.asLikeJS). sortOn fst . remPrefs . fromMaybe [] $ toProps <$> getProp "inputs" jsv :: [(JSString, JSString)]
+   constraintsR = getProp "constraints" jsv :: Maybe JSVal
+   modes = fromMaybe [] $ JS.toList <$> (constraintsR >>= getProp "mode" :: Maybe (JS.Array JSString)) :: [JSString]
+   constraints = sortOn fst . remPrefs . fromMaybe [] $ toProps <$> constraintsR :: [(JSString, JSVal)]
+   remPrefs [] = []
+   remPrefs ((s,v):xs) = if JSString.isPrefixOf "OPT " s || JSString.isPrefixOf "XOR " s || JSString.isPrefixOf "ANY " s
+                         then (JSString.drop 4 s, v):remPrefs xs
+                         else (s,v):remPrefs xs
+   -- create parameters from list of inputs and constraints
+   mkParameters [] [] = []
+   -- ignore certain types of inputs
+   mkParameters (("mode",_):inpts) cs = mkParameters inpts cs
+   mkParameters (("points",_):inpts) cs = mkParameters inpts cs
+   mkParameters (("geomIDs",_):inpts) cs = mkParameters inpts cs
+   mkParameters (("ScID",_):inpts) cs = mkParameters inpts cs
+   -- ignore some constraints
+   mkParameters inpts (("mode",_):cs) = mkParameters inpts cs
+   -- actual merge
+   mkParameters ((ikey,itype):inpts) ((ckey,cval):cs)
+      | ikey == ckey = spFromInfo ikey itype (Just cval) : mkParameters inpts cs
+      | ikey <  ckey = spFromInfo ikey itype Nothing     : mkParameters inpts ((ckey,cval):cs)
+      | otherwise    = Left ("Found a parameter constraint without corresponding input field: " <> ckey)
+                                                         : mkParameters ((ikey,itype):inpts) cs
+   mkParameters ((ikey,itype):inpts) [] = spFromInfo ikey itype Nothing
+                                                          : mkParameters inpts []
+   mkParameters [] ((ckey,_):cs) = Left ("Found a parameter constraint without corresponding input field: " <> ckey)
+                                                         : mkParameters [] cs
+   paramsAndErrs [] = ([],[])
+   paramsAndErrs (Left err : xs) = first (err:) $ paramsAndErrs xs
+   paramsAndErrs (Right pa : xs) = second (pa:) $ paramsAndErrs xs
+
+
+parseServiceInfoResult :: JSVal -> ([JSString], [VisualService])
+parseServiceInfoResult jsv = merge $ map (uncurry vsFromInfo) $ toProps jsv
+  where
+    merge [] = ([],[])
+    merge ((errs, Just s):xs) = (errs++) *** (s:) $ merge xs
+    merge ((errs, Nothing):xs) = first (errs++) $ merge xs
+
 
 --newtype LuciResultServiceList = ServiceList (JS.Array JSString)
 
@@ -119,21 +218,30 @@ spName m t = mv t <$> m (get t)
 --   The event should fire whenever service results come from luci (for any service).
 vsManagerBehavior :: Event ServiceName
                      -- ^ When user selects a service, it becomes active
-                  -> Event [ServiceParameter]
+                  -> Event ServiceParameter
                      -- ^ Change or set optional parameters for visual services
                   -> Event LuciResultServiceList
                      -- ^ Update list of available services
+                  -> Event VisualService
+                     -- ^ Update a single service (set service parameters)
                   -> MomentIO (Behavior VSManager, Event VisualServiceResult)
-vsManagerBehavior selectedServiceE changeSParamsE refreshSListE = do
+vsManagerBehavior selectedServiceE changeSParamsE refreshSListE refreshServiceE = do
     (resultE, resultH) <- newEvent
     manB <- accumB (VSManager HashMap.empty Nothing resultH)
                        (unions [ set activeService . Just <$> selectedServiceE
                                , over registeredServices . updateServiceMap <$> refreshSListE
                                , (\pams man -> over registeredServices
                                                 ( alterService (_activeService man)
-                                                    (\s -> s{_vsParams = changeServiceParams pams $ _vsParams s})
+                                                    (\s -> s{_vsParams = changeServiceParams [pams] $ _vsParams s})
                                                 ) man
                                  ) <$> changeSParamsE
+                               , (\vs man -> over registeredServices
+                                                ( HashMap.adjust
+                                                    (\s -> s{_vsParams = changeServiceParams (_vsParams vs) $ _vsParams s
+                                                            ,_vsModes  = _vsModes vs
+                                                            }) (_vsName vs)
+                                                ) man
+                                 ) <$> refreshServiceE
                                ])
     return (manB, resultE)
   where
@@ -148,7 +256,7 @@ vsManagerBehavior selectedServiceE changeSParamsE refreshSListE = do
     changeServiceParams :: [ServiceParameter] -> [ServiceParameter] -> [ServiceParameter]
     changeServiceParams newpams oldpams = foldl' changeOrAdd  oldpams newpams
     changeOrAdd (x:xs) y | view spName y == view spName x = y:xs
-                         | otherwise                      = changeOrAdd xs y
+                         | otherwise                      = x:changeOrAdd xs y
     changeOrAdd [] y = [y]
     alterService :: Maybe ServiceName -> (VisualService -> VisualService)
                                       -> HashMap.HashMap ServiceName VisualService
@@ -189,8 +297,7 @@ vsManagerBehavior selectedServiceE changeSParamsE refreshSListE = do
 --                                                     } ) <$> serviceListE
 
 -- | Encapsulate runtime service parameters
-data VisualService
-  = VisualService
+data VisualService = VisualService
     { _vsName   :: !ServiceName
       -- ^ serviceName in Luci
     , _vsModes  :: ![VisualServiceMode]
@@ -198,6 +305,7 @@ data VisualService
     , _vsParams :: ![ServiceParameter]
       -- ^ optional service parameters
     }
+  deriving Show
 
 vsName :: Lens' VisualService ServiceName
 vsName m t = (\x -> t{_vsName = x }) <$> m (_vsName t)
@@ -233,32 +341,42 @@ runVService vsManB lcB pamsE = do
     getServRun man@VSManager{_activeService = Just sname} run = flip (,) run <$> HashMap.lookup sname (_registeredServices man)
     getServRun _ _ = Nothing
     toPams (service, VisualServiceRunPoints scid points) =
-        ( _vsName service
-        ,    ("ScID", asJSVal scid)
-          :  ("points", asJSVal $ makeAttDesc 1 "Float32x3Array" ab)
-          :  ("mode", asJSVal VS_POINTS)
-          :  map spToJS (_vsParams service)
-        , [ab]
+        ( VS_POINTS
+        , (_vsName service
+          ,    ("ScID", asJSVal scid)
+            :  ("points", asJSVal $ makeAttDesc 1 "Float32x3Array" ab)
+            :  ("mode", asJSVal VS_POINTS)
+            :  map spToJS (_vsParams service)
+          , [ab]
+          )
         ) where ab = JSTA.arrayBuffer points
     toPams (service, VisualServiceRunObjects scid) =
-        ( _vsName service
-        , ("ScID", asJSVal scid):("mode", asJSVal VS_OBJECTS) : map spToJS (_vsParams service)
-        , []
+        ( VS_OBJECTS
+        , (_vsName service
+          , ("ScID", asJSVal scid):("mode", asJSVal VS_OBJECTS) : map spToJS (_vsParams service)
+          , []
+          )
         )
     toPams (service, VisualServiceRunScenario scid) =
-        ( _vsName service
-        , ("ScID", asJSVal scid):("mode", asJSVal VS_SCENARIO) : map spToJS (_vsParams service)
-        , []
+        ( VS_SCENARIO
+        , ( _vsName service
+          , ("ScID", asJSVal scid):("mode", asJSVal VS_SCENARIO) : map spToJS (_vsParams service)
+          , []
+          )
         )
     toPams (service, VisualServiceRunNew (Just scid)) =
-        ( _vsName service
-        , ("ScID", asJSVal scid):("mode", asJSVal VS_NEW) : map spToJS (_vsParams service)
-        , []
+        ( VS_NEW
+        , ( _vsName service
+          , ("ScID", asJSVal scid):("mode", asJSVal VS_NEW) : map spToJS (_vsParams service)
+          , []
+          )
         )
     toPams (service, VisualServiceRunNew Nothing) =
-        ( _vsName service
-        , ("mode", asJSVal VS_NEW) : map spToJS (_vsParams service)
-        , []
+        ( VS_NEW
+        , ( _vsName service
+          , ("mode", asJSVal VS_NEW) : map spToJS (_vsParams service)
+          , []
+          )
         )
     onResponse :: VSManager -> ServiceResponse VisualServiceResult -> IO ()
     onResponse man (SRResult i r _) = logText ("Visual service complete [" ++ show i ++ "]: 100%") >> resultEventHandler man r
@@ -268,35 +386,38 @@ runVService vsManB lcB pamsE = do
 
 
 
-runHelper :: Behavior LuciClient -> Event (ServiceName, [(JSString, JSVal)], [JSTA.ArrayBuffer]) -> MomentIO (Event (ServiceResponse VisualServiceResult))
-runHelper lcB pams = fmap f <$> runService lcB pams
+runHelper :: Behavior LuciClient -> Event (VisualServiceMode, (ServiceName, [(JSString, JSVal)], [JSTA.ArrayBuffer]))
+          -> MomentIO (Event (ServiceResponse VisualServiceResult))
+runHelper lcB pams = do
+    modeB <- stepper (VS_UNKNOWN jsNull) (fst <$> pams)
+    (\e -> f <$> modeB <@> e) <$> runService lcB (snd <$> pams)
   where
-    f (SRResult i r x) = SRResult i (parseResult r x) x
-    f (SRProgress i p (Just r) x) = SRProgress i p (Just $ parseResult r x) x
-    f (SRProgress i p Nothing x) = SRProgress i p Nothing x
-    f (SRError i s) = SRError i s
+    f m (SRResult i r x) = SRResult i (parseResult m r x) x
+    f m (SRProgress i p (Just r) x) = SRProgress i p (Just $ parseResult m r x) x
+    f _ (SRProgress i p Nothing x) = SRProgress i p Nothing x
+    f _ (SRError i s) = SRError i s
 
 
 --sndToJSVal :: LikeJS s a => [(JSString, a)] -> [(JSString, JSVal)]
 --sndToJSVal = map (second asJSVal)
 
 -- | Interpret Luci's ServiceResult as a result of computation of given VisualService
-parseResult :: ServiceResult -> JS.Array JSTA.ArrayBuffer -> VisualServiceResult
-parseResult(ServiceResult jsv) atts = case getProp "mode" jsv of
-    Just VS_POINTS      -> parsePoints
-    Just VS_OBJECTS     -> parseObjects
-    Just VS_SCENARIO    -> parseScenario
-    Just VS_NEW         -> parseNew
-    Just (VS_UNKNOWN _) -> VisualServiceResultUnknown jsv "Unknown mode"
-    Nothing             -> VisualServiceResultUnknown jsv "No mode specified"
+parseResult :: VisualServiceMode -> ServiceResult -> JS.Array JSTA.ArrayBuffer -> VisualServiceResult
+parseResult m (ServiceResult jsv) atts = case m of
+    VS_POINTS      -> parsePoints
+    VS_OBJECTS     -> parseObjects
+    VS_SCENARIO    -> parseScenario
+    VS_NEW         -> parseNew
+    VS_UNKNOWN _   -> VisualServiceResultUnknown jsv "Unknown mode"
   where
-    parsePoints = case (,) <$> getProp "unit" jsv <*> getProp "values" jsv of
-         Nothing -> VisualServiceResultUnknown jsv "No 'unit' or 'values' fields"
+    parsePoints = case (,) <$> getProp "units" jsv <*> getProp "values" jsv of
+         Nothing -> VisualServiceResultUnknown jsv "No 'units' or 'values' fields"
          Just (unit, MessageAttachment {maPosition = p}) ->
             if p > 0 && p <= JS.length atts
             then VisualServiceResultPoints unit (JSTA.arrayView $ atts JS.! (p-1))
             else VisualServiceResultUnknown jsv $ "Wrong attachment position (" <> pack (show p) <> ")"
-    parseObjects = case (,,) <$> getProp "unit" jsv <*> getProp "geomIDs" jsv <*> getProp "values" jsv of
+    -- not really correct values!
+    parseObjects = case (,,) <$> getProp "units" jsv <*> getProp "geomIDs" jsv <*> getProp "values" jsv of
          Nothing -> VisualServiceResultUnknown jsv "No 'unit' or 'geomIDs' or 'values' fields"
          Just (unit, MessageAttachment {maPosition = p1} , MessageAttachment {maPosition = p2}) ->
             if p1 > 0 && p1 <= JS.length atts && p2 > 0 && p2 <= JS.length atts && p1 /= p2
@@ -380,4 +501,54 @@ foreign import javascript safe "gm$normalizeValues($1,0)" normalized :: JSTA.Typ
 
 
 
+
+
+-- Visualize service parameters
+
+--  = ServiceParameterString JSString JSString
+--  | ServiceParameterEnum   JSString StringEnum
+--  | ServiceParameterInt    JSString RangedInt
+--  | ServicePapameterFloat  JSString RangedFloat
+--  | ServiceParameterBool   JSString Bool
+
+
+drawParameters :: VisualService -> JSString
+drawParameters (VisualService _ _ pams) = JSString.concat
+  [ "<table style=\"width: 98%\">"
+  , JSString.concat (map (\s -> "<tr>" <> parameterWidget s <> "</tr>") pams)
+  , "</table>"
+  ]
+
+
+parameterWidget :: ServiceParameter -> JSString
+parameterWidget (ServiceParameterString pname pval) =
+  "<td class=\"spKey\"><label for=\"" <> pname <> "\">" <> pname <> ": </label></td> \
+  \<td class=\"spVal\"><input id=\"" <> pname <> "\" name=\"" <> pname <> "\" type=\"text\" value\"" <> pval <> "\"> \
+  \</td>"
+parameterWidget (ServiceParameterEnum pname (StringEnum options selected)) =
+  "<td class=\"spKey\"><label for=\"" <> pname <> "\">" <> pname <> ": </label></td> \
+  \<td class=\"spVal\"><select class=\"form-control\" id=\"" <> pname <> "\">"
+  <> JSString.concat (map addOpt options) <>
+  "</select>\
+  \</td>"
+  where
+    addOpt opt = "<option value=\""<>opt<>"\" " <> (if selected == opt then "selected" else "") <> ">"<>opt<>"</option>"
+parameterWidget (ServiceParameterInt pname (RangedInt minv maxv val)) =
+  "<td class=\"spKey\"><label for=\"" <> pname <> "\">" <> pname <> ": </label></td> \
+  \<td class=\"spVal\"><input id=\"" <> pname <> "\" name=\"" <> pname <> "\"\
+    \ value=\""<>pack (show val) <>"\" min=\""<>pack (show minv) <>"\" max=\""<>pack (show maxv) <>"\" style=\"width: 6em;\" type=\"number\">"
+  <>
+  "</td>"
+parameterWidget (ServicePapameterFloat pname (RangedFloat minv maxv val)) =
+  "<td class=\"spKey\"><label for=\"" <> pname <> "\">" <> pname <> ": </label></td> \
+  \<td class=\"spVal\"><input id=\"" <> pname <> "\" name=\"" <> pname <> "\"\
+    \ value=\""<>pack (show val) <>"\" min=\""<>pack (show minv) <>"\" max=\""<>pack (show maxv) <>"\" style=\"width: 6em;\" type=\"number\">"
+  <>
+  "</td>"
+parameterWidget (ServiceParameterBool pname checked) =
+ "<td class=\"spKey\"><label for=\"" <> pname <> "\">" <> pname <> ": </label></td> \
+ \<td class=\"spVal\"><div class=\"checkbox switch\"><label for=\"" <> pname <> "\">\
+   \<input class=\"access-hide\" id=\"" <> pname <> "\" name=\"" <> pname <> "\" type=\"checkbox\" " <> (if checked then "checked=\"\"" else "") <> ">\
+   \<span class=\"switch-toggle\"></span>\
+ \</label></div></td>"
 
