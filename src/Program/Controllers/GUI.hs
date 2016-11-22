@@ -33,6 +33,7 @@ module Program.Controllers.GUI
   , registerRefreshServiceList
   , updateServiceNames
   , registerSetActiveService
+  , registerUpdateSParamValue
   ) where
 
 --import Control.Concurrent.MVar
@@ -206,4 +207,13 @@ foreign import javascript safe "updateServiceNames($1)" updateServiceNames ::  A
 registerSetActiveService :: (ServiceName -> IO ()) -> IO ()
 registerSetActiveService c = asyncCallback1 (c . asLikeJS) >>= js_registerSetActiveService
 foreign import javascript safe "registerSetActiveService($1)" js_registerSetActiveService :: Callback (JSVal -> IO ()) -> IO ()
+
+
+
+-- | Registers one callback; comes from Handler.Home.PanelServices.
+--   updateParam :: String -> JSVal -> IO ()
+--   return :: IO ()
+registerUpdateSParamValue :: (JSString -> JSVal -> IO ()) -> IO ()
+registerUpdateSParamValue c = asyncCallback2 (c . asLikeJS) >>= js_registerUpdateSParamValue
+foreign import javascript safe "registerUpdateSParamValue($1)" js_registerUpdateSParamValue :: Callback (JSVal -> JSVal ->  IO ()) -> IO ()
 

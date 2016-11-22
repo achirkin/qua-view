@@ -104,7 +104,7 @@ data ServiceParameter
   = ServiceParameterString JSString JSString
   | ServiceParameterEnum   JSString StringEnum
   | ServiceParameterInt    JSString RangedInt
-  | ServicePapameterFloat  JSString RangedFloat
+  | ServiceParameterFloat  JSString RangedFloat
   | ServiceParameterBool   JSString Bool
   deriving Show
 
@@ -113,7 +113,7 @@ spToJS :: ServiceParameter -> (JSString, JSVal)
 spToJS (ServiceParameterString pname v) = (pname, JS.asJSVal v)
 spToJS (ServiceParameterEnum   pname v) = (pname, JS.asJSVal $ seVal v)
 spToJS (ServiceParameterInt    pname v) = (pname, JS.asJSVal $ riVal v)
-spToJS (ServicePapameterFloat  pname v) = (pname, JS.asJSVal $ rfVal v)
+spToJS (ServiceParameterFloat  pname v) = (pname, JS.asJSVal $ rfVal v)
 spToJS (ServiceParameterBool   pname v) = (pname, JS.asJSVal v)
 
 
@@ -123,12 +123,12 @@ spName m t = mv t <$> m (get t)
     mv (ServiceParameterString _ x) n = ServiceParameterString n x
     mv (ServiceParameterEnum _   x) n = ServiceParameterEnum   n x
     mv (ServiceParameterInt    _ x) n = ServiceParameterInt    n x
-    mv (ServicePapameterFloat  _ x) n = ServicePapameterFloat  n x
+    mv (ServiceParameterFloat  _ x) n = ServiceParameterFloat  n x
     mv (ServiceParameterBool   _ x) n = ServiceParameterBool   n x
     get (ServiceParameterString n _) = n
     get (ServiceParameterEnum   n _) = n
     get (ServiceParameterInt    n _) = n
-    get (ServicePapameterFloat  n _) = n
+    get (ServiceParameterFloat  n _) = n
     get (ServiceParameterBool   n _) = n
 
 
@@ -137,7 +137,7 @@ spFromInfo :: JSString    -- ^ name of a parameter
            -> JSString    -- ^ type of a parameter
            -> Maybe JSVal -- ^ constraint
            -> Either JSString ServiceParameter
-spFromInfo pname "number"   Nothing   = Right $ ServicePapameterFloat  pname 0
+spFromInfo pname "number"   Nothing   = Right $ ServiceParameterFloat  pname 0
 spFromInfo pname "string"   Nothing   = Right $ ServiceParameterString pname ""
 spFromInfo pname "boolean"  Nothing   = Right $ ServiceParameterBool   pname False
 spFromInfo pname "number"  (Just jsv) = Right $
@@ -146,7 +146,7 @@ spFromInfo pname "number"  (Just jsv) = Right $
                (Nothing, Just ma) -> RangedInt minBound ma       . fromMaybe ma $ getProp "def" jsv
                (Just mi, Nothing) -> RangedInt mi       maxBound . fromMaybe mi $ getProp "def" jsv
                (Just mi, Just ma) -> RangedInt mi       ma       . fromMaybe ((ma - mi) `div` 2) $ getProp "def" jsv
-             else ServicePapameterFloat pname $ case (getProp "min" jsv, getProp "max" jsv) of
+             else ServiceParameterFloat pname $ case (getProp "min" jsv, getProp "max" jsv) of
                (Nothing, Nothing) -> RangedFloat minv maxv . fromMaybe 0 $ getProp "def" jsv
                (Nothing, Just ma) -> RangedFloat minv ma   . fromMaybe ma $ getProp "def" jsv
                (Just mi, Nothing) -> RangedFloat mi   maxv . fromMaybe mi $ getProp "def" jsv
@@ -218,7 +218,7 @@ parseServiceInfoResult jsv = merge $ map (uncurry vsFromInfo) $ toProps jsv
 --   The event should fire whenever service results come from luci (for any service).
 vsManagerBehavior :: Event ServiceName
                      -- ^ When user selects a service, it becomes active
-                  -> Event ServiceParameter
+                  -> Event (JSString, JSVal)
                      -- ^ Change or set optional parameters for visual services
                   -> Event LuciResultServiceList
                      -- ^ Update list of available services
@@ -230,9 +230,8 @@ vsManagerBehavior selectedServiceE changeSParamsE refreshSListE refreshServiceE 
     manB <- accumB (VSManager HashMap.empty Nothing resultH)
                        (unions [ set activeService . Just <$> selectedServiceE
                                , over registeredServices . updateServiceMap <$> refreshSListE
-                               , (\pams man -> over registeredServices
-                                                ( alterService (_activeService man)
-                                                    (\s -> s{_vsParams = changeServiceParams [pams] $ _vsParams s})
+                               , (\u man -> over registeredServices
+                                                ( alterService (_activeService man) $ updateServiceParam u
                                                 ) man
                                  ) <$> changeSParamsE
                                , (\vs man -> over registeredServices
@@ -263,38 +262,21 @@ vsManagerBehavior selectedServiceE changeSParamsE refreshSListE refreshServiceE 
                                       -> HashMap.HashMap ServiceName VisualService
     alterService Nothing _ = id
     alterService (Just n) f = HashMap.adjust f n
+    updateServiceParam :: (JSString, JSVal) -> VisualService -> VisualService
+    updateServiceParam (pamName, jsv) = over vsParams (updateFittingP pamName jsv)
+    updateFittingP pamName jsv pam | view spName pam == pamName = updateByJSV jsv pam
+                                   | otherwise = pam
+    updateByJSV jsv (ServiceParameterString n _) = ServiceParameterString n $ JS.asLikeJS jsv
+    updateByJSV jsv (ServiceParameterEnum n (StringEnum opts v)) = ServiceParameterEnum n $
+        let nv = JS.asLikeJS jsv
+        in if nv `elem` opts then StringEnum opts nv
+                             else StringEnum opts v
+    updateByJSV jsv (ServiceParameterInt n v) = ServiceParameterInt n $ putInt (JS.asLikeJS jsv) v
+    updateByJSV jsv (ServiceParameterFloat n v) = ServiceParameterFloat n $ putFloat (JS.asLikeJS jsv) v
+    updateByJSV jsv (ServiceParameterBool n _) = ServiceParameterBool n (JS.asLikeJS jsv)
 
 
 
-
---foldl :: ( LikeJSArray tt t
---           , LikeJS ta a)
---        => (a -> ArrayElem t -> a)
---        -> a -> t -> a
---foldl f x0 arr
---vsManagerBehavior luciClientB serviceRunsE
-
---vsManagerBehavior :: Event ServiceName
---                     -- ^ A service is selected in the viewer
---                  -> Event LuciResultServiceList
---                     -- ^ Service list is updated
---                  -> MomentIO (Behavior VSManager)
---vsManagerBehavior setActiveE updateSLE = do
---
---    manB <- accumB  (VSManager HashMap.empty) serviceListUpdatesE
---    let registeredSRE = filterJust $ filterSR <$> manB <@> serviceResultE
---    return (manB, registeredSRE)
---  where
---    updateActiveNameE = (\n m -> m{activeService = n}) <$> setActiveE
---    updateListE = <$> updateSLE
---    (serviceListE, serviceResultE) = split $ nameFilterServices <$> serviceFinE
---    filterSR _ (_, VisualServiceResultUnknown _ _) = Nothing
---    filterSR VSManager{registeredServices = rs} (s, rez) | HashMap.member (vsName s) rs = Just rez
---                                                         | otherwise                    = Nothing
---    serviceListUpdatesE = (\(ServiceList ls) vs -> vs{ registeredServices = HashMap.fromList
---                                                                          . map ((\n -> (n,VisualService n)) . ServiceName)
---                                                                          $ JS.toList ls
---                                                     } ) <$> serviceListE
 
 -- | Encapsulate runtime service parameters
 data VisualService = VisualService
@@ -508,7 +490,7 @@ foreign import javascript safe "gm$normalizeValues($1,0)" normalized :: JSTA.Typ
 --  = ServiceParameterString JSString JSString
 --  | ServiceParameterEnum   JSString StringEnum
 --  | ServiceParameterInt    JSString RangedInt
---  | ServicePapameterFloat  JSString RangedFloat
+--  | ServiceParameterFloat  JSString RangedFloat
 --  | ServiceParameterBool   JSString Bool
 
 
@@ -519,15 +501,15 @@ drawParameters (VisualService _ _ pams) = JSString.concat
   , "</table>"
   ]
 
-
+-- | Very ugly solution. Render the controls and use js to callback updateValue functions.
 parameterWidget :: ServiceParameter -> JSString
 parameterWidget (ServiceParameterString pname pval) =
   "<td class=\"spKey\"><label for=\"" <> pname <> "\">" <> pname <> ": </label></td> \
-  \<td class=\"spVal\"><input id=\"" <> pname <> "\" name=\"" <> pname <> "\" type=\"text\" value\"" <> pval <> "\"> \
+  \<td class=\"spVal\"><input id=\"" <> pname <> "\" name=\"" <> pname <> "\" type=\"text\" value\"" <> pval <> "\" onchange=\"updateValSCB('" <> pname <> "',$(this).val())\" > \
   \</td>"
 parameterWidget (ServiceParameterEnum pname (StringEnum options selected)) =
   "<td class=\"spKey\"><label for=\"" <> pname <> "\">" <> pname <> ": </label></td> \
-  \<td class=\"spVal\"><select class=\"form-control\" id=\"" <> pname <> "\">"
+  \<td class=\"spVal\"><select class=\"form-control\" id=\"" <> pname <> "\" onchange=\"updateValSCB('" <> pname <> "',$(this).find(':selected').val())\" >"
   <> JSString.concat (map addOpt options) <>
   "</select>\
   \</td>"
@@ -536,19 +518,19 @@ parameterWidget (ServiceParameterEnum pname (StringEnum options selected)) =
 parameterWidget (ServiceParameterInt pname (RangedInt minv maxv val)) =
   "<td class=\"spKey\"><label for=\"" <> pname <> "\">" <> pname <> ": </label></td> \
   \<td class=\"spVal\"><input id=\"" <> pname <> "\" name=\"" <> pname <> "\"\
-    \ value=\""<>pack (show val) <>"\" min=\""<>pack (show minv) <>"\" max=\""<>pack (show maxv) <>"\" style=\"width: 6em;\" type=\"number\">"
+    \ value=\""<>pack (show val) <>"\" min=\""<>pack (show minv) <>"\" max=\""<>pack (show maxv) <>"\" style=\"width: 6em;\" type=\"number\" onchange=\"updateValSCB('" <> pname <> "',parseInt($(this).val(),10))\" >"
   <>
   "</td>"
-parameterWidget (ServicePapameterFloat pname (RangedFloat minv maxv val)) =
+parameterWidget (ServiceParameterFloat pname (RangedFloat minv maxv val)) =
   "<td class=\"spKey\"><label for=\"" <> pname <> "\">" <> pname <> ": </label></td> \
   \<td class=\"spVal\"><input id=\"" <> pname <> "\" name=\"" <> pname <> "\"\
-    \ value=\""<>pack (show val) <>"\" min=\""<>pack (show minv) <>"\" max=\""<>pack (show maxv) <>"\" style=\"width: 6em;\" type=\"number\">"
+    \ value=\""<>pack (show val) <>"\" step=\"0.01\" min=\""<>pack (show minv) <>"\" max=\""<>pack (show maxv) <>"\" style=\"width: 6em;\" type=\"number\" onchange=\"updateValSCB('" <> pname <> "',Number($(this).val()))\" >"
   <>
   "</td>"
 parameterWidget (ServiceParameterBool pname checked) =
  "<td class=\"spKey\"><label for=\"" <> pname <> "\">" <> pname <> ": </label></td> \
  \<td class=\"spVal\"><div class=\"checkbox switch\"><label for=\"" <> pname <> "\">\
-   \<input class=\"access-hide\" id=\"" <> pname <> "\" name=\"" <> pname <> "\" type=\"checkbox\" " <> (if checked then "checked=\"\"" else "") <> ">\
+   \<input class=\"access-hide\" id=\"" <> pname <> "\" name=\"" <> pname <> "\" type=\"checkbox\" onchange=\"updateValSCB('" <> pname <> "',$(this).prop('checked'))\" " <> (if checked then "checked=\"\"" else "") <> ">\
    \<span class=\"switch-toggle\"></span>\
  \</label></div></td>"
 

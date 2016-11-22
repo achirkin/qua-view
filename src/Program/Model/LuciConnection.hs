@@ -200,6 +200,7 @@ luciBehavior lsettings geoJSONImportFire cityB groundUpdatedE
       (updateSListE, updateSListFire) <- newEvent
       -- Event passes in service parameters (after they are retreived from luci or helen)
       (changeSParamE, changeSParamFire) <- newEvent
+      liftIO $ GUI.registerUpdateSParamValue (curry changeSParamFire)
       -- Event passes in a configured service after ServiceInfo request finished
       (reconfServiceE, reconfServiceFire) <- newEvent
       -- Manage visual service images

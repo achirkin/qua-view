@@ -128,3 +128,8 @@ function updateServiceNames(xs) {}
  */
 function registerSetActiveService(setActiveService) {}
 
+/** Registers one callback; comes from Handler.Home.PanelServices.
+ *  updateParam :: String -> JSVal -> IO ()
+ *  return :: IO ()
+ */
+function registerUpdateSParamValue(updateParam) {}
