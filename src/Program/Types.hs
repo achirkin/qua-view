@@ -98,6 +98,14 @@ instance Ord RangedInt where
   a > b = riVal a > riVal b
   a >= b = riVal a >= riVal b
 
+
+putInt :: Int -> RangedInt -> RangedInt
+putInt x (RangedInt l h _) = RangedInt l h (min h . max l $ x)
+
+
+putFloat :: Float -> RangedFloat -> RangedFloat
+putFloat x (RangedFloat l h _) = RangedFloat l h (min h . max l $ x)
+
 {-# INLINE riCombineSpreading #-}
 riCombineSpreading :: (Int -> Int -> Int) -> RangedInt -> RangedInt -> RangedInt
 riCombineSpreading f (RangedInt al ah a)  (RangedInt bl bh b) = RangedInt l h (min h . max l $ f a b)
