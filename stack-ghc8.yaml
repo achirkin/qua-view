@@ -1,0 +1,35 @@
+extra-deps:
+  - pqueue-1.3.2
+
+packages:
+  - .
+  - location: ../../../libs/hs/ghcjs-hs-interop
+    extra-dep: true
+  - location: ../../../libs/hs/fastvec
+    extra-dep: true
+  - location: ../../../libs/hs/ghcjs-webgl
+    extra-dep: true
+  - location: ../../../libs/hs/reactive-banana-ghcjs
+    extra-dep: true
+  - location:
+      git: https://github.com/achirkin/reactive-banana-ghcjs-workaround.git
+      commit: 5b5d0f784441ff81b8377c9b7825107013bf90c1
+    subdirs:
+    - reactive-banana
+    extra-dep: true
+
+flags: {}
+
+resolver: lts-7.15
+compiler: ghcjs-0.2.1.9007015_ghc-8.0.1
+compiler-check: match-exact
+
+setup-info:
+  ghcjs:
+    source:
+      ghcjs-0.2.1.9007015_ghc-8.0.1:
+           url: http://ghcjs.tolysz.org/ghc-8.0-2017-01-11-lts-7.15-9007015.tar.gz
+           sha1: 30d34e9d704bdb799066387dfa1ba98b8884d932
+
+require-stack-version: ">= 1.0.2"
+extra-package-dbs: []
