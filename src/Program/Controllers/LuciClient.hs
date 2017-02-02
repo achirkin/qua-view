@@ -57,7 +57,7 @@ import Program.Settings
 import Program.Types
 import Reactive.Banana.Frameworks
 import Reactive.Banana.Combinators
-import Reactive.Banana.JsHs.Types (Time)
+--import Reactive.Banana.JsHs.Types (Time)
 import Control.Monad ((>=>))
 import Control.Lens
 import Data.Maybe (fromMaybe)
@@ -259,8 +259,8 @@ instance Functor ServiceResponse where
   fmap _ (SRError i e) = SRError i e
 
 toServiceResponse :: (MessageHeader, JS.Array JSTA.ArrayBuffer) -> Either (MessageHeader, JS.Array JSTA.ArrayBuffer) (ServiceResponse ServiceResult)
-toServiceResponse (MsgResult cId _ _ _ sr, atts) = Right $ SRResult cId sr atts
-toServiceResponse (MsgProgress cId _ _ _ p msr, atts) = Right $ SRProgress cId p msr atts
+toServiceResponse (MsgResult cId sr, atts) = Right $ SRResult cId sr atts
+toServiceResponse (MsgProgress cId  p msr, atts) = Right $ SRProgress cId p msr atts
 toServiceResponse (MsgError (Just cId) e, _) = Right $ SRError cId e
 toServiceResponse x = Left x
 
@@ -272,20 +272,17 @@ responseCallId (SRError i _) = i
 
 -- | All possible message headers
 data MessageHeader
-  = MsgRun !ServiceName ![(JSString, JSVal)]
+  = MsgRun !CallId !ServiceName ![(JSString, JSVal)]
     -- ^ run service message, e.g. {'run': 'ServiceList'};
     -- params: 'run', [(name, value)]
   | MsgCancel !CallId
-    -- ^ cancel service message, e.g. {'cancel': 25};
-    -- params: 'callID'
-  | MsgNewCallID !CallId
     -- ^ Luci call id, { newCallID: 57 };
     -- params: 'newCallID'
-  | MsgResult !CallId !Time !ServiceName !TaskId !ServiceResult
+  | MsgResult !CallId !ServiceResult
     -- ^ result of a service execution,
     -- e.g. { callID: 57, duration: 0, serviceName: "ServiceList", taskID: 0, result: Object };
     -- params: 'callID', 'duration', 'serviceName', 'taskID', 'result'
-  | MsgProgress !CallId !Time !ServiceName !TaskId !Percentage !(Maybe ServiceResult)
+  | MsgProgress !CallId !Percentage !(Maybe ServiceResult)
     -- ^ result of a service execution,
     -- e.g. { callID: 57, duration: 0, serviceName: "St", taskID: 0, progress: 0, intermediateResult: null};
     -- params: 'callID', 'duration', 'serviceName', 'taskID', 'progress', 'intermediateResult'
@@ -299,11 +296,10 @@ data MessageHeader
   | MsgWebSocketState !WebSocketMessage
 
 getMsgCallId :: MessageHeader -> Maybe CallId
-getMsgCallId MsgRun{} = Nothing
+getMsgCallId (MsgRun i _ _) = Just i
 getMsgCallId (MsgCancel i) = Just i
-getMsgCallId (MsgNewCallID i) = Just i
-getMsgCallId (MsgResult i _ _ _ _) = Just i
-getMsgCallId (MsgProgress i _ _ _ _ _) = Just i
+getMsgCallId (MsgResult i _) = Just i
+getMsgCallId (MsgProgress i _ _) = Just i
 getMsgCallId (MsgError mi _) = mi
 getMsgCallId MsgPanic{} = Nothing
 getMsgCallId MsgUnknown{} = Nothing
@@ -328,22 +324,15 @@ instance Show WebSocketMessage where
 instance LikeJS "Object" MessageHeader where
   asLikeJS jsv | Just r <- getProp "result"    jsv = maybeUnknown jsv $ MsgResult
                                                    <$> getProp "callID" jsv
-                                                   <*> getProp "duration" jsv
-                                                   <*> getProp "serviceName" jsv
-                                                   <*> getProp "taskID" jsv
                                                    <*> Just r
                | Just e <- getProp "error"     jsv = MsgError (getProp "callID" jsv) e
-               | Just i <- getProp "newCallID" jsv = MsgNewCallID i
                | Just r <- getProp "progress"  jsv = maybeUnknown jsv $ MsgProgress
                                                    <$> getProp "callID" jsv
-                                                   <*> getProp "duration" jsv
-                                                   <*> getProp "serviceName" jsv
-                                                   <*> getProp "taskID" jsv
                                                    <*> Just r
                                                    <*> Just (getProp "intermediateResult" jsv)
                | Just i <- getProp "cancel"    jsv = MsgCancel i
                | Just p <- getProp "panic"     jsv = MsgPanic p
-               | Just n <- getProp "run"       jsv = MsgRun n [] -- TODO: use .getOwnPropertyNames()
+               | Just n <- getProp "run"       jsv = maybeUnknown jsv $ MsgRun <$> getProp "callID" jsv <*> Just n <*> Just [] -- TODO: use .getOwnPropertyNames()
                | Just s <- getProp "wsSuccess" jsv   = MsgWebSocketState $ WsSuccess s
                | Just s <- getProp "wsError" jsv     = MsgWebSocketState $ WsError s
                | Just s <- getProp "wsTerminate" jsv = MsgWebSocketState $ WsTerminate s
@@ -351,17 +340,14 @@ instance LikeJS "Object" MessageHeader where
     where
       maybeUnknown j Nothing  = MsgUnknown j
       maybeUnknown _ (Just v) = v
-  asJSVal (MsgRun r props) = fromProps $ ("run", JS.asJSVal r):props
+  asJSVal (MsgRun i r props) = fromProps $ ("callID", JS.asJSVal i):("run", JS.asJSVal r):props
   asJSVal (MsgCancel callID) = setProp "callID" callID newObj
-  asJSVal (MsgNewCallID newCallID) = setProp "newCallID" newCallID newObj
-  asJSVal (MsgResult callID duration serviceName taskID result) =
+  asJSVal (MsgResult callID result) =
+          setProp "callID" callID $ setProp "result" result newObj
+  asJSVal (MsgProgress callID  percentage result) =
           setProp "callID" callID
-        . setProp "duration" duration . setProp "taskID" taskID
-        . setProp "serviceName" serviceName $ setProp "result" result newObj
-  asJSVal (MsgProgress callID duration serviceName taskID percentage result) =
-          setProp "callID" callID
-        . setProp "duration" duration . setProp "taskID" taskID . setProp "progress" percentage
-        . setProp "serviceName" serviceName $ setProp "intermediateResult" result newObj
+        . setProp "progress" percentage
+        $ setProp "intermediateResult" result newObj
   asJSVal (MsgError _ err) = setProp "error" err newObj
   asJSVal (MsgPanic panic) = setProp "panic" panic newObj
   asJSVal (MsgUnknown j) = j
@@ -454,7 +440,7 @@ runLuciService :: LuciClient
 runLuciService luci serviceName params atts = do
   newCallId <-  genCallId luci
   sendMessage luci $ toLuciMessage (
-      MsgRun serviceName $ ("callID", JS.asJSVal newCallId) : params
+      MsgRun newCallId serviceName params
     ) atts
   return newCallId
 
