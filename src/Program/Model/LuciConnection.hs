@@ -54,7 +54,8 @@ import Program.Types
 import Program.VisualService
 import qualified Program.Controllers.GUI as GUI
 
---import JsHs.Debug
+-- import JsHs.Debug
+-- import Debug.Trace (trace)
 
 luciBehavior :: Settings
              -> (Either FeatureCollection FeatureCollection -> IO ())
@@ -117,6 +118,7 @@ luciBehavior lsettings geoJSONImportFire cityB groundUpdatedE
       gotScenarioE <- runScenarioGet luciClientB (fst <$> askForScenarioE)
 --      gotScenarioE <- execute (runScenarioGet runLuciService . fst <$> askForScenarioE) >>= switchE
       let gotScenarioF (SRResult _ (LuciResultScenario scId fc t) _) = geoJSONImportFire (Right fc) >> onScenarioGetFire (scId, t)
+          gotScenarioF (SRProgress _ _ (Just (LuciResultScenario scId fc t)) _) = geoJSONImportFire (Right fc) >> onScenarioGetFire (scId, t)
           gotScenarioF (SRError _ err) = logText' err
           gotScenarioF _ = return ()
       reactimate $ gotScenarioF <$> gotScenarioE
@@ -191,6 +193,7 @@ luciBehavior lsettings geoJSONImportFire cityB groundUpdatedE
           (errsOfScInE, _, _) = catResponses receiveScenarioUpdateE
       reactimate $ logText' <$> errsOfScInE
       reactimate $ logText' <$> errsOfScOutE
+      reactimate $ gotScenarioF <$> receiveScenarioUpdateE
 
       -- | run luci service!
       -- Event triggered when a user selects an active service from a drop-down menu
