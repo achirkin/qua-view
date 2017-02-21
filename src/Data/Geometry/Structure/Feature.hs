@@ -80,21 +80,22 @@ data ParsedFeatureCollection n x = ParsedFeatureCollection
   , pfcMin     :: Vector n x
   , pfcMax     :: Vector n x
   , pfcDims    :: Int
+  , pfcLonLat  :: Maybe (Vector 2 x)
   }
 
 smartProcessFeatureCollection :: Int -- ^ maximum geomId in current City
                               -> Vector n x -- ^ default vector to substitute
                               -> FeatureCollection
                               -> ParsedFeatureCollection n x
-smartProcessFeatureCollection n defVals fc = ParsedFeatureCollection points lins polys deletes errors cmin cmax cdims
+smartProcessFeatureCollection n defVals fc = ParsedFeatureCollection points lins polys deletes errors cmin cmax cdims (asLikeJS mLonLat)
   where
-    (points, lins, polys, deletes, errors, cmin, cmax, cdims) = js_smartProcessFeatureCollection fc defVals n
+    (points, lins, polys, deletes, errors, cmin, cmax, cdims, mLonLat) = js_smartProcessFeatureCollection fc defVals n
 
 
-foreign import javascript unsafe "var a = gm$smartProcessFeatureCollection($1, $2, $3);$r1=a[0];$r2=a[1];$r3=a[2];$r4=a[3];$r5=a[4];$r6=a[5];$r7=a[6];$r8=a[7];"
+foreign import javascript unsafe "var a = gm$smartProcessFeatureCollection($1, $2, $3);$r1=a[0];$r2=a[1];$r3=a[2];$r4=a[3];$r5=a[4];$r6=a[5];$r7=a[6];$r8=a[7];$r9=a[8];"
     js_smartProcessFeatureCollection
       :: FeatureCollection -> Vector n x -> Int
-      -> (JS.Array Feature, JS.Array Feature, JS.Array Feature, JS.Array Int, JS.Array JSString, Vector n x, Vector n x, Int)
+      -> (JS.Array Feature, JS.Array Feature, JS.Array Feature, JS.Array Int, JS.Array JSString, Vector n x, Vector n x, Int, JSVal)
 
 
 foreign import javascript unsafe "var r = gm$boundNestedArray(($1['geometry'] && $1['geometry']['coordinates']) ? $1['geometry']['coordinates'] : []);\

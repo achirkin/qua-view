@@ -14,9 +14,20 @@ function gm$smartNormalizeValues(sourceArray, nullSub) {
         uniques = sorted.map(function(e,i){if(e==sorted[i+1]){return null;}else{return e;}}).filter(function(e){return e!=null;}),
         categorical = uniques.some(function(e){return e != null && e.constructor == String});
     if(categorical){
-        return gm$normalizeValues(sourceArray.map(function(e){ return e != null ? uniques.indexOf(e) : null;}), nullSub);
+        if (uniques.every(function(s) {return (/^(#[A-Fa-f0-9]{6})$/).test(s);})) {
+          return [sourceArray.map(function(e){
+               if (e) {
+                 var x = parseInt(e.substr(1), 16);
+                 return [((x & 0xff0000) >> 16) / 255.0, ((x & 0x00ff00) >> 8) / 255.0, (x & 0x0000ff) / 255.0, 1];
+               } else {
+                 return [100/255.0, 100/255.0, 100/255.0, 200/255.0];
+               }
+            }), false];
+        } else {
+          return [gm$normalizeValues(sourceArray.map(function(e){ return e != null ? uniques.indexOf(e) : null;}), nullSub), true];
+        }
     } else {
-        return gm$normalizeValues(sourceArray, nullSub);
+        return [gm$normalizeValues(sourceArray, nullSub), true];
     }
 }
 
@@ -168,7 +179,49 @@ function gm$smartProcessFeatureCollection(fc, defVec, maxGeomId) {
     points.forEach(addGeomID);
     lines.forEach(addGeomID);
     surfaces.forEach(addGeomID);
-    return [points,lines,surfaces,deletes,errors,gm$resizeX(defVec, cmin),gm$resizeX(defVec, cmax),dims];
+    // transform everything from WGS84 to a metric reference system if needed
+    if(cmin.length >= 2 && cmax.length >= 2
+       && cmin[0] > -360 && cmax[0] < 360 && cmin[1] > -180 && cmax[1] < 180
+       && (cmax[0] - cmin[0]) < 5 && (cmax[1] - cmin[1]) < 5) {
+       var center = [(cmax[0] + cmin[0])/2, (cmax[1] + cmin[1])/2]
+         , transformFunc = gm$createWGS84toUTMTransform(center[0], center[1]);
+       console.log(gm$createWGS84toUTMTransform(10, 20)([10.2,20]));
+       return [ gm$mapPoints(transformFunc, points)
+              , gm$mapPoints(transformFunc, lines)
+              , gm$mapPoints(transformFunc, surfaces)
+              , deletes
+              , errors
+              , gm$resizeX(defVec, transformFunc(cmin))
+              , gm$resizeX(defVec, transformFunc(cmax))
+              , dims
+              , center
+              ];
+    } else {
+      return [points,lines,surfaces,deletes,errors,gm$resizeX(defVec, cmin),gm$resizeX(defVec, cmax),dims, null];
+    }
+}
+
+function gm$mapPoints(f, x) {
+    'use strict';
+    if (!x) {
+      return x;
+    }
+    if (x.constructor === Array && x.length > 0) {
+      if(x[0].constructor === Number) {
+        return f(x);
+      } else {
+        return x.map(function(e){return gm$mapPoints(f, e);});
+      }
+    }
+    if (x['geometry'] && x['geometry']['coordinates']) {
+      x['geometry']['coordinates'] = gm$mapPoints(f, x['geometry']['coordinates']);
+      if (x['max'])
+        x['max'] = gm$mapPoints(f, x['max']);
+      if (x['min'])
+      x['min'] = gm$mapPoints(f, x['min']);
+      return x;
+    }
+    return x;
 }
 
 
@@ -461,3 +514,58 @@ function gm$resizeNestedArray(r,x) {
     if (x[0].constructor === Number){return gm$resizeX(r,x);}
     return gm$resizeNestedArrayInner(r, x);
 }
+
+
+// guess wgs84 and transform it to metric
+
+
+// got this formula here http://www.linz.govt.nz/data/geodetic-services/coordinate-conversion/projection-conversions/transverse-mercator-transformation-formulae
+function gm$createWGS84toUTMTransform(lon0, lat0) {
+ 'use strict'
+  var a = 6378137 // equatorial radius - Semi-major axis of reference ellipsoid
+    , f = 1 / 298.257223563 // Ellipsoidal flattening
+    , k = 1  // Central meridian scale factor
+    , b = a * (1 - f)
+    , e2 = (2 - f) * f
+    , e4 = e2*e2
+    , e6 = e4*e2
+    , A0 = 1 - e2*0.25 - e4*3/64 - e6*5/256
+    , A2 = 0.375 * (e2 + e4/4 + e6*15/128)
+    , A4 = 15/256 * ( e4 + 0.75*e6)
+    , A6 = e6 * 35/3072
+    , xr0 = lon0 * Math.PI / 180
+    , yr0 = lat0 * Math.PI / 180
+    , fm = function(y) { return a * ( A0 * Math.sin(y) - A2 * Math.sin(2 * y) + A4 * Math.sin(4 * y) - A6 * Math.sin(2 * y) ); }
+    , m0 = fm(yr0);
+  return function(xs) {
+    var xr = xs[0] * Math.PI / 180
+      , yr = xs[1] * Math.PI / 180
+      , siny = Math.sin(yr)
+      , cosy = Math.cos(yr)
+      , p = a * (1 - e2) / Math.pow(1 - e2 * siny*siny, 1.5)
+      , v = a / Math.sqrt(1 - e2 * siny * siny)
+      , psi = v / p
+      , t = Math.tan(yr)
+      , w = xr - xr0
+      , w2 = w * w
+      , w4 = w2*w2
+      , w6 = w4*w2
+      , w8 = w4*w4;
+    return [ k * v * w * cosy * ( 1
+                                + w2 / 6 * cosy * cosy * (psi - t*t)
+                                + w4 / 120 * Math.pow(cosy, 4) * ( 4*psi*psi*psi + ( 1 - 6*t*t ) + psi*psi*(1+8*t*t) - psi*2*t*t + Math.pow(t,4) )
+                                + w6 / 5040 * Math.pow(cosy,6) * ( 61 - 479*t*t + 179 * Math.pow(t,4) - Math.pow(t,6) )
+                                )
+           , k * ( fm(yr) - m0
+                 + w2 * 0.5 * v * siny * cosy
+                 + w4/24 * v * siny * cosy*cosy*cosy * ( 4*psi*psi + psi - t*t)
+                 + w6/720* v * siny * Math.pow(cosy, 5) * ( 8 * Math.pow(psi, 4) * (11 - 24*t*t) - 28*Math.pow(psi, 3)*(1-6*t*t) + psi*psi*(1 - 32*t*t) - psi*2*t*t + Math.pow(t,4) )
+                 + w8/40320*v* siny * Math.pow(cosy, 7) * (1285 - 3111 * t*t + 543 * Math.pow(t,4) - Math.pow(t,6) )
+                 )
+           ].concat(xs.splice(2));
+  };
+}
+
+
+
+
