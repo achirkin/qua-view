@@ -95,7 +95,7 @@ processPolygonFeature :: GLfloat -- ^ default height in camera space
                       -> Vector2 GLfloat -- ^ shift objects before processing
                       -> Feature -> Either JSString LocatedCityObject
 processPolygonFeature defHeight scale shift sObj = if isSlave sObj then Left "Skipping a slave scenario object." else
-    getSizedGeoJSONGeometry (vector3 0 0 (defHeight / scale)) sObj
+    getSizedGeoJSONGeometry (vector3 0 0 (getHeight (defHeight / scale) sObj )) sObj
     >>= \geom -> toBuildingMultiPolygon geom
     >>= \mpoly ->
     let qt@(T.QFTransform trotScale tshift locMPoly) = locateMultiPolygon scale shift mpoly
@@ -144,6 +144,10 @@ locateMultiPolygon scale shift mpoly = T.QFTransform (
                 getLocatingCallback ncenter xdir ydir zdir
 
 
+foreign import javascript unsafe "$r = $2['properties'].hasOwnProperty('height') ? $2['properties']['height'] : $1; \
+                                 \$r = ($r).constructor == String ? (parseFloat($r) || 0) : ($r || 0); \
+                                 \$r = ($r).constructor == Number ? $r : $1;"
+    getHeight :: GLfloat -> Feature -> GLfloat
 
 foreign import javascript unsafe "$r = function(v){var t = [v[0]-$1[0],v[1]-$1[1],v[2]-$1[2]]; return [dotJSVec($2,t),dotJSVec($3,t),dotJSVec($4,t)];}"
     getLocatingCallback :: Vector3 GLfloat -- ^ shift

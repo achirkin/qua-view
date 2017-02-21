@@ -64,7 +64,6 @@ import Reactive.Banana.Combinators
 --import Control.Monad.Fix (MonadFix)
 import Control.Monad.Writer.Strict
 --import JsHs.Debug
-
 --import JsHs.Debug
 --import Debug.Trace
 
@@ -88,6 +87,7 @@ data CitySettings = CitySettings
     , evalCellSize :: !GLfloat
     , defElevation :: !GLfloat
     , defScale     :: !(Maybe GLfloat)
+    , scLonLat     :: !(Maybe (Vector 2 GLfloat))
     }
 
 -- | This indicates removal of all geometry from the city
@@ -101,6 +101,7 @@ defaultCitySettings = CitySettings
     , evalCellSize = 0.5
     , defElevation = 0.01
     , defScale     = Nothing
+    , scLonLat     = Nothing
     }
 
 emptyCity :: City
@@ -237,7 +238,7 @@ buildCity sets scenario = (,) errors City
     , objectsIn = objects
     , ground = buildGround (groundDilate sets) objects
     , cityTransform = (cscale, cshift)
-    , csettings = sets
+    , csettings = sets { scLonLat = pfcLonLat parsedCollection}
     , clutter = createLineSet (vector4 0.8 0.4 0.4 1) liness
     , buildingColors = Nothing
     }
@@ -245,7 +246,6 @@ buildCity sets scenario = (,) errors City
           (errors,objects, liness) = processScenario (defHeight sets) (defElevation sets) cscale cshift parsedCollection
           cscale = fromMaybe rcscale (defScale sets)
           parsedCollection = smartProcessFeatureCollection 2 (vector3 0 0 (defElevation sets)) scenario
-
 
 --  { pfcPoints  :: JS.Array Feature
 --  , pfcLines   :: JS.Array Feature
@@ -309,6 +309,7 @@ clearCity city = city
     , objectsIn = emptyCollection
     , cityTransform = (0, 0)
     , ground = emptyGround
+    , csettings   = defaultCitySettings
     , clutter = emptyLineSet (vector4 0.8 0.4 0.4 1) --  createLineSet (Vector4 0.8 0.4 0.4 1) []
     } -- where objs' = IM.empty :: IM.IntMap LocatedCityObject
 
@@ -430,10 +431,11 @@ colorizeObjects colorizeE cityB = stepper Nothing propValuesE
   where
     propValuesE :: Event (Maybe (PS.PointArray 4 GLfloat))
     propValuesE = propValues <$> cityB <@> colorizeE
-    propValues ci (Just pname) = Just . JS.fromJSArray
+    propValues ci (Just pname) = case js_smartColors (-1) $ JS.map (js_getThisProp pname . allProps . T.unwrap) (objectsIn ci) of
+      (vals, True) -> Just . JS.fromJSArray
                                       . JS.map (\x -> fromIntegral x / 255)
-                                      . applyPalette palette  subs
-                                      . js_smartColors (-1) $ JS.map (js_getThisProp pname . allProps . T.unwrap) (objectsIn ci)
+                                      $ applyPalette palette subs vals
+      (colors, False) -> Just colors
     propValues _ Nothing = Nothing
     subs = Just (broadcastVector $ -1, vector4 100 100 100 200)
     palette = Bezier3Palette (vector4 50 50 240 255)
@@ -442,7 +444,10 @@ colorizeObjects colorizeE cityB = stepper Nothing propValuesE
                              (vector4 240 50 50 255)
 
 
-foreign import javascript safe "gm$smartNormalizeValues($2,$1)" js_smartColors :: GLfloat -> JS.Array JSVal -> PS.PointArray 4 GLfloat
-foreign import javascript safe "$2[$1]" js_getThisProp :: JSString -> JSVal -> JSVal
+-- foreign import javascript safe "gm$smartNormalizeValues($2,$1)" js_smartColors :: GLfloat -> JS.Array JSVal -> PS.PointArray 4 GLfloat
+foreign import javascript unsafe "var snv = gm$smartNormalizeValues($2,$1); $r1 = snv[0]; $r2 = snv[1];"
+  js_smartColors :: GLfloat -> JS.Array JSVal -> (PS.PointArray 4 GLfloat, Bool)
+foreign import javascript unsafe "$2[$1]" js_getThisProp :: JSString -> JSVal -> JSVal
+
 
 

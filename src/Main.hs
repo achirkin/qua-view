@@ -26,6 +26,7 @@ import Program.Model.LuciConnection
 import Program.View
 import Program.Settings
 import Program.Types
+
 -- Events
 import qualified Program.Controllers.GeoJSONFileImport as JFI
 import qualified Program.Controllers.GUI as GUI
@@ -36,6 +37,7 @@ main = do
     -- get program settings
     lsettings <- loadSettings
     putStrLn "Getting program input settings:"
+
     print lsettings
     -- whole document
 --    body <- documentBody
