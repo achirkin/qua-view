@@ -133,3 +133,15 @@ function registerSetActiveService(setActiveService) {}
  *  return :: IO ()
  */
 function registerUpdateSParamValue(updateParam) {}
+
+/** Show service result as a simple string.
+ *  str :: String -- just a text  result
+ *  return :: IO ()
+ */
+function showScenarioServiceResultString(str) {}
+
+/** Show service result as a .png service .
+ *  buf :: ArrayBuffer -- image content
+ *  return :: IO ()
+ */
+function showScenarioServiceResultPng(buf) {}

@@ -185,7 +185,6 @@ function gm$smartProcessFeatureCollection(fc, defVec, maxGeomId) {
        && (cmax[0] - cmin[0]) < 5 && (cmax[1] - cmin[1]) < 5) {
        var center = [(cmax[0] + cmin[0])/2, (cmax[1] + cmin[1])/2]
          , transformFunc = gm$createWGS84toUTMTransform(center[0], center[1]);
-       console.log(gm$createWGS84toUTMTransform(10, 20)([10.2,20]));
        return [ gm$mapPoints(transformFunc, points)
               , gm$mapPoints(transformFunc, lines)
               , gm$mapPoints(transformFunc, surfaces)
