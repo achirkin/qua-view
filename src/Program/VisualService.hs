@@ -171,7 +171,7 @@ vsFromInfo :: JSString -- ^ name of a service
            -> JSVal    -- ^ content of ServiceInfo["serviceName"]
            -> ( [JSString] , Maybe VisualService)
 vsFromInfo sname jsv = if null modes then (["Cannot parse service info for \"" <> sname <> "\": no operation modes found."], Nothing)
-   else (errs, Just $ VisualService (ServiceName sname) (map (JS.asLikeJS . JS.asJSVal) modes) pams)
+   else (errs, Just $ VisualService (ServiceName sname) (map (JS.asLikeJS . JS.asJSVal) modes) pams (JS.asLikeJS . JS.asJSVal . head $ modes) )
   where
    (errs,pams) = paramsAndErrs $ mkParameters inputs constraints
    inputs = map (second JS.asLikeJS). sortOn fst . remPrefs . fromMaybe [] $ toProps <$> getProp "inputs" jsv :: [(JSString, JSString)]
@@ -252,7 +252,7 @@ vsManagerBehavior selectedServiceE changeSParamsE refreshSListE refreshServiceE 
     updateServiceMap (ServiceList jsarray) m = foldl'
         (\nm x -> let s = ServiceName x
                   in case HashMap.lookup s m of
-            Nothing -> HashMap.insert s (VisualService s [] []) nm
+            Nothing -> HashMap.insert s (VisualService s [] [] VS_POINTS) nm
             Just vs -> HashMap.insert s vs nm
         ) HashMap.empty (JS.toList jsarray)
     changeServiceParams :: [ServiceParameter] -> [ServiceParameter] -> [ServiceParameter]
@@ -266,6 +266,7 @@ vsManagerBehavior selectedServiceE changeSParamsE refreshSListE refreshServiceE 
     alterService Nothing _ = id
     alterService (Just n) f = HashMap.adjust f n
     updateServiceParam :: (JSString, JSVal) -> VisualService -> VisualService
+    updateServiceParam ("mode",  jsv) = set vsActiveMode (JS.asLikeJS jsv)
     updateServiceParam (pamName, jsv) = over vsParams (updateFittingP pamName jsv)
     updateFittingP pamName jsv pam | view spName pam == pamName = updateByJSV jsv pam
                                    | otherwise = pam
@@ -289,6 +290,7 @@ data VisualService = VisualService
       -- ^ supported evaluation modes
     , _vsParams :: ![ServiceParameter]
       -- ^ optional service parameters
+    , _vsActiveMode :: !VisualServiceMode
     }
   deriving Show
 
@@ -296,10 +298,13 @@ vsName :: Lens' VisualService ServiceName
 vsName m t = (\x -> t{_vsName = x }) <$> m (_vsName t)
 
 vsModes :: Traversal' VisualService VisualServiceMode
-vsModes f (VisualService n m p) = flip (VisualService n) p <$> traverse f m
+vsModes f (VisualService n m p am) = (\m' -> VisualService n m' p am) <$> traverse f m
 
 vsParams :: Traversal' VisualService ServiceParameter
-vsParams f (VisualService n m p) = VisualService n m <$> traverse f p
+vsParams f (VisualService n m p am) = flip (VisualService n m) am <$> traverse f p
+
+vsActiveMode :: Lens' VisualService VisualServiceMode
+vsActiveMode m t = (\x -> t{_vsActiveMode = x }) <$> m (_vsActiveMode t)
 
 
 newtype Units = Units JSString
@@ -322,14 +327,16 @@ data VisualServiceRun
   | VisualServiceRunObjects !ScenarioId !(JSTA.TypedArray Word32)
   | VisualServiceRunScenario !ScenarioId
   | VisualServiceRunNew !(Maybe ScenarioId)
+  | VisualServiceDoNotRun
 
 
-runVService :: Behavior VSManager -> Behavior LuciClient -> Event VisualServiceRun -> MomentIO ()
+runVService :: Behavior VSManager -> Behavior LuciClient -> Event (VisualServiceMode -> VisualServiceRun) -> MomentIO ()
 runVService vsManB lcB pamsE = do
     responseE <- runHelper lcB (fmap toPams . filterJust $ getServRun <$> vsManB <@> pamsE)
     reactimate $ onResponse <$> vsManB <@> responseE
   where
-    getServRun man@VSManager{_activeService = Just sname} run = flip (,) run <$> HashMap.lookup sname (_registeredServices man)
+    getServRun man@VSManager{_activeService = Just sname} run = HashMap.lookup sname (_registeredServices man)
+      >>= \serv -> return (serv, run $ _vsActiveMode serv)
     getServRun _ _ = Nothing
     toPams (service, VisualServiceRunPoints scid points) =
         ( VS_POINTS
@@ -372,6 +379,7 @@ runVService vsManB lcB pamsE = do
           , []
           )
         )
+    toPams (service, VisualServiceDoNotRun) = (VS_UNKNOWN $ asJSVal (_vsName service), (_vsName service, [], []))
     onResponse :: VSManager -> ServiceResponse VisualServiceResult -> IO ()
     onResponse man (SRResult i r _) = logText ("Visual service complete [" ++ show i ++ "]: 100%") >> resultEventHandler man r
     onResponse man (SRProgress i p (Just r) _) = logText ("Visual service progress [" ++ show i  ++ "]: " ++ show p) >> resultEventHandler man r
@@ -508,11 +516,13 @@ foreign import javascript safe "gm$normalizeValues($1,0)" normalized :: JSTA.Typ
 
 
 drawParameters :: VisualService -> JSString
-drawParameters (VisualService _ _ pams) = JSString.concat
+drawParameters (VisualService _ modes pams am) = JSString.concat
   [ "<table style=\"width: 98%\">"
-  , JSString.concat (map (\s -> "<tr>" <> parameterWidget s <> "</tr>") pams)
+  , JSString.concat (map (\s -> "<tr>" <> parameterWidget s <> "</tr>") (f modes : pams))
   , "</table>"
   ]
+  where
+    f ms = ServiceParameterEnum "mode" (StringEnum (map (asLikeJS . asJSVal) ms) (asLikeJS . asJSVal $ am))
 
 -- | Very ugly solution. Render the controls and use js to callback updateValue functions.
 parameterWidget :: ServiceParameter -> JSString

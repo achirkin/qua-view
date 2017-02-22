@@ -26,12 +26,14 @@ import JsHs.JSString (pack, unpack') -- JSString, append
 --import Control.Monad (void, when)
 import JsHs.Useful
 import JsHs
+import JsHs.LikeJS.Class ()
 --import JsHs.Types.Prim (jsNull)
 --import Text.Read (readMaybe)
 --import Data.Coerce
 import qualified JsHs.Array as JS
 import qualified JsHs.TypedArray as JSTA
 --import JsHs.WebGL.Types (GLfloat)
+import qualified Data.Geometry.Transform as T
 
 import Data.Geometry.Structure.Feature (FeatureCollection)
 import qualified Data.Geometry.Structure.PointSet as PS
@@ -50,6 +52,7 @@ import Reactive.Banana.Combinators
 import Program.Settings
 import Program.Controllers.LuciClient
 import Program.Model.City
+import Program.Model.CityObject (geomId)
 import Program.Types
 import Program.VisualService
 import qualified Program.Controllers.GUI as GUI
@@ -160,9 +163,13 @@ luciBehavior lsettings geoJSONImportFire cityB groundUpdatedE
           updateScenarioF (SSSynced sid _ _) ci gId = Just (sid, storeObjectsAsIs [gId] ci)
           updateScenarioF _ _ _ = Nothing
 --
-          serviceRunsE = filterJust $ serviceRunsF <$> scenarioSyncB <@> groundUpdatedE
-          serviceRunsF (SSSynced sid _ _) (GroundUpdated points) = Just $ VisualServiceRunPoints sid (fromJSArrayToTypedArray $ PS.flatten points)
-          serviceRunsF _ _ = Nothing
+          serviceRunsE = filterJust $ serviceRunsF <$> scenarioSyncB <*> cityB <@> groundUpdatedE
+          serviceRunsF (SSSynced sid _ _) city (GroundUpdated points) = Just $ \m -> case m of
+            VS_POINTS -> VisualServiceRunPoints sid (fromJSArrayToTypedArray $ PS.flatten points)
+            VS_SCENARIO -> VisualServiceRunScenario sid
+            VS_OBJECTS -> VisualServiceRunObjects sid (fromJSArrayToTypedArray . JS.map (unsafeCoerce . geomId . T.unwrap) $ objectsIn city)
+            _ -> VisualServiceDoNotRun
+          serviceRunsF _ _ _ = Nothing
 
           serviceButtonF GroundUpdated{} = GUI.toggleServiceClear True
           serviceButtonF GroundCleared{} = GUI.toggleServiceClear False
