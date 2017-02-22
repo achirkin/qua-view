@@ -30,6 +30,7 @@ import Data.Monoid ((<>))
 
 import Program.VisualService
 
+import qualified Program.Controllers.GUI as GUI
 import Program.Model.Camera
 import Program.Model.City
 --import Program.Model.CityObject
@@ -112,6 +113,7 @@ viewBehavior :: WebGLCanvas
              -> Behavior Program
              -> MomentIO (Behavior PView, Event PictureVal)
 viewBehavior canvas wantPicE resEvents cityUpdates renderings vsResultsE programB = mdo
+    reactimate $ renderScenarioServiceResult <$> vsResultsE
     -- initial values
     itime <- liftIO getTime
     iprog <- valueB programB
@@ -208,6 +210,13 @@ viewBehavior canvas wantPicE resEvents cityUpdates renderings vsResultsE program
 --      return view{context = ctx}
 --      )
 
+-- | Render scenario service results on side menu on the left
+renderScenarioServiceResult :: VisualServiceResult -> IO ()
+renderScenarioServiceResult (VisualServiceResultScenario (Left str))
+  = GUI.showScenarioServiceResultString str
+renderScenarioServiceResult (VisualServiceResultScenario (Right buf))
+  = GUI.showScenarioServiceResultPng buf
+renderScenarioServiceResult _ = return ()
 
 --- Selecting object on click
 

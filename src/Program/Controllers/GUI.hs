@@ -34,12 +34,15 @@ module Program.Controllers.GUI
   , updateServiceNames
   , registerSetActiveService
   , registerUpdateSParamValue
+  , showScenarioServiceResultString
+  , showScenarioServiceResultPng
   ) where
 
 --import Control.Concurrent.MVar
 import JsHs (JSString, JSVal, LikeJS(..))
 import JsHs.Callback
 import JsHs.Array (Array)
+import JsHs.TypedArray (ArrayBuffer)
 import Data.Geometry.Structure.Feature
 import Program.Types
 
@@ -217,3 +220,15 @@ registerUpdateSParamValue :: (JSString -> JSVal -> IO ()) -> IO ()
 registerUpdateSParamValue c = asyncCallback2 (c . asLikeJS) >>= js_registerUpdateSParamValue
 foreign import javascript safe "registerUpdateSParamValue($1)" js_registerUpdateSParamValue :: Callback (JSVal -> JSVal ->  IO ()) -> IO ()
 
+
+
+-- | Show service result as a simple string.
+--   str :: String -- just a text  result
+--   return :: IO ()
+foreign import javascript safe "showScenarioServiceResultString($1)" showScenarioServiceResultString ::  JSString -> IO ()
+
+
+-- | Show service result as a .png service .
+--   buf :: ArrayBuffer -- image content
+--   return :: IO ()
+foreign import javascript safe "showScenarioServiceResultPng($1)" showScenarioServiceResultPng ::  ArrayBuffer -> IO ()

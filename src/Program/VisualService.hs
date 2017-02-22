@@ -1,4 +1,4 @@
-{-# LANGUAGE DataKinds, FlexibleInstances, MultiParamTypeClasses, OverloadedStrings #-}
+{-# LANGUAGE DataKinds, FlexibleInstances, MultiParamTypeClasses, OverloadedStrings, GeneralizedNewtypeDeriving #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Program.VisualService
@@ -27,12 +27,14 @@ import Control.Arrow (Arrow(..))
 import Data.Time (UTCTime,secondsToDiffTime)
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import Data.Monoid
+import Data.Word
 import Data.Coerce (coerce)
 import qualified Data.HashMap.Strict as HashMap
 
 import Data.Geometry (Vector4)
 --import Data.Default.Class
 import Data.List (foldl',sortOn)
+import Data.String (IsString)
 import Data.Maybe (fromMaybe)
 import qualified Data.Geometry.Structure.PointSet as PS
 
@@ -45,6 +47,7 @@ import qualified JsHs.Array as JS
 import qualified JsHs.TypedArray as JSTA
 import JsHs.WebGL (GLfloat, GLubyte)
 import JsHs.Useful
+
 
 import Program.Types
 import Program.Controllers.LuciClient
@@ -299,18 +302,24 @@ vsParams :: Traversal' VisualService ServiceParameter
 vsParams f (VisualService n m p) = VisualService n m <$> traverse f p
 
 
+newtype Units = Units JSString
+  deriving (IsString, LikeJS "String")
+
+instance Show Units where
+  show (Units s) = show s
+
 -- | Result of a service execution
 data VisualServiceResult
-  = VisualServiceResultPoints !JSString !(JSTA.TypedArray GLfloat)
-  | VisualServiceResultObjects !JSString !(JSTA.TypedArray Int) !(JSTA.TypedArray GLfloat)
-  | VisualServiceResultScenario !JSString !GLfloat
+  = VisualServiceResultPoints !Units !(JSTA.TypedArray GLfloat)
+  | VisualServiceResultObjects !Units  !(JSTA.TypedArray GLfloat)
+  | VisualServiceResultScenario !(Either JSString JSTA.ArrayBuffer)
   | VisualServiceResultNew !ScenarioId !UTCTime !UTCTime
   | VisualServiceResultUnknown !JSVal !JSString
 
 -- | Request of a service to run
 data VisualServiceRun
   = VisualServiceRunPoints !ScenarioId !(JSTA.TypedArray GLfloat)
-  | VisualServiceRunObjects !ScenarioId
+  | VisualServiceRunObjects !ScenarioId !(JSTA.TypedArray Word32)
   | VisualServiceRunScenario !ScenarioId
   | VisualServiceRunNew !(Maybe ScenarioId)
 
@@ -332,13 +341,16 @@ runVService vsManB lcB pamsE = do
           , [ab]
           )
         ) where ab = JSTA.arrayBuffer points
-    toPams (service, VisualServiceRunObjects scid) =
+    toPams (service, VisualServiceRunObjects scid geomIds) =
         ( VS_OBJECTS
         , (_vsName service
-          , ("ScID", asJSVal scid):("mode", asJSVal VS_OBJECTS) : map spToJS (_vsParams service)
-          , []
+          ,   ("ScID", asJSVal scid)
+            : ("mode", asJSVal VS_OBJECTS)
+            : ("geomIDs", asJSVal $ makeAttDesc 1 "Uint32Array" ab)
+            : map spToJS (_vsParams service)
+          , [ab]
           )
-        )
+        ) where ab = JSTA.arrayBuffer geomIds
     toPams (service, VisualServiceRunScenario scid) =
         ( VS_SCENARIO
         , ( _vsName service
@@ -399,15 +411,16 @@ parseResult m (ServiceResult jsv) atts = case m of
             then VisualServiceResultPoints unit (JSTA.arrayView $ atts JS.! (p-1))
             else VisualServiceResultUnknown jsv $ "Wrong attachment position (" <> pack (show p) <> ")"
     -- not really correct values!
-    parseObjects = case (,,) <$> getProp "units" jsv <*> getProp "geomIDs" jsv <*> getProp "values" jsv of
-         Nothing -> VisualServiceResultUnknown jsv "No 'unit' or 'geomIDs' or 'values' fields"
-         Just (unit, MessageAttachment {maPosition = p1} , MessageAttachment {maPosition = p2}) ->
-            if p1 > 0 && p1 <= JS.length atts && p2 > 0 && p2 <= JS.length atts && p1 /= p2
-            then VisualServiceResultObjects unit (JSTA.arrayView $ atts JS.! (p1-1)) (JSTA.arrayView $ atts JS.! (p2-1))
-            else VisualServiceResultUnknown jsv $ "Wrong attachment positions (" <> pack (show p1) <> "," <> pack (show p2) <> ")"
-    parseScenario = case (,) <$> getProp "unit" jsv <*> getProp "value" jsv of
-         Nothing -> VisualServiceResultUnknown jsv "No 'unit' or 'values' fields"
-         Just (unit, val) -> VisualServiceResultScenario unit val
+    parseObjects = case (,) <$> getProp "units" jsv <*> getProp "values" jsv of
+         Nothing -> VisualServiceResultUnknown jsv "No 'units' or 'values' fields"
+         Just (unit, MessageAttachment {maPosition = p}) ->
+            VisualServiceResultObjects unit (JSTA.arrayView $ atts JS.! (p-1))
+    parseScenario | Just ans <- getProp "answer" jsv
+                         = VisualServiceResultScenario $ Left ans
+                  | Just MessageAttachment {maPosition = p} <- getProp "image" jsv
+                         = VisualServiceResultScenario $ Right (atts JS.! (p-1))
+                  | otherwise
+                         = VisualServiceResultUnknown jsv "No 'answer' or 'image' fields"
     parseNew = case (,,) <$> getProp "ScID" jsv <*> getProp "timestamp_accessed" jsv  <*> getProp "timestamp_modified" jsv of
          Nothing -> VisualServiceResultUnknown jsv "No 'unit' or 'values' fields"
          Just (scid, access, modif) -> VisualServiceResultNew scid (tsToDate access) (tsToDate modif)
