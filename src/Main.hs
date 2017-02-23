@@ -149,6 +149,7 @@ main = do
                             _ -> return ()
                    ) <$> selObjIdE
       -- city
+      (vsResultsE', vsResultsFire') <- newEvent
       (cityChanges, cityB, errsE, motionRecordsE, groundUpdatedE) <- cityBehavior settingsB
                                            selObjIdB
                                            colorizePropertyE
@@ -156,6 +157,7 @@ main = do
                                            objectTransformE
                                            cityChangeE
                                            groundUpdateRequestE
+                                           vsResultsE'
 
       -- when in full mode, we have a grid. Reset it on object motion!
       when (profile lsettings == Full) $
@@ -182,6 +184,7 @@ main = do
       vsResultsE <- case profile lsettings of
         Full -> luciBehavior lsettings geoJSONImportFire cityB groundUpdatedE geoJSONImportE clearGeometryE motionRecordsE
         _ -> return never
+      reactimate $ vsResultsFire' <$> vsResultsE
 
       -- log all actions if there is a place to log to
       when (profile lsettings /= ExternalViewer) $
