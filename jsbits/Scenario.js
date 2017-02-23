@@ -92,6 +92,19 @@ function gm$smartUpdateBArray(bArray, updateArray, deleteArray) {
     return rez1.filter(function(e){return e != null;});
 }
 
+/**
+ *
+ * @param bArray -- collection of buildings
+ * @param values -- collection of feature properties
+ * @returns {Array.<*>} -- updated collection of buildings
+ */
+function gm$updateProps(bArray, values) {
+    return bArray.map(function (b,i) {
+        b['properties']['value'] = values[i];
+        return b;
+    });
+}
+
 
 /**
  * Parse a feature collection.

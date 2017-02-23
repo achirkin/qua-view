@@ -43,6 +43,7 @@ import JsHs.WebGL
 import Data.Maybe (fromMaybe)
 
 import qualified JsHs.Array as JS
+import qualified JsHs.TypedArray as JSTA
 import JsHs.JSString hiding (foldr1)
 import Data.Geometry
 import Data.Geometry.Structure.Feature
@@ -135,8 +136,9 @@ cityBehavior :: (MonadMoment m, MonadFix m)
              -> Event (ObjectTransform T.QFTransform CityObject)
              -> Event CityUpdate
              -> Event GroundUpdateRequest
+             -> Event VisualServiceResult
              -> m (Event (RequireViewUpdate City), Behavior City, Event [JSString], Event (GeomId, Matrix4 GLfloat), Event GroundUpdated)
-cityBehavior psets selIdB colorizeE heldIdE otransform cityChange grounUpdateRequestE = mdo
+cityBehavior psets selIdB colorizeE heldIdE otransform cityChange grounUpdateRequestE vsResultE = mdo
     activeObjectSnapshot <- stepper Nothing $ osnapshotF <$> cityBeh <*> selIdB <@> heldIdE
     let objectMove = fmap ((,) (Nothing, []) .)
                     $ objectMoveF <$> activeObjectSnapshot <@> otransform
@@ -145,6 +147,7 @@ cityBehavior psets selIdB colorizeE heldIdE otransform cityChange grounUpdateReq
               $ unionsChanges
                 [ objectMove
                 , cityUpdates
+                , cityPropResultsF <$> vsResultE
                 ]
     (groundB, groundUpdatedE) <- groundBehavior cityBeh grounUpdateRequestE
     let cityUE = filterJust $ fst <$> cityUE'
@@ -158,6 +161,8 @@ cityBehavior psets selIdB colorizeE heldIdE otransform cityChange grounUpdateReq
     addGroundB gr city = city{ground = gr}
     addColorObject col city = city{buildingColors = col}
     cityUpdates = manageCityUpdates psets cityChange
+    cityPropResultsF (VisualServiceResultObjects _ ps) city = ((Nothing, []), city {objectsIn = js_updateProps (objectsIn city) ps})
+    cityPropResultsF _  city = ((Nothing, []), city)
     osnapshotF _ Nothing _ = Nothing
     osnapshotF _ _ Nothing = Nothing
     osnapshotF city (Just i) (Just j) | i /= j = Nothing
@@ -277,6 +282,10 @@ updateCity scenario
 
 foreign import javascript unsafe "gm$smartUpdateBArray($1, $2, $3)"
     js_smartUpdateCity :: CityObjectCollection -> CityObjectCollection -> JS.Array GeomId -> CityObjectCollection
+
+foreign import javascript unsafe "gm$updateProps($1, $2)"
+    js_updateProps :: CityObjectCollection -> JSTA.TypedArray GLfloat -> CityObjectCollection
+
 
 
 foreign import javascript unsafe "[]"
