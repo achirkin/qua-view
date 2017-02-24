@@ -68,6 +68,13 @@ data VisualServiceMode
   | VS_NEW
   | VS_UNKNOWN JSVal
 
+instance Eq VisualServiceMode where
+  VS_POINTS == VS_POINTS = True
+  VS_OBJECTS == VS_OBJECTS = True
+  VS_SCENARIO == VS_SCENARIO = True
+  VS_NEW == VS_NEW = True
+  _ == _ = False
+
 instance Show VisualServiceMode where
   show VS_POINTS      = "VS_POINTS"
   show VS_OBJECTS     = "VS_OBJECTS"
@@ -231,7 +238,7 @@ vsManagerBehavior :: Event ServiceName
 vsManagerBehavior selectedServiceE changeSParamsE refreshSListE refreshServiceE = do
     (resultE, resultH) <- newEvent
     manB <- accumB (VSManager HashMap.empty Nothing resultH)
-                       (unions [ set activeService . Just <$> selectedServiceE
+                       (unions [ (\n -> over registeredServices (alterService n id) . set activeService n) . Just <$> selectedServiceE
                                , over registeredServices . updateServiceMap <$> refreshSListE
                                , (\u man -> over registeredServices
                                                 ( alterService (_activeService man) $ updateServiceParam u
@@ -239,7 +246,8 @@ vsManagerBehavior selectedServiceE changeSParamsE refreshSListE refreshServiceE 
                                  ) <$> changeSParamsE
                                , (\vs man -> over registeredServices
                                                 ( HashMap.adjust
-                                                    (\s -> s{_vsParams = changeServiceParams (_vsParams vs) $ _vsParams s
+                                                    (\s -> refreshActiveMode $
+                                                           s{_vsParams = changeServiceParams (_vsParams vs) $ _vsParams s
                                                             ,_vsModes  = _vsModes vs
                                                             }) (_vsName vs)
                                                 ) man
@@ -252,8 +260,8 @@ vsManagerBehavior selectedServiceE changeSParamsE refreshSListE refreshServiceE 
     updateServiceMap (ServiceList jsarray) m = foldl'
         (\nm x -> let s = ServiceName x
                   in case HashMap.lookup s m of
-            Nothing -> HashMap.insert s (VisualService s [] [] VS_POINTS) nm
-            Just vs -> HashMap.insert s vs nm
+            Nothing -> HashMap.insert s (VisualService s [] [] (VS_UNKNOWN jsNull)) nm
+            Just vs -> HashMap.insert s (refreshActiveMode vs) nm
         ) HashMap.empty (JS.toList jsarray)
     changeServiceParams :: [ServiceParameter] -> [ServiceParameter] -> [ServiceParameter]
     changeServiceParams newpams oldpams = foldl' changeOrAdd  oldpams newpams
@@ -264,7 +272,7 @@ vsManagerBehavior selectedServiceE changeSParamsE refreshSListE refreshServiceE 
                                       -> HashMap.HashMap ServiceName VisualService
                                       -> HashMap.HashMap ServiceName VisualService
     alterService Nothing _ = id
-    alterService (Just n) f = HashMap.adjust f n
+    alterService (Just n) f = HashMap.adjust (refreshActiveMode . f) n
     updateServiceParam :: (JSString, JSVal) -> VisualService -> VisualService
     updateServiceParam ("mode",  jsv) = set vsActiveMode (JS.asLikeJS jsv)
     updateServiceParam (pamName, jsv) = over vsParams (updateFittingP pamName jsv)
@@ -278,7 +286,12 @@ vsManagerBehavior selectedServiceE changeSParamsE refreshSListE refreshServiceE 
     updateByJSV jsv (ServiceParameterInt n v) = ServiceParameterInt n $ putInt (JS.asLikeJS jsv) v
     updateByJSV jsv (ServiceParameterFloat n v) = ServiceParameterFloat n $ putFloat (JS.asLikeJS jsv) v
     updateByJSV jsv (ServiceParameterBool n _) = ServiceParameterBool n (JS.asLikeJS jsv)
-
+    refreshActiveMode :: VisualService -> VisualService
+    refreshActiveMode s = if _vsActiveMode s `elem` _vsModes s
+                          then s
+                          else case _vsModes s of
+                                 []  -> s { _vsActiveMode = VS_UNKNOWN jsNull}
+                                 m:_ -> s { _vsActiveMode = m}
 
 
 
