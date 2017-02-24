@@ -22,6 +22,9 @@ module Program.Model.LuciConnection
 --import Control.Arrow (second)
 --import Data.Geometry
 --import JsHs
+
+import JsHs.WebGL
+import Data.Geometry
 import JsHs.JSString (pack, unpack') -- JSString, append
 --import Control.Monad (void, when)
 import JsHs.Useful
@@ -101,7 +104,7 @@ luciBehavior lsettings geoJSONImportFire cityB groundUpdatedE
       -- asking luci to save a scenario on button click
       (askSaveScenarioE, onAskSaveScenarioFire) <- newEvent
       liftIO $ GUI.registerSaveScenario onAskSaveScenarioFire
-      scenarioSavedE <- runScenarioCreate luciClientB $ (\ci s -> (s, storeCityAsIs ci)) <$> cityB <@> askSaveScenarioE
+      scenarioSavedE <- runScenarioCreate luciClientB $ (\ci s -> (s, scLonLat $ csettings ci , storeCityAsIs ci)) <$> cityB <@> askSaveScenarioE
 --      scenarioSavedE <- execute ((\ci s -> runScenarioCreate runLuciService s (storeCityAsIs ci)) <$> cityB <@> askSaveScenarioE) >>= switchE
       scenarioSyncE_create <- mapEventIO id
            $ (\s -> do
@@ -342,15 +345,25 @@ instance JS.LikeJS "Object" LuciScenarioCreated where
 runScenarioCreate :: Behavior LuciClient
                   -> Event
                      ( ScenarioName -- ^ name of the scenario
+                     , Maybe (Vector2 GLfloat)
                      , FeatureCollection -- ^ content of the scenario
                      )
                   -> MomentIO (Event (ServiceResponse LuciScenarioCreated))
 runScenarioCreate lcB e = runService lcB $ (\v -> ("scenario.geojson.Create", f v, [])) <$> e
   where
-    f (name, collection) =
+    f (name, Nothing , collection) =
       [ ("name", JS.asJSVal name)
       , ("geometry_input"
         ,   setProp "format"  ("GeoJSON" :: JSString)
+          $ setProp "geometry" collection newObj
+        )
+      ]
+    f (name, Just vec, collection) | (lon, lat) <- unpackV2 vec =
+      [ ("name", JS.asJSVal name)
+      , ("geometry_input"
+        ,   setProp "format"  ("GeoJSON" :: JSString)
+          $ setProp "lon" lon
+          $ setProp "lat" lat
           $ setProp "geometry" collection newObj
         )
       ]
