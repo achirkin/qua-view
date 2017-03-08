@@ -547,7 +547,7 @@ function gm$createWGS84toUTMTransform(lon0, lat0) {
     , A6 = e6 * 35/3072
     , xr0 = lon0 * Math.PI / 180
     , yr0 = lat0 * Math.PI / 180
-    , fm = function(y) { return a * ( A0 * Math.sin(y) - A2 * Math.sin(2 * y) + A4 * Math.sin(4 * y) - A6 * Math.sin(2 * y) ); }
+    , fm = function(y) { return a * ( A0 * y - A2 * Math.sin(2 * y) + A4 * Math.sin(4 * y) - A6 * Math.sin(6 * y) ); }
     , m0 = fm(yr0);
   return function(xs) {
     var xr = xs[0] * Math.PI / 180
