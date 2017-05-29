@@ -74,5 +74,5 @@ executable qua-view
         SmallGL.Helpers
         SmallGL.Shader
         SmallGL.WritableVectors
-    ghc-options: -Wall -fwarn-tabs -O2
+    ghc-options: -Wall -fwarn-tabs -O2 -cpp  -pgmPcpphs  -optP--cpp
 
