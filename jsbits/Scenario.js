@@ -113,7 +113,7 @@ function gm$updateProps(bArray, values) {
  * Add geomID to all features that miss it.
  *
  * @param gi - Geometry Input JSON, with FeatureCollection as one of its children objects.
- * @returns {[points:Feature,lines:Feature,surfaces:Feature,deletes:Number(geomID),errors:string,cmin,cmax,dims]}
+ * @returns {[points:Feature,lines:Feature,surfaces:Feature,deletes:Number(geomID),errors:string,cmin,cmax,dims,lat,lon,alt,srid]}
  */
 function gm$smartProcessFeatureCollection(gi, defVec, maxGeomId) {
     'use strict';
@@ -221,9 +221,13 @@ function gm$smartProcessFeatureCollection(gi, defVec, maxGeomId) {
               , gm$resizeX(defVec, transformFunc(cmax))
               , dims
               , center
+              , lat
+              , lon
+              , alt
+              , srid
               ];
     } else {
-      return [points,lines,surfaces,deletes,errors,gm$resizeX(defVec, cmin),gm$resizeX(defVec, cmax),dims, null];
+      return [points,lines,surfaces,deletes,errors,gm$resizeX(defVec, cmin),gm$resizeX(defVec, cmax),dims, null,lat,lon,alt,srid];
     }
 }
 
