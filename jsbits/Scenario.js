@@ -126,12 +126,13 @@ function gm$smartProcessFeatureCollection(gi, defVec, maxGeomId) {
     if (gi['geometry']['type'] !== "FeatureCollection")  {
         return [[],[],[],[],["No valid 'obj.type = \"FeatureCollection\"'"]];
     }
-    if (!gi['geometry']['features'] || sc['geometry']['features'].constructor !== Array)  {
+    if (!gi['geometry']['features'] || gi['geometry']['features'].constructor !== Array)  {
         return [[],[],[],[],["No valid 'obj.features':array"]];
     }
     // so now we have a more-or-less valid feature collection
     var points = [],lines = [],surfaces = [],deletes = [],errors = [],
-        f, cmin = [], cmax = [], dims = 0, i;
+        f, cmin = [], cmax = [], dims = 0, i,
+        lat = null, lon = null, alt = null, srid = null;
     gi['geometry']['features'].forEach(function(feature, n) {
         try{
             f = gm$smartProcessFeature(feature, defVec);
@@ -161,8 +162,6 @@ function gm$smartProcessFeatureCollection(gi, defVec, maxGeomId) {
                       }
                       dims = Math.max(dims,f.dim);
                     }
-
-
                     switch (f['geometry']['type']) {
                         case "Point":
                         case "MultiPoint":
@@ -195,10 +194,22 @@ function gm$smartProcessFeatureCollection(gi, defVec, maxGeomId) {
     points.forEach(addGeomID);
     lines.forEach(addGeomID);
     surfaces.forEach(addGeomID);
+
+    // Get lat, lon, alt, srid if available
+    if (gi['lat'] && gi['lat'].constructor === Number &&
+        gi['lon'] && gi['lon'].constructor === Number &&
+        gi['alt'] && gi['alt'].constructor === Number) {
+        lat = gi['lat'];
+        lon = gi['lon'];
+        alt = gi['alt'];
+    }
+    if (gi['srid'] && gi['srid'].constructor === Number) {
+        srid = gi['srid']
+    }
+
     // transform everything from WGS84 to a metric reference system if needed
-    if(cmin.length >= 2 && cmax.length >= 2
-       && cmin[0] > -360 && cmax[0] < 360 && cmin[1] > -180 && cmax[1] < 180
-       && (cmax[0] - cmin[0]) < 5 && (cmax[1] - cmin[1]) < 5) {
+    // when there is no lat+lon+alt or srid specified
+    if(!((lat && lon && alt) || srid)) {
        var center = [(cmax[0] + cmin[0])/2, (cmax[1] + cmin[1])/2]
          , transformFunc = gm$createWGS84toUTMTransform(center[0], center[1]);
        return [ gm$mapPoints(transformFunc, points)
