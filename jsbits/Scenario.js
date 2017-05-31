@@ -112,24 +112,27 @@ function gm$updateProps(bArray, values) {
  * Returns nicely sorted points, lines, surfaces + deletes and errors.
  * Add geomID to all features that miss it.
  *
- * @param fc - FeatureCollection
+ * @param sc - Scenario JSON, with FeatureCollection as one of its children objects.
  * @returns {[points:Feature,lines:Feature,surfaces:Feature,deletes:Number(geomID),errors:string,cmin,cmax,dims]}
  */
-function gm$smartProcessFeatureCollection(fc, defVec, maxGeomId) {
+function gm$smartProcessFeatureCollection(sc, defVec, maxGeomId) {
     'use strict';
-    if (!fc) {
-        return [[],[],[],[],["FeatureCollection is null."]];
+    if (!sc) {
+        return [[],[],[],[],["Scenario is null."]];    
     }
-    if (fc['type'] !== "FeatureCollection")  {
+    if (!sc['geometry']) {
+        return [[],[],[],[],["No valid FeatureCollection."]];    
+    }
+    if (sc['geometry']['type'] !== "FeatureCollection")  {
         return [[],[],[],[],["No valid 'obj.type = \"FeatureCollection\"'"]];
     }
-    if (!fc['features'] || fc['features'].constructor !== Array)  {
+    if (!sc['geometry']['features'] || sc['geometry']['features'].constructor !== Array)  {
         return [[],[],[],[],["No valid 'obj.features':array"]];
     }
     // so now we have a more-or-less valid feature collection
     var points = [],lines = [],surfaces = [],deletes = [],errors = [],
         f, cmin = [], cmax = [], dims = 0, i;
-    fc['features'].forEach(function(feature, n) {
+    sc['geometry']['features'].forEach(function(feature, n) {
         try{
             f = gm$smartProcessFeature(feature, defVec);
             switch (f['type'] ) {
