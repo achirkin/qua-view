@@ -118,10 +118,10 @@ function gm$updateProps(bArray, values) {
 function gm$smartProcessFeatureCollection(gi, defVec, maxGeomId) {
     'use strict';
     if (!gi) {
-        return [[],[],[],[],["Scenario is null."]];    
+        return [[],[],[],[],["Scenario is null."]];
     }
     if (!gi['geometry']) {
-        return [[],[],[],[],["No valid FeatureCollection."]];    
+        return [[],[],[],[],["No valid FeatureCollection."]];
     }
     if (gi['geometry']['type'] !== "FeatureCollection")  {
         return [[],[],[],[],["No valid 'obj.type = \"FeatureCollection\"'"]];
