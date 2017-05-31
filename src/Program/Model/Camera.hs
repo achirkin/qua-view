@@ -62,8 +62,8 @@ cameraBehavior cam pointerE wheelE resizeE resetCamE buttonsB coordsB alowMoveB 
                     ]
     -- Modify camera with will zooming
     wheelT :: WheelEvent -> Camera -> Camera
-    wheelT WheelUp = scroll 0.15
-    wheelT WheelDown = scroll (-0.1)
+    wheelT WheelUp = scroll (-0.1)
+    wheelT WheelDown = scroll 0.15
     -- Modify camera according to viewport changes
     resizeT :: ResizeEvent -> Camera -> Camera
     resizeT (ResizeEvent e) c = initCamera (realToFrac $ coordX e) (realToFrac $ coordY e) (newState c)
