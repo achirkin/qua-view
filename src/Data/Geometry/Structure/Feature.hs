@@ -17,13 +17,16 @@
 -----------------------------------------------------------------------------
 
 module Data.Geometry.Structure.Feature
-    ( FeatureCollection (..)
+    ( GeometryInput (..)
+    , FeatureCollection (..)
     , Feature (..), feature, setFeature
     , GeoJsonGeometryND (..), GeoJsonGeometry (..)
     , FeatureGeometryType (..), featureGeometryType
     , getGeoJSONGeometry, getSizedGeoJSONGeometry
     , boundingBox2D, filterGeometryTypes
     , ParsedFeatureCollection (..), smartProcessFeatureCollection
+    , ParsedGeometryInput (..), smartProcessGeometryInput
+    , js_FCToGI
     ) where
 
 
@@ -54,6 +57,8 @@ foreign import javascript unsafe "delete $1['properties']['timestamp']; $r = $1;
   js_deleteTimestamp :: Feature -> JSVal
 foreign import javascript unsafe "$1['features'].forEach(function(e){delete e['properties']['timestamp'];}); $r = $1;"
   js_deleteFcTimestamp :: FeatureCollection -> JSVal
+foreign import javascript unsafe "$1['geometry']['features'].forEach(function(e){delete e['properties']['timestamp'];}); $r = $1;"
+  js_deleteGiTimestamp :: GeometryInput -> JSVal
 
 -- | GeoJSON FeatureCollection
 newtype FeatureCollection = FeatureCollection JSVal
@@ -67,9 +72,21 @@ instance LikeJSArray "Object" FeatureCollection where
     {-# INLINE fromJSArray #-}
     fromJSArray = js_JSArrayToFC
 
+-- | JSON GeometryInput
+newtype GeometryInput = GeometryInput JSVal
+instance LikeJS "Object" GeometryInput where
+  asJSVal = js_deleteGiTimestamp
+
 ----------------------------------------------------------------------------------------------------
 -- Some Functions
 ----------------------------------------------------------------------------------------------------
+
+data ParsedGeometryInput x = ParsedGeometryInput
+  { pgiFeatureCollection :: FeatureCollection
+  , pgiErrors            :: JS.Array JSString
+  , pgiLatLonAlt         :: Maybe (Vector 3 x)
+  , pgiSrid              :: Maybe Int
+  }
 
 data ParsedFeatureCollection n x = ParsedFeatureCollection
   { pfcPoints  :: JS.Array Feature
