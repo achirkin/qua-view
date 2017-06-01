@@ -43,6 +43,7 @@ import qualified Data.Geometry.Structure.PointSet as PS
 import Data.Geometry.Structure.LineString (LineString (), MultiLineString ())
 import Data.Geometry.Structure.Point (Point (), MultiPoint ())
 import Data.Geometry.Structure.Polygon (Polygon (), MultiPolygon ())
+import Data.Maybe
 
 ----------------------------------------------------------------------------------------------------
 -- Base Types
@@ -100,18 +101,51 @@ data ParsedFeatureCollection n x = ParsedFeatureCollection
   , pfcLonLat  :: Maybe (Vector 2 x)
   }
 
+foreign import javascript unsafe "$1['type'] && $1['type'] === 'FeatureCollection'"
+    isFeatureCollection :: GeometryInput -> Bool
+
+smartProcessGeometryInput :: Int -- ^ maximum geomId in current City
+                          -> Vector n x -- ^ default vector to substitute
+                          -> GeometryInput
+                          -> (Maybe Int, Maybe (Vector 3 x), [JSString], ParsedFeatureCollection n x)
+smartProcessGeometryInput n defVals gi = case isFeatureCollection gi of
+  True  -> (Nothing, Nothing, [], smartProcessFeatureCollection n defVals "Unknown" $ js_ChangeGIToFC gi)
+  False -> (srid, originLatLonAlt, errors, smartProcessFeatureCollection n defVals cs fc)
+            where
+              parsedGeometryInput = smartProcessGItoFC defVals gi
+              srid = pgiSrid parsedGeometryInput
+              originLatLonAlt = pgiLatLonAlt parsedGeometryInput
+              errors = JS.toList $ pgiErrors parsedGeometryInput
+              fc = pgiFeatureCollection parsedGeometryInput
+              cs = case (isNothing(srid), isNothing(originLatLonAlt)) of
+                    (True, True) -> "WGS84"
+                    _ -> "Metric"
+
+smartProcessGItoFC :: Vector n x -- ^ default vector to substitute
+                   -> GeometryInput
+                   -> ParsedGeometryInput x
+smartProcessGItoFC defVals gi = ParsedGeometryInput fc errors (asLikeJS originLonLatAlt) (asLikeJS srid)
+  where
+    (fc, errors, originLonLatAlt, srid) = js_smartProcessGeometryInput gi defVals
+
+foreign import javascript unsafe "var a = gm$smartProcessGeometryInput($1, $2);$r1=a[0];$r2=a[1];$r3=a[2];$r4=a[3]"
+  js_smartProcessGeometryInput
+    :: GeometryInput -> Vector n x
+    -> (FeatureCollection, JS.Array JSString, JSVal, JSVal)
+
 smartProcessFeatureCollection :: Int -- ^ maximum geomId in current City
                               -> Vector n x -- ^ default vector to substitute
+                              -> JSString -- ^ determine conversion
                               -> FeatureCollection
                               -> ParsedFeatureCollection n x
-smartProcessFeatureCollection n defVals fc = ParsedFeatureCollection points lins polys deletes errors cmin cmax cdims (asLikeJS mLonLat)
+smartProcessFeatureCollection n defVals cs fc = ParsedFeatureCollection points lins polys deletes errors cmin cmax cdims (asLikeJS mLonLat)
   where
-    (points, lins, polys, deletes, errors, cmin, cmax, cdims, mLonLat) = js_smartProcessFeatureCollection fc defVals n
+    (points, lins, polys, deletes, errors, cmin, cmax, cdims, mLonLat) = js_smartProcessFeatureCollection fc cs defVals n
 
 
-foreign import javascript unsafe "var a = gm$smartProcessFeatureCollection($1, $2, $3);$r1=a[0];$r2=a[1];$r3=a[2];$r4=a[3];$r5=a[4];$r6=a[5];$r7=a[6];$r8=a[7];$r9=a[8];"
+foreign import javascript unsafe "var a = gm$smartProcessFeatureCollection($1, $2, $3, $4);$r1=a[0];$r2=a[1];$r3=a[2];$r4=a[3];$r5=a[4];$r6=a[5];$r7=a[6];$r8=a[7];$r9=a[8];"
     js_smartProcessFeatureCollection
-      :: FeatureCollection -> Vector n x -> Int
+      :: FeatureCollection -> JSString -> Vector n x -> Int
       -> (JS.Array Feature, JS.Array Feature, JS.Array Feature, JS.Array Int, JS.Array JSString, Vector n x, Vector n x, Int, JSVal)
 
 
