@@ -111,7 +111,7 @@ function gm$updateProps(bArray, values) {
  * Returns a feature collection, and latitude, longitude, altitude, srid if available.
  *
  * @param gi - Geometry Input JSON
- * @returns {[featureCollection:FeatureCollection,errors:string,lat,lon,alt,srid]}
+ * @returns {[featureCollection:FeatureCollection,errors:string,originLatLonAlt,srid]}
  */
 function gm$smartProcessGeometryInput(gi, defVec) {
     'use strict';
