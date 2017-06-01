@@ -355,3 +355,19 @@ foreign import javascript unsafe "$1['features']"
 {-# INLINE js_JSArrayToFC #-}
 foreign import javascript unsafe "$r = {}; $r['type'] = 'FeatureCollection'; $r['features'] = $1"
     js_JSArrayToFC :: JS.Array Feature -> FeatureCollection
+
+----------------------------------------------------------------------------------------------------
+-- GeometryInput converters
+----------------------------------------------------------------------------------------------------
+
+{-# INLINE js_GIToFC #-}
+foreign import javascript unsafe "$1['geometry']"
+    js_GIToFC :: GeometryInput -> FeatureCollection
+{-# INLINE js_FCToGI #-}
+foreign import javascript unsafe "$r = {}; $r['geometry'] = $1"
+    js_FCToGI :: FeatureCollection -> GeometryInput
+
+-- If a geometryInput is actually a featureCollection
+{-# INLINE js_ChangeGIToFC #-}
+foreign import javascript unsafe "$1"
+    js_ChangeGIToFC :: GeometryInput -> FeatureCollection
