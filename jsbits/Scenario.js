@@ -245,13 +245,9 @@ function gm$smartProcessFeatureCollection(fc, coorSys, defVec, maxGeomId) {
               , gm$resizeX(defVec, transformFunc(cmax))
               , dims
               , center
-              , lat
-              , lon
-              , alt
-              , srid
               ];
     } else {
-      return [points,lines,surfaces,deletes,errors,gm$resizeX(defVec, cmin),gm$resizeX(defVec, cmax),dims, null,lat,lon,alt,srid];
+      return [points,lines,surfaces,deletes,errors,gm$resizeX(defVec, cmin),gm$resizeX(defVec, cmax),dims, null];
     }
 }
 
