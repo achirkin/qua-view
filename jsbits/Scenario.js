@@ -105,6 +105,33 @@ function gm$updateProps(bArray, values) {
     });
 }
 
+/**
+ * Parse a geometry input.
+ *
+ * Returns a feature collection, and latitude, longitude, altitude, srid if available.
+ *
+ * @param gi - Geometry Input JSON
+ * @returns {[featureCollection:FeatureCollection,errors:string,lat,lon,alt,srid]}
+ */
+function gm$smartProcessGeometryInput(gi, defVec) {
+    'use strict';
+    if (!gi) {
+        return [null,["Scenario is null."]];
+    }
+    var fc = gi['geometry']
+    if (gi['lat'] && gi['lat'].constructor === Number &&
+        gi['lon'] && gi['lon'].constructor === Number &&
+        gi['alt'] && gi['alt'].constructor === Number) {
+        lat = gi['lat'];
+        lon = gi['lon'];
+        alt = gi['alt'];
+    }
+    var lat = null, lon = null, alt = null, srid = null;
+    if (gi['srid'] && gi['srid'].constructor === Number) {
+        srid = gi['srid']
+    }
+    return [fc,lat,lon,alt,srid];
+}
 
 /**
  * Parse a feature collection.
@@ -112,28 +139,25 @@ function gm$updateProps(bArray, values) {
  * Returns nicely sorted points, lines, surfaces + deletes and errors.
  * Add geomID to all features that miss it.
  *
- * @param gi - Geometry Input JSON, with FeatureCollection as one of its children objects.
- * @returns {[points:Feature,lines:Feature,surfaces:Feature,deletes:Number(geomID),errors:string,cmin,cmax,dims,lat,lon,alt,srid]}
+ * @param fc - FeatureCollection
+ * @returns {[points:Feature,lines:Feature,surfaces:Feature,deletes:Number(geomID),errors:string,cmin,cmax,dims]}
  */
-function gm$smartProcessFeatureCollection(gi, defVec, maxGeomId) {
+
+function gm$smartProcessFeatureCollection(fc, coorSys, defVec, maxGeomId) {
     'use strict';
-    if (!gi) {
-        return [[],[],[],[],["Scenario is null."]];
-    }
-    if (!gi['geometry']) {
+    if (!fc) {
         return [[],[],[],[],["No valid FeatureCollection."]];
     }
-    if (gi['geometry']['type'] !== "FeatureCollection")  {
+    if (fc['type'] !== "FeatureCollection")  {
         return [[],[],[],[],["No valid 'obj.type = \"FeatureCollection\"'"]];
     }
-    if (!gi['geometry']['features'] || gi['geometry']['features'].constructor !== Array)  {
+    if (!fc['features'] || fc['features'].constructor !== Array)  {
         return [[],[],[],[],["No valid 'obj.features':array"]];
     }
     // so now we have a more-or-less valid feature collection
     var points = [],lines = [],surfaces = [],deletes = [],errors = [],
         f, cmin = [], cmax = [], dims = 0, i,
-        lat = null, lon = null, alt = null, srid = null;
-    gi['geometry']['features'].forEach(function(feature, n) {
+    fc['features'].forEach(function(feature, n) {
         try{
             f = gm$smartProcessFeature(feature, defVec);
             switch (f['type'] ) {
@@ -195,21 +219,21 @@ function gm$smartProcessFeatureCollection(gi, defVec, maxGeomId) {
     lines.forEach(addGeomID);
     surfaces.forEach(addGeomID);
 
-    // Get lat, lon, alt, srid if available
-    if (gi['lat'] && gi['lat'].constructor === Number &&
-        gi['lon'] && gi['lon'].constructor === Number &&
-        gi['alt'] && gi['alt'].constructor === Number) {
-        lat = gi['lat'];
-        lon = gi['lon'];
-        alt = gi['alt'];
-    }
-    if (gi['srid'] && gi['srid'].constructor === Number) {
-        srid = gi['srid']
+    var transform;
+    if(coorSys === "WGS84") {
+        transform = true;
+    } else if(coorSys === "Metric") {
+        transform = false;
+    } else if(cmin.length >= 2 && cmax.length >= 2
+            && cmin[0] > -360 && cmax[0] < 360 && cmin[1] > -180 && cmax[1] < 180
+            && (cmax[0] - cmin[0]) < 5 && (cmax[1] - cmin[1]) < 5) {
+            // TODO: add more heuristics here
+        transform = true;
     }
 
     // transform everything from WGS84 to a metric reference system if needed
     // when there is no lat+lon+alt or srid specified
-    if(!((lat && lon && alt) || srid)) {
+    if(transform) {
        var center = [(cmax[0] + cmin[0])/2, (cmax[1] + cmin[1])/2]
          , transformFunc = gm$createWGS84toUTMTransform(center[0], center[1]);
        return [ gm$mapPoints(transformFunc, points)
