@@ -156,7 +156,7 @@ function gm$smartProcessFeatureCollection(fc, coorSys, defVec, maxGeomId) {
     }
     // so now we have a more-or-less valid feature collection
     var points = [],lines = [],surfaces = [],deletes = [],errors = [],
-        f, cmin = [], cmax = [], dims = 0, i,
+        f, cmin = [], cmax = [], dims = 0, i;
     fc['features'].forEach(function(feature, n) {
         try{
             f = gm$smartProcessFeature(feature, defVec);
