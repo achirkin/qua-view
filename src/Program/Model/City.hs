@@ -79,6 +79,8 @@ data City = City
     , clutter           :: !(LS.MultiLineString 3 GLfloat, WiredGeometry)
     , buildingColors    :: !(Maybe (PS.PointArray 4 GLfloat))
     --, drawTextures      :: !Bool
+    , oriLatLonAlt      :: !(Maybe (Vector 3 GLfloat))
+    , srid              :: !(Maybe Int)
     }
 
 data CitySettings = CitySettings
@@ -115,6 +117,8 @@ emptyCity = City
     , csettings = defaultCitySettings
     , clutter = emptyLineSet (vector4 0.8 0.4 0.4 1)
     , buildingColors = Nothing
+    , oriLatLonAlt = Nothing
+    , srid         = Nothing
     }
 
 -- | An event that represents all possible city changes
@@ -235,7 +239,7 @@ manageCityUpdates bsets ev = u <$> transforms
 
 
 buildCity :: CitySettings -- ^ desired diagonal length of the city
-          -> FeatureCollection -- ^ scenario to build city of
+          -> GeometryInput -- ^ scenario to build city of
           -> ([JSString], City) -- ^ Errors and the city itself
 buildCity sets scenario = (,) errors City
     { activeObjId = 0
@@ -246,11 +250,14 @@ buildCity sets scenario = (,) errors City
     , csettings = sets { scLonLat = pfcLonLat parsedCollection}
     , clutter = createLineSet (vector4 0.8 0.4 0.4 1) liness
     , buildingColors = Nothing
+    , oriLatLonAlt = giOriginLatLonAlt
+    , srid = giSrid
     }
     where (rcscale,cshift)  = scenarioViewScaling (diagFunction sets) parsedCollection
-          (errors,objects, liness) = processScenario (defHeight sets) (defElevation sets) cscale cshift parsedCollection
+          errors = giErrors ++ fcErrors;
+          (fcErrors,objects, liness) = processScenario (defHeight sets) (defElevation sets) cscale cshift parsedCollection
           cscale = fromMaybe rcscale (defScale sets)
-          parsedCollection = smartProcessFeatureCollection 2 (vector3 0 0 (defElevation sets)) scenario
+          (giSrid, giOriginLatLonAlt, giErrors, parsedCollection) = smartProcessGeometryInput 2 (vector3 0 0 (defElevation sets)) scenario
 
 --  { pfcPoints  :: JS.Array Feature
 --  , pfcLines   :: JS.Array Feature
