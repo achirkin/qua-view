@@ -117,8 +117,9 @@ smartProcessGeometryInput n defVals gi = case isFeatureCollection gi of
               originLatLonAlt = pgiLatLonAlt parsedGeometryInput
               errors = JS.toList $ pgiErrors parsedGeometryInput
               fc = pgiFeatureCollection parsedGeometryInput
-              cs = case (isNothing(srid), isNothing(originLatLonAlt)) of
-                    (True, True) -> "WGS84"
+              cs = case (srid, originLatLonAlt) of
+                    (Just 4326, _) -> "WGS84"
+                    (Nothing, Nothing) -> "Unknown"
                     _ -> "Metric"
 
 smartProcessGItoFC :: Vector n x -- ^ default vector to substitute
