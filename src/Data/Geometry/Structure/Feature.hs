@@ -43,6 +43,7 @@ import qualified Data.Geometry.Structure.PointSet as PS
 import Data.Geometry.Structure.LineString (LineString (), MultiLineString ())
 import Data.Geometry.Structure.Point (Point (), MultiPoint ())
 import Data.Geometry.Structure.Polygon (Polygon (), MultiPolygon ())
+import Data.Coerce
 
 ----------------------------------------------------------------------------------------------------
 -- Base Types
@@ -77,6 +78,9 @@ newtype GeometryInput = GeometryInput JSVal
 instance LikeJS "Object" GeometryInput where
   asJSVal = js_deleteGiTimestamp
 
+fromGItoFC :: GeometryInput -> FeatureCollection
+fromGItoFC = coerce
+
 ----------------------------------------------------------------------------------------------------
 -- Some Functions
 ----------------------------------------------------------------------------------------------------
@@ -108,7 +112,7 @@ smartProcessGeometryInput :: Int -- ^ maximum geomId in current City
                           -> GeometryInput
                           -> (Maybe Int, Maybe (Vector 3 x), [JSString], ParsedFeatureCollection n x)
 smartProcessGeometryInput n defVals gi = case isFeatureCollection gi of
-  True  -> (Nothing, Nothing, [], smartProcessFeatureCollection n defVals "Unknown" $ js_ChangeGIToFC gi)
+  True  -> (Nothing, Nothing, [], smartProcessFeatureCollection n defVals "Unknown" $ fromGItoFC gi)
   False -> (srid, originLatLonAlt, errors, smartProcessFeatureCollection n defVals cs fc)
             where
               parsedGeometryInput = smartProcessGItoFC defVals gi
@@ -400,8 +404,3 @@ foreign import javascript unsafe "$1['geometry']"
 {-# INLINE js_FCToGI #-}
 foreign import javascript unsafe "$r = {}; $r['geometry'] = $1"
     js_FCToGI :: FeatureCollection -> GeometryInput
-
--- If a geometryInput is actually a featureCollection
-{-# INLINE js_ChangeGIToFC #-}
-foreign import javascript unsafe "$1"
-    js_ChangeGIToFC :: GeometryInput -> FeatureCollection
