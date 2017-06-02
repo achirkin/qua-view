@@ -43,7 +43,6 @@ import qualified Data.Geometry.Structure.PointSet as PS
 import Data.Geometry.Structure.LineString (LineString (), MultiLineString ())
 import Data.Geometry.Structure.Point (Point (), MultiPoint ())
 import Data.Geometry.Structure.Polygon (Polygon (), MultiPolygon ())
-import Data.Maybe
 
 ----------------------------------------------------------------------------------------------------
 -- Base Types
