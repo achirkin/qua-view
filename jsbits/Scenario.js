@@ -119,6 +119,7 @@ function gm$smartProcessGeometryInput(gi, defVec) {
         return [null,["Scenario is null."]];
     }
     var fc = gi['geometry']
+    var lat = null, lon = null, alt = null, srid = null;
     if (gi['lat'] && gi['lat'].constructor === Number &&
         gi['lon'] && gi['lon'].constructor === Number &&
         gi['alt'] && gi['alt'].constructor === Number) {
@@ -126,7 +127,6 @@ function gm$smartProcessGeometryInput(gi, defVec) {
         lon = gi['lon'];
         alt = gi['alt'];
     }
-    var lat = null, lon = null, alt = null, srid = null;
     if (gi['srid'] && gi['srid'].constructor === Number) {
         srid = gi['srid']
     }
