@@ -416,5 +416,5 @@ foreign import javascript unsafe "$r = {}; $r['geometry'] = $1"
 foreign import javascript unsafe "$1['geometry']['features']"
     js_GIToJSArray :: GeometryInput -> JS.Array Feature
 {-# INLINE js_JSArrayToGI #-}
-foreign import javascript unsafe "$r = {}; $r['type'] = 'FeatureCollection'; $r['features'] = $1; $s = {}; s['geometry'] = $r"
+foreign import javascript unsafe "$r = {}; $r['geometry'] = {}; $r['geometry']['type'] = 'FeatureCollection'; $r['geometry']['features'] = $1;"
     js_JSArrayToGI :: JS.Array Feature -> GeometryInput
