@@ -130,7 +130,7 @@ function gm$smartProcessGeometryInput(gi, defVec) {
     if (gi['srid'] && gi['srid'].constructor === Number) {
         srid = gi['srid']
     }
-    return [fc,errors,[lat,lon,alt],srid];
+    return [fc,[],[lat,lon,alt],srid];
 }
 
 /**
