@@ -79,7 +79,7 @@ data City = City
     , clutter           :: !(LS.MultiLineString 3 GLfloat, WiredGeometry)
     , buildingColors    :: !(Maybe (PS.PointArray 4 GLfloat))
     --, drawTextures      :: !Bool
-    , oriLatLonAlt      :: !(Maybe (Vector 3 GLfloat))
+    , originLatLonAlt   :: !(Maybe (Vector 3 GLfloat))
     , srid              :: !(Maybe Int)
     }
 
@@ -117,7 +117,7 @@ emptyCity = City
     , csettings = defaultCitySettings
     , clutter = emptyLineSet (vector4 0.8 0.4 0.4 1)
     , buildingColors = Nothing
-    , oriLatLonAlt = Nothing
+    , originLatLonAlt = Nothing
     , srid         = Nothing
     }
 
@@ -250,7 +250,7 @@ buildCity sets scenario = (,) errors City
     , csettings = sets { scLonLat = pfcLonLat parsedCollection}
     , clutter = createLineSet (vector4 0.8 0.4 0.4 1) liness
     , buildingColors = Nothing
-    , oriLatLonAlt = giOriginLatLonAlt
+    , originLatLonAlt = giOriginLatLonAlt
     , srid = giSrid
     }
     where (rcscale,cshift)  = scenarioViewScaling (diagFunction sets) parsedCollection
