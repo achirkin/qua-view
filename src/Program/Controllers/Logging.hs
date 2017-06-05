@@ -19,7 +19,7 @@ module Program.Controllers.Logging
 
 
 import Data.Geometry
-import Data.Geometry.Structure.Feature (FeatureCollection)
+import Data.Geometry.Structure.Feature (GeometryInput)
 import Program.Types
 import Program.Settings (jsonStringify, fromProps)
 import JsHs.WebGL (GLfloat)
@@ -34,8 +34,8 @@ import Reactive.Banana.Combinators
 
 logActions :: JSString
            -> Event (GeomId, Matrix4 GLfloat)
-           -> Event (FeatureCollection, GLfloat)
-           -> Event FeatureCollection
+           -> Event (GeometryInput, GLfloat)
+           -> Event GeometryInput
            -> MomentIO ()
 logActions url actionE rebuildE updateE = do
     logger <- liftIO $ registerLogging url
