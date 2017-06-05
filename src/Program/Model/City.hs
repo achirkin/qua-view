@@ -254,7 +254,7 @@ buildCity sets scenario = (,) errors City
     , srid = giSrid
     }
     where (rcscale,cshift)  = scenarioViewScaling (diagFunction sets) parsedCollection
-          errors = giErrors ++ fcErrors;
+          errors = giErrors ++ fcErrors
           (fcErrors,objects, liness) = processScenario (defHeight sets) (defElevation sets) cscale cshift parsedCollection
           cscale = fromMaybe rcscale (defScale sets)
           (giSrid, giOriginLatLonAlt, giErrors, parsedCollection) = smartProcessGeometryInput 2 (vector3 0 0 (defElevation sets)) scenario
@@ -278,7 +278,8 @@ updateCity scenario
              , ground = buildGround (groundDilate $ csettings city) allobjects
              , clutter = appendLineSet liness (clutter city)
              }
-    where (errors,objects, liness) = processScenario (defHeight $ csettings city)  (defElevation $ csettings city) cscale cshift parsedCollection
+    where errors = giErrors + fcErrors
+          (fcErrors,objects, liness) = processScenario (defHeight $ csettings city)  (defElevation $ csettings city) cscale cshift parsedCollection
 --          updates = JS.map (geomId . T.unwrap) objects
 --          deletes = JS.toList $ JS.concat (JS.map GeomId $ pfcDeletes parsedCollection) updates
 --          afterDelete = JS.filter (\o -> geomId (T.unwrap o) `notElem` deletes) $ objectsIn city
