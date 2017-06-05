@@ -278,7 +278,7 @@ updateCity scenario
              , ground = buildGround (groundDilate $ csettings city) allobjects
              , clutter = appendLineSet liness (clutter city)
              }
-    where errors = giErrors + fcErrors
+    where errors = giErrors ++ fcErrors
           (fcErrors,objects, liness) = processScenario (defHeight $ csettings city)  (defElevation $ csettings city) cscale cshift parsedCollection
 --          updates = JS.map (geomId . T.unwrap) objects
 --          deletes = JS.toList $ JS.concat (JS.map GeomId $ pfcDeletes parsedCollection) updates
