@@ -38,7 +38,7 @@ import qualified JsHs.TypedArray as JSTA
 --import JsHs.WebGL.Types (GLfloat)
 import qualified Data.Geometry.Transform as T
 
-import Data.Geometry.Structure.Feature (FeatureCollection)
+import Data.Geometry.Structure.Feature (GeometryInput)
 import qualified Data.Geometry.Structure.PointSet as PS
 
 import Unsafe.Coerce (unsafeCoerce)
@@ -64,7 +64,7 @@ import qualified Program.Controllers.GUI as GUI
 -- import Debug.Trace (trace)
 
 luciBehavior :: Settings
-             -> (Either FeatureCollection FeatureCollection -> IO ())
+             -> (Either GeometryInput GeometryInput -> IO ())
                       -> Behavior City
                       -> Event GroundUpdated
                       -> Event (Either b b1)
@@ -319,9 +319,9 @@ luciBehavior lsettings geoJSONImportFire cityB groundUpdatedE
 
 
 -- | Luci scenario
-data LuciScenario = LuciResultScenario ScenarioId FeatureCollection UTCTime
+data LuciScenario = LuciResultScenario ScenarioId GeometryInput UTCTime
 instance JS.LikeJS "Object" LuciScenario where
-  asLikeJS jsv = case (,) <$> getProp "ScID" jsv <*> getProp "FeatureCollection" jsv of
+  asLikeJS jsv = case (,) <$> getProp "ScID" jsv <*> getProp "GeometryInput" jsv of
                   Just (scId, fc) -> LuciResultScenario scId fc t
                   Nothing -> anotherTry
      where
@@ -330,7 +330,7 @@ instance JS.LikeJS "Object" LuciScenario where
               (fromMaybe (JS.fromJSArray JS.emptyArray) (getProp "geometry_output" jsv >>= getProp "geometry")) t
   asJSVal (LuciResultScenario scId fc _) =
             setProp "ScID"  (JS.asJSVal scId)
-          $ setProp "FeatureCollection" fc newObj
+          $ setProp "GeometryInput" fc newObj
 
 -- | Luci scenario
 data LuciScenarioCreated = LuciResultScenarioCreated ScenarioId UTCTime
@@ -346,7 +346,7 @@ runScenarioCreate :: Behavior LuciClient
                   -> Event
                      ( ScenarioName -- ^ name of the scenario
                      , Maybe (Vector2 GLfloat)
-                     , FeatureCollection -- ^ content of the scenario
+                     , GeometryInput -- ^ content of the scenario
                      )
                   -> MomentIO (Event (ServiceResponse LuciScenarioCreated))
 runScenarioCreate lcB e = runService lcB $ (\v -> ("scenario.geojson.Create", f v, [])) <$> e
@@ -373,7 +373,7 @@ runScenarioCreate lcB e = runService lcB $ (\v -> ("scenario.geojson.Create", f 
 runScenarioUpdate :: Behavior LuciClient
                   -> Event
                      ( ScenarioId -- ^ id of the scenario
-                     , FeatureCollection -- ^ content of the scenario update
+                     , GeometryInput -- ^ content of the scenario update
                      )
                   -> MomentIO (Event (ServiceResponse JSVal))
 runScenarioUpdate lcB e = runService lcB $ (\v -> ("scenario.geojson.Update", f v, [])) <$> e

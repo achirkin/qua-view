@@ -125,9 +125,9 @@ emptyCity = City
 data CityUpdate
   = CityErase
     -- ^ clear all geometry
-  | CityUpdate FeatureCollection
+  | CityUpdate GeometryInput
     -- ^ update geometry
-  | CityNew FeatureCollection
+  | CityNew GeometryInput
     -- ^ create whole new geometry
 
 -- | This is a main module export.
@@ -213,9 +213,9 @@ instance JS.LikeJSArray "Object" CityObjectCollection where
 -- | Pure city transform given a feature collection to apply
 manageCityUpdate :: Settings -> CityUpdate -> City -> ([JSString], City)
 manageCityUpdate _ CityErase _ = ([], emptyCity)
-manageCityUpdate sets (CityNew fc) _ = buildCity (defaultCitySettings { defScale = objectScale sets}) fc
-manageCityUpdate sets (CityUpdate fc) city | isEmptyCity city = buildCity (defaultCitySettings { defScale = objectScale sets}) fc
-                                           | otherwise = updateCity fc city
+manageCityUpdate sets (CityNew gi) _ = buildCity (defaultCitySettings { defScale = objectScale sets}) gi
+manageCityUpdate sets (CityUpdate gi) city | isEmptyCity city = buildCity (defaultCitySettings { defScale = objectScale sets}) gi
+                                           | otherwise = updateCity gi city
 
 -- | City transforms in Event style
 manageCityUpdates :: Behavior Settings
@@ -389,24 +389,26 @@ scenarioViewScaling diam scenario = ( 2 * diam n / normL2 (h-l) , vector2 x y)
 ----------------------------------------------------------------------------------------------------
 
 -- TODO: I discarded grid scaling, but need to decidehow to treat it later.
-storeCityAsIs :: City -> FeatureCollection
+storeCityAsIs :: City -> GeometryInput
+-- TODO: Proper change in the logic?
 storeCityAsIs City
     { objectsIn = buildings
     , clutter = (mline, _)
     , cityTransform = (scale, shift)
-    } = JS.fromJSArray . JS.fromList $
+    } = js_FCToGI $ JS.fromJSArray . JS.fromList $
        (feature . PS.mapSet (\x -> x*scale3 + shift3) . GeoMultiLineString $ mline)
         : JS.toList (JS.map (storeCityObject scale shift PlainFeature) buildings)
   where
     shift3 = resizeVector shift
     scale3 = broadcastVector (1/scale)
 
-storeObjectsAsIs :: [GeomId] -> City -> FeatureCollection
+storeObjectsAsIs :: [GeomId] -> City -> GeometryInput
+-- TODO: Proper change in the logic?
 storeObjectsAsIs xs City
     { objectsIn = buildings
 --    , clutter = (mline, _)
     , cityTransform = (scale, shift)
-    } = JS.fromJSArray . JS.map (storeCityObject scale shift PlainFeature) $ JS.filter (\o -> geomId (T.unwrap o) `elem` xs) buildings
+    } = js_FCToGI $ JS.fromJSArray . JS.map (storeCityObject scale shift PlainFeature) $ JS.filter (\o -> geomId (T.unwrap o) `elem` xs) buildings
 
 
 
