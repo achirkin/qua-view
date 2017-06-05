@@ -146,7 +146,7 @@ function gm$smartProcessGeometryInput(gi, defVec) {
 function gm$smartProcessFeatureCollection(fc, coorSys, defVec, maxGeomId) {
     'use strict';
     if (!fc) {
-        return [[],[],[],[],["No valid FeatureCollection."]];
+        return [[],[],[],[],["FeatureCollection is null."]];
     }
     if (fc['type'] !== "FeatureCollection")  {
         return [[],[],[],[],["No valid 'obj.type = \"FeatureCollection\"'"]];
