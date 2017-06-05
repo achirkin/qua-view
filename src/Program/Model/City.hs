@@ -269,7 +269,8 @@ buildCity sets scenario = (,) errors City
 --  , pfcDims    :: Int
 
 
-updateCity ::FeatureCollection -> City -> ([JSString], City)
+updateCity :: GeometryInput -> City -> ([JSString], City)
+-- TODO: Improve updateCity logic.
 updateCity scenario
            city@City{cityTransform = (cscale, cshift)} = (,)
         errors
@@ -284,7 +285,7 @@ updateCity scenario
 --          allobjects = JS.concat afterDelete objects
           allobjects = js_smartUpdateCity (objectsIn city) objects (JS.map GeomId $ pfcDeletes parsedCollection)
           prevMaxGeomId = max 2 . fromIntegral . Prelude.maximum . JS.toList . JS.map (geomId . T.unwrap) $ objectsIn city
-          parsedCollection = smartProcessFeatureCollection prevMaxGeomId (vector3 0 0 (defElevation $ csettings city)) scenario
+          (giSrid, giOriginLatLonAlt, giErrors, parsedCollection) = smartProcessGeometryInput prevMaxGeomId (vector3 0 0 (defElevation $ csettings city)) scenario
 
 
 foreign import javascript unsafe "gm$smartUpdateBArray($1, $2, $3)"
