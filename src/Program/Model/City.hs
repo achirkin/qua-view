@@ -70,17 +70,20 @@ import Control.Monad.Writer.Strict
 
 -- | Map of all city objects (buildings, roads, etc).
 data City = City
-    { activeObjId       :: !Int
---    , activeObjSnapshot :: !(Maybe LocatedCityObject)
-    , objectsIn         :: !CityObjectCollection
-    , cityTransform     :: !(GLfloat, Vector2 GLfloat)
-    , ground            :: !CityGround
-    , csettings         :: !CitySettings
-    , clutter           :: !(LS.MultiLineString 3 GLfloat, WiredGeometry)
-    , buildingColors    :: !(Maybe (PS.PointArray 4 GLfloat))
-    --, drawTextures      :: !Bool
-    , originLatLonAlt   :: !(Maybe (Vector 3 GLfloat))
-    , srid              :: !(Maybe Int)
+    { activeObjId        :: !Int
+--    , activeObjSnapshot  :: !(Maybe LocatedCityObject)
+    , objectsIn          :: !CityObjectCollection
+    , cityTransform      :: !(GLfloat, Vector2 GLfloat)
+    , ground             :: !CityGround
+    , csettings          :: !CitySettings
+    , clutter            :: !(LS.MultiLineString 3 GLfloat, WiredGeometry)
+    , buildingColors     :: !(Maybe (PS.PointArray 4 GLfloat))
+    --, drawTextures       :: !Bool
+    , originLatLonAlt    :: !(Maybe (Vector 3 GLfloat))
+    , srid               :: !(Maybe Int)
+    , defaultBlockColor  :: !(Maybe (PS.PointArray 4 GLfloat))
+    , defaultStaticColor :: !(Maybe (PS.PointArray 4 GLfloat))
+    , defaultLineColor   :: !(Maybe (PS.PointArray 4 GLfloat))
     }
 
 data CitySettings = CitySettings
@@ -119,6 +122,9 @@ emptyCity = City
     , buildingColors = Nothing
     , originLatLonAlt = Nothing
     , srid         = Nothing
+    , defaultBlockColor = Nothing
+    , defaultStaticColor = Nothing
+    , defaultLineColor = Nothing
     }
 
 -- | An event that represents all possible city changes
@@ -252,6 +258,9 @@ buildCity sets scenario = (,) errors City
     , buildingColors = Nothing
     , originLatLonAlt = giOriginLatLonAlt
     , srid = giSrid
+    , defaultBlockColor = Nothing
+    , defaultStaticColor = Nothing
+    , defaultLineColor = Nothing
     }
     where (rcscale,cshift)  = scenarioViewScaling (diagFunction sets) parsedCollection
           errors = giErrors ++ fcErrors
