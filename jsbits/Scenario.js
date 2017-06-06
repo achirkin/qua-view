@@ -230,8 +230,8 @@ function gm$smartProcessFeatureCollection(fc, coorSys, defVec, maxGeomId) {
                 cmin[1] > -180 && cmax[1] < 180) {
             var xbound = cmax[0] - cmin[0], ybound = cmax[1] - cmin[1];
             if ((xbound < 1 && ybound < 1 && fc['features'].length < 10) ||
-                    (xbound < 3 && ybound < 3 && fc['features'].length < 100) ||
-                    (xbound < 5 && ybound < 5) ){
+                    (xbound < 3 && ybound < 3 && fc['features'].length >= 10 && fc['features'].length < 100) ||
+                    (xbound < 5 && ybound < 5) && fc['features'].length >= 100){
                 transform = true;
             }
         }
