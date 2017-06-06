@@ -121,8 +121,8 @@ function gm$smartProcessGeometryInput(gi, defVec) {
     var fc = gi['geometry']
     var lat = null, lon = null, alt = null, srid = null;
     if (gi['lat'] && gi['lat'].constructor === Number &&
-        gi['lon'] && gi['lon'].constructor === Number &&
-        gi['alt'] && gi['alt'].constructor === Number) {
+            gi['lon'] && gi['lon'].constructor === Number &&
+            gi['alt'] && gi['alt'].constructor === Number) {
         lat = gi['lat'];
         lon = gi['lon'];
         alt = gi['alt'];
