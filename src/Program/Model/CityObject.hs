@@ -149,6 +149,9 @@ foreign import javascript unsafe "$r = $2['properties'].hasOwnProperty('height')
                                  \$r = ($r).constructor == Number ? $r : $1;"
     getHeight :: GLfloat -> Feature -> GLfloat
 
+foreign import javascript unsafe "$r = $1['properties'].hasOwnProperty('viewColor') ? $1['properties']['viewColor'] : '';"
+    getViewColor :: Feature -> String
+
 foreign import javascript unsafe "$r = function(v){var t = [v[0]-$1[0],v[1]-$1[1],v[2]-$1[2]]; return [dotJSVec($2,t),dotJSVec($3,t),dotJSVec($4,t)];}"
     getLocatingCallback :: Vector3 GLfloat -- ^ shift
                         -> Vector3 GLfloat -- ^ x dir
