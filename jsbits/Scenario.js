@@ -241,9 +241,6 @@ function gm$smartProcessFeatureCollection(fc, coorSys, defVec, maxGeomId) {
             }
         }
     }
-
-
-
     // transform everything from WGS84 to a metric reference system if needed
     // when there is no lat+lon+alt or srid specified
     if(transform) {
