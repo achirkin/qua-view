@@ -219,17 +219,25 @@ function gm$smartProcessFeatureCollection(fc, coorSys, defVec, maxGeomId) {
     lines.forEach(addGeomID);
     surfaces.forEach(addGeomID);
 
-    var transform;
-    if(coorSys === "WGS84") {
+    var transform = false;
+    if (coorSys === "WGS84") {
         transform = true;
-    } else if(coorSys === "Metric") {
+    } else if (coorSys === "Metric") {
         transform = false;
-    } else if(cmin.length >= 2 && cmax.length >= 2
-            && cmin[0] > -360 && cmax[0] < 360 && cmin[1] > -180 && cmax[1] < 180
-            && (cmax[0] - cmin[0]) < 5 && (cmax[1] - cmin[1]) < 5) {
-            // TODO: add more heuristics here
-        transform = true;
+    } else  {
+        if (cmin.length >= 2 && cmax.length >= 2 && 
+                cmin[0] > -360 && cmax[0] < 360 && 
+                cmin[1] > -180 && cmax[1] < 180) {
+            var xbound = cmax[0] - cmin[0], y = cmax[1] - cmin[1];
+            if ((xbound < 1 && ybound < 1 && fc['features'].length < 10) ||
+                    (xbound < 3 && ybound < 3 && fc['features'].length < 100) ||
+                    (xbound < 5 && ybound < 5) ){
+                transform = true;
+            }
+        }
     }
+
+
 
     // transform everything from WGS84 to a metric reference system if needed
     // when there is no lat+lon+alt or srid specified
