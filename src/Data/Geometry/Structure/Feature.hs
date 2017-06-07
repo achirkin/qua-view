@@ -46,6 +46,8 @@ import Data.Geometry.Structure.Point (Point (), MultiPoint ())
 import Data.Geometry.Structure.Polygon (Polygon (), MultiPolygon ())
 import Data.Coerce
 
+import Program.Settings
+
 ----------------------------------------------------------------------------------------------------
 -- Base Types
 ----------------------------------------------------------------------------------------------------
@@ -90,8 +92,13 @@ fromGItoFC :: GeometryInput -> FeatureCollection
 fromGItoFC = coerce
 
 data SomeJSONInput = SJIExtended GeometryInput | SJIGeoJSON FeatureCollection
--- instance LikeJS "Object" SomeJSONInput where
---   asJSVal = 
+instance LikeJS "Object" SomeJSONInput where
+  asJSVal (SJIExtended gi) = asJSVal gi
+  asJSVal (SJIGeoJSON fc) = asJSVal fc
+
+  asLikeJS jsv = case (getProp "type" jsv :: Maybe String) of
+    Just "FeatureCollection" -> SJIGeoJSON (coerce jsv :: FeatureCollection)
+    _ ->  SJIExtended (coerce jsv :: GeometryInput)
   
 ----------------------------------------------------------------------------------------------------
 -- Some Functions
