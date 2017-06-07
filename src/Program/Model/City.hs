@@ -125,9 +125,9 @@ emptyCity = City
 data CityUpdate
   = CityErase
     -- ^ clear all geometry
-  | CityUpdate GeometryInput
+  | CityUpdate SomeJSONInput
     -- ^ update geometry
-  | CityNew GeometryInput
+  | CityNew SomeJSONInput
     -- ^ create whole new geometry
 
 -- | This is a main module export.
@@ -213,9 +213,9 @@ instance JS.LikeJSArray "Object" CityObjectCollection where
 -- | Pure city transform given a feature collection to apply
 manageCityUpdate :: Settings -> CityUpdate -> City -> ([JSString], City)
 manageCityUpdate _ CityErase _ = ([], emptyCity)
-manageCityUpdate sets (CityNew gi) _ = buildCity (defaultCitySettings { defScale = objectScale sets}) gi
-manageCityUpdate sets (CityUpdate gi) city | isEmptyCity city = buildCity (defaultCitySettings { defScale = objectScale sets}) gi
-                                           | otherwise = updateCity gi city
+manageCityUpdate sets (CityNew scenario) _ = buildCity (defaultCitySettings { defScale = objectScale sets}) scenario
+manageCityUpdate sets (CityUpdate scenario) city | isEmptyCity city = buildCity (defaultCitySettings { defScale = objectScale sets}) scenario
+                                           | otherwise = updateCity scenario city
 
 -- | City transforms in Event style
 manageCityUpdates :: Behavior Settings
@@ -239,7 +239,7 @@ manageCityUpdates bsets ev = u <$> transforms
 
 
 buildCity :: CitySettings -- ^ desired diagonal length of the city
-          -> GeometryInput -- ^ scenario to build city of
+          -> SomeJSONInput -- ^ scenario to build city of
           -> ([JSString], City) -- ^ Errors and the city itself
 buildCity sets scenario = (,) errors City
     { activeObjId = 0
@@ -269,7 +269,7 @@ buildCity sets scenario = (,) errors City
 --  , pfcDims    :: Int
 
 
-updateCity :: GeometryInput -> City -> ([JSString], City)
+updateCity :: SomeJSONInput -> City -> ([JSString], City)
 -- TODO: Improve updateCity logic.
 updateCity scenario
            city@City{cityTransform = (cscale, cshift)} = (,)
