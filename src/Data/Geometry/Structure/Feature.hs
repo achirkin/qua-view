@@ -19,6 +19,7 @@
 module Data.Geometry.Structure.Feature
     ( GeometryInput (..)
     , FeatureCollection (..)
+    , SomeJSONInput (..)
     , Feature (..), feature, setFeature
     , GeoJsonGeometryND (..), GeoJsonGeometry (..)
     , FeatureGeometryType (..), featureGeometryType
@@ -88,6 +89,10 @@ instance LikeJSArray "Object" GeometryInput where
 fromGItoFC :: GeometryInput -> FeatureCollection
 fromGItoFC = coerce
 
+data SomeJSONInput = SJIExtended GeometryInput | SJIGeoJSON FeatureCollection
+-- instance LikeJS "Object" SomeJSONInput where
+--   asJSVal = 
+  
 ----------------------------------------------------------------------------------------------------
 -- Some Functions
 ----------------------------------------------------------------------------------------------------
@@ -111,16 +116,13 @@ data ParsedFeatureCollection n x = ParsedFeatureCollection
   , pfcLonLat  :: Maybe (Vector 2 x)
   }
 
-foreign import javascript unsafe "$1['type'] && $1['type'] === 'FeatureCollection'"
-    isFeatureCollection :: GeometryInput -> Bool
-
 smartProcessGeometryInput :: Int -- ^ maximum geomId in current City
                           -> Vector n x -- ^ default vector to substitute
-                          -> GeometryInput
+                          -> SomeJSONInput
                           -> (Maybe Int, Maybe (Vector 3 x), [JSString], ParsedFeatureCollection n x)
-smartProcessGeometryInput n defVals gi = case isFeatureCollection gi of
-  True  -> (Nothing, Nothing, [], smartProcessFeatureCollection n defVals "Unknown" $ fromGItoFC gi)
-  False -> (srid, originLatLonAlt, errors, smartProcessFeatureCollection n defVals cs fc)
+smartProcessGeometryInput n defVals input = case input of
+  SJIGeoJSON fc -> (Nothing, Nothing, [], smartProcessFeatureCollection n defVals "Unknown" fc)
+  SJIExtended gi -> (srid, originLatLonAlt, errors, smartProcessFeatureCollection n defVals cs fc)
             where
               parsedGeometryInput = smartProcessGItoFC defVals gi
               srid = pgiSrid parsedGeometryInput
