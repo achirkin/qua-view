@@ -20,7 +20,7 @@ module Program.Controllers.GeoJSONFileImport
     ) where
 
 
-import Data.Geometry.Structure.Feature (FeatureCollection, SomeJSONInput)
+import Data.Geometry.Structure.Feature (SomeJSONInput)
 import JsHs.LikeJS.Class
 import JsHs.Types
 import JsHs.Callback
