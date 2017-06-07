@@ -132,7 +132,6 @@ function gm$smartProcessGeometryInput(gi, defVec) {
     if (gi['srid'] && gi['srid'].constructor === Number) {
         srid = gi['srid']
     }
-    console.log("GeometryInput");
     return [fc,[],[lat,lon,alt],srid];
 }
 
@@ -157,7 +156,6 @@ function gm$smartProcessFeatureCollection(fc, coorSys, defVec, maxGeomId) {
     if (!fc['features'] || fc['features'].constructor !== Array)  {
         return [[],[],[],[],["No valid 'obj.features':array"]];
     }
-    console.log("FeatureCollection");
     // so now we have a more-or-less valid feature collection
     var points = [],lines = [],surfaces = [],deletes = [],errors = [],
         f, cmin = [], cmax = [], dims = 0, i;
@@ -245,7 +243,6 @@ function gm$smartProcessFeatureCollection(fc, coorSys, defVec, maxGeomId) {
             }
         }
     }
-    console.log("FeatureCollection2");
     // transform everything from WGS84 to a metric reference system if needed
     // when there is no lat+lon+alt or srid specified
     if(transform) {
