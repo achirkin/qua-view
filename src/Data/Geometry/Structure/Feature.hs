@@ -81,13 +81,6 @@ newtype GeometryInput = GeometryInput JSVal
 instance LikeJS "Object" GeometryInput where
   asJSVal = js_deleteGiTimestamp
 
-instance LikeJSArray "Object" GeometryInput where
-    type ArrayElem GeometryInput = Feature
-    {-# INLINE toJSArray #-}
-    toJSArray = js_GIToJSArray
-    {-# INLINE fromJSArray #-}
-    fromJSArray = js_JSArrayToGI
-
 fromGItoFC :: GeometryInput -> FeatureCollection
 fromGItoFC = coerce
 
@@ -99,12 +92,6 @@ instance LikeJS "Object" SomeJSONInput where
   asLikeJS jsv = case (getProp "type" jsv :: Maybe JSString) of
     Just "FeatureCollection" -> SJIGeoJSON (coerce jsv :: FeatureCollection)
     _ -> SJIExtended (coerce jsv :: GeometryInput)
-
-instance LikeJSArray "Object" SomeJSONInput where
-  type ArrayElem SomeJSONInput = Feature
-  toJSArray (SJIExtended gi) = toJSArray gi
-  toJSArray (SJIGeoJSON fc) = toJSArray fc
-  fromJSArray = SJIGeoJSON . fromJSArray
   
 ----------------------------------------------------------------------------------------------------
 -- Some Functions
