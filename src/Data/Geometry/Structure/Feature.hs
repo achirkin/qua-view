@@ -27,7 +27,6 @@ module Data.Geometry.Structure.Feature
     , boundingBox2D, filterGeometryTypes
     , ParsedFeatureCollection (..), smartProcessFeatureCollection
     , ParsedGeometryInput (..), smartProcessGeometryInput
-    , js_FCToGI
     ) where
 
 
@@ -80,9 +79,6 @@ instance LikeJSArray "Object" FeatureCollection where
 newtype GeometryInput = GeometryInput JSVal
 instance LikeJS "Object" GeometryInput where
   asJSVal = js_deleteGiTimestamp
-
-fromGItoFC :: GeometryInput -> FeatureCollection
-fromGItoFC = coerce
 
 data SomeJSONInput = SJIExtended GeometryInput | SJIGeoJSON FeatureCollection
 instance LikeJS "Object" SomeJSONInput where
