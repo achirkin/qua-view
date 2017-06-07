@@ -126,7 +126,7 @@ function gm$smartProcessGeometryInput(gi, defVec) {
         lon = gi['lon'];
         alt = 0;
         if (gi['alt'] && gi['alt'].constructor ===  Number) {
-            atl = gi['alt'];
+            alt = gi['alt'];
         }
     }
     if (gi['srid'] && gi['srid'].constructor === Number) {
