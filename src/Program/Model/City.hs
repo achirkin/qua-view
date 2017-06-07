@@ -392,26 +392,25 @@ scenarioViewScaling diam scenario = ( 2 * diam n / normL2 (h-l) , vector2 x y)
 ----------------------------------------------------------------------------------------------------
 
 -- TODO: I discarded grid scaling, but need to decidehow to treat it later.
-storeCityAsIs :: City -> GeometryInput
--- TODO: Proper change in the logic?
+storeCityAsIs :: City -> FeatureCollection
 storeCityAsIs City
     { objectsIn = buildings
     , clutter = (mline, _)
     , cityTransform = (scale, shift)
-    } = js_FCToGI $ JS.fromJSArray . JS.fromList $
+    } = JS.fromJSArray . JS.fromList $
        (feature . PS.mapSet (\x -> x*scale3 + shift3) . GeoMultiLineString $ mline)
         : JS.toList (JS.map (storeCityObject scale shift PlainFeature) buildings)
   where
     shift3 = resizeVector shift
     scale3 = broadcastVector (1/scale)
 
-storeObjectsAsIs :: [GeomId] -> City -> GeometryInput
+storeObjectsAsIs :: [GeomId] -> City -> FeatureCollection
 -- TODO: Proper change in the logic?
 storeObjectsAsIs xs City
     { objectsIn = buildings
 --    , clutter = (mline, _)
     , cityTransform = (scale, shift)
-    } = js_FCToGI $ JS.fromJSArray . JS.map (storeCityObject scale shift PlainFeature) $ JS.filter (\o -> geomId (T.unwrap o) `elem` xs) buildings
+    } = JS.fromJSArray . JS.map (storeCityObject scale shift PlainFeature) $ JS.filter (\o -> geomId (T.unwrap o) `elem` xs) buildings
 
 
 
