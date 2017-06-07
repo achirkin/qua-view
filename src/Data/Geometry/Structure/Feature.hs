@@ -99,6 +99,12 @@ instance LikeJS "Object" SomeJSONInput where
   asLikeJS jsv = case (getProp "type" jsv :: Maybe String) of
     Just "FeatureCollection" -> SJIGeoJSON (coerce jsv :: FeatureCollection)
     _ ->  SJIExtended (coerce jsv :: GeometryInput)
+
+instance LikeJSArray "Object" SomeJSONInput where
+  type ArrayElem SomeJSONInput = Feature
+  toJSArray (SJIExtended gi) = toJSArray gi
+  toJSArray (SJIGeoJSON fc) = toJSArray fc
+  fromJSArray = SJIGeoJSON . fromJSArray
   
 ----------------------------------------------------------------------------------------------------
 -- Some Functions
