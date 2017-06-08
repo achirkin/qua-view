@@ -98,9 +98,9 @@ data ParsedGeometryInput x = ParsedGeometryInput
   , pgiErrors            :: JS.Array JSString
   , pgiLatLonAlt         :: Maybe (Vector 3 x)
   , pgiSrid              :: Maybe Int
-  , pgiBlockColor        :: Maybe (PS.PointArray 4 x)
-  , pgiStaticColor       :: Maybe (PS.PointArray 4 x)
-  , pgiLineColor         :: Maybe (PS.PointArray 4 x)
+  , pgiBlockColor        :: Maybe (Vector4 x)
+  , pgiStaticColor       :: Maybe (Vector4 x)
+  , pgiLineColor         :: Maybe (Vector4 x)
   }
 
 data ParsedFeatureCollection n x = ParsedFeatureCollection
@@ -118,9 +118,9 @@ data ParsedFeatureCollection n x = ParsedFeatureCollection
 smartProcessGeometryInput :: Int -- ^ maximum geomId in current City
                           -> Vector n x -- ^ default vector to substitute
                           -> SomeJSONInput
-                          -> (Maybe (PS.PointArray 4 x), 
-                              Maybe (PS.PointArray 4 x), 
-                              Maybe (PS.PointArray 4 x), 
+                          -> (Maybe (Vector4 x), 
+                              Maybe (Vector4 x), 
+                              Maybe (Vector4 x), 
                               Maybe Int, 
                               Maybe (Vector 3 x), 
                               [JSString], 
