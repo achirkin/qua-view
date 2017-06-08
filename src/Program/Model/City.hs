@@ -254,7 +254,7 @@ buildCity sets scenario = (,) errors City
     , ground = buildGround (groundDilate sets) objects
     , cityTransform = (cscale, cshift)
     , csettings = sets { scLonLat = pfcLonLat parsedCollection}
-    , clutter = createLineSet (vector4 0.8 0.4 0.4 1) liness
+    , clutter = createLineSet lineColorV liness
     , buildingColors = Nothing
     , originLatLonAlt = giOriginLatLonAlt
     , srid = giSrid
@@ -268,6 +268,9 @@ buildCity sets scenario = (,) errors City
           cscale = fromMaybe rcscale (defScale sets)
           (giBlockColor, giStaticColor, giLineColor, giSrid, giOriginLatLonAlt, giErrors, parsedCollection) = 
             smartProcessGeometryInput 2 (vector3 0 0 (defElevation sets)) scenario
+          lineColorV = case giLineColor of
+                        (Just colorV) -> colorV
+                        Nothing      -> (vector4 0.8 0.4 0.4 1)
 
 --  { pfcPoints  :: JS.Array Feature
 --  , pfcLines   :: JS.Array Feature
