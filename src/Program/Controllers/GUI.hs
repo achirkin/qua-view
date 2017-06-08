@@ -52,7 +52,7 @@ import Program.Types
 --   onSuccess :: JSON -> IO ()
 --   onFailure :: JSString -> IO ()
 --   return :: IO ()
-registerLoadingFile :: (Either JSString GeometryInput -> IO ()) -> IO ()
+registerLoadingFile :: (Either JSString SomeJSONInput -> IO ()) -> IO ()
 registerLoadingFile callback = do
   callbackSuccess <- asyncCallback1 $ callback . Right . asLikeJS
   callbackFailure <- asyncCallback1 $ callback . Left . asLikeJS
@@ -172,13 +172,13 @@ foreign import javascript safe "showInfo($1)" showInfo :: JSVal -> IO ()
 
 
 -- | Registers one callback; comes from Handler.Home.UIButtons.
---   onClick ::  (submitUrl -> GeometryInput -> Image -> IO ()) -> IO ()
+--   onClick ::  (submitUrl -> FeatureCollection -> Image -> IO ()) -> IO ()
 --   return :: IO ()
-registerSubmit :: (((JSString, GeometryInput, JSVal) -> IO ()) -> IO ()) -> IO ()
+registerSubmit :: (((JSString, FeatureCollection, JSVal) -> IO ()) -> IO ()) -> IO ()
 registerSubmit c =  asyncCallback1  (c . (\f (u,d,i) -> f u d i) . js_uncallback3) >>= js_registerSubmit
 foreign import javascript safe "registerSubmit($1)" js_registerSubmit :: Callback (JSVal -> IO ()) -> IO ()
 foreign import javascript safe "$1($2,$3,$4)"
-  js_uncallback3 :: JSVal -> JSString -> GeometryInput -> JSVal -> IO ()
+  js_uncallback3 :: JSVal -> JSString -> FeatureCollection -> JSVal -> IO ()
 
 
 -- | Registers one callback; comes from Handler.Home.UIButtons.

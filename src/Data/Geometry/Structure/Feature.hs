@@ -19,6 +19,7 @@
 module Data.Geometry.Structure.Feature
     ( GeometryInput (..)
     , FeatureCollection (..)
+    , SomeJSONInput (..)
     , Feature (..), feature, setFeature
     , GeoJsonGeometryND (..), GeoJsonGeometry (..)
     , FeatureGeometryType (..), featureGeometryType
@@ -26,7 +27,6 @@ module Data.Geometry.Structure.Feature
     , boundingBox2D, filterGeometryTypes
     , ParsedFeatureCollection (..), smartProcessFeatureCollection
     , ParsedGeometryInput (..), smartProcessGeometryInput
-    , js_FCToGI
     ) where
 
 
@@ -44,6 +44,8 @@ import Data.Geometry.Structure.LineString (LineString (), MultiLineString ())
 import Data.Geometry.Structure.Point (Point (), MultiPoint ())
 import Data.Geometry.Structure.Polygon (Polygon (), MultiPolygon ())
 import Data.Coerce
+
+import Program.Settings
 
 ----------------------------------------------------------------------------------------------------
 -- Base Types
@@ -78,16 +80,15 @@ newtype GeometryInput = GeometryInput JSVal
 instance LikeJS "Object" GeometryInput where
   asJSVal = js_deleteGiTimestamp
 
-instance LikeJSArray "Object" GeometryInput where
-    type ArrayElem GeometryInput = Feature
-    {-# INLINE toJSArray #-}
-    toJSArray = js_GIToJSArray
-    {-# INLINE fromJSArray #-}
-    fromJSArray = js_JSArrayToGI
+data SomeJSONInput = SJIExtended GeometryInput | SJIGeoJSON FeatureCollection
+instance LikeJS "Object" SomeJSONInput where
+  asJSVal (SJIExtended gi) = asJSVal gi
+  asJSVal (SJIGeoJSON fc) = asJSVal fc
 
-fromGItoFC :: GeometryInput -> FeatureCollection
-fromGItoFC = coerce
-
+  asLikeJS jsv = case (getProp "type" jsv :: Maybe JSString) of
+    Just "FeatureCollection" -> SJIGeoJSON (coerce jsv :: FeatureCollection)
+    _ -> SJIExtended (coerce jsv :: GeometryInput)
+  
 ----------------------------------------------------------------------------------------------------
 -- Some Functions
 ----------------------------------------------------------------------------------------------------
@@ -111,16 +112,13 @@ data ParsedFeatureCollection n x = ParsedFeatureCollection
   , pfcLonLat  :: Maybe (Vector 2 x)
   }
 
-foreign import javascript unsafe "$1['type'] && $1['type'] === 'FeatureCollection'"
-    isFeatureCollection :: GeometryInput -> Bool
-
 smartProcessGeometryInput :: Int -- ^ maximum geomId in current City
                           -> Vector n x -- ^ default vector to substitute
-                          -> GeometryInput
+                          -> SomeJSONInput
                           -> (Maybe Int, Maybe (Vector 3 x), [JSString], ParsedFeatureCollection n x)
-smartProcessGeometryInput n defVals gi = case isFeatureCollection gi of
-  True  -> (Nothing, Nothing, [], smartProcessFeatureCollection n defVals "Unknown" $ fromGItoFC gi)
-  False -> (srid, originLatLonAlt, errors, smartProcessFeatureCollection n defVals cs fc)
+smartProcessGeometryInput n defVals input = case input of
+  SJIGeoJSON fc -> (Nothing, Nothing, [], smartProcessFeatureCollection n defVals "Unknown" fc)
+  SJIExtended gi -> (srid, originLatLonAlt, errors, smartProcessFeatureCollection n defVals cs fc)
             where
               parsedGeometryInput = smartProcessGItoFC defVals gi
               srid = pgiSrid parsedGeometryInput
@@ -400,21 +398,3 @@ foreign import javascript unsafe "$1['features']"
 {-# INLINE js_JSArrayToFC #-}
 foreign import javascript unsafe "$r = {}; $r['type'] = 'FeatureCollection'; $r['features'] = $1"
     js_JSArrayToFC :: JS.Array Feature -> FeatureCollection
-
-----------------------------------------------------------------------------------------------------
--- GeometryInput converters
-----------------------------------------------------------------------------------------------------
-
-{-# INLINE js_GIToFC #-}
-foreign import javascript unsafe "$1['geometry']"
-    js_GIToFC :: GeometryInput -> FeatureCollection
-{-# INLINE js_FCToGI #-}
-foreign import javascript unsafe "$r = {}; $r['geometry'] = $1"
-    js_FCToGI :: FeatureCollection -> GeometryInput
-
-{-# INLINE js_GIToJSArray #-}
-foreign import javascript unsafe "$1['geometry']['features']"
-    js_GIToJSArray :: GeometryInput -> JS.Array Feature
-{-# INLINE js_JSArrayToGI #-}
-foreign import javascript unsafe "$r = {}; $r['geometry'] = {}; $r['geometry']['type'] = 'FeatureCollection'; $r['geometry']['features'] = $1;"
-    js_JSArrayToGI :: JS.Array Feature -> GeometryInput
