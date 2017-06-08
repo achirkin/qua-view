@@ -98,6 +98,9 @@ data ParsedGeometryInput x = ParsedGeometryInput
   , pgiErrors            :: JS.Array JSString
   , pgiLatLonAlt         :: Maybe (Vector 3 x)
   , pgiSrid              :: Maybe Int
+  , pgiBlockColor        :: Maybe (PS.PointArray 4 x)
+  , pgiStaticColor       :: Maybe (PS.PointArray 4 x)
+  , pgiLineColor         :: Maybe (PS.PointArray 4 x)
   }
 
 data ParsedFeatureCollection n x = ParsedFeatureCollection
@@ -115,12 +118,21 @@ data ParsedFeatureCollection n x = ParsedFeatureCollection
 smartProcessGeometryInput :: Int -- ^ maximum geomId in current City
                           -> Vector n x -- ^ default vector to substitute
                           -> SomeJSONInput
-                          -> (Maybe Int, Maybe (Vector 3 x), [JSString], ParsedFeatureCollection n x)
+                          -> (Maybe (PS.PointArray 4 x), 
+                              Maybe (PS.PointArray 4 x), 
+                              Maybe (PS.PointArray 4 x), 
+                              Maybe Int, 
+                              Maybe (Vector 3 x), 
+                              [JSString], 
+                              ParsedFeatureCollection n x)
 smartProcessGeometryInput n defVals input = case input of
-  SJIGeoJSON fc -> (Nothing, Nothing, [], smartProcessFeatureCollection n defVals "Unknown" fc)
-  SJIExtended gi -> (srid, originLatLonAlt, errors, smartProcessFeatureCollection n defVals cs fc)
+  SJIGeoJSON fc -> (Nothing, Nothing, Nothing, Nothing, Nothing, [], smartProcessFeatureCollection n defVals "Unknown" fc)
+  SJIExtended gi -> (blockColor, staticColor, lineColor, srid, originLatLonAlt, errors, smartProcessFeatureCollection n defVals cs fc)
             where
               parsedGeometryInput = smartProcessGItoFC defVals gi
+              blockColor = pgiBlockColor parsedGeometryInput
+              staticColor = pgiStaticColor parsedGeometryInput
+              lineColor = pgiLineColor parsedGeometryInput
               srid = pgiSrid parsedGeometryInput
               originLatLonAlt = pgiLatLonAlt parsedGeometryInput
               errors = JS.toList $ pgiErrors parsedGeometryInput
@@ -133,14 +145,14 @@ smartProcessGeometryInput n defVals input = case input of
 smartProcessGItoFC :: Vector n x -- ^ default vector to substitute
                    -> GeometryInput
                    -> ParsedGeometryInput x
-smartProcessGItoFC defVals gi = ParsedGeometryInput fc errors (asLikeJS originLonLatAlt) (asLikeJS srid)
+smartProcessGItoFC defVals gi = ParsedGeometryInput fc errors (asLikeJS originLonLatAlt) (asLikeJS srid) (asLikeJS blockColor) (asLikeJS staticColor) (asLikeJS lineColor)
   where
-    (fc, errors, originLonLatAlt, srid) = js_smartProcessGeometryInput gi defVals
+    (fc, errors, originLonLatAlt, srid, blockColor, staticColor, lineColor) = js_smartProcessGeometryInput gi defVals
 
-foreign import javascript unsafe "var a = gm$smartProcessGeometryInput($1, $2);$r1=a[0];$r2=a[1];$r3=a[2];$r4=a[3]"
+foreign import javascript unsafe "var a = gm$smartProcessGeometryInput($1, $2);$r1=a[0];$r2=a[1];$r3=a[2];$r4=a[3];$r5=a[4];$r6=a[5];$r7=a[6]"
   js_smartProcessGeometryInput
     :: GeometryInput -> Vector n x
-    -> (FeatureCollection, JS.Array JSString, JSVal, JSVal)
+    -> (FeatureCollection, JS.Array JSString, JSVal, JSVal, JSVal, JSVal, JSVal)
 
 smartProcessFeatureCollection :: Int -- ^ maximum geomId in current City
                               -> Vector n x -- ^ default vector to substitute

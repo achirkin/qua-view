@@ -258,15 +258,16 @@ buildCity sets scenario = (,) errors City
     , buildingColors = Nothing
     , originLatLonAlt = giOriginLatLonAlt
     , srid = giSrid
-    , defaultBlockColor = Nothing
-    , defaultStaticColor = Nothing
-    , defaultLineColor = Nothing
+    , defaultBlockColor = giBlockColor
+    , defaultStaticColor = giStaticColor
+    , defaultLineColor = giLineColor
     }
     where (rcscale,cshift)  = scenarioViewScaling (diagFunction sets) parsedCollection
           errors = giErrors ++ fcErrors
           (fcErrors,objects, liness) = processScenario (defHeight sets) (defElevation sets) cscale cshift parsedCollection
           cscale = fromMaybe rcscale (defScale sets)
-          (giSrid, giOriginLatLonAlt, giErrors, parsedCollection) = smartProcessGeometryInput 2 (vector3 0 0 (defElevation sets)) scenario
+          (giBlockColor, giStaticColor, giLineColor, giSrid, giOriginLatLonAlt, giErrors, parsedCollection) = 
+            smartProcessGeometryInput 2 (vector3 0 0 (defElevation sets)) scenario
 
 --  { pfcPoints  :: JS.Array Feature
 --  , pfcLines   :: JS.Array Feature
@@ -297,7 +298,8 @@ updateCity scenario
 --          allobjects = JS.concat afterDelete objects
           allobjects = js_smartUpdateCity (objectsIn city) objects (JS.map GeomId $ pfcDeletes parsedCollection)
           prevMaxGeomId = max 2 . fromIntegral . Prelude.maximum . JS.toList . JS.map (geomId . T.unwrap) $ objectsIn city
-          (giSrid, giOriginLatLonAlt, giErrors, parsedCollection) = smartProcessGeometryInput prevMaxGeomId (vector3 0 0 (defElevation $ csettings city)) scenario
+          (giBlockColor, giStaticColor, giLineColor, giSrid, giOriginLatLonAlt, giErrors, parsedCollection) = 
+            smartProcessGeometryInput prevMaxGeomId (vector3 0 0 (defElevation $ csettings city)) scenario
 
 
 foreign import javascript unsafe "gm$smartUpdateBArray($1, $2, $3)"
