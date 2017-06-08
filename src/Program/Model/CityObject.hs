@@ -32,7 +32,6 @@ module Program.Model.CityObject
 
 import JsHs.Callback (Callback)
 
-import Data.Maybe
 import Data.Coerce (coerce)
 --import JsHs.JSString (unpack')
 
