@@ -123,7 +123,10 @@ instance Drawable City where
                       , Just ( attrLoc prog "aVertexNormal"
                              , attrLoc prog "aTextureCoord"))
               setColor Nothing i obj = case behavior obj of
-                    Static  -> uniform4f gl colLoc 0.5 0.5 0.55 1
+                    Static  -> uniform4f gl colLoc objR objG objB objA 
+                                  where (objR, objG, objB, objA) = case defaultStaticColor city of
+                                                                    Nothing -> (0.5, 0.5, 0.55, 1)
+                                                                    (Just color) -> unpackV4 color
                     Dynamic -> if i+1 == ai
                                then uniform4f gl colLoc 1 0.6 0.6 1
                                else uniform4f gl colLoc objR objG objB objA 
