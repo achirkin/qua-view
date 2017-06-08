@@ -124,7 +124,7 @@ function gm$updateProps(bArray, values) {
  * Returns a feature collection, and latitude, longitude, altitude, srid if available.
  *
  * @param gi - Geometry Input JSON
- * @returns {[featureCollection:FeatureCollection,errors:string,originLatLonAlt,srid]}
+ * @returns {[featureCollection:FeatureCollection,errors:string,originLatLonAlt,srid,blockColor,staticColor,lineColor]}
  */
 function gm$smartProcessGeometryInput(gi, defVec) {
     'use strict';
@@ -133,6 +133,7 @@ function gm$smartProcessGeometryInput(gi, defVec) {
     }
     var fc = gi['geometry']
     var lat, lon, alt, srid;
+    var blockColor, staticColor, lineColor;
     if (gi['lat'] && gi['lat'].constructor === Number &&
             gi['lon'] && gi['lon'].constructor === Number) {
         lat = gi['lat'];
@@ -145,7 +146,12 @@ function gm$smartProcessGeometryInput(gi, defVec) {
     if (gi['srid'] && gi['srid'].constructor === Number) {
         srid = gi['srid']
     }
-    return [fc,[],[lat,lon,alt],srid];
+    if (gi.hasOwnProperty('properties')) {
+        blockColor = gi['properties']['defaultBlockColor'];
+        staticColor = gi['properties']['defaultStaticColor'];
+        lineColor = gi['properties']['defaultLineColor'];
+    }
+    return [fc,[],[lat,lon,alt],srid,blockColor,staticColor,lineColor];
 }
 
 /**
