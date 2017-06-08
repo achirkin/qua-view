@@ -161,9 +161,15 @@ function gm$smartProcessGeometryInput(gi, defVec) {
         srid = gi['srid']
     }
     if (gi.hasOwnProperty('properties')) {
-        blockColor = gi['properties']['defaultBlockColor'];
-        staticColor = gi['properties']['defaultStaticColor'];
-        lineColor = gi['properties']['defaultLineColor'];
+        if (gi['properties'].hasOwnProperty('defaultBlockColor')) {
+            blockColor = gm$smartConvertHexToRgba(gi['properties']['defaultBlockColor']);
+        }
+        if (gi['properties'].hasOwnProperty('defaultStaticColor')) {
+            staticColor = gm$smartConvertHexToRgba(gi['properties']['defaultStaticColor']);
+        }
+        if (gi['properties'].hasOwnProperty('defaultLineColor')) {
+            lineColor = gm$smartConvertHexToRgba(gi['properties']['defaultLineColor']);
+        }
     }
     return [fc,[],[lat,lon,alt],srid,blockColor,staticColor,lineColor];
 }
