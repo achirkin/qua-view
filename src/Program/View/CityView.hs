@@ -124,6 +124,9 @@ instance Drawable City where
                              , attrLoc prog "aTextureCoord"))
               setColor Nothing i obj = uniform4f gl colLoc objR objG objB objA 
                 where
+                  defBlockColor = case defaultBlockColor city of
+                                    (Just color) -> unpackV4 color
+                                    Nothing -> (0.75, 0.75, 0.7, 1)
                   (objR, objG, objB, objA) = case (behavior obj, defaultStaticColor city, i+1 == ai) of
                                               (Static, Nothing, _) -> (0.5, 0.5, 0.55, 1)
                                               (Static, Just color, _) -> unpackV4 color
