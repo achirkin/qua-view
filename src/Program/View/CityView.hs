@@ -126,7 +126,8 @@ instance Drawable City where
                     Static  -> uniform4f gl colLoc 0.5 0.5 0.55 1
                     Dynamic -> if i+1 == ai
                                then uniform4f gl colLoc 1 0.6 0.6 1
-                               else uniform4f gl colLoc 0.75 0.75 0.7 1
+                               else uniform4f gl colLoc objR objG objB objA 
+                                      where (objR, objG, objB, objA) = getCityObjectColor(obj)
               setColor (Just arr) i obj = case unpackV4 $ PS.index i arr of
                     (r, g, b, a)  -> if behavior obj == Dynamic && i+1 == ai
                                      then uniform4f gl colLoc (g*0.5) (g*0.2) (b*0.2) a
