@@ -159,11 +159,13 @@ foreign import javascript unsafe "$r = function(v){var t = [v[0]-$1[0],v[1]-$1[1
                         -> Vector3 GLfloat -- ^ z dir
                         -> Callback (Vector3 GLfloat -> Vector3 GLfloat)
 
-getCityObjectColor :: CityObject -> (GLfloat, GLfloat, GLfloat, GLfloat)
-getCityObjectColor obj = case isNothing color of
-                          True -> (0.75, 0.75, 0.7, 1) -- ^ should be default color later on
-                          False -> unpackV4 $ fromJust color
-    where color = asLikeJS (js_smartCityObjectColor obj) :: Maybe (Vector4 GLfloat)
+getCityObjectColor :: (GLfloat, GLfloat, GLfloat, GLfloat)
+                      -> CityObject
+                      -> (GLfloat, GLfloat, GLfloat, GLfloat)
+getCityObjectColor defColor obj = case maybeColor of
+                          (Just color) -> unpackV4 color
+                          Nothing -> defColor
+    where maybeColor = asLikeJS (js_smartCityObjectColor obj) :: Maybe (Vector4 GLfloat)
 
 foreign import javascript unsafe "$r = gm$smartCityObjectColor($1);"
   js_smartCityObjectColor :: CityObject -> JSVal
