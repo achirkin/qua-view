@@ -126,12 +126,12 @@ instance Drawable City where
                 where
                   defBlockColor = case defaultBlockColor city of
                                     (Just color) -> unpackV4 color
-                                    Nothing -> (0.75, 0.75, 0.7, 1)
+                                    Nothing      -> (0.75, 0.75, 0.7, 1)
                   (objR, objG, objB, objA) = case (behavior obj, defaultStaticColor city, i+1 == ai) of
-                                              (Static, Nothing, _) -> (0.5, 0.5, 0.55, 1)
+                                              (Static, Nothing, _)    -> (0.5, 0.5, 0.55, 1)
                                               (Static, Just color, _) -> unpackV4 color
-                                              (Dynamic, _, True) -> (1, 0.6, 0.6, 1)
-                                              (Dynamic, _, False) -> getCityObjectColor defBlockColor obj
+                                              (Dynamic, _, True)      -> (1, 0.6, 0.6, 1)
+                                              (Dynamic, _, False)     -> getCityObjectColor defBlockColor obj
               setColor (Just arr) i obj = case unpackV4 $ PS.index i arr of
                     (r, g, b, a)  -> if behavior obj == Dynamic && i+1 == ai
                                      then uniform4f gl colLoc (g*0.5) (g*0.2) (b*0.2) a
