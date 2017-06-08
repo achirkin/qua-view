@@ -161,7 +161,7 @@ getCityObjectColor :: (GLfloat, GLfloat, GLfloat, GLfloat)
                       -> (GLfloat, GLfloat, GLfloat, GLfloat)
 getCityObjectColor defColor obj = case maybeColor of
                           (Just color) -> unpackV4 color
-                          Nothing -> defColor
+                          Nothing      -> defColor
     where maybeColor = asLikeJS (js_smartCityObjectColor obj) :: Maybe (Vector4 GLfloat)
 
 foreign import javascript unsafe "$r = gm$smartCityObjectColor($1);"
