@@ -81,9 +81,9 @@ data City = City
     --, drawTextures       :: !Bool
     , originLatLonAlt    :: !(Maybe (Vector 3 GLfloat))
     , srid               :: !(Maybe Int)
-    , defaultBlockColor  :: !(Maybe (PS.PointArray 4 GLfloat))
-    , defaultStaticColor :: !(Maybe (PS.PointArray 4 GLfloat))
-    , defaultLineColor   :: !(Maybe (PS.PointArray 4 GLfloat))
+    , defaultBlockColor  :: !(Maybe (Vector4 GLfloat))
+    , defaultStaticColor :: !(Maybe (Vector4 GLfloat))
+    , defaultLineColor   :: !(Maybe (Vector4 GLfloat))
     }
 
 data CitySettings = CitySettings
