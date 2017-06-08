@@ -9,6 +9,7 @@ import JsHs.Useful
 --import JsHs.Nullable (Nullable(..))
 import Control.Monad (when)
 import Data.Geometry
+import Data.Geometry.Structure.Feature (SomeJSONInput(SJIGeoJSON))
 import Data.Coerce
 import qualified Data.Geometry.Transform as T
 
@@ -82,9 +83,9 @@ main = do
       -- GeoJSON updates
       geoJSONImportE <- fromAddHandler geoJSONImportsHandler
       clearGeometryE <- fmap (const ClearingGeometry) <$> fromAddHandler clearGeomHandler
-      let cityChangeE = unionWith (const id) (CityUpdate . anyway <$> geoJSONImportE) (CityErase <$ clearGeometryE)
-          anyway (Left a) = a
-          anyway (Right a) = a
+      let cityChangeE = unionWith (const id) (CityUpdate . fun <$> geoJSONImportE) (CityErase <$ clearGeometryE)
+          fun (Left a) = a
+          fun (Right a) = SJIGeoJSON a
 
       -- canvas events
       pointerE <- pointerEvents heh

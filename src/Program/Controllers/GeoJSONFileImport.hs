@@ -20,7 +20,7 @@ module Program.Controllers.GeoJSONFileImport
     ) where
 
 
-import Data.Geometry.Structure.Feature (GeometryInput)
+import Data.Geometry.Structure.Feature (SomeJSONInput)
 import JsHs.LikeJS.Class
 import JsHs.Types
 import JsHs.Callback
@@ -29,14 +29,14 @@ import Program.Controllers.GUI (registerLoadingFile, registerClearGeometry)
 
 
 -- | Load GeoJSON file from local system
-registerJSONFileImports :: ((GeometryInput) -> IO ()) -> IO ()
+registerJSONFileImports :: (SomeJSONInput -> IO ()) -> IO ()
 registerJSONFileImports = registerLoadingFile . f
   where
     f _ (Left str) = logText' str
-    f fire (Right fc) = fire fc
+    f fire (Right ji) = fire ji
 
 -- | Load GeoJSON file by url
-loadGeoJSONFromLink :: JSString -> (GeometryInput -> IO ()) -> IO ()
+loadGeoJSONFromLink :: JSString -> (SomeJSONInput -> IO ()) -> IO ()
 loadGeoJSONFromLink url callback = do
   c <- asyncCallback1 $ callback . asLikeJS
   getUrlJSON url c
