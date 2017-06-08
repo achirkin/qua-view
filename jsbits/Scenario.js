@@ -31,16 +31,30 @@ function gm$smartNormalizeValues(sourceArray, nullSub) {
     }
 }
 
+/**
+ * Fetch RGBA color from a city object if available
+ * @param obj -- City Object
+ * @return Array - four-element normalized vector.
+ */
 function gm$smartCityObjectColor(obj) {
     if(obj.hasOwnProperty('properties') && 
             obj['properties'].hasOwnProperty('viewColor')) {
         var color = obj['properties']['viewColor'];
-        if (color.match(/^(#[A-Fa-f0-9]{6})$/)) {
-            var x = parseInt(color.substr(1), 16);
-            return [((x & 0xff0000) >> 16) / 255.0, 
-                    ((x & 0x00ff00) >> 8) / 255.0, 
-                    (x & 0x0000ff) / 255.0, 1];
-        }
+        return gm$smartConvertHexToRgba(color);
+    }
+}
+
+/**
+ * Convert an input color to RGBA if it satisfies Hex format.
+ * @param color 
+ * @return Array - four-element normalized vector.
+ */
+function gm$smartConvertHexToRgba(color) {
+    if (color.match(/^(#[A-Fa-f0-9]{6})$/)) {
+        var x = parseInt(color.substr(1), 16);
+        return [((x & 0xff0000) >> 16) / 255.0, 
+                ((x & 0x00ff00) >> 8) / 255.0, 
+                (x & 0x0000ff) / 255.0, 1];
     }
 }
 
