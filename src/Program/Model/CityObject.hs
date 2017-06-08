@@ -19,7 +19,7 @@
 -----------------------------------------------------------------------------
 
 module Program.Model.CityObject
-    ( CityObject (), LocatedCityObject, behavior, objPolygons, objPoints, geomId, allProps
+    ( CityObject (), LocatedCityObject, behavior, objPolygons, objPoints, geomId, allProps, getCityObjectColor
     , GeoJsonGeometry (..)
     , PointData (), vertexArray, indexArray, vertexArrayLength, indexArrayLength
     , processPolygonFeature
@@ -32,6 +32,7 @@ module Program.Model.CityObject
 
 import JsHs.Callback (Callback)
 
+import Data.Maybe
 import Data.Coerce (coerce)
 --import JsHs.JSString (unpack')
 
@@ -149,8 +150,7 @@ foreign import javascript unsafe "$r = $2['properties'].hasOwnProperty('height')
                                  \$r = ($r).constructor == Number ? $r : $1;"
     getHeight :: GLfloat -> Feature -> GLfloat
 
-foreign import javascript unsafe "$r = $1['properties'].hasOwnProperty('viewColor') ? $1['properties']['viewColor'] : '';"
-    getViewColor :: Feature -> JSString
+
 
 foreign import javascript unsafe "$r = function(v){var t = [v[0]-$1[0],v[1]-$1[1],v[2]-$1[2]]; return [dotJSVec($2,t),dotJSVec($3,t),dotJSVec($4,t)];}"
     getLocatingCallback :: Vector3 GLfloat -- ^ shift
@@ -159,6 +159,15 @@ foreign import javascript unsafe "$r = function(v){var t = [v[0]-$1[0],v[1]-$1[1
                         -> Vector3 GLfloat -- ^ z dir
                         -> Callback (Vector3 GLfloat -> Vector3 GLfloat)
 
+getCityObjectColor :: CityObject -> (GLfloat, GLfloat, GLfloat, GLfloat)
+getCityObjectColor obj = case isNothing color of
+                          True -> (0.75, 0.75, 0.7, 1) -- ^ should be default color later on
+                          False -> unpackV4 $ fromJust color
+    where color = asLikeJS (js_smartCityObjectColor obj) :: Maybe (Vector4 GLfloat)
+
+foreign import javascript unsafe "$r = gm$smartCityObjectColor($1);"
+  js_smartCityObjectColor :: CityObject -> JSVal
+  
 
 {-# INLINE behavior #-}
 behavior :: CityObject -> ObjectBehavior
