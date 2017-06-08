@@ -31,6 +31,19 @@ function gm$smartNormalizeValues(sourceArray, nullSub) {
     }
 }
 
+function gm$smartCityObjectColor(obj) {
+    if(obj.hasOwnProperty('properties') && 
+            obj['properties'].hasOwnProperty('viewColor')) {
+        var color = obj['properties']['viewColor'];
+        if (color.match(/^(#[A-Fa-f0-9]{6})$/)) {
+            var x = parseInt(color.substr(1), 16);
+            return [((x & 0xff0000) >> 16) / 255.0, 
+                    ((x & 0x00ff00) >> 8) / 255.0, 
+                    (x & 0x0000ff) / 255.0, 1];
+        }
+    }
+}
+
 /**
  * Normalize all values in an array to be a four-element vector in range [0..1]
  * Substitue a fiven number without any processing instead of null.
