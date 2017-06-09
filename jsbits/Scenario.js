@@ -108,7 +108,7 @@ function gm$updateProps(bArray, values) {
 /**
  * Parse a geometry input.
  *
- * Returns a feature collection, errors, and addtional information on latitude, longitude, altitude, srid if available.
+ * Returns a feature collection, errors, and additional information on latitude, longitude, altitude, srid if available.
  *
  * @param gi - Geometry Input JSON
  * @returns {[featureCollection:FeatureCollection,errors:string,originLatLonAlt,srid]}
