@@ -278,6 +278,8 @@ function gm$smartProcessFeatureCollection(fc, coorSys, defVec, maxGeomId) {
                     if(zbound/(xbound+ybound) > 100) {
                         transform = true;
                     }
+                } else {
+                    transform = true;
                 }
             }
         }
