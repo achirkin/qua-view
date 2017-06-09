@@ -104,7 +104,7 @@ luciBehavior lsettings geoJSONImportFire cityB groundUpdatedE
       -- asking luci to save a scenario on button click
       (askSaveScenarioE, onAskSaveScenarioFire) <- newEvent
       liftIO $ GUI.registerSaveScenario onAskSaveScenarioFire
-      scenarioSavedE <- runScenarioCreate luciClientB $ (\ci s -> (s, originLatLonAlt $ ci , storeCityAsIs ci)) <$> cityB <@> askSaveScenarioE
+      scenarioSavedE <- runScenarioCreate luciClientB $ (\ci s -> (s, originLatLonAlt $ ci, srid $ ci, storeCityAsIs ci)) <$> cityB <@> askSaveScenarioE
 --      scenarioSavedE <- execute ((\ci s -> runScenarioCreate runLuciService s (storeCityAsIs ci)) <$> cityB <@> askSaveScenarioE) >>= switchE
       scenarioSyncE_create <- mapEventIO id
            $ (\s -> do
@@ -346,25 +346,45 @@ runScenarioCreate :: Behavior LuciClient
                   -> Event
                      ( ScenarioName -- ^ name of the scenario
                      , Maybe (Vector3 GLfloat)
+                     , Maybe Int
                      , FeatureCollection -- ^ content of the scenario
                      )
                   -> MomentIO (Event (ServiceResponse LuciScenarioCreated))
 runScenarioCreate lcB e = runService lcB $ (\v -> ("scenario.geojson.Create", f v, [])) <$> e
   where
-    f (name, Nothing , collection) =
+    f (name, Nothing, Nothing, collection) =
       [ ("name", JS.asJSVal name)
       , ("geometry_input"
         ,   setProp "format"  ("GeoJSON" :: JSString)
           $ setProp "geometry" collection newObj
         )
       ]
-    f (name, Just geolocation, collection) | (lat, lon, alt) <- unpackV3 geolocation =
+    f (name, Just geolocation, Nothing, collection) | (lat, lon, alt) <- unpackV3 geolocation =
       [ ("name", JS.asJSVal name)
       , ("geometry_input"
         ,   setProp "format"  ("GeoJSON" :: JSString)
           $ setProp "lat" lat
           $ setProp "lon" lon
           $ setProp "alt" alt
+          $ setProp "geometry" collection newObj
+        )
+      ]
+    f (name, Nothing, Just s, collection) =
+      [ ("name", JS.asJSVal name)
+      , ("geometry_input"
+        ,   setProp "format"  ("GeoJSON" :: JSString)
+          $ setProp "srid" s
+          $ setProp "geometry" collection newObj
+        )
+      ]
+    f (name, Just geolocation, Just s, collection) | (lat, lon, alt) <- unpackV3 geolocation =
+      [ ("name", JS.asJSVal name)
+      , ("geometry_input"
+        ,   setProp "format"  ("GeoJSON" :: JSString)
+          $ setProp "lat" lat
+          $ setProp "lon" lon
+          $ setProp "alt" alt
+          $ setProp "srid" s
           $ setProp "geometry" collection newObj
         )
       ]
