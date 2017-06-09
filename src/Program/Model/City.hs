@@ -90,7 +90,6 @@ data CitySettings = CitySettings
     , evalCellSize :: !GLfloat
     , defElevation :: !GLfloat
     , defScale     :: !(Maybe GLfloat)
-    , scLonLat     :: !(Maybe (Vector 2 GLfloat))
     }
 
 -- | This indicates removal of all geometry from the city
@@ -104,7 +103,6 @@ defaultCitySettings = CitySettings
     , evalCellSize = 0.5
     , defElevation = 0.01
     , defScale     = Nothing
-    , scLonLat     = Nothing
     }
 
 emptyCity :: City
@@ -247,7 +245,7 @@ buildCity sets scenario = (,) errors City
     , objectsIn = objects
     , ground = buildGround (groundDilate sets) objects
     , cityTransform = (cscale, cshift)
-    , csettings = sets { scLonLat = pfcLonLat parsedCollection}
+    , csettings = defaultCitySettings
     , clutter = createLineSet (vector4 0.8 0.4 0.4 1) liness
     , buildingColors = Nothing
     , originLatLonAlt = giOriginLatLonAlt
