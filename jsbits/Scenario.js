@@ -248,7 +248,7 @@ function gm$smartProcessFeatureCollection(fc, coorSys, defVec, maxGeomId) {
     // transform everything from WGS84 to a metric reference system if needed
     // when there is no lat+lon+alt or srid specified
     if(transform) {
-       var center = [(cmax[0] + cmin[0])/2, (cmax[1] + cmin[1])/2]
+       var center = [(cmax[1] + cmin[1])/2, (cmax[0] + cmin[0])/2, 0]
          , transformFunc = gm$createWGS84toUTMTransform(center[0], center[1]);
        return [ gm$mapPoints(transformFunc, points)
               , gm$mapPoints(transformFunc, lines)
