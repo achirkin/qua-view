@@ -109,7 +109,7 @@ data ParsedFeatureCollection n x = ParsedFeatureCollection
   , pfcMin     :: Vector n x
   , pfcMax     :: Vector n x
   , pfcDims    :: Int
-  , pfcLonLat  :: Maybe (Vector 2 x)
+  , pfcLatLonAlt  :: Maybe (Vector 3 x)
   }
 
 smartProcessGeometryInput :: Int -- ^ maximum geomId in current City
@@ -117,18 +117,22 @@ smartProcessGeometryInput :: Int -- ^ maximum geomId in current City
                           -> SomeJSONInput
                           -> (Maybe Int, Maybe (Vector 3 x), [JSString], ParsedFeatureCollection n x)
 smartProcessGeometryInput n defVals input = case input of
-  SJIGeoJSON fc -> (Nothing, Nothing, [], smartProcessFeatureCollection n defVals "Unknown" fc)
-  SJIExtended gi -> (srid, originLatLonAlt, errors, smartProcessFeatureCollection n defVals cs fc)
-            where
-              parsedGeometryInput = smartProcessGItoFC defVals gi
-              srid = pgiSrid parsedGeometryInput
-              originLatLonAlt = pgiLatLonAlt parsedGeometryInput
-              errors = JS.toList $ pgiErrors parsedGeometryInput
-              fc = pgiFeatureCollection parsedGeometryInput
-              cs = case (srid, originLatLonAlt) of
-                    (Just 4326, _) -> "WGS84"
-                    (Nothing, Nothing) -> "Unknown"
-                    _ -> "Metric"
+    SJIGeoJSON fc -> (Nothing, originLatLonAlt, [], parsedFeatureCollection)
+                        where
+                          parsedFeatureCollection = smartProcessFeatureCollection n defVals "Unknown" fc
+                          originLatLonAlt = pfcLatLonAlt parsedFeatureCollection
+    SJIExtended gi -> (srid, originLatLonAlt, errors, parsedFeatureCollection)
+                        where
+                          parsedGeometryInput = smartProcessGItoFC defVals gi
+                          srid = pgiSrid parsedGeometryInput
+                          originLatLonAlt = pgiLatLonAlt parsedGeometryInput
+                          errors = JS.toList $ pgiErrors parsedGeometryInput
+                          parsedFeatureCollection = smartProcessFeatureCollection n defVals cs fc
+                          fc = pgiFeatureCollection parsedGeometryInput
+                          cs = case (srid, originLatLonAlt) of
+                                (Just 4326, _) -> "WGS84"
+                                (Nothing, Nothing) -> "Unknown"
+                                _ -> "Metric"
 
 smartProcessGItoFC :: Vector n x -- ^ default vector to substitute
                    -> GeometryInput
@@ -147,9 +151,9 @@ smartProcessFeatureCollection :: Int -- ^ maximum geomId in current City
                               -> JSString -- ^ determine conversion
                               -> FeatureCollection
                               -> ParsedFeatureCollection n x
-smartProcessFeatureCollection n defVals cs fc = ParsedFeatureCollection points lins polys deletes errors cmin cmax cdims (asLikeJS mLonLat)
+smartProcessFeatureCollection n defVals cs fc = ParsedFeatureCollection points lins polys deletes errors cmin cmax cdims (asLikeJS mLatLonAlt)
   where
-    (points, lins, polys, deletes, errors, cmin, cmax, cdims, mLonLat) = js_smartProcessFeatureCollection fc cs defVals n
+    (points, lins, polys, deletes, errors, cmin, cmax, cdims, mLatLonAlt) = js_smartProcessFeatureCollection fc cs defVals n
 
 
 foreign import javascript unsafe "var a = gm$smartProcessFeatureCollection($1, $2, $3, $4);$r1=a[0];$r2=a[1];$r3=a[2];$r4=a[3];$r5=a[4];$r6=a[5];$r7=a[6];$r8=a[7];$r9=a[8];"
