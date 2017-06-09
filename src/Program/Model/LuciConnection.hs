@@ -352,42 +352,25 @@ runScenarioCreate :: Behavior LuciClient
                   -> MomentIO (Event (ServiceResponse LuciScenarioCreated))
 runScenarioCreate lcB e = runService lcB $ (\v -> ("scenario.geojson.Create", f v, [])) <$> e
   where
-    f (name, Nothing, Nothing, collection) =
+    f (name, geoLocation, geoSrid, collection) = 
       [ ("name", JS.asJSVal name)
       , ("geometry_input"
         ,   setProp "format"  ("GeoJSON" :: JSString)
-          $ setProp "geometry" collection newObj
+          $ setProp "geometry" collection object1
         )
       ]
-    f (name, Just geolocation, Nothing, collection) | (lat, lon, alt) <- unpackV3 geolocation =
-      [ ("name", JS.asJSVal name)
-      , ("geometry_input"
-        ,   setProp "format"  ("GeoJSON" :: JSString)
-          $ setProp "lat" lat
-          $ setProp "lon" lon
-          $ setProp "alt" alt
-          $ setProp "geometry" collection newObj
-        )
-      ]
-    f (name, Nothing, Just s, collection) =
-      [ ("name", JS.asJSVal name)
-      , ("geometry_input"
-        ,   setProp "format"  ("GeoJSON" :: JSString)
-          $ setProp "srid" s
-          $ setProp "geometry" collection newObj
-        )
-      ]
-    f (name, Just geolocation, Just s, collection) | (lat, lon, alt) <- unpackV3 geolocation =
-      [ ("name", JS.asJSVal name)
-      , ("geometry_input"
-        ,   setProp "format"  ("GeoJSON" :: JSString)
-          $ setProp "lat" lat
-          $ setProp "lon" lon
-          $ setProp "alt" alt
-          $ setProp "srid" s
-          $ setProp "geometry" collection newObj
-        )
-      ]
+      where
+        object1 = case geoLocation of
+            (Just latLonAlt) ->
+                  setProp "lat" lat
+                $ setProp "lon" lon
+                $ setProp "alt" alt object2
+              where
+                (lat, lon, alt) = unpackV3 latLonAlt
+            Nothing -> object2
+        object2 = case geoSrid of
+            (Just s) -> setProp "srid" s newObj
+            Nothing -> newObj
 -- returns: "{"created":1470932237,"lastmodified":1470932237,"name":"dgdsfg","ScID":4}"
 
 
