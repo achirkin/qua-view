@@ -133,9 +133,9 @@ smartProcessGeometryInput n defVals input = case input of
 smartProcessGItoFC :: Vector n x -- ^ default vector to substitute
                    -> GeometryInput
                    -> ParsedGeometryInput x
-smartProcessGItoFC defVals gi = ParsedGeometryInput fc errors (asLikeJS originLonLatAlt) (asLikeJS srid)
+smartProcessGItoFC defVals gi = ParsedGeometryInput fc errors (asLikeJS originLatLonAlt) (asLikeJS srid)
   where
-    (fc, errors, originLonLatAlt, srid) = js_smartProcessGeometryInput gi defVals
+    (fc, errors, originLatLonAlt, srid) = js_smartProcessGeometryInput gi defVals
 
 foreign import javascript unsafe "var a = gm$smartProcessGeometryInput($1, $2);$r1=a[0];$r2=a[1];$r3=a[2];$r4=a[3]"
   js_smartProcessGeometryInput
