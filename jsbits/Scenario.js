@@ -135,7 +135,7 @@ function gm$updateProps(bArray, values) {
 /**
  * Parse a geometry input.
  *
- * Returns a feature collection, and latitude, longitude, altitude, srid if available.
+ * Returns a feature collection, errors, and additional information on latitude, longitude, altitude, srid if available.
  *
  * @param gi - Geometry Input JSON
  * @returns {[featureCollection:FeatureCollection,errors:string,originLatLonAlt,srid,blockColor,staticColor,lineColor]}
@@ -287,8 +287,8 @@ function gm$smartProcessFeatureCollection(fc, coorSys, defVec, maxGeomId) {
     // transform everything from WGS84 to a metric reference system if needed
     // when there is no lat+lon+alt or srid specified
     if(transform) {
-       var center = [(cmax[0] + cmin[0])/2, (cmax[1] + cmin[1])/2]
-         , transformFunc = gm$createWGS84toUTMTransform(center[0], center[1]);
+       var center = [(cmax[1] + cmin[1])/2, (cmax[0] + cmin[0])/2, 0]
+         , transformFunc = gm$createWGS84toUTMTransform(center[1], center[0]);
        return [ gm$mapPoints(transformFunc, points)
               , gm$mapPoints(transformFunc, lines)
               , gm$mapPoints(transformFunc, surfaces)
