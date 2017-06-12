@@ -248,8 +248,8 @@ function gm$smartProcessFeatureCollection(fc, coorSys, defVec, maxGeomId) {
     // transform everything from WGS84 to a metric reference system if needed
     // when there is no lat+lon+alt or srid specified
     if(transform) {
-       var center = [(cmax[1] + cmin[1])/2, (cmax[0] + cmin[0])/2, 0]
-         , transformFunc = gm$createWGS84toUTMTransform(center[1], center[0]);
+       var center = [(cmax[0] + cmin[0])/2, (cmax[1] + cmin[1])/2]
+         , transformFunc = gm$createWGS84toUTMTransform(center[0], center[1]);
        return [ gm$mapPoints(transformFunc, points)
               , gm$mapPoints(transformFunc, lines)
               , gm$mapPoints(transformFunc, surfaces)
@@ -258,7 +258,7 @@ function gm$smartProcessFeatureCollection(fc, coorSys, defVec, maxGeomId) {
               , gm$resizeX(defVec, transformFunc(cmin))
               , gm$resizeX(defVec, transformFunc(cmax))
               , dims
-              , center
+              , [center[1], center[0], 0] // [lat, lon, alt]
               ];
     } else {
       return [points,lines,surfaces,deletes,errors,gm$resizeX(defVec, cmin),gm$resizeX(defVec, cmax),dims, null];
