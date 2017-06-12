@@ -85,7 +85,7 @@ main = do
       clearGeometryE <- fmap (const ClearingGeometry) <$> fromAddHandler clearGeomHandler
       let cityChangeE = unionWith (const id) (CityUpdate . fun <$> geoJSONImportE) (CityErase <$ clearGeometryE)
           fun (Left a) = a
-          fun (Right a) = SJIGeoJSON a
+          fun (Right a) = a
 
       -- canvas events
       pointerE <- pointerEvents heh
