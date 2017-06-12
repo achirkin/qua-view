@@ -117,11 +117,11 @@ smartProcessGeometryInput :: Int -- ^ maximum geomId in current City
                           -> SomeJSONInput
                           -> (Maybe Int, Maybe (Vector 3 x), [JSString], ParsedFeatureCollection n x)
 smartProcessGeometryInput n defVals input = case input of
-    SJIGeoJSON fc -> (Nothing, originLatLonAlt, [], parsedFeatureCollection)
+    SJIGeoJSON fc -> (Nothing, returnLatLonAlt, [], parsedFeatureCollection)
                         where
                           parsedFeatureCollection = smartProcessFeatureCollection n defVals "Unknown" fc
-                          originLatLonAlt = pfcLatLonAlt parsedFeatureCollection
-    SJIExtended gi -> (srid, originLatLonAlt, errors, parsedFeatureCollection)
+                          returnLatLonAlt = pfcLatLonAlt parsedFeatureCollection
+    SJIExtended gi -> (srid, returnLatLonAlt, errors, parsedFeatureCollection)
                         where
                           parsedGeometryInput = smartProcessGItoFC defVals gi
                           srid = pgiSrid parsedGeometryInput
@@ -133,6 +133,9 @@ smartProcessGeometryInput n defVals input = case input of
                                 (Just 4326, _) -> "WGS84"
                                 (Nothing, Nothing) -> "Unknown"
                                 _ -> "Metric"
+                          returnLatLonAlt = case cs of
+                                                "Unknown" -> pfcLatLonAlt parsedFeatureCollection
+                                                _         -> originLatLonAlt
 
 smartProcessGItoFC :: Vector n x -- ^ default vector to substitute
                    -> GeometryInput
