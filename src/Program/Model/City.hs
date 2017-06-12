@@ -277,7 +277,7 @@ updateCity scenario
              , clutter = appendLineSet liness (clutter city)
              }
     where errors = case (originLatLonAlt city, giOriginLatLonAlt, originLatLonAlt city == giOriginLatLonAlt) of
-                      (Just x, Just y, False) -> ["New Scenario has different SRID"] ++ giErrors ++ fcErrors
+                      (Just _, Just _, False) -> ["New Scenario has different SRID"] ++ giErrors ++ fcErrors
                       _ -> giErrors ++ fcErrors
           (fcErrors,objects, liness) = processScenario (defHeight $ csettings city)  (defElevation $ csettings city) cscale cshift parsedCollection
 --          updates = JS.map (geomId . T.unwrap) objects
