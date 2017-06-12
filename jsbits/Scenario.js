@@ -249,7 +249,7 @@ function gm$smartProcessFeatureCollection(fc, coorSys, defVec, maxGeomId) {
     // when there is no lat+lon+alt or srid specified
     if(transform) {
        var center = [(cmax[1] + cmin[1])/2, (cmax[0] + cmin[0])/2, 0]
-         , transformFunc = gm$createWGS84toUTMTransform(center[0], center[1]);
+         , transformFunc = gm$createWGS84toUTMTransform(center[1], center[0]);
        return [ gm$mapPoints(transformFunc, points)
               , gm$mapPoints(transformFunc, lines)
               , gm$mapPoints(transformFunc, surfaces)
