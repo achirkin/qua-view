@@ -93,7 +93,6 @@ data CitySettings = CitySettings
     , evalCellSize :: !GLfloat
     , defElevation :: !GLfloat
     , defScale     :: !(Maybe GLfloat)
-    , scLonLat     :: !(Maybe (Vector 2 GLfloat))
     }
 
 -- | This indicates removal of all geometry from the city
@@ -107,7 +106,6 @@ defaultCitySettings = CitySettings
     , evalCellSize = 0.5
     , defElevation = 0.01
     , defScale     = Nothing
-    , scLonLat     = Nothing
     }
 
 emptyCity :: City
@@ -253,7 +251,7 @@ buildCity sets scenario = (,) errors City
     , objectsIn = objects
     , ground = buildGround (groundDilate sets) objects
     , cityTransform = (cscale, cshift)
-    , csettings = sets { scLonLat = pfcLonLat parsedCollection}
+    , csettings = defaultCitySettings
     , clutter = createLineSet lineColorV liness
     , buildingColors = Nothing
     , originLatLonAlt = giOriginLatLonAlt
@@ -291,9 +289,9 @@ updateCity scenario
              , ground = buildGround (groundDilate $ csettings city) allobjects
              , clutter = appendLineSet liness (clutter city)
              }
-    where errors = case (originLatLonAlt city == giOriginLatLonAlt) of
-                    True -> giErrors ++ fcErrors
-                    False -> ["New Scenario has different SRID"] ++ giErrors ++ fcErrors
+    where errors = case (originLatLonAlt city, giOriginLatLonAlt, originLatLonAlt city == giOriginLatLonAlt) of
+                      (Just _, Just _, False) -> ["New Scenario has different SRID"] ++ giErrors ++ fcErrors
+                      _ -> giErrors ++ fcErrors
           (fcErrors,objects, liness) = processScenario (defHeight $ csettings city)  (defElevation $ csettings city) cscale cshift parsedCollection
 --          updates = JS.map (geomId . T.unwrap) objects
 --          deletes = JS.toList $ JS.concat (JS.map GeomId $ pfcDeletes parsedCollection) updates

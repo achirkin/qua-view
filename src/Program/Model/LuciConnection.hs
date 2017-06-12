@@ -104,7 +104,7 @@ luciBehavior lsettings geoJSONImportFire cityB groundUpdatedE
       -- asking luci to save a scenario on button click
       (askSaveScenarioE, onAskSaveScenarioFire) <- newEvent
       liftIO $ GUI.registerSaveScenario onAskSaveScenarioFire
-      scenarioSavedE <- runScenarioCreate luciClientB $ (\ci s -> (s, scLonLat $ csettings ci , storeCityAsIs ci)) <$> cityB <@> askSaveScenarioE
+      scenarioSavedE <- runScenarioCreate luciClientB $ (\ci s -> (s, originLatLonAlt $ ci, srid $ ci, storeCityAsIs ci)) <$> cityB <@> askSaveScenarioE
 --      scenarioSavedE <- execute ((\ci s -> runScenarioCreate runLuciService s (storeCityAsIs ci)) <$> cityB <@> askSaveScenarioE) >>= switchE
       scenarioSyncE_create <- mapEventIO id
            $ (\s -> do
@@ -345,28 +345,32 @@ instance JS.LikeJS "Object" LuciScenarioCreated where
 runScenarioCreate :: Behavior LuciClient
                   -> Event
                      ( ScenarioName -- ^ name of the scenario
-                     , Maybe (Vector2 GLfloat)
+                     , Maybe (Vector3 GLfloat)
+                     , Maybe Int
                      , FeatureCollection -- ^ content of the scenario
                      )
                   -> MomentIO (Event (ServiceResponse LuciScenarioCreated))
 runScenarioCreate lcB e = runService lcB $ (\v -> ("scenario.geojson.Create", f v, [])) <$> e
   where
-    f (name, Nothing , collection) =
+    f (name, geoLocation, geoSrid, collection) = 
       [ ("name", JS.asJSVal name)
       , ("geometry_input"
         ,   setProp "format"  ("GeoJSON" :: JSString)
-          $ setProp "geometry" collection newObj
+          $ setProp "geometry" collection object1
         )
       ]
-    f (name, Just vec, collection) | (lon, lat) <- unpackV2 vec =
-      [ ("name", JS.asJSVal name)
-      , ("geometry_input"
-        ,   setProp "format"  ("GeoJSON" :: JSString)
-          $ setProp "lon" lon
-          $ setProp "lat" lat
-          $ setProp "geometry" collection newObj
-        )
-      ]
+      where
+        object1 = case geoLocation of
+            (Just latLonAlt) ->
+                  setProp "lat" lat
+                $ setProp "lon" lon
+                $ setProp "alt" alt object2
+              where
+                (lat, lon, alt) = unpackV3 latLonAlt
+            Nothing -> object2
+        object2 = case geoSrid of
+            (Just s) -> setProp "srid" s newObj
+            Nothing -> newObj
 -- returns: "{"created":1470932237,"lastmodified":1470932237,"name":"dgdsfg","ScID":4}"
 
 
