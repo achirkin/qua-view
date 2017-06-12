@@ -105,35 +105,6 @@ function gm$updateProps(bArray, values) {
     });
 }
 
-/**
- * Parse a geometry input.
- *
- * Returns a feature collection, errors, and additional information on latitude, longitude, altitude, srid if available.
- *
- * @param gi - Geometry Input JSON
- * @returns {[featureCollection:FeatureCollection,errors:string,originLatLonAlt,srid]}
- */
-function gm$smartProcessGeometryInput(gi, defVec) {
-    'use strict';
-    if (!gi) {
-        return [null,["Scenario is null."]];
-    }
-    var fc = gi['geometry']
-    var lat, lon, alt, srid;
-    if (gi['lat'] && gi['lat'].constructor === Number &&
-            gi['lon'] && gi['lon'].constructor === Number) {
-        lat = gi['lat'];
-        lon = gi['lon'];
-        alt = 0;
-        if (gi['alt'] && gi['alt'].constructor ===  Number) {
-            alt = gi['alt'];
-        }
-    }
-    if (gi['srid'] && gi['srid'].constructor === Number) {
-        srid = gi['srid']
-    }
-    return [fc,[],[lat,lon,alt],srid];
-}
 
 /**
  * Parse a feature collection.
@@ -142,6 +113,9 @@ function gm$smartProcessGeometryInput(gi, defVec) {
  * Add geomID to all features that miss it.
  *
  * @param fc - FeatureCollection
+ * @param coorSys - coordinate system name, one of ["WGS84", "Metric", "Unknown"]
+ * @param defVec - vector of default coordinate values (if some coordinates have less components than needed)
+ * @param maxGeomId - current largest geomID - used to make geometry ids not clash
  * @returns {[points:Feature,lines:Feature,surfaces:Feature,deletes:Number(geomID),errors:string,cmin,cmax,dims]}
  */
 
@@ -227,21 +201,22 @@ function gm$smartProcessFeatureCollection(fc, coorSys, defVec, maxGeomId) {
     } else if (coorSys === "Metric") {
         transform = false;
     } else  {
-        if (cmin.length >= 2 && cmax.length >= 2 && 
-                cmin[0] > -360 && cmax[0] < 360 && 
+        if (cmin.length >= 2 && cmax.length >= 2 &&
+                cmin[0] > -360 && cmax[0] < 360 &&
                 cmin[1] > -180 && cmax[1] < 180) {
             var xbound = cmax[0] - cmin[0], ybound = cmax[1] - cmin[1];
-            if ((xbound < 1 && ybound < 1 && fc['features'].length < 10) ||
-                    (xbound < 3 && ybound < 3 && fc['features'].length >= 10 && fc['features'].length < 100) ||
-                    (xbound < 5 && ybound < 5) && fc['features'].length >= 100){
-                if(cmin.length >= 3 && cmax.length >= 3) {
-                    var zbound = cmax[2] - cmin[2];
-                    if(zbound/(xbound+ybound) > 100) {
-                        transform = true;
-                    }
-                } else {
+            // infer WGS84 if altitude is in meters but lon/lat in degrees
+            if(cmin.length >= 3 && cmax.length >= 3) {
+                var zbound = cmax[2] - cmin[2];
+                if(zbound/(xbound+ybound) > 100) {
                     transform = true;
                 }
+            } // infer WGS84 if coorinate variance is small enough for a given number of objects in the scene
+            else if ((xbound < 1 && ybound < 1 && fc['features'].length < 10)  ||
+                     (xbound < 3 && ybound < 3 && fc['features'].length < 100) ||
+                     (xbound < 5 && ybound < 5 && fc['features'].length)
+                    ){
+                transform = true;
             }
         }
     }
@@ -258,7 +233,7 @@ function gm$smartProcessFeatureCollection(fc, coorSys, defVec, maxGeomId) {
               , gm$resizeX(defVec, transformFunc(cmin))
               , gm$resizeX(defVec, transformFunc(cmax))
               , dims
-              , [center[1], center[0], 0] // [lat, lon, alt]
+              , [center[0], center[1], 0] // [lon, lat, alt]
               ];
     } else {
       return [points,lines,surfaces,deletes,errors,gm$resizeX(defVec, cmin),gm$resizeX(defVec, cmax),dims, null];

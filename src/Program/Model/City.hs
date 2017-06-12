@@ -79,7 +79,7 @@ data City = City
     , clutter           :: !(LS.MultiLineString 3 GLfloat, WiredGeometry)
     , buildingColors    :: !(Maybe (PS.PointArray 4 GLfloat))
     --, drawTextures      :: !Bool
-    , originLatLonAlt   :: !(Maybe (Vector 3 GLfloat))
+    , originLonLatAlt   :: !(Maybe (Vector 3 GLfloat))
     , srid              :: !(Maybe Int)
     }
 
@@ -115,7 +115,7 @@ emptyCity = City
     , csettings = defaultCitySettings
     , clutter = emptyLineSet (vector4 0.8 0.4 0.4 1)
     , buildingColors = Nothing
-    , originLatLonAlt = Nothing
+    , originLonLatAlt = Nothing
     , srid         = Nothing
     }
 
@@ -239,7 +239,7 @@ manageCityUpdates bsets ev = u <$> transforms
 buildCity :: CitySettings -- ^ desired diagonal length of the city
           -> SomeJSONInput -- ^ scenario to build city of
           -> ([JSString], City) -- ^ Errors and the city itself
-buildCity sets scenario = (,) errors City
+buildCity sets scenario = (,) fcErrors City
     { activeObjId = 0
 --    , activeObjSnapshot = Nothing
     , objectsIn = objects
@@ -248,23 +248,14 @@ buildCity sets scenario = (,) errors City
     , csettings = defaultCitySettings
     , clutter = createLineSet (vector4 0.8 0.4 0.4 1) liness
     , buildingColors = Nothing
-    , originLatLonAlt = giOriginLatLonAlt
-    , srid = giSrid
+    , originLonLatAlt = pfcLonLatAlt parsedCollection
+    , srid = pfcSRID parsedCollection
     }
     where (rcscale,cshift)  = scenarioViewScaling (diagFunction sets) parsedCollection
-          errors = giErrors ++ fcErrors
           (fcErrors,objects, liness) = processScenario (defHeight sets) (defElevation sets) cscale cshift parsedCollection
           cscale = fromMaybe rcscale (defScale sets)
-          (giSrid, giOriginLatLonAlt, giErrors, parsedCollection) = smartProcessGeometryInput 2 (vector3 0 0 (defElevation sets)) scenario
+          parsedCollection = smartProcessGeometryInput 2 (vector3 0 0 (defElevation sets)) scenario
 
---  { pfcPoints  :: JS.Array Feature
---  , pfcLines   :: JS.Array Feature
---  , pfcPolys   :: JS.Array Feature
---  , pfcDeletes :: JS.Array Int
---  , pfcErrors  :: JS.Array JSString
---  , pfcMin     :: Vector n x
---  , pfcMax     :: Vector n x
---  , pfcDims    :: Int
 
 
 updateCity :: SomeJSONInput -> City -> ([JSString], City)
@@ -276,9 +267,11 @@ updateCity scenario
              , ground = buildGround (groundDilate $ csettings city) allobjects
              , clutter = appendLineSet liness (clutter city)
              }
-    where errors = case (originLatLonAlt city, giOriginLatLonAlt, originLatLonAlt city == giOriginLatLonAlt) of
-                      (Just _, Just _, False) -> ["New Scenario has different SRID"] ++ giErrors ++ fcErrors
-                      _ -> giErrors ++ fcErrors
+    where errors = case ( originLonLatAlt city
+                        , pfcLonLatAlt parsedCollection
+                        , originLonLatAlt city == pfcLonLatAlt parsedCollection) of
+                      (Just _, Just _, False) -> "New Scenario has different SRID" : fcErrors
+                      _ -> fcErrors
           (fcErrors,objects, liness) = processScenario (defHeight $ csettings city)  (defElevation $ csettings city) cscale cshift parsedCollection
 --          updates = JS.map (geomId . T.unwrap) objects
 --          deletes = JS.toList $ JS.concat (JS.map GeomId $ pfcDeletes parsedCollection) updates
@@ -286,7 +279,7 @@ updateCity scenario
 --          allobjects = JS.concat afterDelete objects
           allobjects = js_smartUpdateCity (objectsIn city) objects (JS.map GeomId $ pfcDeletes parsedCollection)
           prevMaxGeomId = max 2 . fromIntegral . Prelude.maximum . JS.toList . JS.map (geomId . T.unwrap) $ objectsIn city
-          (giSrid, giOriginLatLonAlt, giErrors, parsedCollection) = smartProcessGeometryInput prevMaxGeomId (vector3 0 0 (defElevation $ csettings city)) scenario
+          parsedCollection = smartProcessGeometryInput prevMaxGeomId (vector3 0 0 (defElevation $ csettings city)) scenario
 
 
 foreign import javascript unsafe "gm$smartUpdateBArray($1, $2, $3)"
