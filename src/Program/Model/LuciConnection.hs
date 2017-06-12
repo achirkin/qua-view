@@ -30,7 +30,7 @@ import JsHs.JSString (pack, unpack') -- JSString, append
 import JsHs.Useful
 import JsHs
 import JsHs.LikeJS.Class ()
-import JsHs.Types.Prim (jsNull)
+-- import JsHs.Types.Prim (jsNull)
 --import Text.Read (readMaybe)
 --import Data.Coerce
 import qualified JsHs.Array as JS
@@ -327,7 +327,7 @@ instance JS.LikeJS "Object" LuciScenario where
      where
        t = posixSecondsToUTCTime . realToFrac . secondsToDiffTime . fromMaybe 0 $ getProp "lastmodified" jsv
        anotherTry = LuciResultScenario (fromMaybe 0 $ getProp "ScID" jsv)
-              (SJIExtended (GeometryInput (fromMaybe jsNull $ getProp "geometry_output" jsv))) t
+              (SJIExtended (GeometryInput (fromMaybe (asLikeJS newObj) $ getProp "geometry_output" jsv))) t
   asJSVal (LuciResultScenario scId ji _) = case ji of 
       (SJIGeoJSON fc)  ->   setProp "ScID"  (JS.asJSVal scId)
                           $ setProp "FeatureCollection" fc newObj
