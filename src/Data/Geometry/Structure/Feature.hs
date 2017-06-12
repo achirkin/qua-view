@@ -133,6 +133,9 @@ smartProcessGeometryInput n defVals input = case input of
     SJIExtended gi -> (blockColor, staticColor, lineColor, srid, originLatLonAlt, errors, parsedFeatureCollection)
                         where
                           parsedGeometryInput = smartProcessGItoFC defVals gi
+                          blockColor = pgiBlockColor parsedGeometryInput
+                          staticColor = pgiStaticColor parsedGeometryInput
+                          lineColor = pgiLineColor parsedGeometryInput
                           srid = pgiSrid parsedGeometryInput
                           originLatLonAlt = pgiLatLonAlt parsedGeometryInput
                           errors = JS.toList $ pgiErrors parsedGeometryInput
