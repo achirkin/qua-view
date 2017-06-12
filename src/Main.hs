@@ -9,7 +9,6 @@ import JsHs.Useful
 --import JsHs.Nullable (Nullable(..))
 import Control.Monad (when)
 import Data.Geometry
-import Data.Geometry.Structure.Feature (SomeJSONInput(SJIGeoJSON))
 import Data.Coerce
 import qualified Data.Geometry.Transform as T
 
