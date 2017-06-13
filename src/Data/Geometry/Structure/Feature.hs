@@ -26,6 +26,7 @@ module Data.Geometry.Structure.Feature
     , getGeoJSONGeometry, getSizedGeoJSONGeometry
     , boundingBox2D, filterGeometryTypes
     , ParsedFeatureCollection (..), smartProcessFeatureCollection, smartProcessGeometryInput
+    , convertHexToRGBA
     ) where
 
 
@@ -37,6 +38,7 @@ import Data.Proxy (Proxy(..))
 import JsHs.JSString (JSString, append)
 import JsHs.Array as JS
 import JsHs.Types.Prim (jsIsNullOrUndef)
+import JsHs.WebGL (GLfloat)
 import Data.Geometry
 import qualified Data.Geometry.Structure.PointSet as PS
 import Data.Geometry.Structure.LineString (LineString (), MultiLineString ())
