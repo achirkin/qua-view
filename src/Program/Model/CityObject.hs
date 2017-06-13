@@ -37,6 +37,7 @@ import Data.Coerce (coerce)
 
 ---- import GHCJS.Foreign
 --import GHCJS.Marshal.Pure
+import Data.Maybe (fromMaybe)
 import JsHs.Types
 import JsHs.Types.Prim
 import JsHs.TypedArray
@@ -55,6 +56,9 @@ import Data.Geometry.Structure.PointSet (PointArray, PointSet (..), shrinkVector
 import Data.Geometry.Structure.Feature
 import Unsafe.Coerce
 import Program.Types
+import Program.Settings (getProp)
+
+import Text.Read
 
 -- | Whether one could interact with an object or not
 data ObjectBehavior = Static | Dynamic deriving (Eq,Show)
@@ -156,17 +160,19 @@ foreign import javascript unsafe "$r = function(v){var t = [v[0]-$1[0],v[1]-$1[1
                         -> Vector3 GLfloat -- ^ z dir
                         -> Callback (Vector3 GLfloat -> Vector3 GLfloat)
 
-getCityObjectColor :: (GLfloat, GLfloat, GLfloat, GLfloat)
+getCityObjectColor :: Vector4 GLfloat
                       -> CityObject
-                      -> (GLfloat, GLfloat, GLfloat, GLfloat)
-getCityObjectColor defColor obj = case maybeColor of
-                          (Just color) -> unpackV4 color
-                          Nothing      -> defColor
-    where maybeColor = asLikeJS (js_smartCityObjectColor obj) :: Maybe (Vector4 GLfloat)
+                      -> Vector4 GLfloat
+getCityObjectColor defColor obj = fromMaybe defColor $ (asLikeJS (js_getViewColor obj) :: Maybe JSString) >>= convertHexToRGBA
 
-foreign import javascript unsafe "$r = gm$smartCityObjectColor($1);"
-  js_smartCityObjectColor :: CityObject -> JSVal
-  
+foreign import javascript unsafe "if($1.hasOwnProperty('properties')){$r = $1['properties']['viewColor'];}"
+    js_getViewColor :: CityObject -> JSVal
+
+convertHexToRGBA :: JSString -> Maybe (Vector4 GLfloat)
+convertHexToRGBA = asLikeJS . js_convertHexToRGBA
+
+foreign import javascript unsafe "$r = gm$smartConvertHexToRgba($1);"
+    js_convertHexToRGBA :: JSString -> JSVal
 
 {-# INLINE behavior #-}
 behavior :: CityObject -> ObjectBehavior

@@ -32,19 +32,6 @@ function gm$smartNormalizeValues(sourceArray, nullSub) {
 }
 
 /**
- * Fetch RGBA color from a city object if available
- * @param obj -- City Object
- * @return Array - four-element normalized vector.
- */
-function gm$smartCityObjectColor(obj) {
-    if(obj.hasOwnProperty('properties') && 
-            obj['properties'].hasOwnProperty('viewColor')) {
-        var color = obj['properties']['viewColor'];
-        return gm$smartConvertHexToRgba(color);
-    }
-}
-
-/**
  * Convert an input color to RGBA if it satisfies Hex format.
  * @param color 
  * @return Array - four-element normalized vector.
