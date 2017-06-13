@@ -16,7 +16,7 @@ module Program.Settings
   ( Settings (..), defaultSettings, loadSettings
   , Profile (..)
   -- * JSON helpers
-  , getProp, setProp, newObj, jsonParse, jsonStringify, fromProps, toProps
+  , getProp, setProp, newObj, jsonParse, jsonStringify, fromProps, toProps, getProperty
   ) where
 
 import JsHs (JSVal, JSString, LikeJS (..))
@@ -130,3 +130,8 @@ toProps :: JSVal -> [(JSString, JSVal)]
 toProps jsv = map (\k -> (k, js_getProp k jsv)) keys
   where
     keys = JS.toList $ js_getKeys jsv
+
+getProperty :: LikeJS s a => JSString -> JSVal -> Maybe a
+getProperty name = asLikeJS . js_getProperty name
+foreign import javascript unsafe "if($2.hasOwnProperty('properties')){$r = $2['properties'][$1];}"
+    js_getProperty :: JSString -> JSVal -> JSVal

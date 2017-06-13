@@ -107,6 +107,11 @@ sjStaticColor (ScenarioJSON js) = Nothing
 sjLineColor :: ScenarioJSON -> Maybe (Vector4 Float)
 sjLineColor (ScenarioJSON js) = Nothing
 
+convertHexToRGBA :: JSString -> Maybe (Vector4 GLfloat)
+convertHexToRGBA = asLikeJS . js_convertHexToRGBA
+
+foreign import javascript unsafe "$r = gm$smartConvertHexToRgba($1);"
+    js_convertHexToRGBA :: JSString -> JSVal
 
 data SomeJSONInput = SJIExtended ScenarioJSON | SJIGeoJSON FeatureCollection
 instance LikeJS "Object" SomeJSONInput where
