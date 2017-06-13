@@ -102,12 +102,12 @@ sjAlt :: ScenarioJSON -> Maybe Float
 sjAlt (ScenarioJSON js) = getProp "alt" js
 
 -- TODO: Define the getter function
-sjBlockColor :: ScenarioJSON -> Maybe (Vector4 Float)
-sjBlockColor (ScenarioJSON js) = Nothing
-sjStaticColor :: ScenarioJSON -> Maybe (Vector4 Float)
-sjStaticColor (ScenarioJSON js) = Nothing
-sjLineColor :: ScenarioJSON -> Maybe (Vector4 Float)
-sjLineColor (ScenarioJSON js) = Nothing
+sjBlockColor :: ScenarioJSON -> Maybe (Vector4 GLfloat)
+sjBlockColor (ScenarioJSON js) = (getProperty "defaultBlockColor" js :: Maybe JSString) >>= convertHexToRGBA
+sjStaticColor :: ScenarioJSON -> Maybe (Vector4 GLfloat)
+sjStaticColor (ScenarioJSON js) = (getProperty "defaultStaticColor" js :: Maybe JSString) >>= convertHexToRGBA
+sjLineColor :: ScenarioJSON -> Maybe (Vector4 GLfloat)
+sjLineColor (ScenarioJSON js) = (getProperty "defaultLineColor" js :: Maybe JSString) >>= convertHexToRGBA
 
 convertHexToRGBA :: JSString -> Maybe (Vector4 GLfloat)
 convertHexToRGBA = asLikeJS . js_convertHexToRGBA
