@@ -81,9 +81,9 @@ data City = City
     --, drawTextures       :: !Bool
     , originLonLatAlt    :: !(Maybe (Vector 3 GLfloat))
     , srid               :: !(Maybe Int)
-    , defaultBlockColor  :: !(Maybe (Vector4 GLfloat))
-    , defaultStaticColor :: !(Maybe (Vector4 GLfloat))
-    , defaultLineColor   :: !(Maybe (Vector4 GLfloat))
+    , defaultBlockColor  :: !(Vector4 GLfloat)
+    , defaultStaticColor :: !(Vector4 GLfloat)
+    , defaultLineColor   :: !(Vector4 GLfloat)
     }
 
 data CitySettings = CitySettings
@@ -120,9 +120,9 @@ emptyCity = City
     , buildingColors = Nothing
     , originLonLatAlt = Nothing
     , srid         = Nothing
-    , defaultBlockColor = Nothing
-    , defaultStaticColor = Nothing
-    , defaultLineColor = Nothing
+    , defaultBlockColor = (vector4 0.75 0.75 0.7 1)
+    , defaultStaticColor = (vector4 0.5 0.5 0.55 1)
+    , defaultLineColor = (vector4 0.8 0.4 0.4 1)
     }
 
 -- | An event that represents all possible city changes
@@ -252,21 +252,21 @@ buildCity sets scenario = (,) fcErrors City
     , ground = buildGround (groundDilate sets) objects
     , cityTransform = (cscale, cshift)
     , csettings = defaultCitySettings
-    , clutter = createLineSet lineColorV liness
+    , clutter = createLineSet lineColor liness
     , buildingColors = Nothing
     , originLonLatAlt = pfcLonLatAlt parsedCollection
     , srid = pfcSRID parsedCollection
-    , defaultBlockColor = pfcBlockColor parsedCollection
-    , defaultStaticColor = pfcStaticColor parsedCollection
-    , defaultLineColor = pfcLineColor parsedCollection
+    , defaultBlockColor = blockColor
+    , defaultStaticColor = staticColor
+    , defaultLineColor = lineColor
     }
     where (rcscale,cshift)  = scenarioViewScaling (diagFunction sets) parsedCollection
           (fcErrors,objects, liness) = processScenario (defHeight sets) (defElevation sets) cscale cshift parsedCollection
           cscale = fromMaybe rcscale (defScale sets)
           parsedCollection = smartProcessGeometryInput 2 (vector3 0 0 (defElevation sets)) scenario
-          lineColorV = case pfcLineColor parsedCollection of
-                        (Just colorV) -> colorV
-                        Nothing      -> (vector4 0.8 0.4 0.4 1)
+          blockColor = fromMaybe (vector4 0.75 0.75 0.7 1) $ pfcBlockColor parsedCollection
+          staticColor = fromMaybe (vector4 0.5 0.5 0.55 1) $ pfcStaticColor parsedCollection
+          lineColor = fromMaybe (vector4 0.8 0.4 0.4 1) $ pfcLineColor parsedCollection
 
 
 updateCity :: SomeJSONInput -> City -> ([JSString], City)
