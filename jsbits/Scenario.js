@@ -119,19 +119,6 @@ function gm$updateProps(bArray, values) {
     });
 }
 
-    // if (gi.hasOwnProperty('properties')) {
-    //     if (gi['properties'].hasOwnProperty('defaultBlockColor')) {
-    //         blockColor = gm$smartConvertHexToRgba(gi['properties']['defaultBlockColor']);
-    //     }
-    //     if (gi['properties'].hasOwnProperty('defaultStaticColor')) {
-    //         staticColor = gm$smartConvertHexToRgba(gi['properties']['defaultStaticColor']);
-    //     }
-    //     if (gi['properties'].hasOwnProperty('defaultLineColor')) {
-    //         lineColor = gm$smartConvertHexToRgba(gi['properties']['defaultLineColor']);
-    //     }
-    // }
-    // return [fc,[],[lat,lon,alt],srid,blockColor,staticColor,lineColor];
-
 /**
  * Parse a feature collection.
  *
