@@ -17,7 +17,7 @@
 -----------------------------------------------------------------------------
 
 module Data.Geometry.Structure.Feature
-    ( GeometryInput (..)
+    ( ScenarioJSON (..)
     , FeatureCollection (..)
     , SomeJSONInput (..)
     , Feature (..), feature, setFeature
@@ -25,8 +25,7 @@ module Data.Geometry.Structure.Feature
     , FeatureGeometryType (..), featureGeometryType
     , getGeoJSONGeometry, getSizedGeoJSONGeometry
     , boundingBox2D, filterGeometryTypes
-    , ParsedFeatureCollection (..), smartProcessFeatureCollection
-    , ParsedGeometryInput (..), smartProcessGeometryInput
+    , ParsedFeatureCollection (..), smartProcessFeatureCollection, smartProcessGeometryInput
     ) where
 
 
@@ -61,7 +60,7 @@ foreign import javascript unsafe "delete $1['properties']['timestamp']; $r = $1;
 foreign import javascript unsafe "$1['features'].forEach(function(e){delete e['properties']['timestamp'];}); $r = $1;"
   js_deleteFcTimestamp :: FeatureCollection -> JSVal
 foreign import javascript unsafe "$1['geometry']['features'].forEach(function(e){delete e['properties']['timestamp'];}); $r = $1;"
-  js_deleteGiTimestamp :: GeometryInput -> JSVal
+  js_deleteGiTimestamp :: ScenarioJSON -> JSVal
 
 -- | GeoJSON FeatureCollection
 newtype FeatureCollection = FeatureCollection JSVal
@@ -75,97 +74,115 @@ instance LikeJSArray "Object" FeatureCollection where
     {-# INLINE fromJSArray #-}
     fromJSArray = js_JSArrayToFC
 
--- | JSON GeometryInput
-newtype GeometryInput = GeometryInput JSVal
-instance LikeJS "Object" GeometryInput where
+-- | JSON Scenario
+--   Has structure:
+--   [root]
+--     - geometry:   FeatureCollection
+--     - srid:       Maybe Int
+--     - lon:        Maybe Float
+--     - lat:        Maybe Float
+--     - alt:        Maybe Float
+--     - ScID:       Int (scenario id)
+--     - properties: Arbitrary key-value collection
+newtype ScenarioJSON = ScenarioJSON JSVal
+instance LikeJS "Object" ScenarioJSON where
   asJSVal = js_deleteGiTimestamp
 
-data SomeJSONInput = SJIExtended GeometryInput | SJIGeoJSON FeatureCollection
+foreign import javascript unsafe "$1['geometry']"
+  sjFeatureCollection :: ScenarioJSON -> FeatureCollection
+sjSRID :: ScenarioJSON -> Maybe Int
+sjSRID (ScenarioJSON js) = getProp "srid" js
+sjLon :: ScenarioJSON -> Maybe Float
+sjLon (ScenarioJSON js) = getProp "lon" js
+sjLat :: ScenarioJSON -> Maybe Float
+sjLat (ScenarioJSON js) = getProp "lat" js
+sjAlt :: ScenarioJSON -> Maybe Float
+sjAlt (ScenarioJSON js) = getProp "alt" js
+
+-- TODO: Define the getter function
+sjBlockColor :: ScenarioJSON -> Maybe (Vector4 Float)
+sjBlockColor (ScenarioJSON js) = Nothing
+sjStaticColor :: ScenarioJSON -> Maybe (Vector4 Float)
+sjStaticColor (ScenarioJSON js) = Nothing
+sjLineColor :: ScenarioJSON -> Maybe (Vector4 Float)
+sjLineColor (ScenarioJSON js) = Nothing
+
+
+data SomeJSONInput = SJIExtended ScenarioJSON | SJIGeoJSON FeatureCollection
 instance LikeJS "Object" SomeJSONInput where
   asJSVal (SJIExtended gi) = asJSVal gi
   asJSVal (SJIGeoJSON fc) = asJSVal fc
 
   asLikeJS jsv = case (getProp "type" jsv :: Maybe JSString) of
     Just "FeatureCollection" -> SJIGeoJSON (coerce jsv :: FeatureCollection)
-    _ -> SJIExtended (coerce jsv :: GeometryInput)
-  
+    _ -> SJIExtended (coerce jsv :: ScenarioJSON)
+
 ----------------------------------------------------------------------------------------------------
 -- Some Functions
 ----------------------------------------------------------------------------------------------------
 
-data ParsedGeometryInput x = ParsedGeometryInput
-  { pgiFeatureCollection :: FeatureCollection
-  , pgiErrors            :: JS.Array JSString
-  , pgiLatLonAlt         :: Maybe (Vector 3 x)
-  , pgiSrid              :: Maybe Int
-  , pgiBlockColor        :: Maybe (Vector4 x)
-  , pgiStaticColor       :: Maybe (Vector4 x)
-  , pgiLineColor         :: Maybe (Vector4 x)
-  }
-
 data ParsedFeatureCollection n x = ParsedFeatureCollection
-  { pfcPoints  :: JS.Array Feature
-  , pfcLines   :: JS.Array Feature
-  , pfcPolys   :: JS.Array Feature
-  , pfcDeletes :: JS.Array Int
-  , pfcErrors  :: JS.Array JSString
-  , pfcMin     :: Vector n x
-  , pfcMax     :: Vector n x
-  , pfcDims    :: Int
-  , pfcLatLonAlt  :: Maybe (Vector 3 x)
+  { pfcPoints     :: JS.Array Feature
+  , pfcLines      :: JS.Array Feature
+  , pfcPolys      :: JS.Array Feature
+  , pfcDeletes    :: JS.Array Int
+  , pfcErrors     :: JS.Array JSString
+  , pfcMin        :: Vector n x
+  , pfcMax        :: Vector n x
+  , pfcDims       :: Int
+  , pfcLonLatAlt  :: Maybe (Vector 3 Float)
+  , pfcSRID       :: Maybe Int
+  , pfcBlockColor  :: Maybe (Vector4 Float)
+  , pfcStaticColor :: Maybe (Vector4 Float)
+  , pfcLineColor   :: Maybe (Vector4 Float)
   }
 
 smartProcessGeometryInput :: Int -- ^ maximum geomId in current City
                           -> Vector n x -- ^ default vector to substitute
                           -> SomeJSONInput
-                          -> (Maybe (Vector4 x), 
-                              Maybe (Vector4 x), 
-                              Maybe (Vector4 x), 
-                              Maybe Int, 
-                              Maybe (Vector 3 x), 
-                              [JSString], 
-                              ParsedFeatureCollection n x)
+                          -> ParsedFeatureCollection n x
 smartProcessGeometryInput n defVals input = case input of
-    SJIGeoJSON fc -> (Nothing, Nothing, Nothing, Nothing, originLatLonAlt, [], parsedFeatureCollection)
+    SJIGeoJSON fc -> smartProcessFeatureCollection n defVals "Unknown" fc
+    SJIExtended gi -> parsedFeatureCollection
+                          { pfcSRID = newSRID
+                          , pfcLonLatAlt = newLonLatAlt
+                          , pfcBlockColor = blockColor
+                          , pfcStaticColor = staticColor
+                          , pfcLineColor = lineColor
+                          }
                         where
-                          parsedFeatureCollection = smartProcessFeatureCollection n defVals "Unknown" fc
-                          originLatLonAlt = pfcLatLonAlt parsedFeatureCollection
-    SJIExtended gi -> (blockColor, staticColor, lineColor, srid, originLatLonAlt, errors, parsedFeatureCollection)
-                        where
-                          parsedGeometryInput = smartProcessGItoFC defVals gi
-                          blockColor = pgiBlockColor parsedGeometryInput
-                          staticColor = pgiStaticColor parsedGeometryInput
-                          lineColor = pgiLineColor parsedGeometryInput
-                          srid = pgiSrid parsedGeometryInput
-                          originLatLonAlt = pgiLatLonAlt parsedGeometryInput
-                          errors = JS.toList $ pgiErrors parsedGeometryInput
-                          parsedFeatureCollection = smartProcessFeatureCollection n defVals cs fc
-                          fc = pgiFeatureCollection parsedGeometryInput
+                          srid = sjSRID gi
+                          originLatLonAlt = vector3 <$> sjLon gi <*> sjLat gi <*> sjAlt gi
+                          -- TODO: Add fromMaybe for default color
+                          blockColor = sjBlockColor gi
+                          staticColor = sjStaticColor gi
+                          lineColor = sjLineColor gi
+                          parsedFeatureCollection = smartProcessFeatureCollection n defVals cs (sjFeatureCollection gi)
                           cs = case (srid, originLatLonAlt) of
                                 (Just 4326, _) -> "WGS84"
                                 (Nothing, Nothing) -> "Unknown"
                                 _ -> "Metric"
-
-smartProcessGItoFC :: Vector n x -- ^ default vector to substitute
-                   -> GeometryInput
-                   -> ParsedGeometryInput x
-smartProcessGItoFC defVals gi = ParsedGeometryInput fc errors (asLikeJS originLonLatAlt) (asLikeJS srid) (asLikeJS blockColor) (asLikeJS staticColor) (asLikeJS lineColor)
-  where
-    (fc, errors, originLonLatAlt, srid, blockColor, staticColor, lineColor) = js_smartProcessGeometryInput gi defVals
-
-foreign import javascript unsafe "var a = gm$smartProcessGeometryInput($1, $2);$r1=a[0];$r2=a[1];$r3=a[2];$r4=a[3];$r5=a[4];$r6=a[5];$r7=a[6]"
-  js_smartProcessGeometryInput
-    :: GeometryInput -> Vector n x
-    -> (FeatureCollection, JS.Array JSString, JSVal, JSVal, JSVal, JSVal, JSVal)
+                          newSRID = case srid of
+                            Just i -> Just i
+                            Nothing -> pfcSRID parsedFeatureCollection
+                          newLonLatAlt = case originLatLonAlt of
+                            Just xxx -> Just xxx
+                            Nothing  -> pfcLonLatAlt parsedFeatureCollection
 
 smartProcessFeatureCollection :: Int -- ^ maximum geomId in current City
                               -> Vector n x -- ^ default vector to substitute
                               -> JSString -- ^ determine conversion
                               -> FeatureCollection
                               -> ParsedFeatureCollection n x
-smartProcessFeatureCollection n defVals cs fc = ParsedFeatureCollection points lins polys deletes errors cmin cmax cdims (asLikeJS mLatLonAlt)
+smartProcessFeatureCollection n defVals cs fc = ParsedFeatureCollection points lins polys deletes errors cmin cmax cdims mLonLatAlt mSRID blockColor staticColor lineColor
   where
-    (points, lins, polys, deletes, errors, cmin, cmax, cdims, mLatLonAlt) = js_smartProcessFeatureCollection fc cs defVals n
+    mLonLatAlt = asLikeJS jsLonLatAlt :: Maybe (Vector 3 x)
+    mSRID = 4326 <$ mLonLatAlt
+    -- TODO: Add default color
+    blockColor = Nothing
+    staticColor = Nothing
+    lineColor = Nothing
+    (points, lins, polys, deletes, errors, cmin, cmax, cdims, jsLonLatAlt) = js_smartProcessFeatureCollection fc cs defVals n
 
 
 foreign import javascript unsafe "var a = gm$smartProcessFeatureCollection($1, $2, $3, $4);$r1=a[0];$r2=a[1];$r3=a[2];$r4=a[3];$r5=a[4];$r6=a[5];$r7=a[6];$r8=a[7];$r9=a[8];"

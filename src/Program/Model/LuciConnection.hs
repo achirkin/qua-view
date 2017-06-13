@@ -30,7 +30,7 @@ import JsHs.JSString (pack, unpack') -- JSString, append
 import JsHs.Useful
 import JsHs
 import JsHs.LikeJS.Class ()
---import JsHs.Types.Prim (jsNull)
+-- import JsHs.Types.Prim (jsNull)
 --import Text.Read (readMaybe)
 --import Data.Coerce
 import qualified JsHs.Array as JS
@@ -38,7 +38,7 @@ import qualified JsHs.TypedArray as JSTA
 --import JsHs.WebGL.Types (GLfloat)
 import qualified Data.Geometry.Transform as T
 
-import Data.Geometry.Structure.Feature (FeatureCollection, SomeJSONInput)
+import Data.Geometry.Structure.Feature (FeatureCollection, ScenarioJSON, SomeJSONInput (..))
 import qualified Data.Geometry.Structure.PointSet as PS
 
 import Unsafe.Coerce (unsafeCoerce)
@@ -64,7 +64,7 @@ import qualified Program.Controllers.GUI as GUI
 -- import Debug.Trace (trace)
 
 luciBehavior :: Settings
-             -> (Either SomeJSONInput FeatureCollection -> IO ())
+             -> (Either SomeJSONInput SomeJSONInput -> IO ())
                       -> Behavior City
                       -> Event GroundUpdated
                       -> Event (Either b b1)
@@ -104,7 +104,7 @@ luciBehavior lsettings geoJSONImportFire cityB groundUpdatedE
       -- asking luci to save a scenario on button click
       (askSaveScenarioE, onAskSaveScenarioFire) <- newEvent
       liftIO $ GUI.registerSaveScenario onAskSaveScenarioFire
-      scenarioSavedE <- runScenarioCreate luciClientB $ (\ci s -> (s, originLatLonAlt $ ci, srid $ ci, storeCityAsIs ci)) <$> cityB <@> askSaveScenarioE
+      scenarioSavedE <- runScenarioCreate luciClientB $ (\ci s -> (s, originLonLatAlt ci, srid ci, storeCityAsIs ci)) <$> cityB <@> askSaveScenarioE
 --      scenarioSavedE <- execute ((\ci s -> runScenarioCreate runLuciService s (storeCityAsIs ci)) <$> cityB <@> askSaveScenarioE) >>= switchE
       scenarioSyncE_create <- mapEventIO id
            $ (\s -> do
@@ -123,8 +123,8 @@ luciBehavior lsettings geoJSONImportFire cityB groundUpdatedE
       -- Asking luci for a scenario on button click
       gotScenarioE <- runScenarioGet luciClientB (fst <$> askForScenarioE)
 --      gotScenarioE <- execute (runScenarioGet runLuciService . fst <$> askForScenarioE) >>= switchE
-      let gotScenarioF (SRResult _ (LuciResultScenario scId fc t) _) = geoJSONImportFire (Right fc) >> onScenarioGetFire (scId, t)
-          gotScenarioF (SRProgress _ _ (Just (LuciResultScenario scId fc t)) _) = geoJSONImportFire (Right fc) >> onScenarioGetFire (scId, t)
+      let gotScenarioF (SRResult _ (LuciResultScenario scId gi t) _) = geoJSONImportFire (Right (SJIExtended gi)) >> onScenarioGetFire (scId, t)
+          gotScenarioF (SRProgress _ _ (Just (LuciResultScenario scId gi t)) _) = geoJSONImportFire (Right (SJIExtended gi)) >> onScenarioGetFire (scId, t)
           gotScenarioF (SRError _ err) = logText' err
           gotScenarioF _ = return ()
       reactimate $ gotScenarioF <$> gotScenarioE
@@ -318,19 +318,19 @@ luciBehavior lsettings geoJSONImportFire cityB groundUpdatedE
 
 
 
--- | Luci scenario
-data LuciScenario = LuciResultScenario ScenarioId FeatureCollection UTCTime
+-- | Luci scenario.
+--   This is a wrapper around JSON FeatureCollection that comes from luci.
+--   The data coming luci is always the same: FeatureCollection
+data LuciScenario = LuciResultScenario ScenarioId ScenarioJSON UTCTime
 instance JS.LikeJS "Object" LuciScenario where
-  asLikeJS jsv = case (,) <$> getProp "ScID" jsv <*> getProp "FeatureCollection" jsv of
-                  Just (scId, fc) -> LuciResultScenario scId fc t
-                  Nothing -> anotherTry
-     where
-       t = posixSecondsToUTCTime . realToFrac . secondsToDiffTime . fromMaybe 0 $ getProp "lastmodified" jsv
-       anotherTry = LuciResultScenario (fromMaybe 0 $ getProp "ScID" jsv)
-              (fromMaybe (JS.fromJSArray JS.emptyArray) (getProp "geometry_output" jsv >>= getProp "geometry")) t
-  asJSVal (LuciResultScenario scId fc _) =
-            setProp "ScID"  (JS.asJSVal scId)
-          $ setProp "FeatureCollection" fc newObj
+  asLikeJS jsv = LuciResultScenario
+                  (fromMaybe 0 $ getProp "ScID" jsv)
+                  (fromMaybe (asLikeJS newObj) $ getProp "geometry_output" jsv)
+                  (posixSecondsToUTCTime . realToFrac . secondsToDiffTime . fromMaybe 0 $ getProp "lastmodified" jsv)
+  asJSVal (LuciResultScenario scId gi _)
+      = setProp "ScID"  (JS.asJSVal scId)
+      $ setProp "geometry_output" gi newObj
+
 
 -- | Luci scenario
 data LuciScenarioCreated = LuciResultScenarioCreated ScenarioId UTCTime
@@ -352,7 +352,7 @@ runScenarioCreate :: Behavior LuciClient
                   -> MomentIO (Event (ServiceResponse LuciScenarioCreated))
 runScenarioCreate lcB e = runService lcB $ (\v -> ("scenario.geojson.Create", f v, [])) <$> e
   where
-    f (name, geoLocation, geoSrid, collection) = 
+    f (name, geoLocation, geoSrid, collection) =
       [ ("name", JS.asJSVal name)
       , ("geometry_input"
         ,   setProp "format"  ("GeoJSON" :: JSString)
