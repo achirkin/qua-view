@@ -124,11 +124,10 @@ instance Drawable City where
                              , attrLoc prog "aTextureCoord"))
               setColor Nothing i obj = uniform4f gl colLoc objR objG objB objA 
                 where
-                  defBlockColor = unpackV4 $ defaultBlockColor city
                   (objR, objG, objB, objA) = case (behavior obj, i+1 == ai) of
                                               (Static, _)      -> unpackV4 $ defaultStaticColor city
                                               (Dynamic, True)  -> (1, 0.6, 0.6, 1)
-                                              (Dynamic, False) -> getCityObjectColor defBlockColor obj
+                                              (Dynamic, False) -> unpackV4 $ getCityObjectColor (defaultBlockColor city) obj
               setColor (Just arr) i obj = case unpackV4 $ PS.index i arr of
                     (r, g, b, a)  -> if behavior obj == Dynamic && i+1 == ai
                                      then uniform4f gl colLoc (g*0.5) (g*0.2) (b*0.2) a
