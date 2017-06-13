@@ -153,7 +153,6 @@ smartProcessGeometryInput n defVals input = case input of
                         where
                           srid = sjSRID gi
                           originLatLonAlt = vector3 <$> sjLon gi <*> sjLat gi <*> sjAlt gi
-                          -- TODO: Add fromMaybe for default color
                           blockColor = sjBlockColor gi
                           staticColor = sjStaticColor gi
                           lineColor = sjLineColor gi
