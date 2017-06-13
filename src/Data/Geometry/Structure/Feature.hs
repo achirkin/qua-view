@@ -101,7 +101,6 @@ sjLat (ScenarioJSON js) = getProp "lat" js
 sjAlt :: ScenarioJSON -> Maybe Float
 sjAlt (ScenarioJSON js) = getProp "alt" js
 
--- TODO: Define the getter function
 sjBlockColor :: ScenarioJSON -> Maybe (Vector4 GLfloat)
 sjBlockColor (ScenarioJSON js) = (getProperty "defaultBlockColor" js :: Maybe JSString) >>= convertHexToRGBA
 sjStaticColor :: ScenarioJSON -> Maybe (Vector4 GLfloat)
@@ -112,7 +111,8 @@ sjLineColor (ScenarioJSON js) = (getProperty "defaultLineColor" js :: Maybe JSSt
 convertHexToRGBA :: JSString -> Maybe (Vector4 GLfloat)
 convertHexToRGBA = asLikeJS . js_convertHexToRGBA
 
-foreign import javascript unsafe "if ($1.match(/^(#[A-Fa-f0-9]{6})$/)) {var x = parseInt($1.substr(1), 16); var a = [];\
+foreign import javascript unsafe "if ($1.match(/^(#[A-Fa-f0-9]{6})$/))\
+                                 \{var x = parseInt($1.substr(1), 16); var a = [];\
                                  \a[0] = (((x & 0xff0000) >> 16) / 255.0);\
                                  \a[1] = (((x & 0x00ff00) >> 8) / 255.0);\
                                  \a[2] = ((x & 0x0000ff) / 255.0);\
