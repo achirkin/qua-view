@@ -56,7 +56,7 @@ import Data.Geometry.Structure.PointSet (PointArray, PointSet (..), shrinkVector
 import Data.Geometry.Structure.Feature
 import Unsafe.Coerce
 import Program.Types
-import Program.Settings (getProp)
+import Program.Settings (getProperty)
 
 import Text.Read
 
@@ -163,16 +163,7 @@ foreign import javascript unsafe "$r = function(v){var t = [v[0]-$1[0],v[1]-$1[1
 getCityObjectColor :: Vector4 GLfloat
                       -> CityObject
                       -> Vector4 GLfloat
-getCityObjectColor defColor obj = fromMaybe defColor $ (asLikeJS (js_getViewColor obj) :: Maybe JSString) >>= convertHexToRGBA
-
-foreign import javascript unsafe "if($1.hasOwnProperty('properties')){$r = $1['properties']['viewColor'];}"
-    js_getViewColor :: CityObject -> JSVal
-
-convertHexToRGBA :: JSString -> Maybe (Vector4 GLfloat)
-convertHexToRGBA = asLikeJS . js_convertHexToRGBA
-
-foreign import javascript unsafe "$r = gm$smartConvertHexToRgba($1);"
-    js_convertHexToRGBA :: JSString -> JSVal
+getCityObjectColor defColor (CityObject js) = fromMaybe defColor $ (getProperty "viewColor" js :: Maybe JSString) >>= convertHexToRGBA
 
 {-# INLINE behavior #-}
 behavior :: CityObject -> ObjectBehavior
