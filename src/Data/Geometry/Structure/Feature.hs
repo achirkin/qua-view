@@ -174,14 +174,10 @@ smartProcessFeatureCollection :: Int -- ^ maximum geomId in current City
                               -> JSString -- ^ determine conversion
                               -> FeatureCollection
                               -> ParsedFeatureCollection n x
-smartProcessFeatureCollection n defVals cs fc = ParsedFeatureCollection points lins polys deletes errors cmin cmax cdims mLonLatAlt mSRID blockColor staticColor lineColor
+smartProcessFeatureCollection n defVals cs fc = ParsedFeatureCollection points lins polys deletes errors cmin cmax cdims mLonLatAlt mSRID Nothing Nothing Nothing
   where
     mLonLatAlt = asLikeJS jsLonLatAlt :: Maybe (Vector 3 x)
     mSRID = 4326 <$ mLonLatAlt
-    -- TODO: Add default color
-    blockColor = Nothing
-    staticColor = Nothing
-    lineColor = Nothing
     (points, lins, polys, deletes, errors, cmin, cmax, cdims, jsLonLatAlt) = js_smartProcessFeatureCollection fc cs defVals n
 
 
