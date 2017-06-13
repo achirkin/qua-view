@@ -58,8 +58,6 @@ import Unsafe.Coerce
 import Program.Types
 import Program.Settings (getProperty)
 
-import Text.Read
-
 -- | Whether one could interact with an object or not
 data ObjectBehavior = Static | Dynamic deriving (Eq,Show)
 
