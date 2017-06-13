@@ -105,6 +105,7 @@ function gm$updateProps(bArray, values) {
     });
 }
 
+
 /**
  * Parse a feature collection.
  *
