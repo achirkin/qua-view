@@ -112,7 +112,11 @@ sjLineColor (ScenarioJSON js) = (getProperty "defaultLineColor" js :: Maybe JSSt
 convertHexToRGBA :: JSString -> Maybe (Vector4 GLfloat)
 convertHexToRGBA = asLikeJS . js_convertHexToRGBA
 
-foreign import javascript unsafe "$r = gm$smartConvertHexToRgba($1);"
+foreign import javascript unsafe "if ($1.match(/^(#[A-Fa-f0-9]{6})$/)) {var x = parseInt($1.substr(1), 16); var a = [];\
+                                 \a[0] = (((x & 0xff0000) >> 16) / 255.0);\
+                                 \a[1] = (((x & 0x00ff00) >> 8) / 255.0);\
+                                 \a[2] = ((x & 0x0000ff) / 255.0);\
+                                 \a[3] = 1; $r = a}"
     js_convertHexToRGBA :: JSString -> JSVal
 
 data SomeJSONInput = SJIExtended ScenarioJSON | SJIGeoJSON FeatureCollection
