@@ -79,7 +79,7 @@ data City = City
     , clutter            :: !(LS.MultiLineString 3 GLfloat, WiredGeometry)
     , buildingColors     :: !(Maybe (PS.PointArray 4 GLfloat))
     --, drawTextures       :: !Bool
-    , originLatLonAlt    :: !(Maybe (Vector 3 GLfloat))
+    , originLonLatAlt    :: !(Maybe (Vector 3 GLfloat))
     , srid               :: !(Maybe Int)
     , defaultBlockColor  :: !(Maybe (Vector4 GLfloat))
     , defaultStaticColor :: !(Maybe (Vector4 GLfloat))
