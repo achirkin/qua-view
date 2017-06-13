@@ -146,16 +146,13 @@ smartProcessGeometryInput n defVals input = case input of
     SJIExtended gi -> parsedFeatureCollection
                           { pfcSRID = newSRID
                           , pfcLonLatAlt = newLonLatAlt
-                          , pfcBlockColor = blockColor
-                          , pfcStaticColor = staticColor
-                          , pfcLineColor = lineColor
+                          , pfcBlockColor = sjBlockColor gi
+                          , pfcStaticColor = sjStaticColor gi
+                          , pfcLineColor = sjLineColor gi
                           }
                         where
                           srid = sjSRID gi
                           originLatLonAlt = vector3 <$> sjLon gi <*> sjLat gi <*> sjAlt gi
-                          blockColor = sjBlockColor gi
-                          staticColor = sjStaticColor gi
-                          lineColor = sjLineColor gi
                           parsedFeatureCollection = smartProcessFeatureCollection n defVals cs (sjFeatureCollection gi)
                           cs = case (srid, originLatLonAlt) of
                                 (Just 4326, _) -> "WGS84"
