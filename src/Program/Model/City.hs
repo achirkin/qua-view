@@ -81,9 +81,9 @@ data City = City
     --, drawTextures       :: !Bool
     , originLonLatAlt    :: !(Maybe (Vector 3 GLfloat))
     , srid               :: !(Maybe Int)
-    , defaultBlockColor  :: !(Vector4 GLfloat)
-    , defaultStaticColor :: !(Vector4 GLfloat)
-    , defaultLineColor   :: !(Vector4 GLfloat)
+    , defaultBlockColor  :: !(Maybe JSString)
+    , defaultStaticColor :: !(Maybe JSString)
+    , defaultLineColor   :: !(Maybe JSString)
     }
 
 data CitySettings = CitySettings
@@ -120,9 +120,9 @@ emptyCity = City
     , buildingColors = Nothing
     , originLonLatAlt = Nothing
     , srid         = Nothing
-    , defaultBlockColor = (vector4 0.75 0.75 0.7 1)
-    , defaultStaticColor = (vector4 0.5 0.5 0.55 1)
-    , defaultLineColor = (vector4 0.8 0.4 0.4 1)
+    , defaultBlockColor = Nothing
+    , defaultStaticColor = Nothing
+    , defaultLineColor = Nothing
     }
 
 -- | An event that represents all possible city changes
@@ -252,7 +252,7 @@ buildCity sets scenario = (,) fcErrors City
     , ground = buildGround (groundDilate sets) objects
     , cityTransform = (cscale, cshift)
     , csettings = defaultCitySettings
-    , clutter = createLineSet lineColor liness
+    , clutter = createLineSet (lineColorF) liness
     , buildingColors = Nothing
     , originLonLatAlt = pfcLonLatAlt parsedCollection
     , srid = pfcSRID parsedCollection
@@ -264,10 +264,10 @@ buildCity sets scenario = (,) fcErrors City
           (fcErrors,objects, liness) = processScenario (defHeight sets) (defElevation sets) cscale cshift parsedCollection
           cscale = fromMaybe rcscale (defScale sets)
           parsedCollection = smartProcessGeometryInput 2 (vector3 0 0 (defElevation sets)) scenario
-          blockColor = fromMaybe (vector4 0.75 0.75 0.7 1) $ pfcBlockColor parsedCollection
-          staticColor = fromMaybe (vector4 0.5 0.5 0.55 1) $ pfcStaticColor parsedCollection
-          lineColor = fromMaybe (vector4 0.8 0.4 0.4 1) $ pfcLineColor parsedCollection
-
+          blockColor = pfcBlockColor parsedCollection
+          staticColor = pfcStaticColor parsedCollection
+          lineColor = pfcLineColor parsedCollection
+          lineColorF = fromMaybe (vector4 0.8 0.4 0.4 1) $ lineColor >>= convertHexToRGBA
 
 updateCity :: SomeJSONInput -> City -> ([JSString], City)
 -- TODO: Improve updateCity logic.
