@@ -110,7 +110,7 @@ instance Drawable City where
         -- draw buildings
         when (not $ isEmptyCity city) $ do
           uniform1f gl userLoc 0 -- disable textures for now
-          uniform4f gl colLoc 0.5 0.5 0.55 1
+          uniform4f gl colLoc staticR staticG staticB staticA
           JS.zipiIO_ drawObject (objectsIn city) (viewsIn cview)
         disableVertexAttribArray gl tloc
         disableVertexAttribArray gl nloc
@@ -124,19 +124,20 @@ instance Drawable City where
                       ( attrLoc prog "aVertexPosition"
                       , Just ( attrLoc prog "aVertexNormal"
                              , attrLoc prog "aTextureCoord"))
-              setColor Nothing i obj = uniform4f gl colLoc objR objG objB objA 
+              setColor Nothing i obj = uniform4f gl colLoc r g b a
                 where
-                  (objR, objG, objB, objA) = case (behavior obj, i+1 == ai) of
-                                              (Static, _)      -> unpackV4 $ staticColor
-                                              (Dynamic, True)  -> unpackV4 $ activeColor
-                                              (Dynamic, False) -> unpackV4 $ getCityObjectColor blockColor obj
-                  blockColor = fromMaybe (vector4 0.75 0.75 0.7 1) $ (defaultBlockColor city) >>= convertHexToRGBA
-                  activeColor = fromMaybe (vector4 1 0.6 0.6 1) $ (defaultActiveColor city) >>= convertHexToRGBA
-                  staticColor = fromMaybe (vector4 0.5 0.5 0.55 1) $ (defaultStaticColor city) >>= convertHexToRGBA
+                  (r, g, b, a) = unpackV4 $ case (behavior obj, i+1 == ai) of
+                                              (Static, _)      -> staticColor
+                                              (Dynamic, True)  -> activeColor
+                                              (Dynamic, False) -> getCityObjectColor blockColor obj
               setColor (Just arr) i obj = case unpackV4 $ PS.index i arr of
                     (r, g, b, a)  -> if behavior obj == Dynamic && i+1 == ai
                                      then uniform4f gl colLoc (g*0.5) (g*0.2) (b*0.2) a
                                      else uniform4f gl colLoc r g b a
+              blockColor = fromMaybe (vector4 0.75 0.75 0.7 1) $ (defaultBlockColor city) >>= convertHexToRGBA
+              activeColor = fromMaybe (vector4 1 0.6 0.6 1) $ (defaultActiveColor city) >>= convertHexToRGBA
+              staticColor = fromMaybe (vector4 0.5 0.5 0.55 1) $ (defaultStaticColor city) >>= convertHexToRGBA
+              (staticR, staticG, staticB, staticA) = unpackV4 $ staticColor
     updateDrawState _ CityView{viewShader = prog} cs = cs
         { vGLProjLoc = unifLoc prog "uProjM"
         , vGLViewLoc = unifLoc prog "uModelViewM"
