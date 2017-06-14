@@ -128,9 +128,10 @@ instance Drawable City where
                 where
                   (objR, objG, objB, objA) = case (behavior obj, i+1 == ai) of
                                               (Static, _)      -> unpackV4 $ staticColor
-                                              (Dynamic, True)  -> (1, 0.6, 0.6, 1)
+                                              (Dynamic, True)  -> unpackV4 $ activeColor
                                               (Dynamic, False) -> unpackV4 $ getCityObjectColor blockColor obj
                   blockColor = fromMaybe (vector4 0.75 0.75 0.7 1) $ (defaultBlockColor city) >>= convertHexToRGBA
+                  activeColor = fromMaybe (vector4 1 0.6 0.6 1) $ (defaultActiveColor city) >>= convertHexToRGBA
                   staticColor = fromMaybe (vector4 0.5 0.5 0.55 1) $ (defaultStaticColor city) >>= convertHexToRGBA
               setColor (Just arr) i obj = case unpackV4 $ PS.index i arr of
                     (r, g, b, a)  -> if behavior obj == Dynamic && i+1 == ai
