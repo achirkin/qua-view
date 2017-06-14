@@ -373,9 +373,9 @@ runScenarioCreate lcB e = runService lcB $ (\v -> ("scenario.geojson.Create", f 
         object2 = case geoSrid of
             (Just s) -> setProp "srid" s newObj
             Nothing -> newObj
-        prop =   setProp "defaultBlockColor" (defaultBlockColor city)
-               $ setProp "defaultStaticColor" (defaultStaticColor city)
-               $ setProp "defaultLineColor" (defaultLineColor city) newObj2
+        prop =   setPropMaybe "defaultBlockColor" (defaultBlockColor city)
+               $ setPropMaybe "defaultStaticColor" (defaultStaticColor city)
+               $ setPropMaybe "defaultLineColor" (defaultLineColor city) newObj2
 -- returns: "{"created":1470932237,"lastmodified":1470932237,"name":"dgdsfg","ScID":4}"
 
 foreign import javascript unsafe "$r = {};"
