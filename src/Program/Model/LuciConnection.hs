@@ -104,7 +104,7 @@ luciBehavior lsettings geoJSONImportFire cityB groundUpdatedE
       -- asking luci to save a scenario on button click
       (askSaveScenarioE, onAskSaveScenarioFire) <- newEvent
       liftIO $ GUI.registerSaveScenario onAskSaveScenarioFire
-      scenarioSavedE <- runScenarioCreate luciClientB $ (\ci s -> (s, originLonLatAlt ci, srid ci, storeCityAsIs ci)) <$> cityB <@> askSaveScenarioE
+      scenarioSavedE <- runScenarioCreate luciClientB $ (\ci s -> (s, originLonLatAlt ci, srid ci, storeCityAsIs ci, ci)) <$> cityB <@> askSaveScenarioE
 --      scenarioSavedE <- execute ((\ci s -> runScenarioCreate runLuciService s (storeCityAsIs ci)) <$> cityB <@> askSaveScenarioE) >>= switchE
       scenarioSyncE_create <- mapEventIO id
            $ (\s -> do
@@ -348,15 +348,17 @@ runScenarioCreate :: Behavior LuciClient
                      , Maybe (Vector3 GLfloat)
                      , Maybe Int
                      , FeatureCollection -- ^ content of the scenario
+                     , City
                      )
                   -> MomentIO (Event (ServiceResponse LuciScenarioCreated))
 runScenarioCreate lcB e = runService lcB $ (\v -> ("scenario.geojson.Create", f v, [])) <$> e
   where
-    f (name, geoLocation, geoSrid, collection) =
+    f (name, geoLocation, geoSrid, collection, city) =
       [ ("name", JS.asJSVal name)
       , ("geometry_input"
         ,   setProp "format"  ("GeoJSON" :: JSString)
-          $ setProp "geometry" collection object1
+          $ setProp "geometry" collection 
+          $ setProp "properties" prop object1
         )
       ]
       where
@@ -371,8 +373,13 @@ runScenarioCreate lcB e = runService lcB $ (\v -> ("scenario.geojson.Create", f 
         object2 = case geoSrid of
             (Just s) -> setProp "srid" s newObj
             Nothing -> newObj
+        prop =   setProp "defaultBlockColor" (defaultBlockColor city)
+               $ setProp "defaultStaticColor" (defaultStaticColor city)
+               $ setProp "defaultLineColor" (defaultLineColor city) newObj2
 -- returns: "{"created":1470932237,"lastmodified":1470932237,"name":"dgdsfg","ScID":4}"
 
+foreign import javascript unsafe "$r = {};"
+    newObj2 :: JSVal
 
 runScenarioUpdate :: Behavior LuciClient
                   -> Event
