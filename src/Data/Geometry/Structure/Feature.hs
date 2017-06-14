@@ -103,6 +103,8 @@ sjAlt (ScenarioJSON js) = getProp "alt" js
 
 sjBlockColor :: ScenarioJSON -> Maybe (JSString)
 sjBlockColor sj = getHexColor "defaultBlockColor" sj
+sjActiveColor :: ScenarioJSON -> Maybe (JSString)
+sjActiveColor sj = getHexColor "defaultActiveColor" sj
 sjStaticColor :: ScenarioJSON -> Maybe (JSString)
 sjStaticColor sj = getHexColor "defaultStaticColor" sj
 sjLineColor :: ScenarioJSON -> Maybe (JSString)
@@ -151,6 +153,7 @@ data ParsedFeatureCollection n x = ParsedFeatureCollection
   , pfcLonLatAlt  :: Maybe (Vector 3 Float)
   , pfcSRID       :: Maybe Int
   , pfcBlockColor  :: Maybe (JSString)
+  , pfcActiveColor :: Maybe (JSString)
   , pfcStaticColor :: Maybe (JSString)
   , pfcLineColor   :: Maybe (JSString)
   }
@@ -165,6 +168,7 @@ smartProcessGeometryInput n defVals input = case input of
                           { pfcSRID = newSRID
                           , pfcLonLatAlt = newLonLatAlt
                           , pfcBlockColor = sjBlockColor gi
+                          , pfcActiveColor = sjActiveColor gi
                           , pfcStaticColor = sjStaticColor gi
                           , pfcLineColor = sjLineColor gi
                           }
@@ -188,7 +192,7 @@ smartProcessFeatureCollection :: Int -- ^ maximum geomId in current City
                               -> JSString -- ^ determine conversion
                               -> FeatureCollection
                               -> ParsedFeatureCollection n x
-smartProcessFeatureCollection n defVals cs fc = ParsedFeatureCollection points lins polys deletes errors cmin cmax cdims mLonLatAlt mSRID Nothing Nothing Nothing
+smartProcessFeatureCollection n defVals cs fc = ParsedFeatureCollection points lins polys deletes errors cmin cmax cdims mLonLatAlt mSRID Nothing Nothing Nothing Nothing
   where
     mLonLatAlt = asLikeJS jsLonLatAlt :: Maybe (Vector 3 x)
     mSRID = 4326 <$ mLonLatAlt

@@ -82,6 +82,7 @@ data City = City
     , originLonLatAlt    :: !(Maybe (Vector 3 GLfloat))
     , srid               :: !(Maybe Int)
     , defaultBlockColor  :: !(Maybe JSString)
+    , defaultActiveColor :: !(Maybe JSString)
     , defaultStaticColor :: !(Maybe JSString)
     , defaultLineColor   :: !(Maybe JSString)
     }
@@ -121,6 +122,7 @@ emptyCity = City
     , originLonLatAlt = Nothing
     , srid         = Nothing
     , defaultBlockColor = Nothing
+    , defaultActiveColor = Nothing
     , defaultStaticColor = Nothing
     , defaultLineColor = Nothing
     }
@@ -257,6 +259,7 @@ buildCity sets scenario = (,) fcErrors City
     , originLonLatAlt = pfcLonLatAlt parsedCollection
     , srid = pfcSRID parsedCollection
     , defaultBlockColor = blockColor
+    , defaultActiveColor = activeColor
     , defaultStaticColor = staticColor
     , defaultLineColor = lineColor
     }
@@ -265,6 +268,7 @@ buildCity sets scenario = (,) fcErrors City
           cscale = fromMaybe rcscale (defScale sets)
           parsedCollection = smartProcessGeometryInput 2 (vector3 0 0 (defElevation sets)) scenario
           blockColor = pfcBlockColor parsedCollection
+          activeColor = pfcActiveColor parsedCollection
           staticColor = pfcStaticColor parsedCollection
           lineColor = pfcLineColor parsedCollection
           lineColorF = fromMaybe (vector4 0.8 0.4 0.4 1) $ lineColor >>= convertHexToRGBA
