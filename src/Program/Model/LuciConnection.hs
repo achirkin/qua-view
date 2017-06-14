@@ -374,6 +374,7 @@ runScenarioCreate lcB e = runService lcB $ (\v -> ("scenario.geojson.Create", f 
             (Just s) -> setProp "srid" s newObj
             Nothing -> newObj
         prop =   setPropMaybe "defaultBlockColor" (defaultBlockColor city)
+               $ setPropMaybe "defaultActiveColor" (defaultActiveColor city)
                $ setPropMaybe "defaultStaticColor" (defaultStaticColor city)
                $ setPropMaybe "defaultLineColor" (defaultLineColor city) newObj2
 -- returns: "{"created":1470932237,"lastmodified":1470932237,"name":"dgdsfg","ScID":4}"
