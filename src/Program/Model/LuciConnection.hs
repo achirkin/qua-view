@@ -376,11 +376,8 @@ runScenarioCreate lcB e = runService lcB $ (\v -> ("scenario.geojson.Create", f 
         prop =   setPropMaybe "defaultBlockColor" (defaultBlockColor city)
                $ setPropMaybe "defaultActiveColor" (defaultActiveColor city)
                $ setPropMaybe "defaultStaticColor" (defaultStaticColor city)
-               $ setPropMaybe "defaultLineColor" (defaultLineColor city) newObj2
+               $ setPropMaybe "defaultLineColor" (defaultLineColor city) newObj
 -- returns: "{"created":1470932237,"lastmodified":1470932237,"name":"dgdsfg","ScID":4}"
-
-foreign import javascript unsafe "$r = {};"
-    newObj2 :: JSVal
 
 runScenarioUpdate :: Behavior LuciClient
                   -> Event
