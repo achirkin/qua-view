@@ -113,8 +113,10 @@ sjLineColor sj = getHexColor "defaultLineColor" sj
 getHexColor :: JSString -> ScenarioJSON -> Maybe JSString
 getHexColor name = asLikeJS . js_getHexColor name
 
-foreign import javascript unsafe "if($2.hasOwnProperty('properties')){var a = $2['properties'][$1];\
-                                 \if(a.match(/^(#[A-Fa-f0-9]{6})$/)){$r = a;}}"
+foreign import javascript unsafe "if ($2.hasOwnProperty('properties') &&\
+                                 \    $2['properties'].hasOwnProperty($1) &&\
+                                 \    $2['properties'][$1].match(/^(#[A-Fa-f0-9]{6})$/)) {\
+                                 \$r = $2['properties'][$1];}"
     js_getHexColor :: JSString -> ScenarioJSON -> JSVal
 
 convertHexToRGBA :: JSString -> Maybe (Vector4 GLfloat)
