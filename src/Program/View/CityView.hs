@@ -110,7 +110,7 @@ instance Drawable City where
         -- draw buildings
         when (not $ isEmptyCity city) $ do
           uniform1f gl userLoc 0 -- disable textures for now
-          uniform4f gl colLoc staticR staticG staticB staticA
+          uniform4f gl colLoc sr sg sb sa
           JS.zipiIO_ drawObject (objectsIn city) (viewsIn cview)
         disableVertexAttribArray gl tloc
         disableVertexAttribArray gl nloc
@@ -137,7 +137,7 @@ instance Drawable City where
               blockColor = fromMaybe (vector4 0.75 0.75 0.7 1) $ (defaultBlockColor city) >>= convertHexToRGBA
               activeColor = fromMaybe (vector4 1 0.6 0.6 1) $ (defaultActiveColor city) >>= convertHexToRGBA
               staticColor = fromMaybe (vector4 0.5 0.5 0.55 1) $ (defaultStaticColor city) >>= convertHexToRGBA
-              (staticR, staticG, staticB, staticA) = unpackV4 $ staticColor
+              (sr, sg, sb, sa) = unpackV4 $ staticColor
     updateDrawState _ CityView{viewShader = prog} cs = cs
         { vGLProjLoc = unifLoc prog "uProjM"
         , vGLViewLoc = unifLoc prog "uModelViewM"
