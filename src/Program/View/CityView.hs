@@ -29,7 +29,9 @@ import Data.Geometry.Transform
 --import Geometry.Space
 --import Geometry.Space.Transform
 import JsHs.Array as JS
+import Data.Geometry.Structure.Feature (convertHexToRGBA)
 import Data.Geometry.Structure.PointSet as PS
+import Data.Maybe (fromMaybe)
 
 import Program.Model.City
 import Program.Model.CityObject
@@ -125,9 +127,11 @@ instance Drawable City where
               setColor Nothing i obj = uniform4f gl colLoc objR objG objB objA 
                 where
                   (objR, objG, objB, objA) = case (behavior obj, i+1 == ai) of
-                                              (Static, _)      -> unpackV4 $ defaultStaticColor city
+                                              (Static, _)      -> unpackV4 $ staticColor
                                               (Dynamic, True)  -> (1, 0.6, 0.6, 1)
-                                              (Dynamic, False) -> unpackV4 $ getCityObjectColor (defaultBlockColor city) obj
+                                              (Dynamic, False) -> unpackV4 $ getCityObjectColor blockColor obj
+                  blockColor = fromMaybe (vector4 0.75 0.75 0.7 1) $ (defaultBlockColor city) >>= convertHexToRGBA
+                  staticColor = fromMaybe (vector4 0.5 0.5 0.55 1) $ (defaultStaticColor city) >>= convertHexToRGBA
               setColor (Just arr) i obj = case unpackV4 $ PS.index i arr of
                     (r, g, b, a)  -> if behavior obj == Dynamic && i+1 == ai
                                      then uniform4f gl colLoc (g*0.5) (g*0.2) (b*0.2) a

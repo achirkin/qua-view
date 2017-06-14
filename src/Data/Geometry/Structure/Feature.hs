@@ -101,12 +101,19 @@ sjLat (ScenarioJSON js) = getProp "lat" js
 sjAlt :: ScenarioJSON -> Maybe Float
 sjAlt (ScenarioJSON js) = getProp "alt" js
 
-sjBlockColor :: ScenarioJSON -> Maybe (Vector4 GLfloat)
-sjBlockColor (ScenarioJSON js) = (getProperty "defaultBlockColor" js :: Maybe JSString) >>= convertHexToRGBA
-sjStaticColor :: ScenarioJSON -> Maybe (Vector4 GLfloat)
-sjStaticColor (ScenarioJSON js) = (getProperty "defaultStaticColor" js :: Maybe JSString) >>= convertHexToRGBA
-sjLineColor :: ScenarioJSON -> Maybe (Vector4 GLfloat)
-sjLineColor (ScenarioJSON js) = (getProperty "defaultLineColor" js :: Maybe JSString) >>= convertHexToRGBA
+sjBlockColor :: ScenarioJSON -> Maybe (JSString)
+sjBlockColor sj = getHexColor "defaultBlockColor" sj
+sjStaticColor :: ScenarioJSON -> Maybe (JSString)
+sjStaticColor sj = getHexColor "defaultStaticColor" sj
+sjLineColor :: ScenarioJSON -> Maybe (JSString)
+sjLineColor sj = getHexColor "defaultLineColor" sj
+
+getHexColor :: JSString -> ScenarioJSON -> Maybe JSString
+getHexColor name = asLikeJS . js_getHexColor name
+
+foreign import javascript unsafe "if($2.hasOwnProperty('properties')){var a = $2['properties'][$1];\
+                                 \if(a.match(/^(#[A-Fa-f0-9]{6})$/)){$r = a;}}"
+    js_getHexColor :: JSString -> ScenarioJSON -> JSVal
 
 convertHexToRGBA :: JSString -> Maybe (Vector4 GLfloat)
 convertHexToRGBA = asLikeJS . js_convertHexToRGBA
@@ -143,9 +150,9 @@ data ParsedFeatureCollection n x = ParsedFeatureCollection
   , pfcDims       :: Int
   , pfcLonLatAlt  :: Maybe (Vector 3 Float)
   , pfcSRID       :: Maybe Int
-  , pfcBlockColor  :: Maybe (Vector4 Float)
-  , pfcStaticColor :: Maybe (Vector4 Float)
-  , pfcLineColor   :: Maybe (Vector4 Float)
+  , pfcBlockColor  :: Maybe (JSString)
+  , pfcStaticColor :: Maybe (JSString)
+  , pfcLineColor   :: Maybe (JSString)
   }
 
 smartProcessGeometryInput :: Int -- ^ maximum geomId in current City
