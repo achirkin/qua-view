@@ -212,9 +212,9 @@ function gm$smartProcessFeatureCollection(fc, coorSys, defVec, maxGeomId) {
                     transform = true;
                 }
             } // infer WGS84 if coorinate variance is small enough for a given number of objects in the scene
-            else if ((xbound < 1 && ybound < 1 && fc['features'].length < 10)  ||
-                     (xbound < 3 && ybound < 3 && fc['features'].length >= 10 && fc['features'].length < 100) ||
-                     (xbound < 5 && ybound < 5 && fc['features'].length >= 100)
+            else if ((xbound < 1 && ybound < 1)
+                  || (xbound < 3 && ybound < 3 && fc['features'].length >= 10)
+                  || (xbound < 5 && ybound < 5 && fc['features'].length >= 100)
                     ){
                 transform = true;
             }
