@@ -104,7 +104,7 @@ luciBehavior lsettings geoJSONImportFire cityB groundUpdatedE
       -- asking luci to save a scenario on button click
       (askSaveScenarioE, onAskSaveScenarioFire) <- newEvent
       liftIO $ GUI.registerSaveScenario onAskSaveScenarioFire
-      scenarioSavedE <- runScenarioCreate luciClientB $ (\ci s -> (s, originLonLatAlt ci, srid ci, storeCityAsIs ci, ci)) <$> cityB <@> askSaveScenarioE
+      scenarioSavedE <- runScenarioCreate luciClientB $ (\ci s -> (s, ci)) <$> cityB <@> askSaveScenarioE
 --      scenarioSavedE <- execute ((\ci s -> runScenarioCreate runLuciService s (storeCityAsIs ci)) <$> cityB <@> askSaveScenarioE) >>= switchE
       scenarioSyncE_create <- mapEventIO id
            $ (\s -> do
@@ -287,7 +287,6 @@ luciBehavior lsettings geoJSONImportFire cityB groundUpdatedE
 
 
 
-
 ----------------------------------------------------------------------------------------------------
 -- * Pre-defined messages
 ----------------------------------------------------------------------------------------------------
@@ -345,24 +344,21 @@ instance JS.LikeJS "Object" LuciScenarioCreated where
 runScenarioCreate :: Behavior LuciClient
                   -> Event
                      ( ScenarioName -- ^ name of the scenario
-                     , Maybe (Vector3 GLfloat)
-                     , Maybe Int
-                     , FeatureCollection -- ^ content of the scenario
                      , City
                      )
                   -> MomentIO (Event (ServiceResponse LuciScenarioCreated))
 runScenarioCreate lcB e = runService lcB $ (\v -> ("scenario.geojson.Create", f v, [])) <$> e
   where
-    f (name, geoLocation, geoSrid, collection, city) =
+    f (name, city) =
       [ ("name", JS.asJSVal name)
       , ("geometry_input"
         ,   setProp "format"  ("GeoJSON" :: JSString)
-          $ setProp "geometry" collection 
+          $ setProp "geometry" (storeCityAsIs city)
           $ setProp "properties" prop object1
         )
       ]
       where
-        object1 = case geoLocation of
+        object1 = case originLonLatAlt city of
             (Just latLonAlt) ->
                   setProp "lat" lat
                 $ setProp "lon" lon
@@ -370,7 +366,7 @@ runScenarioCreate lcB e = runService lcB $ (\v -> ("scenario.geojson.Create", f 
               where
                 (lat, lon, alt) = unpackV3 latLonAlt
             Nothing -> object2
-        object2 = case geoSrid of
+        object2 = case srid city of
             (Just s) -> setProp "srid" s newObj
             Nothing -> newObj
         prop =   setPropMaybe "defaultBlockColor" (defaultBlockColor city)
