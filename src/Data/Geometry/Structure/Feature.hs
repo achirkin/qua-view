@@ -27,6 +27,7 @@ module Data.Geometry.Structure.Feature
     , boundingBox2D, filterGeometryTypes
     , ParsedFeatureCollection (..), smartProcessFeatureCollection, smartProcessGeometryInput
     , convertHexToRGBA
+    , ScenarioProperties (..), defaultScenarioProperties
     ) where
 
 
@@ -143,6 +144,21 @@ instance LikeJS "Object" SomeJSONInput where
 -- Some Functions
 ----------------------------------------------------------------------------------------------------
 
+data ScenarioProperties = ScenarioProperties
+    { defaultBlockColor  :: !(Maybe JSString)
+    , defaultActiveColor :: !(Maybe JSString)
+    , defaultStaticColor :: !(Maybe JSString)
+    , defaultLineColor   :: !(Maybe JSString)
+    }
+
+defaultScenarioProperties :: ScenarioProperties
+defaultScenarioProperties = ScenarioProperties
+    { defaultBlockColor = Nothing
+    , defaultActiveColor = Nothing
+    , defaultStaticColor = Nothing
+    , defaultLineColor = Nothing
+    }
+
 data ParsedFeatureCollection n x = ParsedFeatureCollection
   { pfcPoints     :: JS.Array Feature
   , pfcLines      :: JS.Array Feature
@@ -154,10 +170,7 @@ data ParsedFeatureCollection n x = ParsedFeatureCollection
   , pfcDims       :: Int
   , pfcLonLatAlt  :: Maybe (Vector 3 Float)
   , pfcSRID       :: Maybe Int
-  , pfcBlockColor  :: Maybe JSString
-  , pfcActiveColor :: Maybe JSString
-  , pfcStaticColor :: Maybe JSString
-  , pfcLineColor   :: Maybe JSString
+  , pfcScenarioProperties :: ScenarioProperties
   }
 
 smartProcessGeometryInput :: Int -- ^ maximum geomId in current City
@@ -169,10 +182,7 @@ smartProcessGeometryInput n defVals input = case input of
     SJIExtended gi -> parsedFeatureCollection
                           { pfcSRID = newSRID
                           , pfcLonLatAlt = newLonLatAlt
-                          , pfcBlockColor = sjBlockColor gi
-                          , pfcActiveColor = sjActiveColor gi
-                          , pfcStaticColor = sjStaticColor gi
-                          , pfcLineColor = sjLineColor gi
+                          , pfcScenarioProperties = ScenarioProperties pfcBlockColor pfcActiveColor pfcStaticColor pfcLineColor
                           }
                         where
                           srid = sjSRID gi
@@ -188,13 +198,17 @@ smartProcessGeometryInput n defVals input = case input of
                           newLonLatAlt = case originLatLonAlt of
                             Just xxx -> Just xxx
                             Nothing  -> pfcLonLatAlt parsedFeatureCollection
+                          pfcBlockColor = sjBlockColor gi
+                          pfcActiveColor = sjActiveColor gi
+                          pfcStaticColor = sjStaticColor gi
+                          pfcLineColor = sjLineColor gi
 
 smartProcessFeatureCollection :: Int -- ^ maximum geomId in current City
                               -> Vector n x -- ^ default vector to substitute
                               -> JSString -- ^ determine conversion
                               -> FeatureCollection
                               -> ParsedFeatureCollection n x
-smartProcessFeatureCollection n defVals cs fc = ParsedFeatureCollection points lins polys deletes errors cmin cmax cdims mLonLatAlt mSRID Nothing Nothing Nothing Nothing
+smartProcessFeatureCollection n defVals cs fc = ParsedFeatureCollection points lins polys deletes errors cmin cmax cdims mLonLatAlt mSRID defaultScenarioProperties
   where
     mLonLatAlt = asLikeJS jsLonLatAlt :: Maybe (Vector 3 x)
     mSRID = 4326 <$ mLonLatAlt

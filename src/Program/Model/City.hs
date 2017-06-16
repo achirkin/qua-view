@@ -81,10 +81,7 @@ data City = City
     --, drawTextures       :: !Bool
     , originLonLatAlt    :: !(Maybe (Vector 3 GLfloat))
     , srid               :: !(Maybe Int)
-    , defaultBlockColor  :: !(Maybe JSString)
-    , defaultActiveColor :: !(Maybe JSString)
-    , defaultStaticColor :: !(Maybe JSString)
-    , defaultLineColor   :: !(Maybe JSString)
+    , cityProperties     :: !ScenarioProperties
     }
 
 data CitySettings = CitySettings
@@ -121,10 +118,7 @@ emptyCity = City
     , buildingColors = Nothing
     , originLonLatAlt = Nothing
     , srid         = Nothing
-    , defaultBlockColor = Nothing
-    , defaultActiveColor = Nothing
-    , defaultStaticColor = Nothing
-    , defaultLineColor = Nothing
+    , cityProperties = defaultScenarioProperties
     }
 
 -- | An event that represents all possible city changes
@@ -258,20 +252,14 @@ buildCity sets scenario = (,) fcErrors City
     , buildingColors = Nothing
     , originLonLatAlt = pfcLonLatAlt parsedCollection
     , srid = pfcSRID parsedCollection
-    , defaultBlockColor = blockColor
-    , defaultActiveColor = activeColor
-    , defaultStaticColor = staticColor
-    , defaultLineColor = lineColor
+    , cityProperties = cityProp
     }
     where (rcscale,cshift)  = scenarioViewScaling (diagFunction sets) parsedCollection
           (fcErrors,objects, liness) = processScenario (defHeight sets) (defElevation sets) cscale cshift parsedCollection
           cscale = fromMaybe rcscale (defScale sets)
           parsedCollection = smartProcessGeometryInput 2 (vector3 0 0 (defElevation sets)) scenario
-          blockColor = pfcBlockColor parsedCollection
-          activeColor = pfcActiveColor parsedCollection
-          staticColor = pfcStaticColor parsedCollection
-          lineColor = pfcLineColor parsedCollection
-          lineColorF = fromMaybe (vector4 0.8 0.4 0.4 1) $ lineColor >>= convertHexToRGBA
+          cityProp = pfcScenarioProperties parsedCollection
+          lineColorF = fromMaybe (vector4 0.8 0.4 0.4 1) $ defaultLineColor cityProp >>= convertHexToRGBA
 
 updateCity :: SomeJSONInput -> City -> ([JSString], City)
 -- TODO: Improve updateCity logic.

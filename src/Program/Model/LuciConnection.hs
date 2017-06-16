@@ -38,7 +38,7 @@ import qualified JsHs.TypedArray as JSTA
 --import JsHs.WebGL.Types (GLfloat)
 import qualified Data.Geometry.Transform as T
 
-import Data.Geometry.Structure.Feature (FeatureCollection, ScenarioJSON, SomeJSONInput (..))
+import Data.Geometry.Structure.Feature
 import qualified Data.Geometry.Structure.PointSet as PS
 
 import Unsafe.Coerce (unsafeCoerce)
@@ -369,10 +369,10 @@ runScenarioCreate lcB e = runService lcB $ (\v -> ("scenario.geojson.Create", f 
         object2 = case srid city of
             (Just s) -> setProp "srid" s newObj
             Nothing -> newObj
-        prop =   setPropMaybe "defaultBlockColor" (defaultBlockColor city)
-               $ setPropMaybe "defaultActiveColor" (defaultActiveColor city)
-               $ setPropMaybe "defaultStaticColor" (defaultStaticColor city)
-               $ setPropMaybe "defaultLineColor" (defaultLineColor city) newObj
+        prop =   setPropMaybe "defaultBlockColor" (defaultBlockColor $ cityProperties city)
+               $ setPropMaybe "defaultActiveColor" (defaultActiveColor $ cityProperties city)
+               $ setPropMaybe "defaultStaticColor" (defaultStaticColor $ cityProperties city)
+               $ setPropMaybe "defaultLineColor" (defaultLineColor $ cityProperties city) newObj
 -- returns: "{"created":1470932237,"lastmodified":1470932237,"name":"dgdsfg","ScID":4}"
 
 runScenarioUpdate :: Behavior LuciClient
