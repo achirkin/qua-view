@@ -101,14 +101,14 @@ sjLat (ScenarioJSON js) = getProp "lat" js
 sjAlt :: ScenarioJSON -> Maybe Float
 sjAlt (ScenarioJSON js) = getProp "alt" js
 
-sjBlockColor :: ScenarioJSON -> Maybe (JSString)
-sjBlockColor sj = getHexColor "defaultBlockColor" sj
-sjActiveColor :: ScenarioJSON -> Maybe (JSString)
-sjActiveColor sj = getHexColor "defaultActiveColor" sj
-sjStaticColor :: ScenarioJSON -> Maybe (JSString)
-sjStaticColor sj = getHexColor "defaultStaticColor" sj
-sjLineColor :: ScenarioJSON -> Maybe (JSString)
-sjLineColor sj = getHexColor "defaultLineColor" sj
+sjBlockColor :: ScenarioJSON -> Maybe JSString
+sjBlockColor = getHexColor "defaultBlockColor"
+sjActiveColor :: ScenarioJSON -> Maybe JSString
+sjActiveColor = getHexColor "defaultActiveColor"
+sjStaticColor :: ScenarioJSON -> Maybe JSString
+sjStaticColor = getHexColor "defaultStaticColor"
+sjLineColor :: ScenarioJSON -> Maybe JSString
+sjLineColor = getHexColor "defaultLineColor"
 
 getHexColor :: JSString -> ScenarioJSON -> Maybe JSString
 getHexColor name = asLikeJS . js_getHexColor name
@@ -154,10 +154,10 @@ data ParsedFeatureCollection n x = ParsedFeatureCollection
   , pfcDims       :: Int
   , pfcLonLatAlt  :: Maybe (Vector 3 Float)
   , pfcSRID       :: Maybe Int
-  , pfcBlockColor  :: Maybe (JSString)
-  , pfcActiveColor :: Maybe (JSString)
-  , pfcStaticColor :: Maybe (JSString)
-  , pfcLineColor   :: Maybe (JSString)
+  , pfcBlockColor  :: Maybe JSString
+  , pfcActiveColor :: Maybe JSString
+  , pfcStaticColor :: Maybe JSString
+  , pfcLineColor   :: Maybe JSString
   }
 
 smartProcessGeometryInput :: Int -- ^ maximum geomId in current City
