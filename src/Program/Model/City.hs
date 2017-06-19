@@ -248,7 +248,7 @@ buildCity sets scenario = (,) fcErrors City
     , ground = buildGround (groundDilate sets) objects
     , cityTransform = (cscale, cshift)
     , csettings = defaultCitySettings
-    , clutter = createLineSet (lineColorF) liness
+    , clutter = createLineSet (lineColor) liness
     , buildingColors = Nothing
     , originLonLatAlt = pfcLonLatAlt parsedCollection
     , srid = pfcSRID parsedCollection
@@ -259,7 +259,7 @@ buildCity sets scenario = (,) fcErrors City
           cscale = fromMaybe rcscale (defScale sets)
           parsedCollection = smartProcessGeometryInput 2 (vector3 0 0 (defElevation sets)) scenario
           cityProp = pfcScenarioProperties parsedCollection
-          lineColorF = fromMaybe (vector4 0.8 0.4 0.4 1) $ defaultLineColor cityProp >>= convertHexToRGBA
+          (HexColor lineColor) = defaultLineColor cityProp
 
 updateCity :: SomeJSONInput -> City -> ([JSString], City)
 -- TODO: Improve updateCity logic.

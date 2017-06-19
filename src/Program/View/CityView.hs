@@ -31,7 +31,6 @@ import Data.Geometry.Transform
 import JsHs.Array as JS
 import Data.Geometry.Structure.Feature
 import Data.Geometry.Structure.PointSet as PS
-import Data.Maybe (fromMaybe)
 
 import Program.Model.City
 import Program.Model.CityObject
@@ -134,9 +133,9 @@ instance Drawable City where
                     (r, g, b, a)  -> if behavior obj == Dynamic && i+1 == ai
                                      then uniform4f gl colLoc (g*0.5) (g*0.2) (b*0.2) a
                                      else uniform4f gl colLoc r g b a
-              blockColor = fromMaybe (vector4 0.75 0.75 0.7 1) $ (defaultBlockColor $ cityProperties city) >>= convertHexToRGBA
-              activeColor = fromMaybe (vector4 1 0.6 0.6 1) $ (defaultActiveColor $ cityProperties city) >>= convertHexToRGBA
-              staticColor = fromMaybe (vector4 0.5 0.5 0.55 1) $ (defaultStaticColor $ cityProperties city) >>= convertHexToRGBA
+              (HexColor blockColor) = defaultBlockColor $ cityProperties city
+              (HexColor activeColor) = defaultActiveColor $ cityProperties city
+              (HexColor staticColor) = defaultStaticColor $ cityProperties city
               (sr, sg, sb, sa) = unpackV4 $ staticColor
     updateDrawState _ CityView{viewShader = prog} cs = cs
         { vGLProjLoc = unifLoc prog "uProjM"
