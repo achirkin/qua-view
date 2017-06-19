@@ -118,7 +118,6 @@ setPropMaybe name val = case val of
                           Just v -> js_setProp name (asJSVal v)
                           Nothing -> id
 
-
 fromProps :: [(JSString, JSVal)] -> JSVal
 fromProps xs = js_fromProps (JS.fromList keys) (JS.fromList vals)
   where
