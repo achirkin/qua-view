@@ -37,7 +37,6 @@ import Data.Coerce (coerce)
 
 ---- import GHCJS.Foreign
 --import GHCJS.Marshal.Pure
-import Data.Maybe (fromMaybe)
 import JsHs.Types
 import JsHs.Types.Prim
 import JsHs.TypedArray
@@ -56,7 +55,6 @@ import Data.Geometry.Structure.PointSet (PointArray, PointSet (..), shrinkVector
 import Data.Geometry.Structure.Feature
 import Unsafe.Coerce
 import Program.Types
-import Program.Settings (getProperty)
 
 -- | Whether one could interact with an object or not
 data ObjectBehavior = Static | Dynamic deriving (Eq,Show)
@@ -158,10 +156,8 @@ foreign import javascript unsafe "$r = function(v){var t = [v[0]-$1[0],v[1]-$1[1
                         -> Vector3 GLfloat -- ^ z dir
                         -> Callback (Vector3 GLfloat -> Vector3 GLfloat)
 
-getCityObjectColor :: Vector4 GLfloat
-                      -> CityObject
-                      -> Vector4 GLfloat
-getCityObjectColor defColor (CityObject js) = fromMaybe defColor $ (getProperty "viewColor" js :: Maybe JSString) >>= convertHexToRGBA
+getCityObjectColor :: CityObject -> Maybe HexColor
+getCityObjectColor (CityObject js) = asLikeJS $ getHexColor "viewColor" js
 
 {-# INLINE behavior #-}
 behavior :: CityObject -> ObjectBehavior

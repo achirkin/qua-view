@@ -20,7 +20,7 @@ module Data.Geometry.Structure.Feature
     ( ScenarioJSON (..)
     , FeatureCollection (..)
     , SomeJSONInput (..)
-    , HexColor (..)
+    , HexColor (..), getHexColor
     , Feature (..), feature, setFeature
     , GeoJsonGeometryND (..), GeoJsonGeometry (..)
     , FeatureGeometryType (..), featureGeometryType
@@ -106,20 +106,20 @@ sjAlt :: ScenarioJSON -> Maybe Float
 sjAlt (ScenarioJSON js) = getProp "alt" js
 
 sjBlockColor :: ScenarioJSON -> Maybe HexColor
-sjBlockColor t = asLikeJS $ getHexColor "defaultBlockColor" t
+sjBlockColor (ScenarioJSON js) = asLikeJS $ getHexColor "defaultBlockColor" js
 sjActiveColor :: ScenarioJSON -> Maybe HexColor
-sjActiveColor t = asLikeJS $ getHexColor "defaultActiveColor" t
+sjActiveColor (ScenarioJSON js) = asLikeJS $ getHexColor "defaultActiveColor" js
 sjLineColor :: ScenarioJSON -> Maybe HexColor
-sjLineColor t = asLikeJS $ getHexColor "defaultLineColor" t
+sjLineColor (ScenarioJSON js) = asLikeJS $ getHexColor "defaultLineColor" js
 sjStaticColor :: ScenarioJSON -> Maybe HexColor
-sjStaticColor t = asLikeJS $ getHexColor "defaultStaticColor" t
+sjStaticColor (ScenarioJSON js) = asLikeJS $ getHexColor "defaultStaticColor" js
 
 
 foreign import javascript unsafe "if ($2.hasOwnProperty('properties') &&\
                                  \    $2['properties'] &&\
                                  \    $2['properties'].hasOwnProperty($1)) {\
                                  \$r = $2['properties'][$1];} else { $r = null; }"
-    getHexColor :: JSString -> ScenarioJSON -> JSVal
+    getHexColor :: JSString -> JSVal -> JSVal
 
 -- | HexColor
 newtype HexColor = HexColor (Vector4 GLfloat)
