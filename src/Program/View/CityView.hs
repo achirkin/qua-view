@@ -25,6 +25,7 @@ import JsHs.Types
 import JsHs.WebGL
 import SmallGL.Shader
 import Data.Geometry
+import Data.Maybe (fromMaybe)
 import Data.Geometry.Transform
 --import Geometry.Space
 --import Geometry.Space.Transform
@@ -128,7 +129,8 @@ instance Drawable City where
                   (r, g, b, a) = unpackV4 $ case (behavior obj, i+1 == ai) of
                                               (Static, _)      -> staticColor
                                               (Dynamic, True)  -> activeColor
-                                              (Dynamic, False) -> getCityObjectColor blockColor obj
+                                              (Dynamic, False) -> itemColor
+                  (HexColor itemColor) = fromMaybe (HexColor blockColor) $ getCityObjectColor obj
               setColor (Just arr) i obj = case unpackV4 $ PS.index i arr of
                     (r, g, b, a)  -> if behavior obj == Dynamic && i+1 == ai
                                      then uniform4f gl colLoc (g*0.5) (g*0.2) (b*0.2) a
