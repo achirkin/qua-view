@@ -141,18 +141,39 @@ instance {-# OVERLAPPING #-} LikeJS "Object" (Maybe HexColor) where
 isHexColor :: JSVal -> Bool
 isHexColor = asLikeJS . js_isHexColor
 
-foreign import javascript unsafe "if ($1 && $1.match(/^(#[A-Fa-f0-9]{6})$/)) { $r = true; } else { $r = false; }"
-    js_isHexColor ::  JSVal -> JSVal
+foreign import javascript unsafe "if ($1 && ($1.match(/^(#[A-Fa-f0-9]{6})$/) !== null ||\
+                                 \           $1.match(/^(#[A-Fa-f0-9]{3})$/) !== null ||\
+                                 \           $1.match(/^(#[A-Fa-f0-9]{4})$/) !== null ||\
+                                 \           $1.match(/^(#[A-Fa-f0-9]{8})$/) !== null))\
+                                 \{ $r = true; } else { $r = false; };"
+    js_isHexColor ::  JSVal -> JSVal 
 
--- | Currently only support Hex color of length 6, will support 3,4,8 later.
-foreign import javascript unsafe "if ($1.match(/^(#[A-Fa-f0-9]{6})$/))\
+foreign import javascript unsafe "if ($1.match(/^(#[A-Fa-f0-9]{3})$/) !== null)\
+                                 \{var x = parseInt($1.substr(1), 16); var a = [];\
+                                 \a[0] = (((x & 0xf00) >> 8) / 15.0);\
+                                 \a[1] = (((x & 0x0f0) >> 4) / 15.0);\
+                                 \a[2] = ((x & 0x00f) / 15.0);\
+                                 \a[3] = 1; $r = a;}\
+                                 \else if ($1.match(/^(#[A-Fa-f0-9]{4})$/) !== null)\
+                                 \{var x = parseInt($1.substr(1), 16); var a = [];\
+                                 \a[0] = (((x & 0xf000) >> 12) / 15.0);\
+                                 \a[1] = (((x & 0x0f00) >> 8) / 15.0);\
+                                 \a[2] = (((x & 0x00f0) >> 4) / 15.0);\
+                                 \a[3] = ((x & 0x000f) / 15.0); $r = a;}\
+                                 \else if ($1.match(/^(#[A-Fa-f0-9]{6})$/) !== null)\
                                  \{var x = parseInt($1.substr(1), 16); var a = [];\
                                  \a[0] = (((x & 0xff0000) >> 16) / 255.0);\
                                  \a[1] = (((x & 0x00ff00) >> 8) / 255.0);\
                                  \a[2] = ((x & 0x0000ff) / 255.0);\
-                                 \a[3] = 1; $r = a}"
+                                 \a[3] = 1; $r = a;}\
+                                 \else if ($1.match(/^(#[A-Fa-f0-9]{8})$/) !== null)\
+                                 \{var x = parseInt($1.substr(1), 16); var a = [];\
+                                 \a[0] = (((x & 0xff000000) >> 24) / 255.0);\
+                                 \a[1] = (((x & 0x00ff0000) >> 16) / 255.0);\
+                                 \a[2] = (((x & 0x0000ff00) >> 8) / 255.0);\
+                                 \a[3] = ((x & 0x000000ff) / 255.0); $r = a;}\
+                                 \else { $r = null; };"
     js_convertHexToRGBA :: JSVal -> JSVal
-
 
 foreign import javascript unsafe "'#'.concat((($1[0]*255 << 16) +\
                                  \            ($1[1]*255 << 8) +\
