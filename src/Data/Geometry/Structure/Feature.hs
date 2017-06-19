@@ -92,6 +92,15 @@ newtype ScenarioJSON = ScenarioJSON JSVal
 instance LikeJS "Object" ScenarioJSON where
   asJSVal = js_deleteGiTimestamp
 
+data SomeJSONInput = SJIExtended ScenarioJSON | SJIGeoJSON FeatureCollection
+instance LikeJS "Object" SomeJSONInput where
+  asJSVal (SJIExtended gi) = asJSVal gi
+  asJSVal (SJIGeoJSON fc) = asJSVal fc
+
+  asLikeJS jsv = case (getProp "type" jsv :: Maybe JSString) of
+    Just "FeatureCollection" -> SJIGeoJSON (coerce jsv :: FeatureCollection)
+    _ -> SJIExtended (coerce jsv :: ScenarioJSON)
+
 foreign import javascript unsafe "$1['geometry']"
   sjFeatureCollection :: ScenarioJSON -> FeatureCollection
 sjSRID :: ScenarioJSON -> Maybe Int
@@ -184,15 +193,6 @@ foreign import javascript unsafe "if($1[3] === 1) {\
                                  \                 ($1[2]*255 << 8) +\
                                  \                 ($1[3]*255)).toString(16));}"
     js_convertRGBAToHex :: JSVal -> JSVal
-
-data SomeJSONInput = SJIExtended ScenarioJSON | SJIGeoJSON FeatureCollection
-instance LikeJS "Object" SomeJSONInput where
-  asJSVal (SJIExtended gi) = asJSVal gi
-  asJSVal (SJIGeoJSON fc) = asJSVal fc
-
-  asLikeJS jsv = case (getProp "type" jsv :: Maybe JSString) of
-    Just "FeatureCollection" -> SJIGeoJSON (coerce jsv :: FeatureCollection)
-    _ -> SJIExtended (coerce jsv :: ScenarioJSON)
 
 ----------------------------------------------------------------------------------------------------
 -- Some Functions
