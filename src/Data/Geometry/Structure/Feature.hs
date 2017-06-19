@@ -27,7 +27,6 @@ module Data.Geometry.Structure.Feature
     , getGeoJSONGeometry, getSizedGeoJSONGeometry
     , boundingBox2D, filterGeometryTypes
     , ParsedFeatureCollection (..), smartProcessFeatureCollection, smartProcessGeometryInput
-    , convertHexToRGBA
     , ScenarioProperties (..), defaultScenarioProperties
     ) where
 
@@ -128,7 +127,7 @@ instance LikeJS "Object" HexColor where
   asJSVal (HexColor v) = js_convertRGBAToHex $ asJSVal v
 
   asLikeJS val = if isHexColor val
-                 then (HexColor (asLikeJS (js_convertHexToRGBANew val) :: Vector4 GLfloat))
+                 then (HexColor (asLikeJS (js_convertHexToRGBA val) :: Vector4 GLfloat))
                  else (HexColor (vector4 0 0 0 0))
 
 instance {-# OVERLAPPING #-} LikeJS "Object" (Maybe HexColor) where
@@ -151,24 +150,14 @@ foreign import javascript unsafe "if ($1.match(/^(#[A-Fa-f0-9]{6})$/))\
                                  \a[0] = (((x & 0xff0000) >> 16) / 255.0);\
                                  \a[1] = (((x & 0x00ff00) >> 8) / 255.0);\
                                  \a[2] = ((x & 0x0000ff) / 255.0);\
-                                 \a[3] = 1; $r = a;}"
-    js_convertHexToRGBANew :: JSVal -> JSVal
+                                 \a[3] = 1; $r = a}"
+    js_convertHexToRGBA :: JSVal -> JSVal
+
 
 foreign import javascript unsafe "'#'.concat((($1[0]*255 << 16) +\
                                  \            ($1[1]*255 << 8) +\
                                  \            ($1[2]*255)).toString(16))"
     js_convertRGBAToHex :: JSVal -> JSVal
-
-convertHexToRGBA :: JSString -> Maybe (Vector4 GLfloat)
-convertHexToRGBA = asLikeJS . js_convertHexToRGBA
-
-foreign import javascript unsafe "if ($1.match(/^(#[A-Fa-f0-9]{6})$/))\
-                                 \{var x = parseInt($1.substr(1), 16); var a = [];\
-                                 \a[0] = (((x & 0xff0000) >> 16) / 255.0);\
-                                 \a[1] = (((x & 0x00ff00) >> 8) / 255.0);\
-                                 \a[2] = ((x & 0x0000ff) / 255.0);\
-                                 \a[3] = 1; $r = a}"
-    js_convertHexToRGBA :: JSString -> JSVal
 
 data SomeJSONInput = SJIExtended ScenarioJSON | SJIGeoJSON FeatureCollection
 instance LikeJS "Object" SomeJSONInput where
