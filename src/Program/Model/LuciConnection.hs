@@ -353,8 +353,8 @@ runScenarioCreate lcB e = runService lcB $ (\v -> ("scenario.geojson.Create", f 
       [ ("name", JS.asJSVal name)
       , ("geometry_input"
         ,   setProp "format"  ("GeoJSON" :: JSString)
-          $ setProp "geometry" (storeCityAsIs city) object1
-          -- $ setProp "properties" prop object1
+          $ setProp "geometry" (storeCityAsIs city)
+          $ setProp "properties" prop object1
         )
       ]
       where
@@ -369,11 +369,14 @@ runScenarioCreate lcB e = runService lcB $ (\v -> ("scenario.geojson.Create", f 
         object2 = case srid city of
             (Just s) -> setProp "srid" s newObj
             Nothing -> newObj
-        -- prop =   setPropMaybe "defaultBlockColor" (defaultBlockColor $ cityProperties city)
-        --        $ setPropMaybe "defaultActiveColor" (defaultActiveColor $ cityProperties city)
-        --        $ setPropMaybe "defaultStaticColor" (defaultStaticColor $ cityProperties city)
-        --        $ setPropMaybe "defaultLineColor" (defaultLineColor $ cityProperties city) newObj
+        prop =   setProp "defaultBlockColor" (asJSVal $ Just $ defaultBlockColor $ cityProperties city)
+               $ setProp "defaultActiveColor" (asJSVal $ Just $ defaultActiveColor $ cityProperties city)
+               $ setProp "defaultStaticColor" (asJSVal $ Just $ defaultStaticColor $ cityProperties city)
+               $ setProp "defaultLineColor" (asJSVal $ Just $ defaultLineColor $ cityProperties city) newObj2
 -- returns: "{"created":1470932237,"lastmodified":1470932237,"name":"dgdsfg","ScID":4}"
+
+foreign import javascript unsafe "$r = {};"
+    newObj2 :: JSVal
 
 runScenarioUpdate :: Behavior LuciClient
                   -> Event
