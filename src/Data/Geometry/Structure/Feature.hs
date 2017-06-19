@@ -122,13 +122,21 @@ foreign import javascript unsafe "if ($2.hasOwnProperty('properties') &&\
     getHexColor :: JSString -> JSVal -> JSVal
 
 -- | HexColor
+
 newtype HexColor = HexColor (Vector4 GLfloat)
-instance {-# OVERLAPPING #-} LikeJS "Object" (Maybe HexColor) where
-  asJSVal Nothing = jsNull
-  asJSVal (Just (HexColor v)) = js_convertRGBAToHex $ asJSVal v
+instance LikeJS "Object" HexColor where
+  asJSVal (HexColor v) = js_convertRGBAToHex $ asJSVal v
 
   asLikeJS val = if isHexColor val
-                 then Just (HexColor (asLikeJS (js_convertHexToRGBANew val) :: Vector4 GLfloat))
+                 then (HexColor (asLikeJS (js_convertHexToRGBANew val) :: Vector4 GLfloat))
+                 else (HexColor (vector4 0 0 0 0))
+
+instance {-# OVERLAPPING #-} LikeJS "Object" (Maybe HexColor) where
+  asJSVal Nothing = jsNull
+  asJSVal (Just color) = js_convertRGBAToHex $ asJSVal color
+
+  asLikeJS val = if isHexColor val
+                 then Just $ asLikeJS val
                  else Nothing
 
 isHexColor :: JSVal -> Bool
