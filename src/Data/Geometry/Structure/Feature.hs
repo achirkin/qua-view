@@ -35,11 +35,10 @@ import GHC.TypeLits (KnownNat, SomeNat (..), someNatVal)
 ---- import GHCJS.Foreign (isTruthy)
 --import GHCJS.Marshal.Pure (PToJSVal (..))
 import JsHs.Types (JSVal)
-import JsHs.Types.Prim (jsNull)
 import Data.Proxy (Proxy(..))
 import JsHs.JSString (JSString, append)
 import JsHs.Array as JS
-import JsHs.Types.Prim (jsIsNullOrUndef)
+import JsHs.Types.Prim (jsNull, jsIsNullOrUndef)
 import JsHs.WebGL (GLfloat)
 import Data.Geometry
 import qualified Data.Geometry.Structure.PointSet as PS
@@ -127,8 +126,8 @@ instance LikeJS "Object" HexColor where
   asJSVal (HexColor v) = js_convertRGBAToHex $ asJSVal v
 
   asLikeJS val = if isHexColor val
-                 then (HexColor (asLikeJS (js_convertHexToRGBA val) :: Vector4 GLfloat))
-                 else (HexColor (vector4 0 0 0 0))
+                 then HexColor (asLikeJS (js_convertHexToRGBA val) :: Vector4 GLfloat)
+                 else HexColor (vector4 0 0 0 0)
 
 instance {-# OVERLAPPING #-} LikeJS "Object" (Maybe HexColor) where
   asJSVal Nothing = jsNull
@@ -200,10 +199,10 @@ instance LikeJS "Object" SomeJSONInput where
 ----------------------------------------------------------------------------------------------------
 
 data ScenarioProperties = ScenarioProperties
-    { defaultBlockColor  :: !(HexColor)
-    , defaultActiveColor :: !(HexColor)
-    , defaultStaticColor :: !(HexColor)
-    , defaultLineColor   :: !(HexColor)
+    { defaultBlockColor  :: !HexColor
+    , defaultActiveColor :: !HexColor
+    , defaultStaticColor :: !HexColor
+    , defaultLineColor   :: !HexColor
     }
 
 defaultScenarioProperties :: ScenarioProperties
