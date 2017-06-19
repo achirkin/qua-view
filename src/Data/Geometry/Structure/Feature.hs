@@ -168,7 +168,7 @@ foreign import javascript unsafe "if ($1.match(/^(#[A-Fa-f0-9]{3})$/) !== null)\
                                  \a[3] = 1; $r = a;}\
                                  \else if ($1.match(/^(#[A-Fa-f0-9]{8})$/) !== null)\
                                  \{var x = parseInt($1.substr(1), 16); var a = [];\
-                                 \a[0] = (((x & 0xff000000) >> 24) / 255.0);\
+                                 \a[0] = (((x / 16777216) / 255.0);\
                                  \a[1] = (((x & 0x00ff0000) >> 16) / 255.0);\
                                  \a[2] = (((x & 0x0000ff00) >> 8) / 255.0);\
                                  \a[3] = ((x & 0x000000ff) / 255.0); $r = a;}\
