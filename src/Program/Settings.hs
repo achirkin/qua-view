@@ -110,6 +110,9 @@ foreign import javascript unsafe "$2[$1]"
 setProp :: LikeJS s a => JSString -> a -> JSVal -> JSVal
 setProp name = js_setProp name . asJSVal
 
+foreign import javascript unsafe "$3[$1] = $2; $r = $3;"
+    js_setProp :: JSString -> JSVal -> JSVal -> JSVal
+
 fromProps :: [(JSString, JSVal)] -> JSVal
 fromProps xs = js_fromProps (JS.fromList keys) (JS.fromList vals)
   where
