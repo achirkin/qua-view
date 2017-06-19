@@ -353,8 +353,8 @@ runScenarioCreate lcB e = runService lcB $ (\v -> ("scenario.geojson.Create", f 
       [ ("name", JS.asJSVal name)
       , ("geometry_input"
         ,   setProp "format"  ("GeoJSON" :: JSString)
-          $ setProp "geometry" (storeCityAsIs city)
-          $ setProp "properties" prop object1
+          $ setProp "geometry" (storeCityAsIs city) object1
+          -- $ setProp "properties" prop object1
         )
       ]
       where
@@ -369,10 +369,10 @@ runScenarioCreate lcB e = runService lcB $ (\v -> ("scenario.geojson.Create", f 
         object2 = case srid city of
             (Just s) -> setProp "srid" s newObj
             Nothing -> newObj
-        prop =   setPropMaybe "defaultBlockColor" (defaultBlockColor $ cityProperties city)
-               $ setPropMaybe "defaultActiveColor" (defaultActiveColor $ cityProperties city)
-               $ setPropMaybe "defaultStaticColor" (defaultStaticColor $ cityProperties city)
-               $ setPropMaybe "defaultLineColor" (defaultLineColor $ cityProperties city) newObj
+        -- prop =   setPropMaybe "defaultBlockColor" (defaultBlockColor $ cityProperties city)
+        --        $ setPropMaybe "defaultActiveColor" (defaultActiveColor $ cityProperties city)
+        --        $ setPropMaybe "defaultStaticColor" (defaultStaticColor $ cityProperties city)
+        --        $ setPropMaybe "defaultLineColor" (defaultLineColor $ cityProperties city) newObj
 -- returns: "{"created":1470932237,"lastmodified":1470932237,"name":"dgdsfg","ScID":4}"
 
 runScenarioUpdate :: Behavior LuciClient

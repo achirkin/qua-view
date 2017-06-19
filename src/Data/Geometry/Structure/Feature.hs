@@ -20,6 +20,7 @@ module Data.Geometry.Structure.Feature
     ( ScenarioJSON (..)
     , FeatureCollection (..)
     , SomeJSONInput (..)
+    , HexColor (..)
     , Feature (..), feature, setFeature
     , GeoJsonGeometryND (..), GeoJsonGeometry (..)
     , FeatureGeometryType (..), featureGeometryType
@@ -47,6 +48,7 @@ import Data.Geometry.Structure.LineString (LineString (), MultiLineString ())
 import Data.Geometry.Structure.Point (Point (), MultiPoint ())
 import Data.Geometry.Structure.Polygon (Polygon (), MultiPolygon ())
 import Data.Coerce
+import Data.Maybe (fromMaybe)
 
 import Program.Settings
 
@@ -103,27 +105,25 @@ sjLat (ScenarioJSON js) = getProp "lat" js
 sjAlt :: ScenarioJSON -> Maybe Float
 sjAlt (ScenarioJSON js) = getProp "alt" js
 
-sjBlockColor :: ScenarioJSON -> Maybe JSString
-sjBlockColor = getHexColor "defaultBlockColor"
-sjActiveColor :: ScenarioJSON -> Maybe JSString
-sjActiveColor = getHexColor "defaultActiveColor"
-sjStaticColor :: ScenarioJSON -> Maybe JSString
-sjStaticColor = getHexColor "defaultStaticColor"
-sjLineColor :: ScenarioJSON -> Maybe JSString
-sjLineColor = getHexColor "defaultLineColor"
+sjBlockColor :: ScenarioJSON -> Maybe HexColor
+sjBlockColor t = asLikeJS $ getHexColor "defaultBlockColor" t
+sjActiveColor :: ScenarioJSON -> Maybe HexColor
+sjActiveColor t = asLikeJS $ getHexColor "defaultActiveColor" t
+sjLineColor :: ScenarioJSON -> Maybe HexColor
+sjLineColor t = asLikeJS $ getHexColor "defaultLineColor" t
+sjStaticColor :: ScenarioJSON -> Maybe HexColor
+sjStaticColor t = asLikeJS $ getHexColor "defaultStaticColor" t
 
-getHexColor :: JSString -> ScenarioJSON -> Maybe JSString
-getHexColor name = asLikeJS . js_getHexColor name
 
 foreign import javascript unsafe "if ($2.hasOwnProperty('properties') &&\
                                  \    $2['properties'] &&\
                                  \    $2['properties'].hasOwnProperty($1)) {\
                                  \$r = $2['properties'][$1];} else { $r = null; }"
-    js_getHexColor :: JSString -> ScenarioJSON -> JSVal
+    getHexColor :: JSString -> ScenarioJSON -> JSVal
 
 -- | HexColor
 newtype HexColor = HexColor (Vector4 GLfloat)
-instance LikeJS "Object" (Maybe HexColor) where
+instance {-# OVERLAPPING #-} LikeJS "Object" (Maybe HexColor) where
   asJSVal Nothing = jsNull
   asJSVal (Just (HexColor v)) = js_convertRGBAToHex $ asJSVal v
 
@@ -134,7 +134,7 @@ instance LikeJS "Object" (Maybe HexColor) where
 isHexColor :: JSVal -> Bool
 isHexColor = asLikeJS . js_isHexColor
 
-foreign import javascript unsafe "if ($1.match(/^(#[A-Fa-f0-9]{6})$/)) { $r = true; } else { $r = false; }"
+foreign import javascript unsafe "if ($1 && $1.match(/^(#[A-Fa-f0-9]{6})$/)) { $r = true; } else { $r = false; }"
     js_isHexColor ::  JSVal -> JSVal
 
 -- | Currently only support Hex color of length 6, will support 3,4,8 later.
@@ -174,18 +174,18 @@ instance LikeJS "Object" SomeJSONInput where
 ----------------------------------------------------------------------------------------------------
 
 data ScenarioProperties = ScenarioProperties
-    { defaultBlockColor  :: !(Maybe JSString)
-    , defaultActiveColor :: !(Maybe JSString)
-    , defaultStaticColor :: !(Maybe JSString)
-    , defaultLineColor   :: !(Maybe JSString)
+    { defaultBlockColor  :: !(HexColor)
+    , defaultActiveColor :: !(HexColor)
+    , defaultStaticColor :: !(HexColor)
+    , defaultLineColor   :: !(HexColor)
     }
 
 defaultScenarioProperties :: ScenarioProperties
 defaultScenarioProperties = ScenarioProperties
-    { defaultBlockColor = Nothing
-    , defaultActiveColor = Nothing
-    , defaultStaticColor = Nothing
-    , defaultLineColor = Nothing
+    { defaultBlockColor = HexColor (vector4 0.75 0.75 0.7 1)
+    , defaultActiveColor = HexColor (vector4 1 0.6 0.6 1)
+    , defaultStaticColor = HexColor (vector4 0.5 0.5 0.55 1)
+    , defaultLineColor = HexColor (vector4 0.8 0.4 0.4 1)
     }
 
 data ParsedFeatureCollection n x = ParsedFeatureCollection
@@ -227,10 +227,10 @@ smartProcessGeometryInput n defVals input = case input of
                           newLonLatAlt = case originLatLonAlt of
                             Just xxx -> Just xxx
                             Nothing  -> pfcLonLatAlt parsedFeatureCollection
-                          pfcBlockColor = sjBlockColor gi
-                          pfcActiveColor = sjActiveColor gi
-                          pfcStaticColor = sjStaticColor gi
-                          pfcLineColor = sjLineColor gi
+                          pfcBlockColor = fromMaybe (defaultBlockColor defaultScenarioProperties) $ sjBlockColor gi
+                          pfcActiveColor = fromMaybe (defaultActiveColor defaultScenarioProperties) $ sjActiveColor gi
+                          pfcStaticColor = fromMaybe (defaultStaticColor defaultScenarioProperties) $ sjStaticColor gi
+                          pfcLineColor = fromMaybe (defaultLineColor defaultScenarioProperties) $ sjLineColor gi
 
 smartProcessFeatureCollection :: Int -- ^ maximum geomId in current City
                               -> Vector n x -- ^ default vector to substitute
