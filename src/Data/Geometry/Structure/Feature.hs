@@ -35,6 +35,7 @@ import GHC.TypeLits (KnownNat, SomeNat (..), someNatVal)
 ---- import GHCJS.Foreign (isTruthy)
 --import GHCJS.Marshal.Pure (PToJSVal (..))
 import JsHs.Types (JSVal)
+import JsHs.Types.Prim (jsNull)
 import Data.Proxy (Proxy(..))
 import JsHs.JSString (JSString, append)
 import JsHs.Array as JS
@@ -117,6 +118,34 @@ getHexColor name = asLikeJS . js_getHexColor name
 foreign import javascript unsafe "if ($2.hasOwnProperty('properties')) {\
                                  \$r = $2['properties'][$1];} else { $r = null; }"
     js_getHexColor :: JSString -> ScenarioJSON -> JSVal
+
+-- | HexColor
+newtype HexColor = HexColor (Vector4 GLfloat)
+instance LikeJS "Object" (Maybe HexColor) where
+  asJSVal Nothing = jsNull
+  asJSVal (Just (HexColor v)) = js_convertRGBAToHex $ asJSVal v
+
+  asLikeJS val = if isHexColor val
+                 then Just (HexColor (asLikeJS (js_convertHexToRGBANew val) :: Vector4 GLfloat))
+                 else Nothing
+
+isHexColor :: JSVal -> Bool
+isHexColor = asLikeJS . js_isHexColor
+
+foreign import javascript unsafe "if ($1.match(/^(#[A-Fa-f0-9]{6})$/)) { $r = true; } else { $r = false; }"
+    js_isHexColor ::  JSVal -> JSVal
+
+-- | Currently only support Hex color of length 6, will support 3,4,8 later.
+foreign import javascript unsafe "if ($1.match(/^(#[A-Fa-f0-9]{6})$/))\
+                                 \{var x = parseInt($1.substr(1), 16); var a = [];\
+                                 \a[0] = (((x & 0xff0000) >> 16) / 255.0);\
+                                 \a[1] = (((x & 0x00ff00) >> 8) / 255.0);\
+                                 \a[2] = ((x & 0x0000ff) / 255.0);\
+                                 \a[3] = 1; $r = a;}"
+    js_convertHexToRGBANew :: JSVal -> JSVal
+
+foreign import javascript unsafe "($1[0]*65536+$1[1]*256+$1[2]).toString(16)"
+    js_convertRGBAToHex :: JSVal -> JSVal
 
 convertHexToRGBA :: JSString -> Maybe (Vector4 GLfloat)
 convertHexToRGBA = asLikeJS . js_convertHexToRGBA
