@@ -183,15 +183,7 @@ foreign import javascript unsafe "if ($1.match(/^(#[A-Fa-f0-9]{3})$/) !== null)\
                                  \else { $r = null; }"
     js_convertHexToRGBA :: JSVal -> JSVal
 
-foreign import javascript unsafe "if($1[3] === 1) {\
-                                 \$r = '#'.concat((($1[0]*255 << 16) +\
-                                 \                 ($1[1]*255 << 8) +\
-                                 \                 ($1[2]*255)).toString(16));}\
-                                 \else {\
-                                 \$r = '#'.concat((($1[0]*255 << 24) +\
-                                 \                 ($1[1]*255 << 16) +\
-                                 \                 ($1[2]*255 << 8) +\
-                                 \                 ($1[3]*255)).toString(16));}"
+foreign import javascript unsafe "($1).reduce(function(a, x){return a.concat((Math.round(x*255)).toString(16));}, "#")"
     js_convertRGBAToHex :: JSVal -> JSVal
 
 ----------------------------------------------------------------------------------------------------
