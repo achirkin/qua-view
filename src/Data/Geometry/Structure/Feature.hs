@@ -114,9 +114,7 @@ sjLineColor = getHexColor "defaultLineColor"
 getHexColor :: JSString -> ScenarioJSON -> Maybe JSString
 getHexColor name = asLikeJS . js_getHexColor name
 
-foreign import javascript unsafe "if ($2.hasOwnProperty('properties') &&\
-                                 \    $2['properties'].hasOwnProperty($1) &&\
-                                 \    $2['properties'][$1].match(/^(#[A-Fa-f0-9]{6})$/)) {\
+foreign import javascript unsafe "if ($2.hasOwnProperty('properties')) {\
                                  \$r = $2['properties'][$1];} else { $r = null; }"
     js_getHexColor :: JSString -> ScenarioJSON -> JSVal
 
