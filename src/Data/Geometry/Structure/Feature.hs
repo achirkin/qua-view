@@ -146,7 +146,9 @@ foreign import javascript unsafe "if ($1.match(/^(#[A-Fa-f0-9]{6})$/))\
                                  \a[3] = 1; $r = a;}"
     js_convertHexToRGBANew :: JSVal -> JSVal
 
-foreign import javascript unsafe "($1[0]*65536+$1[1]*256+$1[2]).toString(16)"
+foreign import javascript unsafe "'#'.concat((($1[0]*255 << 16) +\
+                                 \            ($1[1]*255 << 8) +\
+                                 \            ($1[2]*255)).toString(16))"\
     js_convertRGBAToHex :: JSVal -> JSVal
 
 convertHexToRGBA :: JSString -> Maybe (Vector4 GLfloat)
