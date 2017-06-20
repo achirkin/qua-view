@@ -161,7 +161,7 @@ foreign import javascript unsafe "if ($1.match(/^(#[A-Fa-f0-9]{3,8})$/) !== null
                                  \ } else { $r = null; }"
     js_convertHexToRGBA :: JSVal -> JSVal
 
-foreign import javascript unsafe "($1).reduce(function(a, x){return a.concat((Math.round(x*255)).toString(16));}, "#")"
+foreign import javascript unsafe "($1).reduce(function(a, x){return a.concat((Math.round(x*255)).toString(16));}, '#')"
     js_convertRGBAToHex :: JSVal -> JSVal
 
 ----------------------------------------------------------------------------------------------------
