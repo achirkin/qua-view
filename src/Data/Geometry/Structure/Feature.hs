@@ -154,8 +154,8 @@ foreign import javascript unsafe "($1 && ($1.match(/^(#[A-Fa-f0-9]{3,8})$/) !== 
 
 foreign import javascript unsafe "if ($1.match(/^(#[A-Fa-f0-9]{3,8})$/) !== null)\
                                  \ { var a = []; a[3] = 1; d = $1.length > 5 ? 2 : 1;\
-                                 \   for(var i = 1, j = 0; i < $1.length; i+=d, j++){ \
-                                 \     a[j] = parseInt($1.substr(i,d),16) / ( Math.pow(16, d) - 1); \
+                                 \   for(var i = 1; i < $1.length; i+=d){ \
+                                 \     a[(i-1)/d] = (parseInt($1.substr(i,d),16) / (Math.pow(16, d) - 1)); \
                                  \   } \
                                  \   $r = a; \
                                  \ } else { $r = null; }"
