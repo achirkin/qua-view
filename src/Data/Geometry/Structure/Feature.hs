@@ -153,11 +153,10 @@ foreign import javascript unsafe "($1 && ($1.match(/^(#[A-Fa-f0-9]{3,8})$/) !== 
     js_isHexColor ::  JSVal -> JSVal 
 
 foreign import javascript unsafe "if ($1.match(/^(#[A-Fa-f0-9]{3,8})$/) !== null)\
-                                 \ { var a = []; a[3] = 1; var d = $1.length > 5 ? 2 : 1;\
-                                 \   for(var i = 1; i < $1.length; i+=d){ \
-                                 \     a[(i-1)/d] = (parseInt($1.substr(i,d),16) / (Math.pow(16, d) - 1)); \
-                                 \   } \
-                                 \   $r = a; \
+                                 \ { var a = [0,0,0,1]; var d = $1.length > 5 ? 2 : 1;\
+                                 \   $r = a.map(function(e,i){ if (i*d+1 < $1.length)\
+                                 \   { return (parseInt($1.substr(i*d+1,d),16) / (Math.pow(16, d) - 1));
+                                 \   } else {return e;} })\
                                  \ } else { $r = null; }"
     js_convertHexToRGBA :: JSVal -> JSVal
 
