@@ -19,7 +19,7 @@
 -----------------------------------------------------------------------------
 
 module Program.Model.CityObject
-    ( CityObject (), LocatedCityObject, behavior, objPolygons, objPoints, geomId, allProps
+    ( CityObject (), LocatedCityObject, behavior, objPolygons, objPoints, geomId, allProps, getCityObjectColor
     , GeoJsonGeometry (..)
     , PointData (), vertexArray, indexArray, vertexArrayLength, indexArrayLength
     , processPolygonFeature
@@ -156,6 +156,8 @@ foreign import javascript unsafe "$r = function(v){var t = [v[0]-$1[0],v[1]-$1[1
                         -> Vector3 GLfloat -- ^ z dir
                         -> Callback (Vector3 GLfloat -> Vector3 GLfloat)
 
+getCityObjectColor :: CityObject -> Maybe HexColor
+getCityObjectColor (CityObject js) = asLikeJS $ getHexColor "viewColor" js
 
 {-# INLINE behavior #-}
 behavior :: CityObject -> ObjectBehavior

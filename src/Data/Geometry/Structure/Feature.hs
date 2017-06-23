@@ -20,12 +20,14 @@ module Data.Geometry.Structure.Feature
     ( ScenarioJSON (..)
     , FeatureCollection (..)
     , SomeJSONInput (..)
+    , HexColor (..), getHexColor
     , Feature (..), feature, setFeature
     , GeoJsonGeometryND (..), GeoJsonGeometry (..)
     , FeatureGeometryType (..), featureGeometryType
     , getGeoJSONGeometry, getSizedGeoJSONGeometry
     , boundingBox2D, filterGeometryTypes
     , ParsedFeatureCollection (..), smartProcessFeatureCollection, smartProcessGeometryInput
+    , ScenarioProperties (..), defaultScenarioProperties
     ) where
 
 
@@ -36,13 +38,15 @@ import JsHs.Types (JSVal)
 import Data.Proxy (Proxy(..))
 import JsHs.JSString (JSString, append)
 import JsHs.Array as JS
-import JsHs.Types.Prim (jsIsNullOrUndef)
+import JsHs.Types.Prim (jsNull, jsIsNullOrUndef)
+import JsHs.WebGL (GLfloat)
 import Data.Geometry
 import qualified Data.Geometry.Structure.PointSet as PS
 import Data.Geometry.Structure.LineString (LineString (), MultiLineString ())
 import Data.Geometry.Structure.Point (Point (), MultiPoint ())
 import Data.Geometry.Structure.Polygon (Polygon (), MultiPolygon ())
 import Data.Coerce
+import Data.Maybe (fromMaybe)
 
 import Program.Settings
 
@@ -88,6 +92,15 @@ newtype ScenarioJSON = ScenarioJSON JSVal
 instance LikeJS "Object" ScenarioJSON where
   asJSVal = js_deleteGiTimestamp
 
+data SomeJSONInput = SJIExtended ScenarioJSON | SJIGeoJSON FeatureCollection
+instance LikeJS "Object" SomeJSONInput where
+  asJSVal (SJIExtended gi) = asJSVal gi
+  asJSVal (SJIGeoJSON fc) = asJSVal fc
+
+  asLikeJS jsv = case (getProp "type" jsv :: Maybe JSString) of
+    Just "FeatureCollection" -> SJIGeoJSON (coerce jsv :: FeatureCollection)
+    _ -> SJIExtended (coerce jsv :: ScenarioJSON)
+
 foreign import javascript unsafe "$1['geometry']"
   sjFeatureCollection :: ScenarioJSON -> FeatureCollection
 sjSRID :: ScenarioJSON -> Maybe Int
@@ -99,20 +112,73 @@ sjLat (ScenarioJSON js) = getProp "lat" js
 sjAlt :: ScenarioJSON -> Maybe Float
 sjAlt (ScenarioJSON js) = getProp "alt" js
 
+sjBlockColor :: ScenarioJSON -> Maybe HexColor
+sjBlockColor (ScenarioJSON js) = asLikeJS $ getHexColor "defaultBlockColor" js
+sjActiveColor :: ScenarioJSON -> Maybe HexColor
+sjActiveColor (ScenarioJSON js) = asLikeJS $ getHexColor "defaultActiveColor" js
+sjLineColor :: ScenarioJSON -> Maybe HexColor
+sjLineColor (ScenarioJSON js) = asLikeJS $ getHexColor "defaultLineColor" js
+sjStaticColor :: ScenarioJSON -> Maybe HexColor
+sjStaticColor (ScenarioJSON js) = asLikeJS $ getHexColor "defaultStaticColor" js
 
-data SomeJSONInput = SJIExtended ScenarioJSON | SJIGeoJSON FeatureCollection
-instance LikeJS "Object" SomeJSONInput where
-  asJSVal (SJIExtended gi) = asJSVal gi
-  asJSVal (SJIGeoJSON fc) = asJSVal fc
 
-  asLikeJS jsv = case (getProp "type" jsv :: Maybe JSString) of
-    Just "FeatureCollection" -> SJIGeoJSON (coerce jsv :: FeatureCollection)
-    _ -> SJIExtended (coerce jsv :: ScenarioJSON)
+foreign import javascript unsafe "($2.hasOwnProperty('properties') && $2['properties'] &&\
+                                 \ $2['properties'].hasOwnProperty($1)) ? $2['properties'][$1] : null"
+    getHexColor :: JSString -> JSVal -> JSVal
+
+-- | HexColor
+
+newtype HexColor = HexColor (Vector4 GLfloat)
+instance LikeJS "Object" HexColor where
+  asJSVal (HexColor v) = js_convertRGBAToHex $ asJSVal v
+
+  asLikeJS val = if isHexColor val
+                 then HexColor (asLikeJS (js_convertHexToRGBA val) :: Vector4 GLfloat)
+                 else HexColor (vector4 0 0 0 0)
+
+instance {-# OVERLAPPING #-} LikeJS "Object" (Maybe HexColor) where
+  asJSVal Nothing = jsNull
+  asJSVal (Just color) = js_convertRGBAToHex $ asJSVal color
+
+  asLikeJS val = if isHexColor val
+                 then Just $ asLikeJS val
+                 else Nothing
+
+isHexColor :: JSVal -> Bool
+isHexColor = asLikeJS . js_isHexColor
+
+foreign import javascript unsafe "($1 && ($1.match(/^(#[A-Fa-f0-9]{3,8})$/) !== null))"
+    js_isHexColor ::  JSVal -> JSVal
+
+foreign import javascript unsafe "if ($1.match(/^(#[A-Fa-f0-9]{3,8})$/) !== null)\
+                                 \ { var a = [0,0,0,1]; var d = $1.length > 5 ? 2 : 1;\
+                                 \   $r = a.map(function(e,i){ if (i*d+1 < $1.length)\
+                                 \   { return (parseInt($1.substr(i*d+1,d),16) / (Math.pow(16, d) - 1));\
+                                 \   } else {return e;} })\
+                                 \ } else { $r = null; }"
+    js_convertHexToRGBA :: JSVal -> JSVal
+
+foreign import javascript unsafe "($1).reduce(function(a, x){return a.concat((Math.round(x*255)).toString(16));}, '#')"
+    js_convertRGBAToHex :: JSVal -> JSVal
 
 ----------------------------------------------------------------------------------------------------
 -- Some Functions
 ----------------------------------------------------------------------------------------------------
 
+data ScenarioProperties = ScenarioProperties
+    { defaultBlockColor  :: !HexColor
+    , defaultActiveColor :: !HexColor
+    , defaultStaticColor :: !HexColor
+    , defaultLineColor   :: !HexColor
+    }
+
+defaultScenarioProperties :: ScenarioProperties
+defaultScenarioProperties = ScenarioProperties
+    { defaultBlockColor = HexColor (vector4 0.75 0.75 0.7 1)
+    , defaultActiveColor = HexColor (vector4 1 0.6 0.6 1)
+    , defaultStaticColor = HexColor (vector4 0.5 0.5 0.55 1)
+    , defaultLineColor = HexColor (vector4 0.8 0.4 0.4 1)
+    }
 
 data ParsedFeatureCollection n x = ParsedFeatureCollection
   { pfcPoints     :: JS.Array Feature
@@ -125,6 +191,7 @@ data ParsedFeatureCollection n x = ParsedFeatureCollection
   , pfcDims       :: Int
   , pfcLonLatAlt  :: Maybe (Vector 3 Float)
   , pfcSRID       :: Maybe Int
+  , pfcScenarioProperties :: ScenarioProperties
   }
 
 smartProcessGeometryInput :: Int -- ^ maximum geomId in current City
@@ -136,6 +203,7 @@ smartProcessGeometryInput n defVals input = case input of
     SJIExtended gi -> parsedFeatureCollection
                           { pfcSRID = newSRID
                           , pfcLonLatAlt = newLonLatAlt
+                          , pfcScenarioProperties = ScenarioProperties pfcBlockColor pfcActiveColor pfcStaticColor pfcLineColor
                           }
                         where
                           srid = sjSRID gi
@@ -151,15 +219,17 @@ smartProcessGeometryInput n defVals input = case input of
                           newLonLatAlt = case originLatLonAlt of
                             Just xxx -> Just xxx
                             Nothing  -> pfcLonLatAlt parsedFeatureCollection
-
-
+                          pfcBlockColor = fromMaybe (defaultBlockColor defaultScenarioProperties) $ sjBlockColor gi
+                          pfcActiveColor = fromMaybe (defaultActiveColor defaultScenarioProperties) $ sjActiveColor gi
+                          pfcStaticColor = fromMaybe (defaultStaticColor defaultScenarioProperties) $ sjStaticColor gi
+                          pfcLineColor = fromMaybe (defaultLineColor defaultScenarioProperties) $ sjLineColor gi
 
 smartProcessFeatureCollection :: Int -- ^ maximum geomId in current City
                               -> Vector n x -- ^ default vector to substitute
                               -> JSString -- ^ determine conversion
                               -> FeatureCollection
                               -> ParsedFeatureCollection n x
-smartProcessFeatureCollection n defVals cs fc = ParsedFeatureCollection points lins polys deletes errors cmin cmax cdims mLonLatAlt mSRID
+smartProcessFeatureCollection n defVals cs fc = ParsedFeatureCollection points lins polys deletes errors cmin cmax cdims mLonLatAlt mSRID defaultScenarioProperties
   where
     mLonLatAlt = asLikeJS jsLonLatAlt :: Maybe (Vector 3 x)
     mSRID = 4326 <$ mLonLatAlt
