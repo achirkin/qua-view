@@ -122,10 +122,8 @@ sjStaticColor :: ScenarioJSON -> Maybe HexColor
 sjStaticColor (ScenarioJSON js) = asLikeJS $ getHexColor "defaultStaticColor" js
 
 
-foreign import javascript unsafe "if ($2.hasOwnProperty('properties') &&\
-                                 \    $2['properties'] &&\
-                                 \    $2['properties'].hasOwnProperty($1)) {\
-                                 \$r = $2['properties'][$1];} else { $r = null; }"
+foreign import javascript unsafe "($2.hasOwnProperty('properties') && $2['properties'] &&\
+                                 \ $2['properties'].hasOwnProperty($1)) ? $2['properties'][$1] : null"
     getHexColor :: JSString -> JSVal -> JSVal
 
 -- | HexColor
@@ -150,7 +148,7 @@ isHexColor :: JSVal -> Bool
 isHexColor = asLikeJS . js_isHexColor
 
 foreign import javascript unsafe "($1 && ($1.match(/^(#[A-Fa-f0-9]{3,8})$/) !== null))"
-    js_isHexColor ::  JSVal -> JSVal 
+    js_isHexColor ::  JSVal -> JSVal
 
 foreign import javascript unsafe "if ($1.match(/^(#[A-Fa-f0-9]{3,8})$/) !== null)\
                                  \ { var a = [0,0,0,1]; var d = $1.length > 5 ? 2 : 1;\
