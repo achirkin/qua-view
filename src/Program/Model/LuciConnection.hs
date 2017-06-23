@@ -38,7 +38,7 @@ import qualified JsHs.TypedArray as JSTA
 --import JsHs.WebGL.Types (GLfloat)
 import qualified Data.Geometry.Transform as T
 
-import Data.Geometry.Structure.Feature (FeatureCollection, ScenarioJSON, SomeJSONInput (..))
+import Data.Geometry.Structure.Feature
 import qualified Data.Geometry.Structure.PointSet as PS
 
 import Unsafe.Coerce (unsafeCoerce)
@@ -104,7 +104,7 @@ luciBehavior lsettings geoJSONImportFire cityB groundUpdatedE
       -- asking luci to save a scenario on button click
       (askSaveScenarioE, onAskSaveScenarioFire) <- newEvent
       liftIO $ GUI.registerSaveScenario onAskSaveScenarioFire
-      scenarioSavedE <- runScenarioCreate luciClientB $ (\ci s -> (s, originLonLatAlt ci, srid ci, storeCityAsIs ci)) <$> cityB <@> askSaveScenarioE
+      scenarioSavedE <- runScenarioCreate luciClientB $ (\ci s -> (s, ci)) <$> cityB <@> askSaveScenarioE
 --      scenarioSavedE <- execute ((\ci s -> runScenarioCreate runLuciService s (storeCityAsIs ci)) <$> cityB <@> askSaveScenarioE) >>= switchE
       scenarioSyncE_create <- mapEventIO id
            $ (\s -> do
@@ -287,7 +287,6 @@ luciBehavior lsettings geoJSONImportFire cityB groundUpdatedE
 
 
 
-
 ----------------------------------------------------------------------------------------------------
 -- * Pre-defined messages
 ----------------------------------------------------------------------------------------------------
@@ -345,22 +344,21 @@ instance JS.LikeJS "Object" LuciScenarioCreated where
 runScenarioCreate :: Behavior LuciClient
                   -> Event
                      ( ScenarioName -- ^ name of the scenario
-                     , Maybe (Vector3 GLfloat)
-                     , Maybe Int
-                     , FeatureCollection -- ^ content of the scenario
+                     , City
                      )
                   -> MomentIO (Event (ServiceResponse LuciScenarioCreated))
 runScenarioCreate lcB e = runService lcB $ (\v -> ("scenario.geojson.Create", f v, [])) <$> e
   where
-    f (name, geoLocation, geoSrid, collection) =
+    f (name, city) =
       [ ("name", JS.asJSVal name)
       , ("geometry_input"
         ,   setProp "format"  ("GeoJSON" :: JSString)
-          $ setProp "geometry" collection object1
+          $ setProp "geometry" (storeCityAsIs city)
+          $ setProp "properties" prop object1
         )
       ]
       where
-        object1 = case geoLocation of
+        object1 = case originLonLatAlt city of
             (Just latLonAlt) ->
                   setProp "lat" lat
                 $ setProp "lon" lon
@@ -368,11 +366,17 @@ runScenarioCreate lcB e = runService lcB $ (\v -> ("scenario.geojson.Create", f 
               where
                 (lat, lon, alt) = unpackV3 latLonAlt
             Nothing -> object2
-        object2 = case geoSrid of
+        object2 = case srid city of
             (Just s) -> setProp "srid" s newObj
             Nothing -> newObj
+        prop =   setProp "defaultBlockColor" (defaultBlockColor $ cityProperties city)
+               $ setProp "defaultActiveColor" (defaultActiveColor $ cityProperties city)
+               $ setProp "defaultStaticColor" (defaultStaticColor $ cityProperties city)
+               $ setProp "defaultLineColor" (defaultLineColor $ cityProperties city) newDict
 -- returns: "{"created":1470932237,"lastmodified":1470932237,"name":"dgdsfg","ScID":4}"
 
+foreign import javascript unsafe "$r = {};"
+    newDict :: JSVal
 
 runScenarioUpdate :: Behavior LuciClient
                   -> Event
