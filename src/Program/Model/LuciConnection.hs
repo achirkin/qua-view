@@ -359,14 +359,15 @@ runScenarioCreate lcB e = runService lcB $ (\v -> ("scenario.geojson.Create", f 
       ]
       where
         object1 = case originLonLatAlt city of
-            (Just latLonAlt) ->
+            (Just lonLatAlt) ->
                   setProp "lat" lat
                 $ setProp "lon" lon
                 $ setProp "alt" alt object2
               where
-                (lat, lon, alt) = unpackV3 latLonAlt
+                (lon, lat, alt) = unpackV3 lonLatAlt
             Nothing -> object2
         object2 = case srid city of
+            (Just 4326) -> newObj -- srid is 4326 => we have already transformed it into metric
             (Just s) -> setProp "srid" s newObj
             Nothing -> newObj
         prop =   setProp "defaultBlockColor" (defaultBlockColor $ cityProperties city)
