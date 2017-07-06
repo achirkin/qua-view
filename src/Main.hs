@@ -75,9 +75,7 @@ main = do
       isize <- viewPortSize heh >>= valueB
       let icamera = initCamera (realToFrac $ coordX isize)
                                (realToFrac $ coordY isize)
-                               CState { viewPoint  = vector3 (-17.5) (-17) 0
-                                      , viewAngles = (0.345, 0.825)
-                                      , viewDist   = 138 }
+                               defaultCameraState
 
       -- GeoJSON updates
       geoJSONImportE <- fromAddHandler geoJSONImportsHandler
