@@ -82,9 +82,9 @@ main = do
       -- GeoJSON updates
       geoJSONImportE <- fromAddHandler geoJSONImportsHandler
       clearGeometryE <- fmap (const ClearingGeometry) <$> fromAddHandler clearGeomHandler
-      let cityChangeE = unionWith (const id) (CityUpdate . fun <$> geoJSONImportE) (CityErase <$ clearGeometryE)
-          fun (Left a) = a
-          fun (Right a) = a
+      let cityChangeE = unionWith (const id) (CityUpdate . anyway <$> D.trace (show $ typeOf geoJSONImportE) geoJSONImportE) (CityErase <$ clearGeometryE)
+          anyway (Left a) = a
+          anyway (Right a) = a
 
       -- canvas events
       pointerE <- pointerEvents heh
