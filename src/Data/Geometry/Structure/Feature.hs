@@ -112,6 +112,13 @@ sjLat (ScenarioJSON js) = getProp "lat" js
 sjAlt :: ScenarioJSON -> Maybe Float
 sjAlt (ScenarioJSON js) = getProp "alt" js
 
+sjCameraFocus :: ScenarioJSON -> Maybe (Vector3 Float)
+sjCameraFocus (ScenarioJSON js) = getProperty "defaultCameraFocus" js
+sjCameraViewDist :: ScenarioJSON -> Maybe Float
+sjCameraViewDist (ScenarioJSON js) = getProperty "defaultCameraViewDist" js
+sjCameraViewAngles :: ScenarioJSON -> Maybe (Vector2 Float)
+sjCameraViewAngles (ScenarioJSON js) = getProperty "defaultCameraViewAngles" js
+
 sjBlockColor :: ScenarioJSON -> Maybe HexColor
 sjBlockColor (ScenarioJSON js) = asLikeJS $ getHexColor "defaultBlockColor" js
 sjActiveColor :: ScenarioJSON -> Maybe HexColor
@@ -209,7 +216,13 @@ smartProcessGeometryInput n defVals input = case input of
     SJIExtended gi -> parsedFeatureCollection
                           { pfcSRID = newSRID
                           , pfcLonLatAlt = newLonLatAlt
-                          , pfcScenarioProperties = ScenarioProperties pfcBlockColor pfcActiveColor pfcStaticColor pfcLineColor
+                          , pfcScenarioProperties = ScenarioProperties pfcBlockColor 
+                                                                       pfcActiveColor 
+                                                                       pfcStaticColor 
+                                                                       pfcLineColor 
+                                                                       (sjCameraFocus gi) 
+                                                                       (sjCameraViewDist gi) 
+                                                                       (sjCameraViewAngles gi)
                           }
                         where
                           srid = sjSRID gi
