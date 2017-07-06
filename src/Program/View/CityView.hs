@@ -41,6 +41,7 @@ import Program.View
 import Program.View.CityObjectView
 import Program.View.CityGroundView
 import Program.View.WiredGeometryView ()
+import Program.View.GroundMapView
 import Data.Bits (Bits(..))
 import JsHs.Nullable (Nullable(..))
 
@@ -69,7 +70,11 @@ data CityView = CityView
     , viewsIn      :: !COViewCollection
     , groundView   :: !(View CityGround)
     , clutterView  :: !(View WiredGeometry)
+    , groundMap    :: !(Maybe GroundMapView)
     }
+
+zoomlevel :: Int
+zoomlevel = 15
 
 
 instance Drawable City where
@@ -82,12 +87,16 @@ instance Drawable City where
         objs <- createObjViewCollection gl (objectsIn city)
         gr <- createView gl (ground city)
         clview <- createView gl (snd $ clutter city)
+        mgmc <- case originLonLatAlt city of
+            Nothing -> return Nothing
+            Just lonlatalt -> Just <$> createGroundMapView gl zoomlevel (cityTransform city) lonlatalt
         return CityView
             { viewShader   = buProgram
             , selectShader = seProgram
             , viewsIn      = objs
             , groundView   = gr
             , clutterView  = clview
+            , groundMap    = mgmc
             }
     drawInCurrContext vc@ViewContext
         { glctx = gl
@@ -101,6 +110,14 @@ instance Drawable City where
         uniform1i gl (unifLoc prog "uSampler") 0
         uniformMatrix4fv gl (vGLProjLoc cs) False (projectArr vc)
         uniform3f gl (unifLoc prog "uSunDir") sx sy sz
+        -- draw map
+        case groundMap cview of
+            Nothing -> return ()
+            Just gmc -> do
+                uniform1f gl userLoc 0.6
+                uniform4f gl colLoc 1 1 1 1
+                applyTransform vc (return () :: MTransform 3 GLfloat ())
+                drawGroundMapView gl (ploc,nloc,tloc) gmc
         -- draw ground
         when (indexArrayLength (groundPoints $ ground city) > 0) $ do
           uniform1f gl userLoc 1
@@ -147,10 +164,15 @@ instance Drawable City where
         mviews' <- fromJSArray <$> JS.unionZipIO f objs views
         gr <- updateView gl (ground city) (groundView cv)
         cl <- updateView gl (snd $ clutter city) (clutterView cv)
+        ngmc <- case (groundMap cv, originLonLatAlt city) of
+            (Just gmc, _)       -> return $ Just gmc
+            (Nothing, Just lla) -> Just <$> createGroundMapView gl zoomlevel (cityTransform city) lla
+            (Nothing, Nothing)  -> return Nothing
         return cv
             { viewsIn = mviews'
             , groundView = gr
             , clutterView = cl
+            , groundMap = ngmc
             } where f _ Nothing  Nothing  = return nullRef
                     f _ Nothing  (Just v) = deleteView gl (undefined :: LocatedCityObject) v >> return nullRef
                     f _ (Just o) Nothing  = createView gl o
