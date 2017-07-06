@@ -20,6 +20,7 @@ module Data.Geometry.Structure.Feature
     ( ScenarioJSON (..)
     , FeatureCollection (..)
     , SomeJSONInput (..)
+    , sjCameraFocus, sjCameraViewDist, sjCameraViewAngles
     , HexColor (..), getHexColor
     , Feature (..), feature, setFeature
     , GeoJsonGeometryND (..), GeoJsonGeometry (..)

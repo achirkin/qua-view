@@ -15,7 +15,7 @@
 module Program.Model.Camera
     ( Camera (..)
     , viewMatrix
-    , CState (..)
+    , CState (..), defaultCameraState
     , initCamera
     , scroll, dragHorizontal, dragVertical, rotateCentered, twoFingerControl
     , dragObject, rotateObject, twoFingerObject
@@ -28,7 +28,9 @@ import JsHs.WebGL
 import Data.Fixed as DF
 
 import Data.Geometry
+import Data.Geometry.Structure.Feature
 import Data.Geometry.Transform
+import Data.Maybe
 --import Geometry.Space.Transform
 --import Geometry.Space.Quaternion
 
@@ -44,6 +46,7 @@ import Reactive.Banana.JsHs
 -- | Reactive-banana-like camera behavior
 cameraBehavior :: MonadMoment m
                => Camera -- ^ initial camera
+               -> Event (Either SomeJSONInput SomeJSONInput)
                -> Event PointerEvent -- ^ pointer actions
                -> Event WheelEvent -- ^ wheel
                -> Event ResizeEvent -- ^ resize
@@ -52,12 +55,13 @@ cameraBehavior :: MonadMoment m
                -> Behavior [(Vector2 GLfloat, Vector2 GLfloat)] -- ^ [(old, new)] coordinates
                -> Behavior Bool -- ^ allow to move camera (is there object dragging or not)
                -> m (Behavior Camera)
-cameraBehavior cam pointerE wheelE resizeE resetCamE buttonsB coordsB alowMoveB = accumB cam events
+cameraBehavior cam geoJSONImportE pointerE wheelE resizeE resetCamE buttonsB coordsB alowMoveB = accumB cam events
   where
     events = whenE alowMoveB
            $ unions [ wheelT <$> wheelE
                     , pointerT <$> buttonsB <*> coordsB <@> pointerE
                     , resizeT <$> resizeE
+                    , cameraPositionT <$> geoJSONImportE
                     , resetCamT <$> resetCamE
                     ]
     -- Modify camera with will zooming
@@ -94,6 +98,17 @@ cameraBehavior cam pointerE wheelE resizeE resetCamE buttonsB coordsB alowMoveB 
                                                  | b == 4 = dragVertical opos npos c
                                                    -- fallback to horizontal dragging
                                                  | otherwise = dragHorizontal opos npos c
+    cameraPositionT :: Either SomeJSONInput SomeJSONInput -> Camera -> Camera
+    cameraPositionT e c = Camera (viewportSize c) (projMatrix c) nstate nstate
+          where
+            nstate = case anyway e of
+                SJIExtended sj ->
+                    CState { viewPoint  = fromMaybe (viewPoint defaultCameraState) $ sjCameraFocus sj
+                           , viewAngles = fromMaybe (viewAngles defaultCameraState) $ unpackV2 <$> sjCameraViewAngles sj
+                           , viewDist   = fromMaybe (viewDist defaultCameraState) $ sjCameraViewDist sj }
+                _ -> defaultCameraState
+            anyway (Left a) = a
+            anyway (Right a) = a
 
 
 

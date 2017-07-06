@@ -120,6 +120,7 @@ main = do
       (resetCamE, resetCamFire) <- newEvent
       liftIO $ GUI.registerResetCamera resetCamFire
       cameraB <- cameraBehavior icamera
+                                geoJSONImportE
                                 pointerE
                                 wheelE
                                 resizeE
