@@ -177,9 +177,9 @@ data ScenarioProperties = ScenarioProperties
     , defaultActiveColor      :: !HexColor
     , defaultStaticColor      :: !HexColor
     , defaultLineColor        :: !HexColor
-    , defaultCameraFocus      :: !(Maybe (Vector3 Float))
-    , defaultCameraViewDist   :: !(Maybe Float)
-    , defaultCameraViewAngles :: !(Maybe (Vector2 Float))
+    , defaultCameraFocus      :: !(Maybe (Vector3 GLfloat))
+    , defaultCameraViewDist   :: !(Maybe GLfloat)
+    , defaultCameraViewAngles :: !(Maybe (Vector2 GLfloat))
     }
 
 defaultScenarioProperties :: ScenarioProperties
