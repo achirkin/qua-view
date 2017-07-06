@@ -184,6 +184,10 @@ initCamera width height state = Camera
     } where ratio = width / height
             fovy = (1*) . atan2 height . sqrt $ height*height + width*width
 
+defaultCameraState :: CState
+defaultCameraState = CState { viewPoint  = vector3 (-17.5) (-17) 0
+                            , viewAngles = (0.345, 0.825)
+                            , viewDist   = 200 }
 
 
 ----------------------------------------------------------------------------------------------
