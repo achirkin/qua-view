@@ -80,7 +80,7 @@ main = do
       -- GeoJSON updates
       geoJSONImportE <- fromAddHandler geoJSONImportsHandler
       clearGeometryE <- fmap (const ClearingGeometry) <$> fromAddHandler clearGeomHandler
-      let cityChangeE = unionWith (const id) (CityUpdate . anyway <$> D.trace (show $ typeOf geoJSONImportE) geoJSONImportE) (CityErase <$ clearGeometryE)
+      let cityChangeE = unionWith (const id) (CityUpdate . anyway <$> geoJSONImportE) (CityErase <$ clearGeometryE)
           anyway (Left a) = a
           anyway (Right a) = a
 
