@@ -166,10 +166,13 @@ foreign import javascript unsafe "($1).reduce(function(a, x){return a.concat(('0
 ----------------------------------------------------------------------------------------------------
 
 data ScenarioProperties = ScenarioProperties
-    { defaultBlockColor  :: !HexColor
-    , defaultActiveColor :: !HexColor
-    , defaultStaticColor :: !HexColor
-    , defaultLineColor   :: !HexColor
+    { defaultBlockColor       :: !HexColor
+    , defaultActiveColor      :: !HexColor
+    , defaultStaticColor      :: !HexColor
+    , defaultLineColor        :: !HexColor
+    , defaultCameraFocus      :: !(Maybe (Vector3 Float))
+    , defaultCameraViewDist   :: !(Maybe Float)
+    , defaultCameraViewAngles :: !(Maybe (Vector2 Float))
     }
 
 defaultScenarioProperties :: ScenarioProperties
@@ -178,6 +181,9 @@ defaultScenarioProperties = ScenarioProperties
     , defaultActiveColor = HexColor (vector4 1 0.6 0.6 1)
     , defaultStaticColor = HexColor (vector4 0.5 0.5 0.55 1)
     , defaultLineColor = HexColor (vector4 0.8 0.4 0.4 1)
+    , defaultCameraFocus = Nothing
+    , defaultCameraViewDist = Nothing
+    , defaultCameraViewAngles = Nothing
     }
 
 data ParsedFeatureCollection n x = ParsedFeatureCollection
