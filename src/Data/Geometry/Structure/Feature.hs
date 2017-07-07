@@ -112,6 +112,9 @@ sjLat (ScenarioJSON js) = getProp "lat" js
 sjAlt :: ScenarioJSON -> Maybe Float
 sjAlt (ScenarioJSON js) = getProp "alt" js
 
+sjHiddenProperties :: ScenarioJSON -> Maybe (JS.Array JSString)
+sjHiddenProperties (ScenarioJSON js) = asLikeJS $ getProperty "hiddenProperties" js
+
 sjBlockColor :: ScenarioJSON -> Maybe HexColor
 sjBlockColor (ScenarioJSON js) = asLikeJS $ getHexColor "defaultBlockColor" js
 sjActiveColor :: ScenarioJSON -> Maybe HexColor
@@ -170,6 +173,7 @@ data ScenarioProperties = ScenarioProperties
     , defaultActiveColor :: !HexColor
     , defaultStaticColor :: !HexColor
     , defaultLineColor   :: !HexColor
+    , hiddenProperties   :: !(Maybe (JS.Array JSString))
     }
 
 defaultScenarioProperties :: ScenarioProperties
@@ -178,6 +182,7 @@ defaultScenarioProperties = ScenarioProperties
     , defaultActiveColor = HexColor (vector4 1 0.6 0.6 1)
     , defaultStaticColor = HexColor (vector4 0.5 0.5 0.55 1)
     , defaultLineColor = HexColor (vector4 0.8 0.4 0.4 1)
+    , hiddenProperties = Nothing
     }
 
 data ParsedFeatureCollection n x = ParsedFeatureCollection
@@ -203,7 +208,11 @@ smartProcessGeometryInput n defVals input = case input of
     SJIExtended gi -> parsedFeatureCollection
                           { pfcSRID = newSRID
                           , pfcLonLatAlt = newLonLatAlt
-                          , pfcScenarioProperties = ScenarioProperties pfcBlockColor pfcActiveColor pfcStaticColor pfcLineColor
+                          , pfcScenarioProperties = ScenarioProperties pfcBlockColor 
+                                                                       pfcActiveColor 
+                                                                       pfcStaticColor 
+                                                                       pfcLineColor
+                                                                       (sjHiddenProperties gi)
                           }
                         where
                           srid = sjSRID gi
