@@ -118,6 +118,11 @@ foreign import javascript unsafe "($2.hasOwnProperty('properties') && $2['proper
 setProp :: LikeJS s a => JSString -> a -> JSVal -> JSVal
 setProp name = js_setProp name . asJSVal
 
+setPropMaybe :: LikeJS s a => JSString -> Maybe a -> JSVal -> JSVal
+setPropMaybe name val = case val of
+                          Just v -> js_setProp name (asJSVal v)
+                          Nothing -> id
+
 foreign import javascript unsafe "$3[$1] = $2; $r = $3;"
     js_setProp :: JSString -> JSVal -> JSVal -> JSVal
 
