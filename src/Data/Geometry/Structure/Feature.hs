@@ -113,7 +113,7 @@ sjAlt :: ScenarioJSON -> Maybe Float
 sjAlt (ScenarioJSON js) = getProp "alt" js
 
 sjHiddenProperties :: ScenarioJSON -> Maybe (JS.Array JSString)
-sjHiddenProperties (ScenarioJSON js) = asLikeJS $ getProperty "hiddenProperties" js
+sjHiddenProperties (ScenarioJSON js) = getProperty "hiddenProperties" js
 
 sjBlockColor :: ScenarioJSON -> Maybe HexColor
 sjBlockColor (ScenarioJSON js) = asLikeJS $ getHexColor "defaultBlockColor" js
