@@ -16,7 +16,7 @@ module Program.Settings
   ( Settings (..), defaultSettings, loadSettings
   , Profile (..)
   -- * JSON helpers
-  , getProp, getProperty, setProp, setPropMaybe, newObj, jsonParse, jsonStringify, fromProps, toProps
+  , getProp, getProperty, setProp, setPropMaybe, deleteProp, newObj, jsonParse, jsonStringify, fromProps, toProps
   ) where
 
 import JsHs (JSVal, JSString, LikeJS (..))
@@ -125,6 +125,9 @@ setPropMaybe name val = case val of
 
 foreign import javascript unsafe "$3[$1] = $2; $r = $3;"
     js_setProp :: JSString -> JSVal -> JSVal -> JSVal
+
+foreign import javascript unsafe "delete $2.$1; $r = $2"
+    deleteProp :: JSString -> JSVal -> JSVal
 
 fromProps :: [(JSString, JSVal)] -> JSVal
 fromProps xs = js_fromProps (JS.fromList keys) (JS.fromList vals)
