@@ -165,7 +165,7 @@ main = do
 
       -- show building info on selection
       let showInfoA _  Nothing  = GUI.showInfo newObj
-          showInfoA ci (Just i) = GUI.showInfo . maybe newObj (allProps . T.unwrap) $ getObject i ci
+          showInfoA ci (Just i) = GUI.showInfo . maybe newObj (shownProps ci . T.unwrap) $ getObject i ci
       reactimate $ showInfoA <$> cityB <@> selObjIdE
 
       -- a little bit of logging
