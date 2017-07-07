@@ -16,7 +16,7 @@ module Program.Settings
   ( Settings (..), defaultSettings, loadSettings
   , Profile (..)
   -- * JSON helpers
-  , getProp, getProperty, setProp, newObj, jsonParse, jsonStringify, fromProps, toProps
+  , getProp, getProperty, setProp, setPropMaybe, newObj, jsonParse, jsonStringify, fromProps, toProps
   ) where
 
 import JsHs (JSVal, JSString, LikeJS (..))
