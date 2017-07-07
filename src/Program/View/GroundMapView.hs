@@ -24,6 +24,9 @@ module Program.View.GroundMapView
 import JsHs.Types
 import JsHs.WebGL
 import JsHs.JSString
+import Data.IORef
+import Control.Concurrent (forkIO)
+import Control.Monad ((<=<))
 import Data.Geometry
 import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
@@ -49,7 +52,7 @@ data GroundMapView = GroundMapView
     , gmvTileCenter  ::  !(Int,Int)
     , gmvCellWidth    :: !GLfloat
     , gmvZoomLevel    :: !Int
-    , gmvTiles        :: !(Map (Int,Int) GroundMapCell)
+    , gmvTiles        :: !(Map (Int,Int) (IORef (Maybe GroundMapCell)))
     }
 
 createGroundMapView :: WebGLRenderingContext
@@ -88,13 +91,14 @@ createGroundMapView gl zoomlvl (vscale, vshift) lonlatalt = do
 createGroundMapCell :: WebGLRenderingContext
                     -> GroundMapView
                     -> (Int, Int) -- ^ tile x and y
-                    -> IO GroundMapCell
+                    -> IO (IORef (Maybe GroundMapCell))
 createGroundMapCell gl GroundMapView{..} tilexy@(x,y) = do
     buf <- createBuffer gl
     bindBuffer gl gl_ARRAY_BUFFER buf
     bufferData gl gl_ARRAY_BUFFER arrayBuffer gl_STATIC_DRAW
-    mapTex <- createTex gmvZoomLevel tilexy >>= initTexture gl . Left
-    return $ GroundMapCell buf mapTex
+    gmc <- newIORef Nothing
+    _ <- forkIO $ createTex gmvZoomLevel tilexy >>= initTexture gl . Left >>= writeIORef gmc . Just . GroundMapCell buf
+    return $ gmc
   where
     arrayBuffer = packPoints (groundPoints (gmvLocalCenter + vector3 xx yy 0) gmvCellWidth)
                               groundNormals
@@ -136,14 +140,16 @@ drawGroundMapView :: WebGLRenderingContext
                   -> GroundMapView -> IO ()
 drawGroundMapView gl locs gmv = do
     depthMask gl False
-    mapM_ (drawGroundMapCell gl locs) $ gmvTiles gmv
+    mapM_ (drawGroundMapCell gl locs <=< readIORef) $ gmvTiles gmv
     depthMask gl True
+
 
 
 drawGroundMapCell :: WebGLRenderingContext
                   -> (GLuint,GLuint,GLuint)
-                  -> GroundMapCell -> IO ()
-drawGroundMapCell gl (ploc,nloc,tloc) GroundMapCell {..} = do
+                  -> Maybe GroundMapCell -> IO ()
+drawGroundMapCell _ _ Nothing = return ()
+drawGroundMapCell gl (ploc,nloc,tloc) (Just GroundMapCell {..}) = do
     bindTexture gl gl_TEXTURE_2D gmcMapTexture
     bindBuffer gl gl_ARRAY_BUFFER gmcVertexBuffer
     vertexAttribPointer gl ploc 3 gl_FLOAT False 20 0
