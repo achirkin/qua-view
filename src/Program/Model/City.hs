@@ -114,12 +114,13 @@ emptyCity = City
     , ground = emptyGround
     , cityTransform = (0, 0)
     , csettings = defaultCitySettings
-    , clutter = emptyLineSet (vector4 0.8 0.4 0.4 1)
+    , clutter = emptyLineSet lineColor
     , buildingColors = Nothing
     , originLonLatAlt = Nothing
     , srid         = Nothing
     , cityProperties = defaultScenarioProperties
     }
+    where (HexColor lineColor) = defaultLineColor defaultScenarioProperties
 
 -- | An event that represents all possible city changes
 data CityUpdate
@@ -324,8 +325,9 @@ clearCity city = city
     , cityTransform = (0, 0)
     , ground = emptyGround
     , csettings   = defaultCitySettings
-    , clutter = emptyLineSet (vector4 0.8 0.4 0.4 1) --  createLineSet (Vector4 0.8 0.4 0.4 1) []
+    , clutter = emptyLineSet lineColor --  createLineSet lineColor []
     } -- where objs' = IM.empty :: IM.IntMap LocatedCityObject
+    where (HexColor lineColor) = defaultLineColor defaultScenarioProperties
 
 ----------------------------------------------------------------------------------------------------
 -- Scenario Processing
