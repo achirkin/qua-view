@@ -183,7 +183,6 @@ foreign import javascript unsafe "($1).reduce(function(a, x){return a.concat(('0
 ----------------------------------------------------------------------------------------------------
 
 data ScenarioProperties = ScenarioProperties
-<<<<<<< HEAD
     { defaultBlockColor       :: !HexColor
     , defaultActiveColor      :: !HexColor
     , defaultStaticColor      :: !HexColor
