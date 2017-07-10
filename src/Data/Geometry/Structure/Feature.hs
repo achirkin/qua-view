@@ -182,13 +182,10 @@ data ScenarioProperties = ScenarioProperties
     , defaultActiveColor :: !HexColor
     , defaultStaticColor :: !HexColor
     , defaultLineColor   :: !HexColor
-<<<<<<< HEAD
     , hiddenProperties   :: !(Maybe (JS.Array JSString))
-=======
     , mapZoomLevel       :: !Int
     , useMapLayer        :: !Bool
     , forcedArea         :: !(Maybe (LinearRing 2 Float))
->>>>>>> master
     }
 
 defaultScenarioProperties :: ScenarioProperties
