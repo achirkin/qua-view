@@ -191,15 +191,9 @@ data ScenarioProperties = ScenarioProperties
     , defaultCameraFocus      :: !(Maybe (Vector3 GLfloat))
     , defaultCameraViewDist   :: !(Maybe GLfloat)
     , defaultCameraViewAngles :: !(Maybe (Vector2 GLfloat))
-=======
-    { defaultBlockColor  :: !HexColor
-    , defaultActiveColor :: !HexColor
-    , defaultStaticColor :: !HexColor
-    , defaultLineColor   :: !HexColor
-    , mapZoomLevel       :: !Int
-    , useMapLayer        :: !Bool
-    , forcedArea         :: !(Maybe (LinearRing 2 Float))
->>>>>>> master
+    , mapZoomLevel            :: !Int
+    , useMapLayer             :: !Bool
+    , forcedArea              :: !(Maybe (LinearRing 2 Float))
     }
 
 defaultScenarioProperties :: ScenarioProperties
@@ -208,15 +202,12 @@ defaultScenarioProperties = ScenarioProperties
     , defaultActiveColor = HexColor (vector4 1 0.6 0.6 1)
     , defaultStaticColor = HexColor (vector4 0.5 0.5 0.55 1)
     , defaultLineColor = HexColor (vector4 0.8 0.4 0.4 1)
-<<<<<<< HEAD
     , defaultCameraFocus = Nothing
     , defaultCameraViewDist = Nothing
     , defaultCameraViewAngles = Nothing
-=======
     , mapZoomLevel = 15
     , useMapLayer = True
     , forcedArea = Nothing
->>>>>>> master
     }
 
 data ParsedFeatureCollection n x = ParsedFeatureCollection
@@ -242,7 +233,6 @@ smartProcessGeometryInput n defVals input = case input of
     SJIExtended gi -> parsedFeatureCollection
                           { pfcSRID = newSRID
                           , pfcLonLatAlt = newLonLatAlt
-<<<<<<< HEAD
                           , pfcScenarioProperties = ScenarioProperties pfcBlockColor 
                                                                        pfcActiveColor 
                                                                        pfcStaticColor 
@@ -250,9 +240,9 @@ smartProcessGeometryInput n defVals input = case input of
                                                                        (sjCameraFocus gi) 
                                                                        (sjCameraViewDist gi) 
                                                                        (sjCameraViewAngles gi)
-=======
-                          , pfcScenarioProperties = ScenarioProperties pfcBlockColor pfcActiveColor pfcStaticColor pfcLineColor pfcMapZoomLevel pfcUseMapLayer pfcForcedArea
->>>>>>> master
+                                                                       pfcMapZoomLevel 
+                                                                       pfcUseMapLayer 
+                                                                       pfcForcedArea
                           }
                         where
                           srid = sjSRID gi
