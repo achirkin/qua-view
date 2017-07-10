@@ -157,7 +157,7 @@ foreign import javascript unsafe "$r = function(v){var t = [v[0]-$1[0],v[1]-$1[1
                         -> Callback (Vector3 GLfloat -> Vector3 GLfloat)
 
 getCityObjectColor :: CityObject -> Maybe HexColor
-getCityObjectColor (CityObject js) = asLikeJS $ getHexColor "viewColor" js
+getCityObjectColor (CityObject js) = asLikeJS $ getScProp "viewColor" js
 
 {-# INLINE behavior #-}
 behavior :: CityObject -> ObjectBehavior

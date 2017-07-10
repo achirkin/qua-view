@@ -158,6 +158,9 @@ main = do
                                            groundUpdateRequestE
                                            vsResultsE'
 
+      -- clear ground when city is updated
+      reactimate $ groundUpdateRequestFire GroundClearRequest <$ cityChangeE
+
       -- when in full mode, we have a grid. Reset it on object motion!
       when (profile lsettings == Full) $
         reactimate $ groundUpdateRequestFire GroundClearRequest <$ motionRecordsE
