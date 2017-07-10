@@ -202,7 +202,8 @@ setupViewContext gl cam t sd = do
     -- setup WebGL
     clearColor gl 0 0 0 0
     enable gl gl_DEPTH_TEST
-    blendFunc gl gl_SRC_ALPHA gl_ONE_MINUS_SRC_ALPHA
+    enable gl gl_BLEND
+    blendFunc gl gl_ONE gl_ONE_MINUS_SRC_ALPHA
     depthFunc gl gl_LEQUAL
     viewport gl 0 0 vpWidth vpHeight
     -- create uniforms
