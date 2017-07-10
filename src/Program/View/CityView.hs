@@ -73,9 +73,6 @@ data CityView = CityView
     , groundMap    :: !(Maybe GroundMapView)
     }
 
-zoomlevel :: Int
-zoomlevel = 15
-
 
 instance Drawable City where
     type View City = CityView
@@ -89,7 +86,10 @@ instance Drawable City where
         clview <- createView gl (snd $ clutter city)
         mgmc <- case originLonLatAlt city of
             Nothing -> return Nothing
-            Just lonlatalt -> Just <$> createGroundMapView gl zoomlevel (cityTransform city) lonlatalt
+            Just lonlatalt -> let scprop = cityProperties city
+                              in if useMapLayer scprop
+                                 then Just <$> createGroundMapView gl (mapZoomLevel scprop) (cityTransform city) lonlatalt
+                                 else return Nothing
         return CityView
             { viewShader   = buProgram
             , selectShader = seProgram
@@ -114,20 +114,19 @@ instance Drawable City where
         case groundMap cview of
             Nothing -> return ()
             Just gmc -> do
-                uniform1f gl userLoc 0.6
+                uniform1f gl userLoc 1
                 uniform4f gl colLoc 1 1 1 1
                 applyTransform vc (return () :: MTransform 3 GLfloat ())
                 drawGroundMapView gl (ploc,nloc,tloc) gmc
         -- draw ground
         when (indexArrayLength (groundPoints $ ground city) > 0) $ do
-          uniform1f gl userLoc 1
-          uniform4f gl colLoc 1 1 1 1
+          uniform4f gl colLoc 0.8 0.8 0.8 0.8
           applyTransform vc (return () :: MTransform 3 GLfloat ())
-          drawCityGround gl (ploc,nloc,tloc) (ground city) (groundView cview)
+          drawCityGround gl (userLoc, ploc,nloc,tloc) (ground city) (groundView cview)
         -- draw buildings
         when (not $ isEmptyCity city) $ do
           uniform1f gl userLoc 0 -- disable textures for now
-          uniform4f gl colLoc sr sg sb sa
+          uniform4f gl colLoc (sr*sa) (sg*sa) (sb*sa) sa
           JS.zipiIO_ drawObject (objectsIn city) (viewsIn cview)
         disableVertexAttribArray gl tloc
         disableVertexAttribArray gl nloc
@@ -141,7 +140,7 @@ instance Drawable City where
                       ( attrLoc prog "aVertexPosition"
                       , Just ( attrLoc prog "aVertexNormal"
                              , attrLoc prog "aTextureCoord"))
-              setColor Nothing i obj = uniform4f gl colLoc r g b a
+              setColor Nothing i obj = uniform4f gl colLoc (r*a) (g*a) (b*a) a
                 where
                   (r, g, b, a) = unpackV4 $ case (behavior obj, i+1 == ai) of
                                               (Static, _)      -> staticColor
@@ -150,8 +149,8 @@ instance Drawable City where
                   (HexColor itemColor) = fromMaybe (HexColor blockColor) $ getCityObjectColor obj
               setColor (Just arr) i obj = case unpackV4 $ PS.index i arr of
                     (r, g, b, a)  -> if behavior obj == Dynamic && i+1 == ai
-                                     then uniform4f gl colLoc (g*0.5) (g*0.2) (b*0.2) a
-                                     else uniform4f gl colLoc r g b a
+                                     then uniform4f gl colLoc (r*a*0.5) (g*a*0.2) (b*a*0.2) a
+                                     else uniform4f gl colLoc (r*a) (g*a) (b*a) a
               (HexColor blockColor) = defaultBlockColor $ cityProperties city
               (HexColor activeColor) = defaultActiveColor $ cityProperties city
               (HexColor staticColor) = defaultStaticColor $ cityProperties city
@@ -166,7 +165,10 @@ instance Drawable City where
         cl <- updateView gl (snd $ clutter city) (clutterView cv)
         ngmc <- case (groundMap cv, originLonLatAlt city) of
             (Just gmc, _)       -> return $ Just gmc
-            (Nothing, Just lla) -> Just <$> createGroundMapView gl zoomlevel (cityTransform city) lla
+            (Nothing, Just lla) -> let scprop = cityProperties city
+                                   in if useMapLayer scprop
+                                      then Just <$> createGroundMapView gl (mapZoomLevel scprop) (cityTransform city) lla
+                                      else return Nothing
             (Nothing, Nothing)  -> return Nothing
         return cv
             { viewsIn = mviews'
@@ -233,9 +235,8 @@ fragBuilding = unlines [
   "uniform sampler2D uSampler;",
   "uniform float uTexUser;",
   "void main(void) {",
-  " lowp float z = clamp(dot(vDist,vDist), 0.0, 3.0);",
-  " vec4 tColor = clamp(vColor, vec4(0.0,0.0,0.0,0.0), vec4(1.0,1.0,1.0,min(3.0-z, 1.0)));",
-  " gl_FragColor = (uTexUser * texture2D(uSampler, vec2(vTextureCoord.s, vTextureCoord.t)) + (1.0-uTexUser))*tColor;",
+  " mediump float fade = clamp(3.0 - dot(vDist,vDist), 0.0, 1.0);",
+  " gl_FragColor = (uTexUser * texture2D(uSampler, vec2(vTextureCoord.s, vTextureCoord.t)) + (1.0-uTexUser)*vColor) * fade;",
   "}"]
 
 vertBuilding :: String
@@ -256,7 +257,9 @@ vertBuilding = unlines [
   "  gl_Position = uProjM * globalPos;",
   "  vDist = globalPos.xyz/(globalPos.w*200.0);",
   "  vec4 tNormal = normalize(uModelViewM * vec4(aVertexNormal, 0.0));",
-  "  vColor = uVertexColor * (1.0 + 0.3 * dot(tNormal,vec4(uSunDir, 0.0)) * sign(dot(tNormal,globalPos)));",
+  "  mediump float brightness = 1.0 + 0.3 * dot(tNormal.xyz,uSunDir) * sign(dot(tNormal,globalPos));",
+  "  mediump float a = uVertexColor.w;",
+  "  vColor = vec4(clamp(uVertexColor.xyz * brightness, vec3(0,0,0), vec3(a,a,a)), a);",
   "  vTextureCoord = aTextureCoord;",
   "}"]
 

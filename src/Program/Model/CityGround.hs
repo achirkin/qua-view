@@ -47,17 +47,41 @@ data CityGround = CityGround
     , groundCorner :: !(Vector3 GLfloat)
     , groundX      :: !(Vector3 GLfloat)
     , groundY      :: !(Vector3 GLfloat)
+    , groundForced :: !Bool
     }
 
+-- TODO: reduce duplication
 buildGround :: (LikeJSArray "Object" s, ArrayElem s ~ LocatedCityObject)
             => GLfloat -- ^ how much to dilate the ground area
+            -> Maybe (LinearRing 2 Float)
             -> s -- ^ object collection to bound
             -> CityGround
-buildGround dilateConstant s = CityGround
+buildGround _ (Just ring) _ = CityGround
     { groundPoints = packPointData vertices indices
     , groundCorner = resizeVector ldcorner
     , groundX      = resizeVector $ dirX * 2
     , groundY      = resizeVector $ dirY * 2
+    , groundForced = True
+    }
+    where hull = PS.toPointArray ring
+          (center, dirX, dirY) = PS.boundingRectangle2D hull
+          indices = triangulate'' hull JS.emptyArray
+          vertices = packPoints (PS.enlargeVectors hull)
+                                (PS.fillPointArray (JS.length hull) $ vector3 0 0 127)
+                                (fromJSArray $ JS.map gtx hull)
+          gtx :: Vector2 GLfloat -> Vector2 GLushort
+          gtx p = case p - ldcorner of q -> vector2 (roundclamp $ dot xmult q) (roundclamp $ dot ymult q)
+          m = 65535*0.5 -- maximum of GLushort divided by 2
+          ldcorner = center - dirX - dirY
+          xmult = m * dirX / (dirX .*. dirX)
+          ymult = m * dirY / (dirY .*. dirY)
+          roundclamp = max 0 . min 65535 . round
+buildGround dilateConstant Nothing s = CityGround
+    { groundPoints = packPointData vertices indices
+    , groundCorner = resizeVector ldcorner
+    , groundX      = resizeVector $ dirX * 2
+    , groundY      = resizeVector $ dirY * 2
+    , groundForced = False
     }
     where points = fromJSArray . JS.join $ JS.map (toJSArray . transform . fmap (PS.toPointArray . objPolygons)) s :: PS.PointArray 3 GLfloat
           hull' = resizeConvexHull2D dilateConstant $ convexPolygonHull2D points :: LinearRing 2 GLfloat
@@ -82,10 +106,11 @@ emptyGround = CityGround
     , groundCorner = 0
     , groundX      = vector3 1 0 0
     , groundY      = vector3 0 1 0
+    , groundForced = False
     }
 
 isEmptyGround :: CityGround -> Bool
-isEmptyGround gr = indexArrayLength (groundPoints gr) == 1
+isEmptyGround gr = indexArrayLength (groundPoints gr) <= 1
 
 
 ----import Data.Primitive.ByteArray

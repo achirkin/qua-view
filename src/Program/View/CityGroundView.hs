@@ -30,17 +30,27 @@ data CityGroundView = CityGroundView !WebGLBuffer !WebGLBuffer !(Maybe WebGLText
 
 
 
-drawCityGround :: WebGLRenderingContext -> (GLuint,GLuint,GLuint) -> CityGround -> View CityGround -> IO ()
-drawCityGround _ _ _ (CityGroundView _ _ Nothing) = return ()
-drawCityGround gl (ploc,nloc,tloc) gr (CityGroundView buf ibuf (Just tex)) = do
-    bindTexture gl gl_TEXTURE_2D tex
+drawCityGround :: WebGLRenderingContext -> (WebGLUniformLocation,GLuint,GLuint,GLuint) -> CityGround -> View CityGround -> IO ()
+drawCityGround gl (useTexLoc,ploc,nloc,tloc) gr (CityGroundView buf ibuf Nothing) = do
     depthMask gl False
+    uniform1f gl useTexLoc 0
     bindBuffer gl gl_ARRAY_BUFFER buf
     vertexAttribPointer gl ploc 3 gl_FLOAT False 20 0
     vertexAttribPointer gl nloc 3 gl_BYTE True 20 12
     vertexAttribPointer gl tloc 2 gl_UNSIGNED_SHORT True 20 16
     bindBuffer gl gl_ELEMENT_ARRAY_BUFFER ibuf
-    drawElements gl gl_TRIANGLE_STRIP (indexArrayLength $ groundPoints gr) gl_UNSIGNED_SHORT 0
+    drawElements gl gl_TRIANGLES (indexArrayLength $ groundPoints gr) gl_UNSIGNED_SHORT 0
+    depthMask gl True
+drawCityGround gl (useTexLoc,ploc,nloc,tloc) gr (CityGroundView buf ibuf (Just tex)) = do
+    bindTexture gl gl_TEXTURE_2D tex
+    depthMask gl False
+    uniform1f gl useTexLoc 1
+    bindBuffer gl gl_ARRAY_BUFFER buf
+    vertexAttribPointer gl ploc 3 gl_FLOAT False 20 0
+    vertexAttribPointer gl nloc 3 gl_BYTE True 20 12
+    vertexAttribPointer gl tloc 2 gl_UNSIGNED_SHORT True 20 16
+    bindBuffer gl gl_ELEMENT_ARRAY_BUFFER ibuf
+    drawElements gl gl_TRIANGLES  (indexArrayLength $ groundPoints gr) gl_UNSIGNED_SHORT 0
     depthMask gl True
 
 
