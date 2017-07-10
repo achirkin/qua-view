@@ -18,7 +18,8 @@ module Program.View.WiredGeometryView
     ( WiredGeometryView (..)
     )where
 
-import JsHs.TypedArray.IO
+import JsHs.TypedArray
+import JsHs.TypedArray.IO as JsHs
 import Data.Coerce (coerce)
 import JsHs.WebGL
 import SmallGL.Shader
@@ -41,18 +42,20 @@ instance Drawable WiredGeometry where
         return $ WGView buf shProgram
     drawInCurrContext vc@ViewContext{glctx = gl, curState = cs}
                       (WiredGeometry _ (unpackV4 -> (r,g,b,a)) size _)
-                      (WGView buf prog) = do
+                      (WGView buf prog) | size <= 1 = return ()
+                                        | otherwise = do
         enableVertexAttribArray gl ploc
         useProgram gl . programId $ prog
         bindBuffer gl gl_ARRAY_BUFFER buf
         uniformMatrix4fv gl (vGLProjLoc cs) False (projectArr vc)
         setIndex 0 (vView cs) (coerce $ modelViewArr vc)
         uniformMatrix4fv gl (vGLViewLoc cs) False (modelViewArr vc)
-        uniform4f gl (unifLoc prog "uColor") r g b a
+        uniform4f gl (unifLoc prog "uColor") (r*a) (g*a) (b*a) a
         vertexAttribPointer gl ploc 3 gl_FLOAT False 12 0
         drawArrays gl gl_LINES 0 size
         disableVertexAttribArray gl ploc
             where ploc = attrLoc prog "aVertexPosition"
+
     updateDrawState _ (WGView _ prog) cs = cs
         { vGLProjLoc = unifLoc prog "uProjM"
         , vGLViewLoc = unifLoc prog "uModelViewM"
@@ -67,17 +70,16 @@ instance Drawable WiredGeometry where
 
 fragStaticMesh :: String
 fragStaticMesh = unlines [
-  "precision lowp float;",
+  "precision mediump float;",
   "uniform vec4 uColor;",
   "varying vec3 vDist;",
   "void main(void) {",
-  "    lowp float z = clamp(dot(vDist,vDist), 0.0, 3.0);",
-  "    gl_FragColor = clamp(uColor, vec4(0.0,0.0,0.0,0.0), vec4(1.0,1.0,1.0,min(3.0-z, 1.0)));",
+  "    gl_FragColor = clamp(3.0 - dot(vDist,vDist), 0.0, 1.0) * uColor;",
   "}"]
 
 vertStaticMesh :: String
 vertStaticMesh = unlines [
-  "precision lowp float;",
+  "precision mediump float;",
   "attribute vec3 aVertexPosition;",
   "uniform mat4 uModelViewM;",
   "uniform mat4 uProjM;",

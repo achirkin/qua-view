@@ -65,22 +65,22 @@ import Reactive.Banana.Combinators
 --import Control.Monad.Fix (MonadFix)
 import Control.Monad.Writer.Strict
 --import JsHs.Debug
---import JsHs.Debug
 --import Debug.Trace
 
 -- | Map of all city objects (buildings, roads, etc).
 data City = City
-    { activeObjId       :: !Int
---    , activeObjSnapshot :: !(Maybe LocatedCityObject)
-    , objectsIn         :: !CityObjectCollection
-    , cityTransform     :: !(GLfloat, Vector2 GLfloat)
-    , ground            :: !CityGround
-    , csettings         :: !CitySettings
-    , clutter           :: !(LS.MultiLineString 3 GLfloat, WiredGeometry)
-    , buildingColors    :: !(Maybe (PS.PointArray 4 GLfloat))
-    --, drawTextures      :: !Bool
-    , originLonLatAlt   :: !(Maybe (Vector 3 GLfloat))
-    , srid              :: !(Maybe Int)
+    { activeObjId        :: !Int
+--    , activeObjSnapshot  :: !(Maybe LocatedCityObject)
+    , objectsIn          :: !CityObjectCollection
+    , cityTransform      :: !(GLfloat, Vector2 GLfloat)
+    , ground             :: !CityGround
+    , csettings          :: !CitySettings
+    , clutter            :: !(LS.MultiLineString 3 GLfloat, WiredGeometry)
+    , buildingColors     :: !(Maybe (PS.PointArray 4 GLfloat))
+    --, drawTextures       :: !Bool
+    , originLonLatAlt    :: !(Maybe (Vector 3 GLfloat))
+    , srid               :: !(Maybe Int)
+    , cityProperties     :: !ScenarioProperties
     }
 
 data CitySettings = CitySettings
@@ -117,6 +117,7 @@ emptyCity = City
     , buildingColors = Nothing
     , originLonLatAlt = Nothing
     , srid         = Nothing
+    , cityProperties = defaultScenarioProperties
     }
 
 -- | An event that represents all possible city changes
@@ -213,7 +214,7 @@ manageCityUpdate :: Settings -> CityUpdate -> City -> ([JSString], City)
 manageCityUpdate _ CityErase _ = ([], emptyCity)
 manageCityUpdate sets (CityNew scenario) _ = buildCity (defaultCitySettings { defScale = objectScale sets}) scenario
 manageCityUpdate sets (CityUpdate scenario) city | isEmptyCity city = buildCity (defaultCitySettings { defScale = objectScale sets}) scenario
-                                           | otherwise = updateCity scenario city
+                                                 | otherwise = updateCity scenario city
 
 -- | City transforms in Event style
 manageCityUpdates :: Behavior Settings
@@ -243,20 +244,22 @@ buildCity sets scenario = (,) fcErrors City
     { activeObjId = 0
 --    , activeObjSnapshot = Nothing
     , objectsIn = objects
-    , ground = buildGround (groundDilate sets) objects
+    , ground = buildGround (groundDilate sets) mforcedGround objects
     , cityTransform = (cscale, cshift)
     , csettings = defaultCitySettings
-    , clutter = createLineSet (vector4 0.8 0.4 0.4 1) liness
+    , clutter = createLineSet lineColor liness
     , buildingColors = Nothing
     , originLonLatAlt = pfcLonLatAlt parsedCollection
     , srid = pfcSRID parsedCollection
+    , cityProperties = cityProp
     }
     where (rcscale,cshift)  = scenarioViewScaling (diagFunction sets) parsedCollection
           (fcErrors,objects, liness) = processScenario (defHeight sets) (defElevation sets) cscale cshift parsedCollection
           cscale = fromMaybe rcscale (defScale sets)
           parsedCollection = smartProcessGeometryInput 2 (vector3 0 0 (defElevation sets)) scenario
-
-
+          cityProp = pfcScenarioProperties parsedCollection
+          (HexColor lineColor) = defaultLineColor cityProp
+          mforcedGround = PS.mapSet (\x -> broadcastVector cscale * (x - cshift)) <$> forcedArea cityProp
 
 updateCity :: SomeJSONInput -> City -> ([JSString], City)
 -- TODO: Improve updateCity logic.
@@ -264,7 +267,9 @@ updateCity scenario
            city@City{cityTransform = (cscale, cshift)} = (,)
         errors
         city { objectsIn = allobjects
-             , ground = buildGround (groundDilate $ csettings city) allobjects
+             , ground = if groundForced (ground city)
+                        then ground city
+                        else buildGround (groundDilate $ csettings city) Nothing allobjects
              , clutter = appendLineSet liness (clutter city)
              }
     where errors = case ( originLonLatAlt city
@@ -423,11 +428,16 @@ groundBehavior cityB updateE = do
     return (groundB, snd <$> groundE)
   where
     groundE = updateGround <$> cityB <@> updateE
-    updateGround ci GroundUpdateRequest = let g = buildGround (groundDilate $ csettings ci) $ objectsIn ci
+    updateGround ci GroundUpdateRequest = let g = if groundForced (ground ci)
+                                                  then ground ci
+                                                  else buildGround (groundDilate $ csettings ci) (forcedArea $ cityProperties ci) $ objectsIn ci
                                           in ( g
                                              , GroundUpdated $ groundEvalGrid g (evalCellSize $ csettings ci) (cityTransform ci)
                                              )
-    updateGround _  GroundClearRequest  = (emptyGround, GroundCleared)
+    updateGround ci GroundClearRequest  = ( if groundForced (ground ci)
+                                            then ground ci
+                                            else emptyGround
+                                          , GroundCleared)
 
 
 
