@@ -23,7 +23,6 @@ module Program.Model.LuciConnection
 --import Data.Geometry
 --import JsHs
 
-import JsHs.WebGL
 import Data.Geometry
 import JsHs.JSString (pack, unpack') -- JSString, append
 --import Control.Monad (void, when)

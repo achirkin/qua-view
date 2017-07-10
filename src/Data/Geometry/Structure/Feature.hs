@@ -20,7 +20,7 @@ module Data.Geometry.Structure.Feature
     ( ScenarioJSON (..)
     , FeatureCollection (..)
     , SomeJSONInput (..)
-    , HexColor (..), getHexColor
+    , HexColor (..), getScProp
     , Feature (..), feature, setFeature
     , GeoJsonGeometryND (..), GeoJsonGeometry (..)
     , FeatureGeometryType (..), featureGeometryType
@@ -43,6 +43,7 @@ import JsHs.WebGL (GLfloat)
 import Data.Geometry
 import qualified Data.Geometry.Structure.PointSet as PS
 import Data.Geometry.Structure.LineString (LineString (), MultiLineString ())
+import Data.Geometry.Structure.LinearRing (LinearRing ())
 import Data.Geometry.Structure.Point (Point (), MultiPoint ())
 import Data.Geometry.Structure.Polygon (Polygon (), MultiPolygon ())
 import Data.Coerce
@@ -113,18 +114,26 @@ sjAlt :: ScenarioJSON -> Maybe Float
 sjAlt (ScenarioJSON js) = getProp "alt" js
 
 sjBlockColor :: ScenarioJSON -> Maybe HexColor
-sjBlockColor (ScenarioJSON js) = asLikeJS $ getHexColor "defaultBlockColor" js
+sjBlockColor (ScenarioJSON js) = asLikeJS $ getScProp "defaultBlockColor" js
 sjActiveColor :: ScenarioJSON -> Maybe HexColor
-sjActiveColor (ScenarioJSON js) = asLikeJS $ getHexColor "defaultActiveColor" js
+sjActiveColor (ScenarioJSON js) = asLikeJS $ getScProp "defaultActiveColor" js
 sjLineColor :: ScenarioJSON -> Maybe HexColor
-sjLineColor (ScenarioJSON js) = asLikeJS $ getHexColor "defaultLineColor" js
+sjLineColor (ScenarioJSON js) = asLikeJS $ getScProp "defaultLineColor" js
 sjStaticColor :: ScenarioJSON -> Maybe HexColor
-sjStaticColor (ScenarioJSON js) = asLikeJS $ getHexColor "defaultStaticColor" js
+sjStaticColor (ScenarioJSON js) = asLikeJS $ getScProp "defaultStaticColor" js
+sjMapZoomLevel :: ScenarioJSON -> Maybe Int
+sjMapZoomLevel (ScenarioJSON js) = asLikeJS $ getScProp "mapZoomLevel" js
+sjUseMapLayer :: ScenarioJSON -> Maybe Bool
+sjUseMapLayer (ScenarioJSON js) = asLikeJS $ getScProp "useMapLayer" js
+sjForcedArea :: ScenarioJSON -> Maybe (LinearRing 2 Float)
+sjForcedArea (ScenarioJSON js) = asLikeJS $ getScProp "forcedArea" js
+
 
 
 foreign import javascript unsafe "($2.hasOwnProperty('properties') && $2['properties'] &&\
                                  \ $2['properties'].hasOwnProperty($1)) ? $2['properties'][$1] : null"
-    getHexColor :: JSString -> JSVal -> JSVal
+    getScProp :: JSString -> JSVal -> JSVal
+
 
 -- | HexColor
 
@@ -170,6 +179,9 @@ data ScenarioProperties = ScenarioProperties
     , defaultActiveColor :: !HexColor
     , defaultStaticColor :: !HexColor
     , defaultLineColor   :: !HexColor
+    , mapZoomLevel       :: !Int
+    , useMapLayer        :: !Bool
+    , forcedArea         :: !(Maybe (LinearRing 2 Float))
     }
 
 defaultScenarioProperties :: ScenarioProperties
@@ -178,6 +190,9 @@ defaultScenarioProperties = ScenarioProperties
     , defaultActiveColor = HexColor (vector4 1 0.6 0.6 1)
     , defaultStaticColor = HexColor (vector4 0.5 0.5 0.55 1)
     , defaultLineColor = HexColor (vector4 0.8 0.4 0.4 1)
+    , mapZoomLevel = 15
+    , useMapLayer = True
+    , forcedArea = Nothing
     }
 
 data ParsedFeatureCollection n x = ParsedFeatureCollection
@@ -203,7 +218,7 @@ smartProcessGeometryInput n defVals input = case input of
     SJIExtended gi -> parsedFeatureCollection
                           { pfcSRID = newSRID
                           , pfcLonLatAlt = newLonLatAlt
-                          , pfcScenarioProperties = ScenarioProperties pfcBlockColor pfcActiveColor pfcStaticColor pfcLineColor
+                          , pfcScenarioProperties = ScenarioProperties pfcBlockColor pfcActiveColor pfcStaticColor pfcLineColor pfcMapZoomLevel pfcUseMapLayer pfcForcedArea
                           }
                         where
                           srid = sjSRID gi
@@ -223,6 +238,12 @@ smartProcessGeometryInput n defVals input = case input of
                           pfcActiveColor = fromMaybe (defaultActiveColor defaultScenarioProperties) $ sjActiveColor gi
                           pfcStaticColor = fromMaybe (defaultStaticColor defaultScenarioProperties) $ sjStaticColor gi
                           pfcLineColor = fromMaybe (defaultLineColor defaultScenarioProperties) $ sjLineColor gi
+                          pfcMapZoomLevel = fromMaybe (mapZoomLevel defaultScenarioProperties) $ sjMapZoomLevel gi
+                          pfcUseMapLayer = fromMaybe (useMapLayer defaultScenarioProperties) $ sjUseMapLayer gi
+                          -- transform linear ring to the local coordinate system
+                          pfcForcedArea = case (,) <$> newLonLatAlt <*> pfcSRID parsedFeatureCollection of
+                                Just (lla, 4326) -> js_linearRingWgs84ToMetric lla <$> sjForcedArea gi
+                                _ -> sjForcedArea gi
 
 smartProcessFeatureCollection :: Int -- ^ maximum geomId in current City
                               -> Vector n x -- ^ default vector to substitute
@@ -240,6 +261,10 @@ foreign import javascript unsafe "var a = gm$smartProcessFeatureCollection($1, $
     js_smartProcessFeatureCollection
       :: FeatureCollection -> JSString -> Vector n x -> Int
       -> (JS.Array Feature, JS.Array Feature, JS.Array Feature, JS.Array Int, JS.Array JSString, Vector n x, Vector n x, Int, JSVal)
+
+foreign import javascript unsafe "$2.map(gm$createWGS84toUTMTransform($1[0], $1[1]))"
+    js_linearRingWgs84ToMetric
+      :: Vector 3 Float -> LinearRing 2 Float -> LinearRing 2 Float
 
 
 foreign import javascript unsafe "var r = gm$boundNestedArray(($1['geometry'] && $1['geometry']['coordinates']) ? $1['geometry']['coordinates'] : []);\
