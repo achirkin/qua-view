@@ -3,6 +3,7 @@
 {-# LANGUAGE JavaScriptFFI, GHCForeignImportPrim #-}
 {-# LANGUAGE ExistentialQuantification, DataKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BangPatterns #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Data.Geometry.Structure.Feature
@@ -31,6 +32,7 @@ module Data.Geometry.Structure.Feature
     ) where
 
 
+import Control.Applicative ((<|>))
 import GHC.TypeLits (KnownNat, SomeNat (..), someNatVal)
 ---- import GHCJS.Foreign (isTruthy)
 --import GHCJS.Marshal.Pure (PToJSVal (..))
@@ -49,7 +51,9 @@ import Data.Geometry.Structure.Polygon (Polygon (), MultiPolygon ())
 import Data.Coerce
 import Data.Maybe (fromMaybe)
 
+
 import Program.Settings
+
 
 ----------------------------------------------------------------------------------------------------
 -- Base Types
@@ -214,6 +218,10 @@ data ParsedFeatureCollection n x = ParsedFeatureCollection
   , pfcScenarioProperties :: ScenarioProperties
   }
 
+
+-- | This function returns geometry in metric coordinates.
+--   i.e. it transforms all coordinates from WGS'84 if possible.
+--   Also it provides origin lon+lat+alt if it is possible to infer them.
 smartProcessGeometryInput :: Int -- ^ maximum geomId in current City
                           -> Vector n x -- ^ default vector to substitute
                           -> SomeJSONInput
@@ -233,17 +241,17 @@ smartProcessGeometryInput n defVals input = case input of
                                                                        pfcForcedArea
                           }
                         where
-                          srid = sjSRID gi
-                          originLonLatAlt = vector3 <$> sjLon gi <*> sjLat gi <*> sjAlt gi
-                          parsedFeatureCollection = smartProcessFeatureCollection n defVals cs originLonLatAlt (sjFeatureCollection gi)
-                          cs = case (srid, originLonLatAlt) of
+                          explicitOLonLatAlt = vector3 <$> sjLon gi <*> sjLat gi <*> sjAlt gi
+                          parsedFeatureCollection = smartProcessFeatureCollection n defVals cs explicitOLonLatAlt (sjFeatureCollection gi)
+                          cs = case (sjSRID gi, explicitOLonLatAlt) of
                                 (Just 4326, _) -> "WGS84"
                                 (Nothing, Nothing) -> "Unknown"
                                 _ -> "Metric"
-                          newSRID = case srid of
-                            Just i -> Just i
-                            Nothing -> pfcSRID parsedFeatureCollection
-                          newLonLatAlt = case originLonLatAlt of
+                          newSRID = case sjSRID gi of
+                            Just 4326 -> Nothing
+                            Just i    -> Just i
+                            Nothing   -> Nothing
+                          newLonLatAlt = case explicitOLonLatAlt of
                             Just xxx -> Just xxx
                             Nothing  -> pfcLonLatAlt parsedFeatureCollection
                           pfcBlockColor = fromMaybe (defaultBlockColor defaultScenarioProperties) $ sjBlockColor gi
@@ -253,7 +261,7 @@ smartProcessGeometryInput n defVals input = case input of
                           pfcMapZoomLevel = fromMaybe (mapZoomLevel defaultScenarioProperties) $ sjMapZoomLevel gi
                           pfcUseMapLayer = fromMaybe (useMapLayer defaultScenarioProperties) $ sjUseMapLayer gi
                           -- transform linear ring to the local coordinate system
-                          pfcForcedArea = case (,) <$> newLonLatAlt <*> pfcSRID parsedFeatureCollection of
+                          pfcForcedArea = case (,) <$> newLonLatAlt <*> (sjSRID gi <|> pfcSRID parsedFeatureCollection) of
                                 Just (lla, 4326) -> js_linearRingWgs84ToMetric lla <$> sjForcedArea gi
                                 _ -> sjForcedArea gi
 
@@ -266,7 +274,7 @@ smartProcessFeatureCollection :: Int -- ^ maximum geomId in current City
 smartProcessFeatureCollection n defVals cs originLonLatAlt fc = ParsedFeatureCollection points lins polys deletes errors cmin cmax cdims mLonLatAlt mSRID defaultScenarioProperties
   where
     providedLonLatAlt = asJSVal originLonLatAlt
-    mLonLatAlt = asLikeJS jsLonLatAlt :: Maybe (Vector 3 x) -- if SRID = 4326 and originLonLatAlt is provided, it will be the same
+    mLonLatAlt = asLikeJS jsLonLatAlt :: Maybe (Vector 3 x) -- if SRID = 4326 and originLonLatAlt is provided, then mLonLatAlt == originLonLatAlt
     mSRID = 4326 <$ mLonLatAlt
     (points, lins, polys, deletes, errors, cmin, cmax, cdims, jsLonLatAlt) = js_smartProcessFeatureCollection fc providedLonLatAlt cs defVals n
 

@@ -6,6 +6,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ForeignFunctionInterface,  JavaScriptFFI, GHCForeignImportPrim, UnliftedFFITypes #-}
 {-# LANGUAGE RecursiveDo #-}
+{-# LANGUAGE RecordWildCards #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Program.Model.City
@@ -24,6 +25,9 @@ module Program.Model.City
     , CityObjectCollection ()
     , ClearingGeometry (..)
     , getObject, setObject
+    -- | Local coordinates
+    , CityViewTransform (..)
+    , defCVTransform, newCityViewTransform, toLocalCoords, fromLocalCoords
     -- | Load geometry
     , processScenario, scenarioViewScaling
     -- | Store geometry
@@ -66,8 +70,30 @@ import Program.VisualService
 import Reactive.Banana.Combinators
 --import Control.Monad.Fix (MonadFix)
 import Control.Monad.Writer.Strict
---import JsHs.Debug
---import Debug.Trace
+
+
+
+
+
+data CityViewTransform = CityViewTransform
+  { cScale :: !(Vector 3 Float)
+  , cShift :: !(Vector 3 Float)
+  }
+
+defCVTransform :: CityViewTransform
+defCVTransform = CityViewTransform 1 0
+
+newCityViewTransform :: Float
+                     -> Vector 2 Float
+                     -> CityViewTransform
+newCityViewTransform sc sh = CityViewTransform (broadcastVector sc) (resizeVector sh)
+
+toLocalCoords   :: CityViewTransform -> Vector 3 Float -> Vector 3 Float
+toLocalCoords CityViewTransform {..} x = x / cScale + cShift
+
+fromLocalCoords :: CityViewTransform -> Vector 3 Float -> Vector 3 Float
+fromLocalCoords CityViewTransform {..} x = cScale * (x - cShift)
+
 
 -- | Map of all city objects (buildings, roads, etc).
 data City = City
@@ -113,7 +139,7 @@ emptyCity = City
 --    , activeObjSnapshot = Nothing
     , objectsIn = emptyCollection
     , ground = emptyGround
-    , cityTransform = (0, 0)
+    , cityTransform = (1, 0)
     , csettings = defaultCitySettings
     , clutter = emptyLineSet lineColor
     , buildingColors = Nothing
@@ -275,11 +301,11 @@ updateCity scenario
                         else buildGround (groundDilate $ csettings city) Nothing allobjects
              , clutter = appendLineSet liness (clutter city)
              }
-    where errors = case ( originLonLatAlt city
-                        , pfcLonLatAlt parsedCollection
-                        , originLonLatAlt city == pfcLonLatAlt parsedCollection) of
-                      (Just _, Just _, False) -> "New Scenario has different SRID" : fcErrors
-                      _ -> fcErrors
+    where errorSRID = if ((==) <$> srid city <*> pfcSRID parsedCollection) == Just False
+                      then ["Warning: scenario update has different SRID. Position of new objects may be wrong."] else []
+          errorOrig = if ((\x y -> abs (x-y) < 0.000001) <$> originLonLatAlt city <*> pfcLonLatAlt parsedCollection) == Just False
+                      then ["Warning: scenario update has different origin location. Position of new objects may be wrong."] else []
+          errors = errorSRID ++ errorOrig ++ fcErrors
           (fcErrors,objects, liness) = processScenario (defHeight $ csettings city)  (defElevation $ csettings city) cscale cshift parsedCollection
 --          updates = JS.map (geomId . T.unwrap) objects
 --          deletes = JS.toList $ JS.concat (JS.map GeomId $ pfcDeletes parsedCollection) updates

@@ -126,8 +126,8 @@ viewBehavior canvas wantPicE resEvents cityUpdates renderings vsResultsE program
     -- init object views
     dgview <- liftIO $ createView gl (decGrid iprog)
     cview <- liftIO $ createView gl (city iprog)
-    cviewE <- mapEventIO (\(RequireViewUpdate c) -> createView gl c) cityUpdates
---    cviewB <- stepper cview cviewE
+    cviewE <- mapEventIO (\(cv, RequireViewUpdate c) -> updateView gl c cv) $ (,) <$> cviewB <@> cityUpdates
+    cviewB <- stepper cview cviewE
 
     -- done!
     let ipview = PView
