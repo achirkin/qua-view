@@ -214,7 +214,7 @@ smartProcessGeometryInput :: Int -- ^ maximum geomId in current City
                           -> SomeJSONInput
                           -> ParsedFeatureCollection n x
 smartProcessGeometryInput n defVals input = case input of
-    SJIGeoJSON fc -> smartProcessFeatureCollection n defVals "Unknown" fc
+    SJIGeoJSON fc -> smartProcessFeatureCollection n defVals "Unknown" Nothing fc
     SJIExtended gi -> parsedFeatureCollection
                           { pfcSRID = newSRID
                           , pfcLonLatAlt = newLonLatAlt
@@ -222,16 +222,16 @@ smartProcessGeometryInput n defVals input = case input of
                           }
                         where
                           srid = sjSRID gi
-                          originLatLonAlt = vector3 <$> sjLon gi <*> sjLat gi <*> sjAlt gi
-                          parsedFeatureCollection = smartProcessFeatureCollection n defVals cs (sjFeatureCollection gi)
-                          cs = case (srid, originLatLonAlt) of
+                          originLonLatAlt = vector3 <$> sjLon gi <*> sjLat gi <*> sjAlt gi
+                          parsedFeatureCollection = smartProcessFeatureCollection n defVals cs originLonLatAlt (sjFeatureCollection gi)
+                          cs = case (srid, originLonLatAlt) of
                                 (Just 4326, _) -> "WGS84"
                                 (Nothing, Nothing) -> "Unknown"
                                 _ -> "Metric"
                           newSRID = case srid of
                             Just i -> Just i
                             Nothing -> pfcSRID parsedFeatureCollection
-                          newLonLatAlt = case originLatLonAlt of
+                          newLonLatAlt = case originLonLatAlt of
                             Just xxx -> Just xxx
                             Nothing  -> pfcLonLatAlt parsedFeatureCollection
                           pfcBlockColor = fromMaybe (defaultBlockColor defaultScenarioProperties) $ sjBlockColor gi
@@ -248,18 +248,20 @@ smartProcessGeometryInput n defVals input = case input of
 smartProcessFeatureCollection :: Int -- ^ maximum geomId in current City
                               -> Vector n x -- ^ default vector to substitute
                               -> JSString -- ^ determine conversion
+                              -> Maybe (Vector3 Float)
                               -> FeatureCollection
                               -> ParsedFeatureCollection n x
-smartProcessFeatureCollection n defVals cs fc = ParsedFeatureCollection points lins polys deletes errors cmin cmax cdims mLonLatAlt mSRID defaultScenarioProperties
+smartProcessFeatureCollection n defVals cs originLonLatAlt fc = ParsedFeatureCollection points lins polys deletes errors cmin cmax cdims mLonLatAlt mSRID defaultScenarioProperties
   where
-    mLonLatAlt = asLikeJS jsLonLatAlt :: Maybe (Vector 3 x)
+    providedLonLatAlt = asJSVal originLonLatAlt
+    mLonLatAlt = asLikeJS jsLonLatAlt :: Maybe (Vector 3 x) -- if SRID = 4326 and originLonLatAlt is provided, it will be the same
     mSRID = 4326 <$ mLonLatAlt
-    (points, lins, polys, deletes, errors, cmin, cmax, cdims, jsLonLatAlt) = js_smartProcessFeatureCollection fc cs defVals n
+    (points, lins, polys, deletes, errors, cmin, cmax, cdims, jsLonLatAlt) = js_smartProcessFeatureCollection fc providedLonLatAlt cs defVals n
 
 
-foreign import javascript unsafe "var a = gm$smartProcessFeatureCollection($1, $2, $3, $4);$r1=a[0];$r2=a[1];$r3=a[2];$r4=a[3];$r5=a[4];$r6=a[5];$r7=a[6];$r8=a[7];$r9=a[8];"
+foreign import javascript unsafe "var a = gm$smartProcessFeatureCollection($1, $2, $3, $4, $5);$r1=a[0];$r2=a[1];$r3=a[2];$r4=a[3];$r5=a[4];$r6=a[5];$r7=a[6];$r8=a[7];$r9=a[8];"
     js_smartProcessFeatureCollection
-      :: FeatureCollection -> JSString -> Vector n x -> Int
+      :: FeatureCollection -> JSVal -> JSString -> Vector n x -> Int
       -> (JS.Array Feature, JS.Array Feature, JS.Array Feature, JS.Array Int, JS.Array JSString, Vector n x, Vector n x, Int, JSVal)
 
 foreign import javascript unsafe "$2.map(gm$createWGS84toUTMTransform($1[0], $1[1]))"
