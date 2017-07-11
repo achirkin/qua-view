@@ -321,11 +321,7 @@ isEmptyCity c = collectionLength (objectsIn c) == 0
 
 -- | Filter CityObject properties according to hiddenProperties settings
 shownProps :: City -> CityObject -> JSVal
-shownProps ci obj = case hiddenProps of
-                        Just xs -> Prelude.foldr id (allProps obj) $ deleteProp <$> JS.toList xs
-                        Nothing -> allProps obj
-  where
-    hiddenProps = hiddenProperties $ cityProperties ci
+shownProps ci obj = Prelude.foldr id (allProps obj) $ deleteProp <$> (hiddenProperties $ cityProperties ci)
 
 -- | Remove all geometry from city
 clearCity :: City -> City

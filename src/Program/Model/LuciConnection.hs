@@ -373,7 +373,7 @@ runScenarioCreate lcB e = runService lcB $ (\v -> ("scenario.geojson.Create", f 
                $ setProp "defaultActiveColor" (defaultActiveColor $ cityProperties city)
                $ setProp "defaultStaticColor" (defaultStaticColor $ cityProperties city)
                $ setProp "defaultLineColor" (defaultLineColor $ cityProperties city) 
-               $ setPropMaybe "hiddenProperties" (hiddenProperties $ cityProperties city) newDict
+               $ setProp "hiddenProperties" (hiddenProperties $ cityProperties city) newDict
 -- returns: "{"created":1470932237,"lastmodified":1470932237,"name":"dgdsfg","ScID":4}"
 
 foreign import javascript unsafe "$r = {};"
