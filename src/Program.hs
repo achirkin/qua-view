@@ -27,6 +27,7 @@ import qualified JsHs.Array as JS
 import JsHs.Useful
 import Data.Geometry
 import Data.Monoid ((<>))
+-- import Control.Concurrent
 
 import Program.VisualService
 
@@ -114,6 +115,7 @@ viewBehavior :: WebGLCanvas
              -> MomentIO (Behavior PView, Event PictureVal)
 viewBehavior canvas wantPicE resEvents cityUpdates renderings vsResultsE programB = mdo
     reactimate $ renderScenarioServiceResult <$> vsResultsE
+
     -- initial values
     itime <- liftIO getTime
     iprog <- valueB programB
@@ -126,23 +128,20 @@ viewBehavior canvas wantPicE resEvents cityUpdates renderings vsResultsE program
     -- init object views
     dgview <- liftIO $ createView gl (decGrid iprog)
     cview <- liftIO $ createView gl (city iprog)
-    cviewE <- mapEventIO (\(cv, RequireViewUpdate c) -> updateView gl c cv) $ (,) <$> cviewB <@> cityUpdates
-    cviewB <- stepper cview cviewE
+    cUpdatesDelayed <- mapEventIO (\x -> return x) cityUpdates -- threadDelay 1000000 >>
+    cviewE <- mapEventIO (\(pv, RequireViewUpdate c) -> updateView gl c (cityView pv)
+                         ) $ (,) <$> pviewB <@> cUpdatesDelayed
 
     -- done!
     let ipview = PView
           { context      = ictx
           , dgView       = dgview
           , cityView     = cview
-  --        , luciClient   = Nothing
-  --        , luciScenario = Nothing
           , scUpToDate   = False
           }
         pviewE1 = (\cv pview -> pview
           { dgView       = dgview
           , cityView     = cv
-  --        , luciClient   = Nothing
-  --        , luciScenario = Nothing
           , scUpToDate   = False
           }) <$> cviewE
         pviewE0 = (\ctx pview -> pview{context = ctx}) <$> ctxE
@@ -160,55 +159,11 @@ viewBehavior canvas wantPicE resEvents cityUpdates renderings vsResultsE program
 
 --        unionWith (const id) (unionWith (const id) pviewE2 pviewE1) (injectGrview <$> pviewB <@> grvE)
     pviewB <- accumB ipview pviewEAll :: MomentIO (Behavior PView)
+
+    -- let pviewB = (\p c -> p {cityView = c}) <$> pviewB' <*> cviewB
     return (pviewB, pictureE)
---  where
---    injectGrview pview@PView{cityView = cv} grv = pview { cityView = cv{groundView = grv}}
-
---    -- done!
---    let ipview = PView
---          { context      = ictx
---          , dgView       = dgview
---          , cityView     = cview
---  --        , luciClient   = Nothing
---  --        , luciScenario = Nothing
---          , scUpToDate   = False
---          }
---        pviewE1 = (\ctx cv pview -> pview
---          { context      = ctx
---          , dgView       = dgview
---          , cityView     = cv
---  --        , luciClient   = Nothing
---  --        , luciScenario = Nothing
---          , scUpToDate   = False
---          }) <$> ctxB <@> cviewE
---        pviewE3 = (\grv pview -> pview
---          { cityView     = (cityView pview)
---            { groundView = grv
---            }
---          }) <$> grvE
---    pviewE2 <-fmap (const) . mapEventIO id $ renderScene <$> programB <*> pviewB <@> renderings
---    grvE <- groundViewEvents programB pviewB vsResultsE
-----    grvB <- groundViewBehavior programB (glctx . context <$> pviewB) vsResultsE
---    let pviewEAll :: Event (PView -> PView)
---        pviewEAll = unions [pviewE2, pviewE1]
---    pviewB <- stepper ipview pviewEAll
-----    pviewB <- (injectGrview <$> grvB <*>) <$> stepper ipview pviewEAll :: MomentIO (Behavior PView)
---    return pviewB
---  where
---    injectGrview grv pview@PView{cityView = cv} = pview { cityView = cv{groundView = grv}}
 
 
-
---- Marking area for selection and firing an event with selection Id
-
---selectOnScene :: Event a -> Event ((Program, IO PView) -> (Program,  IO PView))
---selectOnScene = fmap xxx
---  where
---    xxx _ (program, ioview) = ( program
---                              ,ioview >>= \view -> do
---      ctx <- applySelector (context view) (camera program) (city program) (cityView view)
---      return view{context = ctx}
---      )
 
 -- | Render scenario service results on side menu on the left
 renderScenarioServiceResult :: VisualServiceResult -> IO ()

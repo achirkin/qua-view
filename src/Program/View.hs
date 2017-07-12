@@ -40,6 +40,7 @@ import Program.Model.Camera (viewMatrix, Camera(..))
 import Reactive.Banana.JsHs
 import Reactive.Banana.Frameworks
 import Reactive.Banana.Combinators
+
 --import Program.Types
 
 -- | Rendering global parameters
@@ -56,10 +57,10 @@ data ViewContext = ViewContext
 data ViewState = ViewState
     { vView      :: !(Matrix4 GLfloat)
     , vSunDir    :: !(Vector3 GLfloat)
-    , vGLProjLoc :: WebGLUniformLocation
-    , vGLViewLoc :: WebGLUniformLocation
     , vTime      :: !Time
     }
+
+
 
 
 -- | Shader attributes - to configure VBOs
@@ -160,6 +161,7 @@ class Drawable obj where
     drawInCurrContext :: ViewContext -> obj -> View obj -> IO ()
     -- | Set up necessary context (e.g. shader params)
     updateDrawState   :: obj -> View obj -> ViewState -> ViewState
+    updateDrawState _ _ = id
     -- | Update context and draw
     draw :: ViewContext -> obj -> View obj -> IO ()
     draw vc obj view = drawInCurrContext vc' obj view
@@ -222,8 +224,6 @@ setupViewContext gl cam t sd = do
         , curState     = ViewState
             { vView      = eye
             , vSunDir    = sd
-            , vGLProjLoc = undefined
-            , vGLViewLoc = undefined
             , vTime      = t
             }
         }
@@ -312,10 +312,10 @@ getSelection ViewContext
 -- | Apply current transform of an object (including perspective) and save shader uniforms
 applyTransform :: (SpaceTransform s 3 GLfloat)
                => ViewContext -> s a -> IO a
-applyTransform vc@ViewContext{glctx = gl, curState = cs} tr = do
+applyTransform vc@ViewContext{curState = cs} tr = do
         let MTransform matrix x = mergeSecond (MTransform (vView cs) id) tr
         setIndex 0 matrix (coerce $ modelViewArr vc)
-        uniformMatrix4fv gl (vGLViewLoc cs) False (modelViewArr vc)
+        -- uniformMatrix4fv gl (vGLViewLoc cs) False (modelViewArr vc)
         return x
 
 
