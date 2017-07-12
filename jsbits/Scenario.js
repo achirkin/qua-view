@@ -119,7 +119,7 @@ function gm$updateProps(bArray, values) {
  * @returns {[points:Feature,lines:Feature,surfaces:Feature,deletes:Number(geomID),errors:string,cmin,cmax,dims]}
  */
 
-function gm$smartProcessFeatureCollection(fc, coorSys, defVec, maxGeomId) {
+function gm$smartProcessFeatureCollection(fc, originLonLatAlt, coorSys, defVec, maxGeomId) {
     'use strict';
     if (!fc) {
         return [[],[],[],[],["FeatureCollection is null."]];
@@ -223,18 +223,23 @@ function gm$smartProcessFeatureCollection(fc, coorSys, defVec, maxGeomId) {
     // transform everything from WGS84 to a metric reference system if needed
     // when there is no lat+lon+alt or srid specified
     if(transform) {
-       var center = [(cmax[0] + cmin[0])/2, (cmax[1] + cmin[1])/2]
-         , transformFunc = gm$createWGS84toUTMTransform(center[0], center[1]);
-       return [ gm$mapPoints(transformFunc, points)
-              , gm$mapPoints(transformFunc, lines)
-              , gm$mapPoints(transformFunc, surfaces)
-              , deletes
-              , errors
-              , gm$resizeX(defVec, transformFunc(cmin))
-              , gm$resizeX(defVec, transformFunc(cmax))
-              , dims
-              , [center[0], center[1], 0] // [lon, lat, alt]
-              ];
+        var center;
+        if(originLonLatAlt) {
+            center = originLonLatAlt.slice(0,2);
+        } else {
+            center = [(cmax[0] + cmin[0])/2, (cmax[1] + cmin[1])/2];
+        }
+        var transformFunc = gm$createWGS84toUTMTransform(center[0], center[1]);
+        return [ gm$mapPoints(transformFunc, points)
+               , gm$mapPoints(transformFunc, lines)
+               , gm$mapPoints(transformFunc, surfaces)
+               , deletes
+               , errors
+               , gm$resizeX(defVec, transformFunc(cmin))
+               , gm$resizeX(defVec, transformFunc(cmax))
+               , dims
+               , [center[0], center[1], 0] // [lon, lat, alt]
+               ];
     } else {
       return [points,lines,surfaces,deletes,errors,gm$resizeX(defVec, cmin),gm$resizeX(defVec, cmax),dims, null];
     }

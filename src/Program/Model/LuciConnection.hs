@@ -372,8 +372,13 @@ runScenarioCreate lcB e = runService lcB $ (\v -> ("scenario.geojson.Create", f 
         prop =   setProp "defaultBlockColor" (defaultBlockColor $ cityProperties city)
                $ setProp "defaultActiveColor" (defaultActiveColor $ cityProperties city)
                $ setProp "defaultStaticColor" (defaultStaticColor $ cityProperties city)
+               $ setProp "forcedArea"         (forcedArea $ cityProperties city)
+               $ setProp "mapZoomLevel"       (if useMapLayer (cityProperties city) then Just (mapZoomLevel (cityProperties city)) else Nothing)
+               $ setProp "useMapLayer"        (if useMapLayer (cityProperties city) then Just True else Nothing)
                $ setProp "defaultLineColor" (defaultLineColor $ cityProperties city) newDict
 -- returns: "{"created":1470932237,"lastmodified":1470932237,"name":"dgdsfg","ScID":4}"
+
+
 
 foreign import javascript unsafe "$r = {};"
     newDict :: JSVal
