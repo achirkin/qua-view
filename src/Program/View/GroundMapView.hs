@@ -25,6 +25,7 @@ import JsHs.Types
 import JsHs.WebGL
 import JsHs.JSString
 import Data.IORef
+import Data.List (sortOn)
 import Control.Concurrent (forkIO)
 import Control.Monad ((<=<))
 import Data.Geometry
@@ -66,7 +67,9 @@ createGroundMapView gl zoomlvl (vscale, vshift) lonlatalt = do
     bufferData gl gl_ARRAY_BUFFER arrayBuffer gl_STATIC_DRAW
     let gmv = GroundMapView (vector2 lon0 lat0) pos0 (xtile0,ytile0) tileWidth zoomlvl Map.empty
     tiles <- Map.fromList <$> mapM (\p -> (,) p <$> createGroundMapCell gl gmv p)
-                [(xtile0+i,ytile0+j) | i <- [- nTiles .. nTiles -1], j <- [- nTiles .. nTiles -1]]
+                ( sortOn (\(i,j) -> (i - xtile0)*(i - xtile0) + (j - ytile0)*(j - ytile0))
+                         [(xtile0+i,ytile0+j) | i <- [- nTiles .. nTiles -1], j <- [- nTiles .. nTiles -1]]
+                )
     return $ gmv {gmvTiles = tiles}
   where
     (lon, lat, _) = unpackV3 lonlatalt
@@ -149,11 +152,11 @@ drawGroundMapCell :: WebGLRenderingContext
                   -> (GLuint,GLuint,GLuint)
                   -> Maybe GroundMapCell -> IO ()
 drawGroundMapCell _ _ Nothing = return ()
-drawGroundMapCell gl (ploc,nloc,tloc) (Just GroundMapCell {..}) = do
+drawGroundMapCell gl (ploc,_,tloc) (Just GroundMapCell {..}) = do
     bindTexture gl gl_TEXTURE_2D gmcMapTexture
     bindBuffer gl gl_ARRAY_BUFFER gmcVertexBuffer
     vertexAttribPointer gl ploc 3 gl_FLOAT False 20 0
-    vertexAttribPointer gl nloc 3 gl_BYTE True 20 12
+    --vertexAttribPointer gl nloc 3 gl_BYTE True 20 12
     vertexAttribPointer gl tloc 2 gl_UNSIGNED_SHORT True 20 16
     drawArrays gl gl_TRIANGLE_STRIP 0 4
 
@@ -165,7 +168,7 @@ foreign import javascript interruptible "var osmImg = new Image(); osmImg.addEve
 
 
 createTex :: Int -> (Int,Int) -> IO TexImageSource
-createTex zoom (xtile,ytile) = js_createTex . pack $ Prelude.concat ["http://a.tile.openstreetmap.org/", show zoom, "/", show xtile, "/", show ytile, ".png" ]
+createTex zoom (xtile,ytile) = js_createTex . pack $ Prelude.concat ["https://a.tile.openstreetmap.org/", show zoom, "/", show xtile, "/", show ytile, ".png" ]
 
 
 zoomLonLat2xy :: Int -> (Float, Float) -> (Int, Int)
