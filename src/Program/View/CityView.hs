@@ -159,7 +159,9 @@ instance Drawable City where
         { vGLProjLoc = unifLoc prog "uProjM"
         , vGLViewLoc = unifLoc prog "uModelViewM"
         }
-    updateView gl city@City{objectsIn = objs} cv@CityView{ viewsIn = views } = do
+    updateView gl city@City{objectsIn = objs} cv@CityView{ viewsIn = views }
+        | isEmptyCity city = createView gl city
+        | otherwise = do
         mviews' <- fromJSArray <$> JS.unionZipIO f objs views
         gr <- updateView gl (ground city) (groundView cv)
         cl <- updateView gl (snd $ clutter city) (clutterView cv)

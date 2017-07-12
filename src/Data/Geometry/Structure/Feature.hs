@@ -3,6 +3,7 @@
 {-# LANGUAGE JavaScriptFFI, GHCForeignImportPrim #-}
 {-# LANGUAGE ExistentialQuantification, DataKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BangPatterns #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Data.Geometry.Structure.Feature
@@ -32,6 +33,7 @@ module Data.Geometry.Structure.Feature
     ) where
 
 
+import Control.Applicative ((<|>))
 import GHC.TypeLits (KnownNat, SomeNat (..), someNatVal)
 ---- import GHCJS.Foreign (isTruthy)
 --import GHCJS.Marshal.Pure (PToJSVal (..))
@@ -50,7 +52,9 @@ import Data.Geometry.Structure.Polygon (Polygon (), MultiPolygon ())
 import Data.Coerce
 import Data.Maybe (fromMaybe)
 
+
 import Program.Settings
+
 
 ----------------------------------------------------------------------------------------------------
 -- Base Types
@@ -223,12 +227,16 @@ data ParsedFeatureCollection n x = ParsedFeatureCollection
   , pfcScenarioProperties :: ScenarioProperties
   }
 
+
+-- | This function returns geometry in metric coordinates.
+--   i.e. it transforms all coordinates from WGS'84 if possible.
+--   Also it provides origin lon+lat+alt if it is possible to infer them.
 smartProcessGeometryInput :: Int -- ^ maximum geomId in current City
                           -> Vector n x -- ^ default vector to substitute
                           -> SomeJSONInput
                           -> ParsedFeatureCollection n x
 smartProcessGeometryInput n defVals input = case input of
-    SJIGeoJSON fc -> smartProcessFeatureCollection n defVals "Unknown" fc
+    SJIGeoJSON fc -> smartProcessFeatureCollection n defVals "Unknown" Nothing fc
     SJIExtended gi -> parsedFeatureCollection
                           { pfcSRID = newSRID
                           , pfcLonLatAlt = newLonLatAlt
@@ -244,17 +252,17 @@ smartProcessGeometryInput n defVals input = case input of
                                                                        pfcForcedArea
                           }
                         where
-                          srid = sjSRID gi
-                          originLatLonAlt = vector3 <$> sjLon gi <*> sjLat gi <*> sjAlt gi
-                          parsedFeatureCollection = smartProcessFeatureCollection n defVals cs (sjFeatureCollection gi)
-                          cs = case (srid, originLatLonAlt) of
+                          explicitOLonLatAlt = vector3 <$> sjLon gi <*> sjLat gi <*> sjAlt gi
+                          parsedFeatureCollection = smartProcessFeatureCollection n defVals cs explicitOLonLatAlt (sjFeatureCollection gi)
+                          cs = case (sjSRID gi, explicitOLonLatAlt) of
                                 (Just 4326, _) -> "WGS84"
                                 (Nothing, Nothing) -> "Unknown"
                                 _ -> "Metric"
-                          newSRID = case srid of
-                            Just i -> Just i
-                            Nothing -> pfcSRID parsedFeatureCollection
-                          newLonLatAlt = case originLatLonAlt of
+                          newSRID = case sjSRID gi of
+                            Just 4326 -> Nothing
+                            Just i    -> Just i
+                            Nothing   -> Nothing
+                          newLonLatAlt = case explicitOLonLatAlt of
                             Just xxx -> Just xxx
                             Nothing  -> pfcLonLatAlt parsedFeatureCollection
                           pfcBlockColor = fromMaybe (defaultBlockColor defaultScenarioProperties) $ sjBlockColor gi
@@ -264,25 +272,27 @@ smartProcessGeometryInput n defVals input = case input of
                           pfcMapZoomLevel = fromMaybe (mapZoomLevel defaultScenarioProperties) $ sjMapZoomLevel gi
                           pfcUseMapLayer = fromMaybe (useMapLayer defaultScenarioProperties) $ sjUseMapLayer gi
                           -- transform linear ring to the local coordinate system
-                          pfcForcedArea = case (,) <$> newLonLatAlt <*> pfcSRID parsedFeatureCollection of
+                          pfcForcedArea = case (,) <$> newLonLatAlt <*> (sjSRID gi <|> pfcSRID parsedFeatureCollection) of
                                 Just (lla, 4326) -> js_linearRingWgs84ToMetric lla <$> sjForcedArea gi
                                 _ -> sjForcedArea gi
 
 smartProcessFeatureCollection :: Int -- ^ maximum geomId in current City
                               -> Vector n x -- ^ default vector to substitute
                               -> JSString -- ^ determine conversion
+                              -> Maybe (Vector3 Float)
                               -> FeatureCollection
                               -> ParsedFeatureCollection n x
-smartProcessFeatureCollection n defVals cs fc = ParsedFeatureCollection points lins polys deletes errors cmin cmax cdims mLonLatAlt mSRID defaultScenarioProperties
+smartProcessFeatureCollection n defVals cs originLonLatAlt fc = ParsedFeatureCollection points lins polys deletes errors cmin cmax cdims mLonLatAlt mSRID defaultScenarioProperties
   where
-    mLonLatAlt = asLikeJS jsLonLatAlt :: Maybe (Vector 3 x)
+    providedLonLatAlt = asJSVal originLonLatAlt
+    mLonLatAlt = asLikeJS jsLonLatAlt :: Maybe (Vector 3 x) -- if SRID = 4326 and originLonLatAlt is provided, then mLonLatAlt == originLonLatAlt
     mSRID = 4326 <$ mLonLatAlt
-    (points, lins, polys, deletes, errors, cmin, cmax, cdims, jsLonLatAlt) = js_smartProcessFeatureCollection fc cs defVals n
+    (points, lins, polys, deletes, errors, cmin, cmax, cdims, jsLonLatAlt) = js_smartProcessFeatureCollection fc providedLonLatAlt cs defVals n
 
 
-foreign import javascript unsafe "var a = gm$smartProcessFeatureCollection($1, $2, $3, $4);$r1=a[0];$r2=a[1];$r3=a[2];$r4=a[3];$r5=a[4];$r6=a[5];$r7=a[6];$r8=a[7];$r9=a[8];"
+foreign import javascript unsafe "var a = gm$smartProcessFeatureCollection($1, $2, $3, $4, $5);$r1=a[0];$r2=a[1];$r3=a[2];$r4=a[3];$r5=a[4];$r6=a[5];$r7=a[6];$r8=a[7];$r9=a[8];"
     js_smartProcessFeatureCollection
-      :: FeatureCollection -> JSString -> Vector n x -> Int
+      :: FeatureCollection -> JSVal -> JSString -> Vector n x -> Int
       -> (JS.Array Feature, JS.Array Feature, JS.Array Feature, JS.Array Int, JS.Array JSString, Vector n x, Vector n x, Int, JSVal)
 
 foreign import javascript unsafe "$2.map(gm$createWGS84toUTMTransform($1[0], $1[1]))"
