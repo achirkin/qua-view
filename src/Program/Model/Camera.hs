@@ -202,7 +202,7 @@ initCamera width height state = Camera
 defaultCameraState :: CState
 defaultCameraState = CState { viewPoint  = vector3 (-17.5) (-17) 0
                             , viewAngles = (0.345, 0.825)
-                            , viewDist   = 200 }
+                            , viewDist   = 138 }
 
 
 ----------------------------------------------------------------------------------------------
