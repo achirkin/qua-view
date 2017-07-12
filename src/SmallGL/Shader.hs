@@ -53,6 +53,8 @@ foreign import javascript unsafe "$1.location" js_unifLoc :: UniformProps -> Web
 foreign import javascript unsafe "$r = {}; $r.location = $1; $r.type = $2; $r.count = $3;"
     js_unifProps :: WebGLUniformLocation -> GLenum -> GLint -> UniformProps
 
+foreign import javascript unsafe "$1 != null && $1.hasOwnProperty('location')" js_hasLoc :: JSVal -> Bool
+
 
 newtype JSMap a = JSMap JSVal
 
@@ -81,16 +83,23 @@ type ShaderType = GLenum
 
 -- | return attribute location by name
 attrLoc :: ShaderProgram -> JSString -> GLuint
-attrLoc program name = js_attrLoc $ attributesOf program `jsIndexMap` name
+attrLoc program name = let AttribProps p = attributesOf program `jsIndexMap` name
+                       in if js_hasLoc p
+                          then js_attrLoc $ AttribProps p
+                          else error $ "Could not get attrib location: " ++ show name
 
 -- | return uniform location by name
 unifLoc :: ShaderProgram -> JSString -> WebGLUniformLocation
-unifLoc program name = js_unifLoc $ uniformsOf program `jsIndexMap` name
+unifLoc program name = let UniformProps p = uniformsOf program `jsIndexMap` name
+                       in if js_hasLoc p
+                          then js_unifLoc $ UniformProps p
+                          else error $ "Could not get uniform location: " ++ show name
+
 
 -- | Initialize shader program by supplying a number of source codes.
 --   One source code per shader.
-initShaders :: WebGLRenderingContext -> [(ShaderType, String)] -> IO ShaderProgram
-initShaders gl shtexts = do
+initShaders :: WebGLRenderingContext -> [(ShaderType, String)] -> [(GLuint, JSString)] -> IO ShaderProgram
+initShaders gl shtexts explicitLocs = do
     -- create program
     shaderProgram <- createProgram gl
     -- attach all shaders
@@ -98,22 +107,26 @@ initShaders gl shtexts = do
             shader <- getShader gl typ text
             checkGLError gl $ "getShader " ++ show typ
             attachShader gl shaderProgram shader
-            checkGLError gl $ "AttachShader gl" ++ show typ
+            checkGLError gl $ "AttachShader gl " ++ show typ
+    -- bind attribute locations
+    forM_ explicitLocs $ \(loc,text) -> do
+        bindAttribLocation gl shaderProgram loc text
+        checkGLError gl $ "bindAttribLocation gl " ++ show (loc, text)
     -- check program status
     linkProgram gl shaderProgram
     checkGLError gl "link shader program"
     serror <- fromMaybe True . asLikeJS <$> getProgramParameter gl shaderProgram gl_LINK_STATUS
     unless serror $ do
-        putStrLn "Shader Program linking error"
+        putStrLn "Shader Program linking error "
         logm <- getProgramInfoLog gl shaderProgram
-        checkGLError gl "GetShaderInfoLog gl"
+        checkGLError gl "GetShaderInfoLog gl "
         putStrLn . unpack' $ logm
     -- load attributes' information
     attrCount <- fromMaybe (0::GLuint) . asLikeJS <$>getProgramParameter gl shaderProgram gl_ACTIVE_ATTRIBUTES
 --    putStrLn $ "Shader attributes: " ++ show attrCount
     shaderAttribs <- liftM jsMapFromList $ sequence . flip map [0..attrCount-1] $ \i -> do
         activeInfo <- getActiveAttrib gl shaderProgram i
-        checkGLError gl $ "GetActiveAttrib gl for getting shader attrib" ++ show i
+        checkGLError gl $ "GetActiveAttrib gl for getting shader attrib " ++ show i
         aPos <- getAttribLocation gl shaderProgram (aiName activeInfo)
         return (aiName activeInfo, js_attrProps (fromIntegral aPos) (aiType activeInfo) (aiSize activeInfo))
     -- load uniforms' information
@@ -121,7 +134,7 @@ initShaders gl shtexts = do
 --    putStrLn $ "Shader uniforms: " ++ show attrCount
     shaderUniforms <- liftM jsMapFromList $ sequence . flip map [0..uniCount-1] $ \i -> do
         activeInfo <- getActiveUniform gl shaderProgram i
-        checkGLError gl $ "GetActiveUniform gl for getting shader uniform" ++ show i
+        checkGLError gl $ "GetActiveUniform gl for getting shader uniform " ++ show i
         uPos <- getUniformLocation gl shaderProgram (aiName activeInfo)
         return (aiName activeInfo, js_unifProps uPos (aiType activeInfo) (aiSize activeInfo))
 --    sequence_ . map (putStrLn . show) . Map.toList $ shaderAttribs
