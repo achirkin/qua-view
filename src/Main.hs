@@ -125,6 +125,9 @@ main = do
                                 wheelE
                                 resizeE
                                 resetCamE
+                                originB
+                                sridB
+                                cityTransformB
                                 buttonsB
                                 coordsB
                                 allowCameraMoveB
@@ -149,7 +152,7 @@ main = do
                    ) <$> selObjIdE
       -- city
       (vsResultsE', vsResultsFire') <- newEvent
-      (cityChanges, cityB, errsE, motionRecordsE, groundUpdatedE) <- cityBehavior settingsB
+      (cityChanges, cityB, originB, sridB, cityTransformB, errsE, motionRecordsE, groundUpdatedE) <- cityBehavior settingsB
                                            selObjIdB
                                            colorizePropertyE
                                            heldObjIdE

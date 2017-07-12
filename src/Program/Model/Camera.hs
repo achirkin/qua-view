@@ -51,17 +51,20 @@ cameraBehavior :: MonadMoment m
                -> Event WheelEvent -- ^ wheel
                -> Event ResizeEvent -- ^ resize
                -> Event () -- ^ reset camera
+               -> Behavior (Maybe (Vector 3 GLfloat)) -- ^ originLonLatAlt
+               -> Behavior (Maybe Int) -- ^ srid
+               -> Behavior (GLfloat, Vector2 GLfloat) -- ^ cityTransform
                -> Behavior Int -- ^ buttons
                -> Behavior [(Vector2 GLfloat, Vector2 GLfloat)] -- ^ [(old, new)] coordinates
                -> Behavior Bool -- ^ allow to move camera (is there object dragging or not)
                -> m (Behavior Camera)
-cameraBehavior cam geoJSONImportE pointerE wheelE resizeE resetCamE buttonsB coordsB alowMoveB = accumB cam events
+cameraBehavior cam geoJSONImportE pointerE wheelE resizeE resetCamE originB sridB cityTransformB buttonsB coordsB alowMoveB = accumB cam events
   where
     events = whenE alowMoveB
            $ unions [ wheelT <$> wheelE
                     , pointerT <$> buttonsB <*> coordsB <@> pointerE
                     , resizeT <$> resizeE
-                    , cameraPositionT <$> geoJSONImportE
+                    , cameraPositionT <$> originB <*> sridB <*> cityTransformB <@> geoJSONImportE
                     , resetCamT <$> resetCamE
                     ]
     -- Modify camera with will zooming
@@ -98,14 +101,21 @@ cameraBehavior cam geoJSONImportE pointerE wheelE resizeE resetCamE buttonsB coo
                                                  | b == 4 = dragVertical opos npos c
                                                    -- fallback to horizontal dragging
                                                  | otherwise = dragHorizontal opos npos c
-    cameraPositionT :: Either SomeJSONInput SomeJSONInput -> Camera -> Camera
-    cameraPositionT e c = Camera (viewportSize c) (projMatrix c) nstate nstate
+    cameraPositionT :: Maybe (Vector 3 GLfloat) -> Maybe Int -> (GLfloat, Vector2 GLfloat) -> Either SomeJSONInput SomeJSONInput -> Camera -> Camera
+    cameraPositionT origin srid cityTransform e c = Camera (viewportSize c) (projMatrix c) nstate nstate
           where
             nstate = case anyway e of
                 SJIExtended sj ->
-                    CState { viewPoint  = fromMaybe (viewPoint defaultCameraState) $ sjCameraFocus sj
+                    CState { viewPoint  = locaKalizedPoint
                            , viewAngles = fromMaybe (viewAngles defaultCameraState) $ unpackV2 <$> sjCameraViewAngles sj
                            , viewDist   = fromMaybe (viewDist defaultCameraState) $ sjCameraViewDist sj }
+                      where
+                        rawPoint = fromMaybe (viewPoint defaultCameraState) $ sjCameraFocus sj
+                        transformedPoint = case (,) <$> origin <*> srid of
+                              Just (lla, 4326) -> js_pointWgs84ToMetric lla $ rawPoint
+                              _ -> rawPoint
+                        localizedPoint = broadcastVector vscale * (transformedPoint - resizeVector vshift)
+                        (vscale, vshift) = cityTransform
                 _ -> defaultCameraState
             anyway (Left a) = a
             anyway (Right a) = a

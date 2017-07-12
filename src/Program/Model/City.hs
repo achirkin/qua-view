@@ -167,7 +167,7 @@ cityBehavior :: (MonadMoment m, MonadFix m)
              -> Event CityUpdate
              -> Event GroundUpdateRequest
              -> Event VisualServiceResult
-             -> m (Event (RequireViewUpdate City), Behavior City, Event [JSString], Event (GeomId, Matrix4 GLfloat), Event GroundUpdated)
+             -> m (Event (RequireViewUpdate City), Behavior City, Behavior (Maybe (Vector 3 GLfloat)), Behavior (Maybe Int), Behavior (GLfloat, Vector2 GLfloat), Event [JSString], Event (GeomId, Matrix4 GLfloat), Event GroundUpdated)
 cityBehavior psets selIdB colorizeE heldIdE otransform cityChange grounUpdateRequestE vsResultE = mdo
     activeObjectSnapshot <- stepper Nothing $ osnapshotF <$> cityBeh <*> selIdB <@> heldIdE
     let objectMove = fmap ((,) (Nothing, []) .)
@@ -184,7 +184,7 @@ cityBehavior psets selIdB colorizeE heldIdE otransform cityChange grounUpdateReq
         cityErrors = filterE (not . Prelude.null) $ snd <$> cityUE'
         cityB2 = addGroundB <$> groundB <*> (addSelId <$> selIdB <*> cityBeh)
     colorizeObjectsB <- colorizeObjects colorizeE cityB2
-    return (cityUE, addColorObject <$> colorizeObjectsB <*> cityB2, cityErrors, objectMovedRecord, groundUpdatedE)
+    return (cityUE, addColorObject <$> colorizeObjectsB <*> cityB2, originLonLatAlt <$> cityB2, srid <$> cityB2, cityTransform <$> cityB2, cityErrors, objectMovedRecord, groundUpdatedE)
   where
     addSelId Nothing city = city{activeObjId = 0}
     addSelId (Just i) city = city{activeObjId = i}

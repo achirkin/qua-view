@@ -21,7 +21,7 @@ module Data.Geometry.Structure.Feature
     ( ScenarioJSON (..)
     , FeatureCollection (..)
     , SomeJSONInput (..)
-    , sjCameraFocus, sjCameraViewDist, sjCameraViewAngles
+    , sjCameraFocus, sjCameraViewDist, sjCameraViewAngles, js_pointWgs84ToMetric
     , HexColor (..), getScProp
     , Feature (..), feature, setFeature
     , GeoJsonGeometryND (..), GeoJsonGeometry (..)
@@ -299,6 +299,9 @@ foreign import javascript unsafe "$2.map(gm$createWGS84toUTMTransform($1[0], $1[
     js_linearRingWgs84ToMetric
       :: Vector 3 Float -> LinearRing 2 Float -> LinearRing 2 Float
 
+foreign import javascript unsafe "$2 = gm$createWGS84toUTMTransform($1[0], $1[1])($2); $r = $2; console.log(0); console.log($r); console.log(2); console.log($2);"
+    js_pointWgs84ToMetric
+      :: Vector 3 Float -> Vector 3 Float -> Vector 3 Float
 
 foreign import javascript unsafe "var r = gm$boundNestedArray(($1['geometry'] && $1['geometry']['coordinates']) ? $1['geometry']['coordinates'] : []);\
                           \if(!r){ $r1 = Array.apply(null, Array(2)).map(Number.prototype.valueOf,Infinity);\
