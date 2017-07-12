@@ -28,43 +28,40 @@ import Data.Geometry
 import Program.Model.WiredGeometry
 import Program.View
 
-data WiredGeometryView = WGView !WebGLBuffer !ShaderProgram
+data WiredGeometryView = WGView !WebGLBuffer !ShaderProgram !GLsizei
 
 
 instance Drawable WiredGeometry where
     type View WiredGeometry = WiredGeometryView
-    createView gl (WiredGeometry _ _ _ arr) = do
+    createView gl (WiredGeometry _ _ size arr) = do
         buf <- createBuffer gl
         bindBuffer gl gl_ARRAY_BUFFER buf
         bufferData gl gl_ARRAY_BUFFER arr gl_STATIC_DRAW
         shProgram <- initShaders gl [(gl_FRAGMENT_SHADER, fragStaticMesh)
                                     ,(gl_VERTEX_SHADER, vertStaticMesh)]
-        return $ WGView buf shProgram
+                                    []
+        return $ WGView buf shProgram size
     drawInCurrContext vc@ViewContext{glctx = gl, curState = cs}
-                      (WiredGeometry _ (unpackV4 -> (r,g,b,a)) size _)
-                      (WGView buf prog) | size <= 1 = return ()
+                      (WiredGeometry _ (unpackV4 -> (r,g,b,a)) _ _)
+                      (WGView buf prog size) | size <= 1 = return ()
                                         | otherwise = do
         enableVertexAttribArray gl ploc
         useProgram gl . programId $ prog
         bindBuffer gl gl_ARRAY_BUFFER buf
-        uniformMatrix4fv gl (vGLProjLoc cs) False (projectArr vc)
+        uniformMatrix4fv gl (unifLoc prog "uProjM") False (projectArr vc)
         setIndex 0 (vView cs) (coerce $ modelViewArr vc)
-        uniformMatrix4fv gl (vGLViewLoc cs) False (modelViewArr vc)
+        uniformMatrix4fv gl (unifLoc prog "uModelViewM") False (modelViewArr vc)
         uniform4f gl (unifLoc prog "uColor") (r*a) (g*a) (b*a) a
         vertexAttribPointer gl ploc 3 gl_FLOAT False 12 0
         drawArrays gl gl_LINES 0 size
         disableVertexAttribArray gl ploc
             where ploc = attrLoc prog "aVertexPosition"
 
-    updateDrawState _ (WGView _ prog) cs = cs
-        { vGLProjLoc = unifLoc prog "uProjM"
-        , vGLViewLoc = unifLoc prog "uModelViewM"
-        }
-    updateView gl (WiredGeometry _ _ _ arr) dgv@(WGView buf _) = do
+    updateView gl (WiredGeometry _ _ s arr) (WGView buf p _) = do
         bindBuffer gl gl_ARRAY_BUFFER buf
         bufferData gl gl_ARRAY_BUFFER arr gl_STATIC_DRAW
-        return dgv
-    deleteView gl _ (WGView buf _) =
+        return (WGView buf p s)
+    deleteView gl _ (WGView buf _ _) =
         deleteBuffer gl buf
 
 
