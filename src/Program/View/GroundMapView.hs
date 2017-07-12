@@ -152,11 +152,11 @@ drawGroundMapCell :: WebGLRenderingContext
                   -> (GLuint,GLuint,GLuint)
                   -> Maybe GroundMapCell -> IO ()
 drawGroundMapCell _ _ Nothing = return ()
-drawGroundMapCell gl (ploc,nloc,tloc) (Just GroundMapCell {..}) = do
+drawGroundMapCell gl (ploc,_,tloc) (Just GroundMapCell {..}) = do
     bindTexture gl gl_TEXTURE_2D gmcMapTexture
     bindBuffer gl gl_ARRAY_BUFFER gmcVertexBuffer
     vertexAttribPointer gl ploc 3 gl_FLOAT False 20 0
-    vertexAttribPointer gl nloc 3 gl_BYTE True 20 12
+    --vertexAttribPointer gl nloc 3 gl_BYTE True 20 12
     vertexAttribPointer gl tloc 2 gl_UNSIGNED_SHORT True 20 16
     drawArrays gl gl_TRIANGLE_STRIP 0 4
 
