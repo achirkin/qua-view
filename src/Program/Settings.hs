@@ -126,7 +126,7 @@ setPropMaybe name val = case val of
 foreign import javascript unsafe "$3[$1] = $2; $r = $3;"
     js_setProp :: JSString -> JSVal -> JSVal -> JSVal
 
-foreign import javascript unsafe "var r = {}; Object.assign(r, $2); delete r[$1]; $r = r"
+foreign import javascript unsafe "var r = JSON.parse(JSON.stringify($2)); delete r[$1]; $r = r"
     deleteProp :: JSString -> JSVal -> JSVal
 
 fromProps :: [(JSString, JSVal)] -> JSVal
