@@ -21,6 +21,7 @@ module Data.Geometry.Structure.Feature
     ( ScenarioJSON (..)
     , FeatureCollection (..)
     , SomeJSONInput (..)
+    , sjCameraFocus, sjCameraViewDist, sjCameraViewAngles, js_pointWgs84ToMetric
     , HexColor (..), getScProp
     , Feature (..), feature, setFeature
     , GeoJsonGeometryND (..), GeoJsonGeometry (..)
@@ -117,6 +118,13 @@ sjLat (ScenarioJSON js) = getProp "lat" js
 sjAlt :: ScenarioJSON -> Maybe Float
 sjAlt (ScenarioJSON js) = getProp "alt" js
 
+sjCameraFocus :: ScenarioJSON -> Maybe (Vector3 Float)
+sjCameraFocus (ScenarioJSON js) = getProperty "defaultCameraFocus" js
+sjCameraViewDist :: ScenarioJSON -> Maybe Float
+sjCameraViewDist (ScenarioJSON js) = getProperty "defaultCameraViewDist" js
+sjCameraViewAngles :: ScenarioJSON -> Maybe (Vector2 Float)
+sjCameraViewAngles (ScenarioJSON js) = getProperty "defaultCameraViewAngles" js
+
 sjBlockColor :: ScenarioJSON -> Maybe HexColor
 sjBlockColor (ScenarioJSON js) = asLikeJS $ getScProp "defaultBlockColor" js
 sjActiveColor :: ScenarioJSON -> Maybe HexColor
@@ -179,13 +187,16 @@ foreign import javascript unsafe "($1).reduce(function(a, x){return a.concat(('0
 ----------------------------------------------------------------------------------------------------
 
 data ScenarioProperties = ScenarioProperties
-    { defaultBlockColor  :: !HexColor
-    , defaultActiveColor :: !HexColor
-    , defaultStaticColor :: !HexColor
-    , defaultLineColor   :: !HexColor
-    , mapZoomLevel       :: !Int
-    , useMapLayer        :: !Bool
-    , forcedArea         :: !(Maybe (LinearRing 2 Float))
+    { defaultBlockColor       :: !HexColor
+    , defaultActiveColor      :: !HexColor
+    , defaultStaticColor      :: !HexColor
+    , defaultLineColor        :: !HexColor
+    , defaultCameraFocus      :: !(Maybe (Vector3 GLfloat))
+    , defaultCameraViewDist   :: !(Maybe GLfloat)
+    , defaultCameraViewAngles :: !(Maybe (Vector2 GLfloat))
+    , mapZoomLevel            :: !Int
+    , useMapLayer             :: !Bool
+    , forcedArea              :: !(Maybe (LinearRing 2 Float))
     }
 
 defaultScenarioProperties :: ScenarioProperties
@@ -194,6 +205,9 @@ defaultScenarioProperties = ScenarioProperties
     , defaultActiveColor = HexColor (vector4 1 0.6 0.6 1)
     , defaultStaticColor = HexColor (vector4 0.5 0.5 0.55 1)
     , defaultLineColor = HexColor (vector4 0.8 0.4 0.4 1)
+    , defaultCameraFocus = Nothing
+    , defaultCameraViewDist = Nothing
+    , defaultCameraViewAngles = Nothing
     , mapZoomLevel = 15
     , useMapLayer = True
     , forcedArea = Nothing
@@ -226,7 +240,16 @@ smartProcessGeometryInput n defVals input = case input of
     SJIExtended gi -> parsedFeatureCollection
                           { pfcSRID = newSRID
                           , pfcLonLatAlt = newLonLatAlt
-                          , pfcScenarioProperties = ScenarioProperties pfcBlockColor pfcActiveColor pfcStaticColor pfcLineColor pfcMapZoomLevel pfcUseMapLayer pfcForcedArea
+                          , pfcScenarioProperties = ScenarioProperties pfcBlockColor 
+                                                                       pfcActiveColor 
+                                                                       pfcStaticColor 
+                                                                       pfcLineColor 
+                                                                       (sjCameraFocus gi) 
+                                                                       (sjCameraViewDist gi) 
+                                                                       (sjCameraViewAngles gi)
+                                                                       pfcMapZoomLevel 
+                                                                       pfcUseMapLayer 
+                                                                       pfcForcedArea
                           }
                         where
                           explicitOLonLatAlt = vector3 <$> sjLon gi <*> sjLat gi <*> sjAlt gi
@@ -276,6 +299,9 @@ foreign import javascript unsafe "$2.map(gm$createWGS84toUTMTransform($1[0], $1[
     js_linearRingWgs84ToMetric
       :: Vector 3 Float -> LinearRing 2 Float -> LinearRing 2 Float
 
+foreign import javascript unsafe "$2 = gm$createWGS84toUTMTransform($1[0], $1[1])($2); $r = $2; console.log(0); console.log($r); console.log(2); console.log($2);"
+    js_pointWgs84ToMetric
+      :: Vector 3 Float -> Vector 3 Float -> Vector 3 Float
 
 foreign import javascript unsafe "var r = gm$boundNestedArray(($1['geometry'] && $1['geometry']['coordinates']) ? $1['geometry']['coordinates'] : []);\
                           \if(!r){ $r1 = Array.apply(null, Array(2)).map(Number.prototype.valueOf,Infinity);\

@@ -75,16 +75,14 @@ main = do
       isize <- viewPortSize heh >>= valueB
       let icamera = initCamera (realToFrac $ coordX isize)
                                (realToFrac $ coordY isize)
-                               CState { viewPoint  = vector3 (-17.5) (-17) 0
-                                      , viewAngles = (0.345, 0.825)
-                                      , viewDist   = 138 }
+                               defaultCameraState
 
       -- GeoJSON updates
       geoJSONImportE <- fromAddHandler geoJSONImportsHandler
       clearGeometryE <- fmap (const ClearingGeometry) <$> fromAddHandler clearGeomHandler
-      let cityChangeE = unionWith (const id) (CityUpdate . fun <$> geoJSONImportE) (CityErase <$ clearGeometryE)
-          fun (Left a) = a
-          fun (Right a) = a
+      let cityChangeE = unionWith (const id) (CityUpdate . anyway <$> geoJSONImportE) (CityErase <$ clearGeometryE)
+          anyway (Left a) = a
+          anyway (Right a) = a
 
       -- canvas events
       pointerE <- pointerEvents heh
@@ -122,10 +120,14 @@ main = do
       (resetCamE, resetCamFire) <- newEvent
       liftIO $ GUI.registerResetCamera resetCamFire
       cameraB <- cameraBehavior icamera
+                                geoJSONImportE
                                 pointerE
                                 wheelE
                                 resizeE
                                 resetCamE
+                                originB
+                                sridB
+                                cityTransformB
                                 buttonsB
                                 coordsB
                                 allowCameraMoveB
@@ -150,7 +152,7 @@ main = do
                    ) <$> selObjIdE
       -- city
       (vsResultsE', vsResultsFire') <- newEvent
-      (cityChanges, cityB, errsE, motionRecordsE, groundUpdatedE) <- cityBehavior settingsB
+      (cityChanges, cityB, originB, sridB, cityTransformB, errsE, motionRecordsE, groundUpdatedE) <- cityBehavior settingsB
                                            selObjIdB
                                            colorizePropertyE
                                            heldObjIdE

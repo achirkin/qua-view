@@ -16,7 +16,7 @@ module Program.Settings
   ( Settings (..), defaultSettings, loadSettings
   , Profile (..)
   -- * JSON helpers
-  , getProp, setProp, newObj, jsonParse, jsonStringify, fromProps, toProps
+  , getProp, getProperty, setProp, setPropMaybe, newObj, jsonParse, jsonStringify, fromProps, toProps
   ) where
 
 import JsHs (JSVal, JSString, LikeJS (..))
@@ -106,9 +106,22 @@ getProp name = asLikeJS . js_getProp name
 foreign import javascript unsafe "$2[$1]"
     js_getProp :: JSString -> JSVal -> JSVal
 
+-- To get a prop from "properties"
+getProperty :: LikeJS s a => JSString -> JSVal -> Maybe a
+getProperty name = asLikeJS . js_getProperty name
+
+foreign import javascript unsafe "($2.hasOwnProperty('properties') && $2['properties'] &&\
+                                 \ $2['properties'].hasOwnProperty($1)) ? $2['properties'][$1] : null"
+    js_getProperty :: JSString -> JSVal -> JSVal
+
 {-# INLINE setProp #-}
 setProp :: LikeJS s a => JSString -> a -> JSVal -> JSVal
 setProp name = js_setProp name . asJSVal
+
+setPropMaybe :: LikeJS s a => JSString -> Maybe a -> JSVal -> JSVal
+setPropMaybe name val = case val of
+                          Just v -> js_setProp name (asJSVal v)
+                          Nothing -> id
 
 foreign import javascript unsafe "$3[$1] = $2; $r = $3;"
     js_setProp :: JSString -> JSVal -> JSVal -> JSVal

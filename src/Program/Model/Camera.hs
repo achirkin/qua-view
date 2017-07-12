@@ -15,7 +15,7 @@
 module Program.Model.Camera
     ( Camera (..)
     , viewMatrix
-    , CState (..)
+    , CState (..), defaultCameraState
     , initCamera
     , scroll, dragHorizontal, dragVertical, rotateCentered, twoFingerControl
     , dragObject, rotateObject, twoFingerObject
@@ -28,7 +28,9 @@ import JsHs.WebGL
 import Data.Fixed as DF
 
 import Data.Geometry
+import Data.Geometry.Structure.Feature
 import Data.Geometry.Transform
+import Data.Maybe
 --import Geometry.Space.Transform
 --import Geometry.Space.Quaternion
 
@@ -44,20 +46,25 @@ import Reactive.Banana.JsHs
 -- | Reactive-banana-like camera behavior
 cameraBehavior :: MonadMoment m
                => Camera -- ^ initial camera
+               -> Event (Either SomeJSONInput SomeJSONInput)
                -> Event PointerEvent -- ^ pointer actions
                -> Event WheelEvent -- ^ wheel
                -> Event ResizeEvent -- ^ resize
                -> Event () -- ^ reset camera
+               -> Behavior (Maybe (Vector 3 GLfloat)) -- ^ originLonLatAlt
+               -> Behavior (Maybe Int) -- ^ srid
+               -> Behavior (GLfloat, Vector2 GLfloat) -- ^ cityTransform
                -> Behavior Int -- ^ buttons
                -> Behavior [(Vector2 GLfloat, Vector2 GLfloat)] -- ^ [(old, new)] coordinates
                -> Behavior Bool -- ^ allow to move camera (is there object dragging or not)
                -> m (Behavior Camera)
-cameraBehavior cam pointerE wheelE resizeE resetCamE buttonsB coordsB alowMoveB = accumB cam events
+cameraBehavior cam geoJSONImportE pointerE wheelE resizeE resetCamE originB sridB cityTransformB buttonsB coordsB alowMoveB = accumB cam events
   where
     events = whenE alowMoveB
            $ unions [ wheelT <$> wheelE
                     , pointerT <$> buttonsB <*> coordsB <@> pointerE
                     , resizeT <$> resizeE
+                    , cameraPositionT <$> originB <*> sridB <*> cityTransformB <@> geoJSONImportE
                     , resetCamT <$> resetCamE
                     ]
     -- Modify camera with will zooming
@@ -94,6 +101,24 @@ cameraBehavior cam pointerE wheelE resizeE resetCamE buttonsB coordsB alowMoveB 
                                                  | b == 4 = dragVertical opos npos c
                                                    -- fallback to horizontal dragging
                                                  | otherwise = dragHorizontal opos npos c
+    cameraPositionT :: Maybe (Vector 3 GLfloat) -> Maybe Int -> (GLfloat, Vector2 GLfloat) -> Either SomeJSONInput SomeJSONInput -> Camera -> Camera
+    cameraPositionT origin srid cityTransform e c = Camera (viewportSize c) (projMatrix c) nstate nstate
+          where
+            nstate = case anyway e of
+                SJIExtended sj ->
+                    CState { viewPoint  = localizedPoint
+                           , viewAngles = fromMaybe (viewAngles defaultCameraState) $ unpackV2 <$> sjCameraViewAngles sj
+                           , viewDist   = fromMaybe (viewDist defaultCameraState) $ sjCameraViewDist sj }
+                      where
+                        rawPoint = fromMaybe (viewPoint defaultCameraState) $ sjCameraFocus sj
+                        transformedPoint = case (,) <$> origin <*> srid of
+                              Just (lla, 4326) -> js_pointWgs84ToMetric lla $ rawPoint
+                              _ -> rawPoint
+                        localizedPoint = broadcastVector vscale * (transformedPoint - resizeVector vshift)
+                        (vscale, vshift) = cityTransform
+                _ -> defaultCameraState
+            anyway (Left a) = a
+            anyway (Right a) = a
 
 
 
@@ -184,6 +209,10 @@ initCamera width height state = Camera
     } where ratio = width / height
             fovy = (1*) . atan2 height . sqrt $ height*height + width*width
 
+defaultCameraState :: CState
+defaultCameraState = CState { viewPoint  = vector3 (-17.5) (-17) 0
+                            , viewAngles = (0.345, 0.825)
+                            , viewDist   = 138 }
 
 
 ----------------------------------------------------------------------------------------------
