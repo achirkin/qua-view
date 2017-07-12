@@ -106,7 +106,7 @@ cameraBehavior cam geoJSONImportE pointerE wheelE resizeE resetCamE originB srid
           where
             nstate = case anyway e of
                 SJIExtended sj ->
-                    CState { viewPoint  = locaKalizedPoint
+                    CState { viewPoint  = localizedPoint
                            , viewAngles = fromMaybe (viewAngles defaultCameraState) $ unpackV2 <$> sjCameraViewAngles sj
                            , viewDist   = fromMaybe (viewDist defaultCameraState) $ sjCameraViewDist sj }
                       where
