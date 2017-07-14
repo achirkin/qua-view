@@ -346,9 +346,20 @@ foreign import javascript unsafe "$r = $3.slice(); $r[$1] = $2;"
 isEmptyCity :: City -> Bool
 isEmptyCity c = collectionLength (objectsIn c) == 0
 
+deleteProp :: JSString -> [(JSString, JSVal)] -> [(JSString, JSVal)]
+deleteProp _ [] = []
+deleteProp x (y:ys) = if x == fst y then ys else y : deleteProp x ys
+
+deleteProps :: [(JSString, JSVal)] -> [JSString] -> [(JSString, JSVal)]
+deleteProps = Prelude.foldl (flip deleteProp)
+
+fromPropsListToJSVal :: [(JSString, JSVal)] -> JSVal
+fromPropsListToJSVal [] = newObj
+fromPropsListToJSVal (x:xs) = setProp (fst x) (snd x) (fromPropsListToJSVal xs)
+
 -- | Filter CityObject properties according to hiddenProperties settings
 shownProps :: City -> CityObject -> JSVal
-shownProps ci obj = Prelude.foldr id (allProps obj) $ deleteProp <$> (hiddenProperties $ cityProperties ci)
+shownProps ci obj = fromPropsListToJSVal $ deleteProps (propsList obj) (hiddenProperties $ cityProperties ci)
 
 -- | Remove all geometry from city
 clearCity :: City -> City
