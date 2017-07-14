@@ -369,13 +369,13 @@ runScenarioCreate lcB e = runService lcB $ (\v -> ("scenario.geojson.Create", f 
             (Just 4326) -> newObj -- srid is 4326 => we have already transformed it into metric
             (Just s) -> setProp "srid" s newObj
             Nothing -> newObj
-        prop =   setProp "defaultBlockColor" (defaultBlockColor $ cityProperties city)
-               $ setProp "defaultActiveColor" (defaultActiveColor $ cityProperties city)
-               $ setProp "defaultStaticColor" (defaultStaticColor $ cityProperties city)
-               $ setProp "forcedArea"         (forcedArea $ cityProperties city)
-               $ setProp "mapZoomLevel"       (if useMapLayer (cityProperties city) then Just (mapZoomLevel (cityProperties city)) else Nothing)
-               $ setProp "useMapLayer"        (if useMapLayer (cityProperties city) then Just True else Nothing)
-               $ setProp "defaultLineColor" (defaultLineColor $ cityProperties city) newDict
+        prop =   setProp "defaultBlockColor"  (defaultBlockColor $ csettings city)
+               $ setProp "defaultActiveColor" (defaultActiveColor $ csettings city)
+               $ setProp "defaultStaticColor" (defaultStaticColor $ csettings city)
+               $ setProp "forcedArea"         (forcedArea $ csettings city)
+               $ setProp "mapZoomLevel"       (if useMapLayer (csettings city) then Just (mapZoomLevel (csettings city)) else Nothing)
+               $ setProp "useMapLayer"        (if useMapLayer (csettings city) then Just True else Nothing)
+               $ setProp "defaultLineColor"   (defaultLineColor $ csettings city) newDict
 -- returns: "{"created":1470932237,"lastmodified":1470932237,"name":"dgdsfg","ScID":4}"
 
 

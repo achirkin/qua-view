@@ -54,6 +54,7 @@ import Data.Geometry.Structure.Feature
 import qualified Data.Geometry.Transform as T
 import qualified Data.Geometry.Structure.LineString as LS
 import qualified Data.Geometry.Structure.PointSet as PS
+import Data.Geometry.Structure.LinearRing (LinearRing ())
 --import Data.Geometry.Transform
 --import Geometry.Structure
 
@@ -106,16 +107,22 @@ data City = City
     --, drawTextures       :: !Bool
     , originLonLatAlt    :: !(Maybe (Vector 3 GLfloat))
     , srid               :: !(Maybe Int)
-    , cityProperties     :: !ScenarioProperties
     }
 
 data CitySettings = CitySettings
-    { defHeight    :: !GLfloat
-    , diagFunction :: Int -> GLfloat
-    , groundDilate :: !GLfloat
-    , evalCellSize :: !GLfloat
-    , defElevation :: !GLfloat
-    , defScale     :: !(Maybe GLfloat)
+    { defHeight          :: !GLfloat
+    , diagFunction       :: Int -> GLfloat
+    , groundDilate       :: !GLfloat
+    , evalCellSize       :: !GLfloat
+    , defElevation       :: !GLfloat
+    , defScale           :: !(Maybe GLfloat)
+    , defaultBlockColor  :: !HexColor
+    , defaultActiveColor :: !HexColor
+    , defaultStaticColor :: !HexColor
+    , defaultLineColor   :: !HexColor
+    , mapZoomLevel       :: !Int
+    , useMapLayer        :: !Bool
+    , forcedArea         :: !(Maybe (LinearRing 2 Float))
     }
 
 -- | This indicates removal of all geometry from the city
@@ -123,13 +130,35 @@ data ClearingGeometry = ClearingGeometry
 
 defaultCitySettings :: CitySettings
 defaultCitySettings = CitySettings
-    { defHeight    = 1.5
-    , diagFunction = (*5) . sqrt . fromIntegral
-    , groundDilate = 1
-    , evalCellSize = 0.5
-    , defElevation = 0.01
-    , defScale     = Nothing
+    { defHeight          = 1.5
+    , diagFunction       = (*5) . sqrt . fromIntegral
+    , groundDilate       = 1
+    , evalCellSize       = 0.5
+    , defElevation       = 0.01
+    , defScale           = Nothing
+    , defaultBlockColor  = HexColor (vector4 0.75 0.75 0.7 1)
+    , defaultActiveColor = HexColor (vector4 1 0.6 0.6 1)
+    , defaultStaticColor = HexColor (vector4 0.5 0.5 0.55 1)
+    , defaultLineColor   = HexColor (vector4 0.8 0.4 0.4 1)
+    , mapZoomLevel       = 15
+    , useMapLayer        = True
+    , forcedArea         = Nothing
     }
+
+getBlockColor :: JSVal -> Maybe HexColor
+getBlockColor = getProp "defaultBlockColor"
+getActiveColor :: JSVal -> Maybe HexColor
+getActiveColor = getProp "defaultActiveColor"
+getLineColor :: JSVal -> Maybe HexColor
+getLineColor = getProp "defaultLineColor"
+getStaticColor :: JSVal -> Maybe HexColor
+getStaticColor = getProp "defaultStaticColor"
+getMapZoomLevel :: JSVal -> Maybe Int
+getMapZoomLevel = getProp "mapZoomLevel"
+getUseMapLayer :: JSVal -> Maybe Bool
+getUseMapLayer = getProp "useMapLayer"
+getForcedArea :: JSVal -> Maybe (LinearRing 2 Float)
+getForcedArea = getProp "forcedArea"
 
 emptyCity :: City
 emptyCity = City
@@ -142,10 +171,9 @@ emptyCity = City
     , clutter = emptyLineSet lineColor
     , buildingColors = Nothing
     , originLonLatAlt = Nothing
-    , srid         = Nothing
-    , cityProperties = defaultScenarioProperties
+    , srid = Nothing
     }
-    where (HexColor lineColor) = defaultLineColor defaultScenarioProperties
+    where (HexColor lineColor) = defaultLineColor defaultCitySettings
 
 -- | An event that represents all possible city changes
 data CityUpdate
@@ -263,6 +291,26 @@ manageCityUpdates bsets ev = u <$> transforms
 --  if isEmptyCity ci then buildCity citySettings col
 --                    else updateCity col ci
 
+foreign import javascript unsafe "$2.map(gm$createWGS84toUTMTransform($1[0], $1[1]))"
+    js_linearRingWgs84ToMetric
+      :: Vector 3 Float -> LinearRing 2 Float -> LinearRing 2 Float
+
+parseCitySettings :: ParsedFeatureCollection n x
+                  -> CitySettings
+parseCitySettings pfc = case pfcCitySettings pfc of
+    Nothing    -> defaultCitySettings
+    Just csets -> defaultCitySettings 
+                      { defaultBlockColor = fromMaybe (defaultBlockColor defaultCitySettings) $ getBlockColor csets
+                      , defaultActiveColor = fromMaybe (defaultActiveColor defaultCitySettings) $ getActiveColor csets
+                      , defaultStaticColor = fromMaybe (defaultStaticColor defaultCitySettings) $ getStaticColor csets
+                      , defaultLineColor = fromMaybe (defaultLineColor defaultCitySettings) $ getLineColor csets
+                      , mapZoomLevel = fromMaybe (mapZoomLevel defaultCitySettings) $ getMapZoomLevel csets
+                      , useMapLayer = fromMaybe (useMapLayer defaultCitySettings) $ getUseMapLayer csets
+                      -- transform linear ring to the local coordinate system
+                      , forcedArea = case (,) <$> pfcLonLatAlt pfc <*> pfcSRID pfc of
+                                          Just (lla, 4326) -> js_linearRingWgs84ToMetric lla <$> getForcedArea csets
+                                          _ -> getForcedArea csets
+                      }
 
 buildCity :: CitySettings -- ^ desired diagonal length of the city
           -> SomeJSONInput -- ^ scenario to build city of
@@ -273,20 +321,19 @@ buildCity sets scenario = (,) fcErrors City
     , objectsIn = objects
     , ground = buildGround (groundDilate sets) mforcedGround objects
     , cityTransform = (cscale, cshift)
-    , csettings = defaultCitySettings
+    , csettings = csets
     , clutter = createLineSet lineColor liness
     , buildingColors = Nothing
     , originLonLatAlt = pfcLonLatAlt parsedCollection
     , srid = pfcSRID parsedCollection
-    , cityProperties = cityProp
     }
     where (rcscale,cshift)  = scenarioViewScaling (diagFunction sets) parsedCollection
           (fcErrors,objects, liness) = processScenario (defHeight sets) (defElevation sets) cscale cshift parsedCollection
           cscale = fromMaybe rcscale (defScale sets)
           parsedCollection = smartProcessGeometryInput 2 (vector3 0 0 (defElevation sets)) scenario
-          cityProp = pfcScenarioProperties parsedCollection
-          (HexColor lineColor) = defaultLineColor cityProp
-          mforcedGround = PS.mapSet (\x -> broadcastVector cscale * (x - cshift)) <$> forcedArea cityProp
+          csets = parseCitySettings parsedCollection
+          (HexColor lineColor) = defaultLineColor csets
+          mforcedGround = PS.mapSet (\x -> broadcastVector cscale * (x - cshift)) <$> forcedArea csets
 
 updateCity :: SomeJSONInput -> City -> ([JSString], City)
 -- TODO: Improve updateCity logic.
@@ -355,7 +402,7 @@ clearCity city = city
     , csettings   = defaultCitySettings
     , clutter = emptyLineSet lineColor --  createLineSet lineColor []
     } -- where objs' = IM.empty :: IM.IntMap LocatedCityObject
-    where (HexColor lineColor) = defaultLineColor defaultScenarioProperties
+    where (HexColor lineColor) = defaultLineColor defaultCitySettings
 
 ----------------------------------------------------------------------------------------------------
 -- Scenario Processing
@@ -458,7 +505,7 @@ groundBehavior cityB updateE = do
     groundE = updateGround <$> cityB <@> updateE
     updateGround ci GroundUpdateRequest = let g = if groundForced (ground ci)
                                                   then ground ci
-                                                  else buildGround (groundDilate $ csettings ci) (forcedArea $ cityProperties ci) $ objectsIn ci
+                                                  else buildGround (groundDilate $ csettings ci) (forcedArea $ csettings ci) $ objectsIn ci
                                           in ( g
                                              , GroundUpdated $ groundEvalGrid g (evalCellSize $ csettings ci) (cityTransform ci)
                                              )

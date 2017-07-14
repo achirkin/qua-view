@@ -30,13 +30,13 @@ import Data.Geometry.Transform
 --import Geometry.Space
 --import Geometry.Space.Transform
 import JsHs.Array as JS
-import Data.Geometry.Structure.Feature
 import Data.Geometry.Structure.PointSet as PS
 
 import Program.Model.City
 import Program.Model.CityObject
 import Program.Model.CityGround
 import Program.Model.WiredGeometry
+import Program.Types
 import Program.View
 import Program.View.CityObjectView
 import Program.View.CityGroundView
@@ -98,7 +98,7 @@ instance Drawable City where
         clview <- createView gl (snd $ clutter city)
         mgmc <- case originLonLatAlt city of
             Nothing -> return Nothing
-            Just lonlatalt -> let scprop = cityProperties city
+            Just lonlatalt -> let scprop = csettings city
                               in if useMapLayer scprop
                                  then Just <$> createGroundMapView gl (mapZoomLevel scprop) (cityTransform city) lonlatalt
                                  else return Nothing
@@ -162,9 +162,9 @@ instance Drawable City where
                     (r, g, b, a)  -> if behavior obj == Dynamic && i+1 == ai
                                      then uniform4f gl colLocNoTex (r*a*0.5) (g*a*0.2) (b*a*0.2) a
                                      else uniform4f gl colLocNoTex (r*a) (g*a) (b*a) a
-              (HexColor blockColor) = defaultBlockColor $ cityProperties city
-              (HexColor activeColor) = defaultActiveColor $ cityProperties city
-              (HexColor staticColor) = defaultStaticColor $ cityProperties city
+              (HexColor blockColor) = defaultBlockColor $ csettings city
+              (HexColor activeColor) = defaultActiveColor $ csettings city
+              (HexColor staticColor) = defaultStaticColor $ csettings city
               (sr, sg, sb, sa) = unpackV4 $ staticColor
 
     updateView gl city@City{objectsIn = objs} cv@CityView{ viewsIn = views }
@@ -184,7 +184,7 @@ instance Drawable City where
         cl <- updateView gl (snd $ clutter city) (clutterView cv)
         ngmc <- case (groundMap cv, originLonLatAlt city) of
             (Just gmc, _)       -> return $ Just gmc
-            (Nothing, Just lla) -> let scprop = cityProperties city
+            (Nothing, Just lla) -> let scprop = csettings city
                                    in if useMapLayer scprop
                                       then Just <$> createGroundMapView gl (mapZoomLevel scprop) (cityTransform city) lla
                                       else return Nothing

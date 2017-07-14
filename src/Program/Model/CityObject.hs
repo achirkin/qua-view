@@ -55,6 +55,7 @@ import Data.Geometry.Structure.PointSet (PointArray, PointSet (..), shrinkVector
 import Data.Geometry.Structure.Feature
 import Unsafe.Coerce
 import Program.Types
+import Program.Settings (getProperty)
 
 -- | Whether one could interact with an object or not
 data ObjectBehavior = Static | Dynamic deriving (Eq,Show)
@@ -157,7 +158,7 @@ foreign import javascript unsafe "$r = function(v){var t = [v[0]-$1[0],v[1]-$1[1
                         -> Callback (Vector3 GLfloat -> Vector3 GLfloat)
 
 getCityObjectColor :: CityObject -> Maybe HexColor
-getCityObjectColor (CityObject js) = asLikeJS $ getScProp "viewColor" js
+getCityObjectColor (CityObject js) = getProperty "viewColor" js
 
 {-# INLINE behavior #-}
 behavior :: CityObject -> ObjectBehavior

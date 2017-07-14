@@ -13,10 +13,13 @@
 {-# LANGUAGE DataKinds, FlexibleInstances, MultiParamTypeClasses #-}
 module Program.Types where
 
+import Data.Geometry
 import Data.Time (UTCTime)
 import Data.Hashable
 import Data.String (IsString())
 import JsHs
+import JsHs.Types.Prim (jsNull)
+import JsHs.WebGL (GLfloat)
 import JsHs.JSString (unpack')
 import GHC.Exts (IsString(..))
 
@@ -166,5 +169,38 @@ data StringEnum = StringEnum
 instance IsString StringEnum where
   fromString s = let t = fromString s in StringEnum [t] t
 
+-- | HexColor
 
+newtype HexColor = HexColor (Vector4 GLfloat)
+instance LikeJS "Object" HexColor where
+  asJSVal (HexColor v) = js_convertRGBAToHex $ asJSVal v
+
+  asLikeJS val = if isHexColor val
+                 then HexColor (asLikeJS (js_convertHexToRGBA val) :: Vector4 GLfloat)
+                 else HexColor (vector4 0 0 0 0)
+
+instance {-# OVERLAPPING #-} LikeJS "Object" (Maybe HexColor) where
+  asJSVal Nothing = jsNull
+  asJSVal (Just color) = js_convertRGBAToHex $ asJSVal color
+
+  asLikeJS val = if isHexColor val
+                 then Just $ asLikeJS val
+                 else Nothing
+
+isHexColor :: JSVal -> Bool
+isHexColor = asLikeJS . js_isHexColor
+
+foreign import javascript unsafe "($1 && ($1.match(/^(#[A-Fa-f0-9]{3,8})$/) !== null))"
+    js_isHexColor ::  JSVal -> JSVal
+
+foreign import javascript unsafe "if ($1.match(/^(#[A-Fa-f0-9]{3,8})$/) !== null)\
+                                 \ { var a = [0,0,0,1]; var d = $1.length > 5 ? 2 : 1;\
+                                 \   $r = a.map(function(e,i){ if (i*d+1 < $1.length)\
+                                 \   { return (parseInt($1.substr(i*d+1,d),16) / (Math.pow(16, d) - 1));\
+                                 \   } else {return e;} })\
+                                 \ } else { $r = null; }"
+    js_convertHexToRGBA :: JSVal -> JSVal
+
+foreign import javascript unsafe "($1).reduce(function(a, x){return a.concat(('00').concat((Math.round(x*255)).toString(16)).substr(-2));}, '#')"
+    js_convertRGBAToHex :: JSVal -> JSVal
 
