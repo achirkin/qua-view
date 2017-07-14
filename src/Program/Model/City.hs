@@ -329,22 +329,13 @@ foreign import javascript unsafe "$2.map(gm$createWGS84toUTMTransform($1[0], $1[
 parseCitySettings :: ParsedFeatureCollection n x
                   -> CitySettings
 parseCitySettings pfc = case pfcCitySettings pfc of
-    Nothing    -> defaultCitySettings
-    Just csets -> defaultCitySettings 
-                      { defHeight = fromMaybe (defHeight defaultCitySettings) $ getDefHeight csets
-                      , evalCellSize = fromMaybe (evalCellSize defaultCitySettings) $ getEvalCellSize csets
-                      , defScale = getDefScale csets
-                      , defaultBlockColor = fromMaybe (defaultBlockColor defaultCitySettings) $ getBlockColor csets
-                      , defaultActiveColor = fromMaybe (defaultActiveColor defaultCitySettings) $ getActiveColor csets
-                      , defaultStaticColor = fromMaybe (defaultStaticColor defaultCitySettings) $ getStaticColor csets
-                      , defaultLineColor = fromMaybe (defaultLineColor defaultCitySettings) $ getLineColor csets
-                      , mapZoomLevel = fromMaybe (mapZoomLevel defaultCitySettings) $ getMapZoomLevel csets
-                      , useMapLayer = fromMaybe (useMapLayer defaultCitySettings) $ getUseMapLayer csets
-                      -- transform linear ring to the local coordinate system
-                      , forcedArea = case (,) <$> pfcLonLatAlt pfc <*> pfcSRID pfc of
-                                          Just (lla, 4326) -> js_linearRingWgs84ToMetric lla <$> getForcedArea csets
-                                          _ -> getForcedArea csets
-                      }
+    Nothing  -> defaultCitySettings
+    Just val -> rawCitySettings{ forcedArea = newForcedArea }
+      where
+        rawCitySettings = asLikeJS val
+        newForcedArea = case (,) <$> pfcLonLatAlt pfc <*> pfcSRID pfc of
+                            Just (lla, 4326) -> js_linearRingWgs84ToMetric lla <$> forcedArea rawCitySettings
+                            _ -> forcedArea rawCitySettings
 
 buildCity :: CitySettings -- ^ desired diagonal length of the city
           -> SomeJSONInput -- ^ scenario to build city of
