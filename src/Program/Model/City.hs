@@ -71,10 +71,6 @@ import Reactive.Banana.Combinators
 --import Control.Monad.Fix (MonadFix)
 import Control.Monad.Writer.Strict
 
-
-
-
-
 data CityViewTransform = CityViewTransform
   { cScale :: !(Vector 3 Float)
   , cShift :: !(Vector 3 Float)
@@ -110,6 +106,7 @@ data City = City
     , srid               :: !(Maybe Int)
     }
 
+-- | City Settings
 data CitySettings = CitySettings
     { defHeight          :: !GLfloat
     , diagFunction       :: Int -> GLfloat
@@ -150,26 +147,6 @@ instance LikeJS "Object" CitySettings where
                       , forcedArea = getForcedArea val -- untransformed
                       }
 
--- | This indicates removal of all geometry from the city
-data ClearingGeometry = ClearingGeometry
-
-defaultCitySettings :: CitySettings
-defaultCitySettings = CitySettings
-    { defHeight          = 1.5
-    , diagFunction       = (*5) . sqrt . fromIntegral
-    , groundDilate       = 1
-    , evalCellSize       = 0.5
-    , defElevation       = 0.01
-    , defScale           = Nothing
-    , defaultBlockColor  = HexColor (vector4 0.75 0.75 0.7 1)
-    , defaultActiveColor = HexColor (vector4 1 0.6 0.6 1)
-    , defaultStaticColor = HexColor (vector4 0.5 0.5 0.55 1)
-    , defaultLineColor   = HexColor (vector4 0.8 0.4 0.4 1)
-    , mapZoomLevel       = 15
-    , useMapLayer        = True
-    , forcedArea         = Nothing
-    }
-
 getDefHeight :: JSVal -> Maybe GLfloat
 getDefHeight = getProp "defaultHeight"
 getEvalCellSize :: JSVal -> Maybe GLfloat
@@ -190,6 +167,28 @@ getUseMapLayer :: JSVal -> Maybe Bool
 getUseMapLayer = getProp "useMapLayer"
 getForcedArea :: JSVal -> Maybe (LinearRing 2 Float)
 getForcedArea = getProp "forcedArea"
+
+-- | This indicates removal of all geometry from the city
+data ClearingGeometry = ClearingGeometry
+
+defaultCitySettings :: CitySettings
+defaultCitySettings = CitySettings
+    { defHeight          = 1.5
+    , diagFunction       = (*5) . sqrt . fromIntegral
+    , groundDilate       = 1
+    , evalCellSize       = 0.5
+    , defElevation       = 0.01
+    , defScale           = Nothing
+    , defaultBlockColor  = HexColor (vector4 0.75 0.75 0.7 1)
+    , defaultActiveColor = HexColor (vector4 1 0.6 0.6 1)
+    , defaultStaticColor = HexColor (vector4 0.5 0.5 0.55 1)
+    , defaultLineColor   = HexColor (vector4 0.8 0.4 0.4 1)
+    , mapZoomLevel       = 15
+    , useMapLayer        = True
+    , forcedArea         = Nothing
+    }
+
+
 
 emptyCity :: City
 emptyCity = City
