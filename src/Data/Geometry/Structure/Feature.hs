@@ -21,18 +21,15 @@ module Data.Geometry.Structure.Feature
     ( ScenarioJSON (..)
     , FeatureCollection (..)
     , SomeJSONInput (..)
-    , HexColor (..), getScProp
     , Feature (..), feature, setFeature
     , GeoJsonGeometryND (..), GeoJsonGeometry (..)
     , FeatureGeometryType (..), featureGeometryType
     , getGeoJSONGeometry, getSizedGeoJSONGeometry
     , boundingBox2D, filterGeometryTypes
     , ParsedFeatureCollection (..), smartProcessFeatureCollection, smartProcessGeometryInput
-    , ScenarioProperties (..), defaultScenarioProperties
     ) where
 
 
-import Control.Applicative ((<|>))
 import GHC.TypeLits (KnownNat, SomeNat (..), someNatVal)
 ---- import GHCJS.Foreign (isTruthy)
 --import GHCJS.Marshal.Pure (PToJSVal (..))
@@ -40,16 +37,13 @@ import JsHs.Types (JSVal)
 import Data.Proxy (Proxy(..))
 import JsHs.JSString (JSString, append)
 import JsHs.Array as JS
-import JsHs.Types.Prim (jsNull, jsIsNullOrUndef)
-import JsHs.WebGL (GLfloat)
+import JsHs.Types.Prim (jsIsNullOrUndef)
 import Data.Geometry
 import qualified Data.Geometry.Structure.PointSet as PS
 import Data.Geometry.Structure.LineString (LineString (), MultiLineString ())
-import Data.Geometry.Structure.LinearRing (LinearRing ())
 import Data.Geometry.Structure.Point (Point (), MultiPoint ())
 import Data.Geometry.Structure.Polygon (Polygon (), MultiPolygon ())
 import Data.Coerce
-import Data.Maybe (fromMaybe)
 
 
 import Program.Settings
@@ -116,101 +110,25 @@ sjLat :: ScenarioJSON -> Maybe Float
 sjLat (ScenarioJSON js) = getProp "lat" js
 sjAlt :: ScenarioJSON -> Maybe Float
 sjAlt (ScenarioJSON js) = getProp "alt" js
-
-sjBlockColor :: ScenarioJSON -> Maybe HexColor
-sjBlockColor (ScenarioJSON js) = asLikeJS $ getScProp "defaultBlockColor" js
-sjActiveColor :: ScenarioJSON -> Maybe HexColor
-sjActiveColor (ScenarioJSON js) = asLikeJS $ getScProp "defaultActiveColor" js
-sjLineColor :: ScenarioJSON -> Maybe HexColor
-sjLineColor (ScenarioJSON js) = asLikeJS $ getScProp "defaultLineColor" js
-sjStaticColor :: ScenarioJSON -> Maybe HexColor
-sjStaticColor (ScenarioJSON js) = asLikeJS $ getScProp "defaultStaticColor" js
-sjMapZoomLevel :: ScenarioJSON -> Maybe Int
-sjMapZoomLevel (ScenarioJSON js) = asLikeJS $ getScProp "mapZoomLevel" js
-sjUseMapLayer :: ScenarioJSON -> Maybe Bool
-sjUseMapLayer (ScenarioJSON js) = asLikeJS $ getScProp "useMapLayer" js
-sjForcedArea :: ScenarioJSON -> Maybe (LinearRing 2 Float)
-sjForcedArea (ScenarioJSON js) = asLikeJS $ getScProp "forcedArea" js
-
-
-
-foreign import javascript unsafe "($2.hasOwnProperty('properties') && $2['properties'] &&\
-                                 \ $2['properties'].hasOwnProperty($1)) ? $2['properties'][$1] : null"
-    getScProp :: JSString -> JSVal -> JSVal
-
-
--- | HexColor
-
-newtype HexColor = HexColor (Vector4 GLfloat)
-instance LikeJS "Object" HexColor where
-  asJSVal (HexColor v) = js_convertRGBAToHex $ asJSVal v
-
-  asLikeJS val = if isHexColor val
-                 then HexColor (asLikeJS (js_convertHexToRGBA val) :: Vector4 GLfloat)
-                 else HexColor (vector4 0 0 0 0)
-
-instance {-# OVERLAPPING #-} LikeJS "Object" (Maybe HexColor) where
-  asJSVal Nothing = jsNull
-  asJSVal (Just color) = js_convertRGBAToHex $ asJSVal color
-
-  asLikeJS val = if isHexColor val
-                 then Just $ asLikeJS val
-                 else Nothing
-
-isHexColor :: JSVal -> Bool
-isHexColor = asLikeJS . js_isHexColor
-
-foreign import javascript unsafe "($1 && ($1.match(/^(#[A-Fa-f0-9]{3,8})$/) !== null))"
-    js_isHexColor ::  JSVal -> JSVal
-
-foreign import javascript unsafe "if ($1.match(/^(#[A-Fa-f0-9]{3,8})$/) !== null)\
-                                 \ { var a = [0,0,0,1]; var d = $1.length > 5 ? 2 : 1;\
-                                 \   $r = a.map(function(e,i){ if (i*d+1 < $1.length)\
-                                 \   { return (parseInt($1.substr(i*d+1,d),16) / (Math.pow(16, d) - 1));\
-                                 \   } else {return e;} })\
-                                 \ } else { $r = null; }"
-    js_convertHexToRGBA :: JSVal -> JSVal
-
-foreign import javascript unsafe "($1).reduce(function(a, x){return a.concat(('00').concat((Math.round(x*255)).toString(16)).substr(-2));}, '#')"
-    js_convertRGBAToHex :: JSVal -> JSVal
+sjCitySetttings :: ScenarioJSON -> Maybe JSVal
+sjCitySetttings (ScenarioJSON js) = getProp "properties" js
 
 ----------------------------------------------------------------------------------------------------
 -- Some Functions
 ----------------------------------------------------------------------------------------------------
 
-data ScenarioProperties = ScenarioProperties
-    { defaultBlockColor  :: !HexColor
-    , defaultActiveColor :: !HexColor
-    , defaultStaticColor :: !HexColor
-    , defaultLineColor   :: !HexColor
-    , mapZoomLevel       :: !Int
-    , useMapLayer        :: !Bool
-    , forcedArea         :: !(Maybe (LinearRing 2 Float))
-    }
-
-defaultScenarioProperties :: ScenarioProperties
-defaultScenarioProperties = ScenarioProperties
-    { defaultBlockColor = HexColor (vector4 0.75 0.75 0.7 1)
-    , defaultActiveColor = HexColor (vector4 1 0.6 0.6 1)
-    , defaultStaticColor = HexColor (vector4 0.5 0.5 0.55 1)
-    , defaultLineColor = HexColor (vector4 0.8 0.4 0.4 1)
-    , mapZoomLevel = 15
-    , useMapLayer = True
-    , forcedArea = Nothing
-    }
-
 data ParsedFeatureCollection n x = ParsedFeatureCollection
-  { pfcPoints     :: JS.Array Feature
-  , pfcLines      :: JS.Array Feature
-  , pfcPolys      :: JS.Array Feature
-  , pfcDeletes    :: JS.Array Int
-  , pfcErrors     :: JS.Array JSString
-  , pfcMin        :: Vector n x
-  , pfcMax        :: Vector n x
-  , pfcDims       :: Int
-  , pfcLonLatAlt  :: Maybe (Vector 3 Float)
-  , pfcSRID       :: Maybe Int
-  , pfcScenarioProperties :: ScenarioProperties
+  { pfcPoints       :: JS.Array Feature
+  , pfcLines        :: JS.Array Feature
+  , pfcPolys        :: JS.Array Feature
+  , pfcDeletes      :: JS.Array Int
+  , pfcErrors       :: JS.Array JSString
+  , pfcMin          :: Vector n x
+  , pfcMax          :: Vector n x
+  , pfcDims         :: Int
+  , pfcLonLatAlt    :: Maybe (Vector 3 Float)
+  , pfcSRID         :: Maybe Int
+  , pfcCitySettings :: Maybe JSVal
   }
 
 
@@ -226,7 +144,7 @@ smartProcessGeometryInput n defVals input = case input of
     SJIExtended gi -> parsedFeatureCollection
                           { pfcSRID = newSRID
                           , pfcLonLatAlt = newLonLatAlt
-                          , pfcScenarioProperties = ScenarioProperties pfcBlockColor pfcActiveColor pfcStaticColor pfcLineColor pfcMapZoomLevel pfcUseMapLayer pfcForcedArea
+                          , pfcCitySettings = sjCitySetttings gi
                           }
                         where
                           explicitOLonLatAlt = vector3 <$> sjLon gi <*> sjLat gi <*> sjAlt gi
@@ -242,16 +160,6 @@ smartProcessGeometryInput n defVals input = case input of
                           newLonLatAlt = case explicitOLonLatAlt of
                             Just xxx -> Just xxx
                             Nothing  -> pfcLonLatAlt parsedFeatureCollection
-                          pfcBlockColor = fromMaybe (defaultBlockColor defaultScenarioProperties) $ sjBlockColor gi
-                          pfcActiveColor = fromMaybe (defaultActiveColor defaultScenarioProperties) $ sjActiveColor gi
-                          pfcStaticColor = fromMaybe (defaultStaticColor defaultScenarioProperties) $ sjStaticColor gi
-                          pfcLineColor = fromMaybe (defaultLineColor defaultScenarioProperties) $ sjLineColor gi
-                          pfcMapZoomLevel = fromMaybe (mapZoomLevel defaultScenarioProperties) $ sjMapZoomLevel gi
-                          pfcUseMapLayer = fromMaybe (useMapLayer defaultScenarioProperties) $ sjUseMapLayer gi
-                          -- transform linear ring to the local coordinate system
-                          pfcForcedArea = case (,) <$> newLonLatAlt <*> (sjSRID gi <|> pfcSRID parsedFeatureCollection) of
-                                Just (lla, 4326) -> js_linearRingWgs84ToMetric lla <$> sjForcedArea gi
-                                _ -> sjForcedArea gi
 
 smartProcessFeatureCollection :: Int -- ^ maximum geomId in current City
                               -> Vector n x -- ^ default vector to substitute
@@ -259,7 +167,7 @@ smartProcessFeatureCollection :: Int -- ^ maximum geomId in current City
                               -> Maybe (Vector3 Float)
                               -> FeatureCollection
                               -> ParsedFeatureCollection n x
-smartProcessFeatureCollection n defVals cs originLonLatAlt fc = ParsedFeatureCollection points lins polys deletes errors cmin cmax cdims mLonLatAlt mSRID defaultScenarioProperties
+smartProcessFeatureCollection n defVals cs originLonLatAlt fc = ParsedFeatureCollection points lins polys deletes errors cmin cmax cdims mLonLatAlt mSRID Nothing
   where
     providedLonLatAlt = asJSVal originLonLatAlt
     mLonLatAlt = asLikeJS jsLonLatAlt :: Maybe (Vector 3 x) -- if SRID = 4326 and originLonLatAlt is provided, then mLonLatAlt == originLonLatAlt
@@ -271,10 +179,6 @@ foreign import javascript unsafe "var a = gm$smartProcessFeatureCollection($1, $
     js_smartProcessFeatureCollection
       :: FeatureCollection -> JSVal -> JSString -> Vector n x -> Int
       -> (JS.Array Feature, JS.Array Feature, JS.Array Feature, JS.Array Int, JS.Array JSString, Vector n x, Vector n x, Int, JSVal)
-
-foreign import javascript unsafe "$2.map(gm$createWGS84toUTMTransform($1[0], $1[1]))"
-    js_linearRingWgs84ToMetric
-      :: Vector 3 Float -> LinearRing 2 Float -> LinearRing 2 Float
 
 
 foreign import javascript unsafe "var r = gm$boundNestedArray(($1['geometry'] && $1['geometry']['coordinates']) ? $1['geometry']['coordinates'] : []);\
