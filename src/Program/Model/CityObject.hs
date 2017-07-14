@@ -19,7 +19,7 @@
 -----------------------------------------------------------------------------
 
 module Program.Model.CityObject
-    ( CityObject (), LocatedCityObject, behavior, objPolygons, objPoints, geomId, allProps, getCityObjectColor
+    ( CityObject (), LocatedCityObject, behavior, objPolygons, objPoints, geomId, allProps, propsList, getCityObjectColor
     , GeoJsonGeometry (..)
     , PointData (), vertexArray, indexArray, vertexArrayLength, indexArrayLength
     , processPolygonFeature
@@ -45,6 +45,8 @@ import JsHs.LikeJS.Class
 import JsHs.WebGL
 
 import SmallGL.WritableVectors
+
+import Control.Monad (liftM2)
 
 import qualified JsHs.Array as JSArray
 import Data.Geometry
@@ -183,6 +185,21 @@ foreign import javascript unsafe "$1['properties']['isSlave']"
 
 foreign import javascript unsafe "$1['properties']"
     allProps :: CityObject -> JSVal
+
+foreign import javascript unsafe "Object.keys($1['properties'])"
+    js_getKeys :: CityObject -> JSVal
+
+foreign import javascript unsafe "Object.values($1['properties'])"
+    js_getValues :: CityObject -> JSVal
+
+getKeys :: CityObject -> [JSString]
+getKeys = asLikeJS . js_getKeys
+
+getValues :: CityObject -> [JSVal]
+getValues = asLikeJS . js_getValues
+
+propsList :: CityObject -> [(JSString, JSVal)]
+propsList = liftM2 zip getKeys getValues
 
 type LocatedCityObject = T.QFTransform CityObject
 

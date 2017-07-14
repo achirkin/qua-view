@@ -34,6 +34,8 @@ module Program.Model.City
     , storeCityAsIs, storeObjectsAsIs
     -- | reactive-banana
     , cityBehavior
+    -- | Filter CityObj props
+    , shownProps
     , CityUpdate (..)
     , GroundUpdated (..)
     , GroundUpdateRequest (..)
@@ -343,6 +345,17 @@ foreign import javascript unsafe "$r = $3.slice(); $r[$1] = $2;"
 
 isEmptyCity :: City -> Bool
 isEmptyCity c = collectionLength (objectsIn c) == 0
+
+hideProps :: [JSString] -> [(JSString, JSVal)] -> [(JSString, JSVal)]
+hideProps hids = Prelude.filter (\(name,_) -> not $ elem name hids)
+
+fromPropsListToJSVal :: [(JSString, JSVal)] -> JSVal
+fromPropsListToJSVal [] = newObj
+fromPropsListToJSVal (x:xs) = setProp (fst x) (snd x) (fromPropsListToJSVal xs)
+
+-- | Filter CityObject properties according to hiddenProperties settings
+shownProps :: City -> CityObject -> JSVal
+shownProps ci obj = fromPropsListToJSVal $ hideProps  (hiddenProperties $ cityProperties ci) (propsList obj)
 
 -- | Remove all geometry from city
 clearCity :: City -> City

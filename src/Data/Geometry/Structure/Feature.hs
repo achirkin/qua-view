@@ -117,6 +117,9 @@ sjLat (ScenarioJSON js) = getProp "lat" js
 sjAlt :: ScenarioJSON -> Maybe Float
 sjAlt (ScenarioJSON js) = getProp "alt" js
 
+sjHiddenProperties :: ScenarioJSON -> [JSString]
+sjHiddenProperties (ScenarioJSON js) = asLikeJS $ getScProp "hiddenProperties" js
+
 sjBlockColor :: ScenarioJSON -> Maybe HexColor
 sjBlockColor (ScenarioJSON js) = asLikeJS $ getScProp "defaultBlockColor" js
 sjActiveColor :: ScenarioJSON -> Maybe HexColor
@@ -183,6 +186,7 @@ data ScenarioProperties = ScenarioProperties
     , defaultActiveColor :: !HexColor
     , defaultStaticColor :: !HexColor
     , defaultLineColor   :: !HexColor
+    , hiddenProperties   :: ![JSString]
     , mapZoomLevel       :: !Int
     , useMapLayer        :: !Bool
     , forcedArea         :: !(Maybe (LinearRing 2 Float))
@@ -194,6 +198,7 @@ defaultScenarioProperties = ScenarioProperties
     , defaultActiveColor = HexColor (vector4 1 0.6 0.6 1)
     , defaultStaticColor = HexColor (vector4 0.5 0.5 0.55 1)
     , defaultLineColor = HexColor (vector4 0.8 0.4 0.4 1)
+    , hiddenProperties = []
     , mapZoomLevel = 15
     , useMapLayer = True
     , forcedArea = Nothing
@@ -226,7 +231,14 @@ smartProcessGeometryInput n defVals input = case input of
     SJIExtended gi -> parsedFeatureCollection
                           { pfcSRID = newSRID
                           , pfcLonLatAlt = newLonLatAlt
-                          , pfcScenarioProperties = ScenarioProperties pfcBlockColor pfcActiveColor pfcStaticColor pfcLineColor pfcMapZoomLevel pfcUseMapLayer pfcForcedArea
+                          , pfcScenarioProperties = ScenarioProperties pfcBlockColor 
+                                                                       pfcActiveColor 
+                                                                       pfcStaticColor 
+                                                                       pfcLineColor
+                                                                       (sjHiddenProperties gi)
+                                                                       pfcMapZoomLevel
+                                                                       pfcUseMapLayer
+                                                                       pfcForcedArea
                           }
                         where
                           explicitOLonLatAlt = vector3 <$> sjLon gi <*> sjLat gi <*> sjAlt gi
