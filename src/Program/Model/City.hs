@@ -49,6 +49,7 @@ import Data.Maybe (fromMaybe)
 import qualified JsHs.Array as JS
 import qualified JsHs.TypedArray as JSTA
 import JsHs.JSString hiding (foldr1)
+import JsHs
 import Data.Geometry
 import Data.Geometry.Structure.Feature
 import qualified Data.Geometry.Transform as T
@@ -124,6 +125,30 @@ data CitySettings = CitySettings
     , useMapLayer        :: !Bool
     , forcedArea         :: !(Maybe (LinearRing 2 Float))
     }
+
+instance LikeJS "Object" CitySettings where
+  asJSVal csets =   setProp      "defaultHeight"      (defHeight $ csets)
+                  $ setProp      "evaluationCellSize" (evalCellSize $ csets)
+                  $ setPropMaybe "defaultScale"       (defScale $ csets)
+                  $ setProp      "defaultBlockColor"  (defaultBlockColor $ csets)
+                  $ setProp      "defaultActiveColor" (defaultActiveColor $ csets)
+                  $ setProp      "defaultStaticColor" (defaultStaticColor $ csets)
+                  $ setProp      "defaultLineColor"   (defaultLineColor $ csets)
+                  $ setProp      "useMapLayer"        (if useMapLayer (csets) then Just True else Nothing)
+                  $ setProp      "mapZoomLevel"       (if useMapLayer (csets) then Just (mapZoomLevel (csets)) else Nothing)
+                  $ setProp      "forcedArea"         (forcedArea $ csets) newObj
+  asLikeJS val = defaultCitySettings 
+                      { defHeight = fromMaybe (defHeight defaultCitySettings) $ getDefHeight val
+                      , evalCellSize = fromMaybe (evalCellSize defaultCitySettings) $ getEvalCellSize val
+                      , defScale = getDefScale val
+                      , defaultBlockColor = fromMaybe (defaultBlockColor defaultCitySettings) $ getBlockColor val
+                      , defaultActiveColor = fromMaybe (defaultActiveColor defaultCitySettings) $ getActiveColor val
+                      , defaultStaticColor = fromMaybe (defaultStaticColor defaultCitySettings) $ getStaticColor val
+                      , defaultLineColor = fromMaybe (defaultLineColor defaultCitySettings) $ getLineColor val
+                      , mapZoomLevel = fromMaybe (mapZoomLevel defaultCitySettings) $ getMapZoomLevel val
+                      , useMapLayer = fromMaybe (useMapLayer defaultCitySettings) $ getUseMapLayer val
+                      , forcedArea = getForcedArea val -- untransformed
+                      }
 
 -- | This indicates removal of all geometry from the city
 data ClearingGeometry = ClearingGeometry
