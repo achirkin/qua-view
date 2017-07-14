@@ -369,13 +369,16 @@ runScenarioCreate lcB e = runService lcB $ (\v -> ("scenario.geojson.Create", f 
             (Just 4326) -> newObj -- srid is 4326 => we have already transformed it into metric
             (Just s) -> setProp "srid" s newObj
             Nothing -> newObj
-        prop =   setProp "defaultBlockColor"  (defaultBlockColor $ csettings city)
-               $ setProp "defaultActiveColor" (defaultActiveColor $ csettings city)
-               $ setProp "defaultStaticColor" (defaultStaticColor $ csettings city)
-               $ setProp "forcedArea"         (forcedArea $ csettings city)
-               $ setProp "mapZoomLevel"       (if useMapLayer (csettings city) then Just (mapZoomLevel (csettings city)) else Nothing)
-               $ setProp "useMapLayer"        (if useMapLayer (csettings city) then Just True else Nothing)
-               $ setProp "defaultLineColor"   (defaultLineColor $ csettings city) newDict
+        prop =   setProp      "defaultHeight"      (defHeight $ csettings city)
+               $ setProp      "evaluationCellSize" (evalCellSize $ csettings city)
+               $ setPropMaybe "defaultScale"       (defScale $ csettings city)
+               $ setProp      "defaultBlockColor"  (defaultBlockColor $ csettings city)
+               $ setProp      "defaultActiveColor" (defaultActiveColor $ csettings city)
+               $ setProp      "defaultStaticColor" (defaultStaticColor $ csettings city)
+               $ setProp      "forcedArea"         (forcedArea $ csettings city)
+               $ setProp      "mapZoomLevel"       (if useMapLayer (csettings city) then Just (mapZoomLevel (csettings city)) else Nothing)
+               $ setProp      "useMapLayer"        (if useMapLayer (csettings city) then Just True else Nothing)
+               $ setProp      "defaultLineColor"   (defaultLineColor $ csettings city) newDict
 -- returns: "{"created":1470932237,"lastmodified":1470932237,"name":"dgdsfg","ScID":4}"
 
 

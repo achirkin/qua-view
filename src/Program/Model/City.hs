@@ -145,6 +145,12 @@ defaultCitySettings = CitySettings
     , forcedArea         = Nothing
     }
 
+getDefHeight :: JSVal -> Maybe GLfloat
+getDefHeight = getProp "defaultHeight"
+getEvalCellSize :: JSVal -> Maybe GLfloat
+getEvalCellSize = getProp "evaluationCellSize"
+getDefScale :: JSVal -> Maybe GLfloat
+getDefScale = getProp "defaultScale"
 getBlockColor :: JSVal -> Maybe HexColor
 getBlockColor = getProp "defaultBlockColor"
 getActiveColor :: JSVal -> Maybe HexColor
@@ -300,7 +306,10 @@ parseCitySettings :: ParsedFeatureCollection n x
 parseCitySettings pfc = case pfcCitySettings pfc of
     Nothing    -> defaultCitySettings
     Just csets -> defaultCitySettings 
-                      { defaultBlockColor = fromMaybe (defaultBlockColor defaultCitySettings) $ getBlockColor csets
+                      { defHeight = fromMaybe (defHeight defaultCitySettings) $ getDefHeight csets
+                      , evalCellSize = fromMaybe (evalCellSize defaultCitySettings) $ getEvalCellSize csets
+                      , defScale = getDefScale csets
+                      , defaultBlockColor = fromMaybe (defaultBlockColor defaultCitySettings) $ getBlockColor csets
                       , defaultActiveColor = fromMaybe (defaultActiveColor defaultCitySettings) $ getActiveColor csets
                       , defaultStaticColor = fromMaybe (defaultStaticColor defaultCitySettings) $ getStaticColor csets
                       , defaultLineColor = fromMaybe (defaultLineColor defaultCitySettings) $ getLineColor csets
