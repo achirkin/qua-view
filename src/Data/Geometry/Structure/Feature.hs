@@ -30,6 +30,7 @@ module Data.Geometry.Structure.Feature
     ) where
 
 
+import Control.Applicative ((<|>))
 import GHC.TypeLits (KnownNat, SomeNat (..), someNatVal)
 ---- import GHCJS.Foreign (isTruthy)
 --import GHCJS.Marshal.Pure (PToJSVal (..))
@@ -129,6 +130,7 @@ data ParsedFeatureCollection n x = ParsedFeatureCollection
   , pfcLonLatAlt    :: Maybe (Vector 3 Float)
   , pfcSRID         :: Maybe Int
   , pfcCitySettings :: Maybe JSVal
+  , pfcOldSRID      :: Maybe Int
   }
 
 
@@ -145,6 +147,7 @@ smartProcessGeometryInput n defVals input = case input of
                           { pfcSRID = newSRID
                           , pfcLonLatAlt = newLonLatAlt
                           , pfcCitySettings = sjCitySetttings gi
+                          , pfcOldSRID = oldSRID
                           }
                         where
                           explicitOLonLatAlt = vector3 <$> sjLon gi <*> sjLat gi <*> sjAlt gi
@@ -160,6 +163,7 @@ smartProcessGeometryInput n defVals input = case input of
                           newLonLatAlt = case explicitOLonLatAlt of
                             Just xxx -> Just xxx
                             Nothing  -> pfcLonLatAlt parsedFeatureCollection
+                          oldSRID = sjSRID gi <|> pfcSRID parsedFeatureCollection
 
 smartProcessFeatureCollection :: Int -- ^ maximum geomId in current City
                               -> Vector n x -- ^ default vector to substitute
@@ -167,7 +171,7 @@ smartProcessFeatureCollection :: Int -- ^ maximum geomId in current City
                               -> Maybe (Vector3 Float)
                               -> FeatureCollection
                               -> ParsedFeatureCollection n x
-smartProcessFeatureCollection n defVals cs originLonLatAlt fc = ParsedFeatureCollection points lins polys deletes errors cmin cmax cdims mLonLatAlt mSRID Nothing
+smartProcessFeatureCollection n defVals cs originLonLatAlt fc = ParsedFeatureCollection points lins polys deletes errors cmin cmax cdims mLonLatAlt mSRID Nothing mSRID
   where
     providedLonLatAlt = asJSVal originLonLatAlt
     mLonLatAlt = asLikeJS jsLonLatAlt :: Maybe (Vector 3 x) -- if SRID = 4326 and originLonLatAlt is provided, then mLonLatAlt == originLonLatAlt

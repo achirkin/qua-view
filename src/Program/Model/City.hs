@@ -332,7 +332,7 @@ parseCitySettings pfc = case pfcCitySettings pfc of
     Just val -> rawCitySettings{ forcedArea = newForcedArea }
       where
         rawCitySettings = asLikeJS val
-        newForcedArea = case (,) <$> pfcLonLatAlt pfc <*> pfcSRID pfc of
+        newForcedArea = case (,) <$> pfcLonLatAlt pfc <*> pfcOldSRID pfc of
                             Just (lla, 4326) -> js_linearRingWgs84ToMetric lla <$> forcedArea rawCitySettings
                             _ -> forcedArea rawCitySettings
 
