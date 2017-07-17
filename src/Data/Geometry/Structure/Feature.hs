@@ -3,7 +3,6 @@
 {-# LANGUAGE JavaScriptFFI, GHCForeignImportPrim #-}
 {-# LANGUAGE ExistentialQuantification, DataKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE BangPatterns #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Data.Geometry.Structure.Feature

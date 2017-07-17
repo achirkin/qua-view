@@ -124,16 +124,16 @@ data CitySettings = CitySettings
     }
 
 instance LikeJS "Object" CitySettings where
-  asJSVal csets =   setProp      "defaultHeight"      (defHeight $ csets)
-                  $ setProp      "evaluationCellSize" (evalCellSize $ csets)
-                  $ setPropMaybe "defaultScale"       (defScale $ csets)
-                  $ setProp      "defaultBlockColor"  (defaultBlockColor $ csets)
-                  $ setProp      "defaultActiveColor" (defaultActiveColor $ csets)
-                  $ setProp      "defaultStaticColor" (defaultStaticColor $ csets)
-                  $ setProp      "defaultLineColor"   (defaultLineColor $ csets)
-                  $ setProp      "useMapLayer"        (if useMapLayer (csets) then Just True else Nothing)
-                  $ setProp      "mapZoomLevel"       (if useMapLayer (csets) then Just (mapZoomLevel (csets)) else Nothing)
-                  $ setProp      "forcedArea"         (forcedArea $ csets) newObj
+  asJSVal csets =   setProp      "defaultHeight"      (defHeight csets)
+                  $ setProp      "evaluationCellSize" (evalCellSize csets)
+                  $ setPropMaybe "defaultScale"       (defScale csets)
+                  $ setProp      "defaultBlockColor"  (defaultBlockColor csets)
+                  $ setProp      "defaultActiveColor" (defaultActiveColor csets)
+                  $ setProp      "defaultStaticColor" (defaultStaticColor csets)
+                  $ setProp      "defaultLineColor"   (defaultLineColor csets)
+                  $ setProp      "useMapLayer"        (if useMapLayer csets then Just True else Nothing)
+                  $ setProp      "mapZoomLevel"       (if useMapLayer csets then Just (mapZoomLevel csets) else Nothing)
+                  $ setProp      "forcedArea"         (forcedArea csets) newObj
   asLikeJS val = defaultCitySettings 
                       { defHeight = fromMaybe (defHeight defaultCitySettings) $ getDefHeight val
                       , evalCellSize = fromMaybe (evalCellSize defaultCitySettings) $ getEvalCellSize val
@@ -370,10 +370,10 @@ updateCity scenario
                         else buildGround (groundDilate $ csettings city) Nothing allobjects
              , clutter = appendLineSet liness (clutter city)
              }
-    where errorSRID = if ((==) <$> srid city <*> pfcSRID parsedCollection) == Just False
-                      then ["Warning: scenario update has different SRID. Position of new objects may be wrong."] else []
-          errorOrig = if ((\x y -> abs (x-y) < 0.000001) <$> originLonLatAlt city <*> pfcLonLatAlt parsedCollection) == Just False
-                      then ["Warning: scenario update has different origin location. Position of new objects may be wrong."] else []
+    where errorSRID = ["Warning: scenario update has different SRID. Position of new objects may be wrong." 
+                        | ((==) <$> srid city <*> pfcSRID parsedCollection) == Just False]
+          errorOrig = ["Warning: scenario update has different origin location. Position of new objects may be wrong." 
+                        | ((\x y -> abs (x-y) < 0.000001) <$> originLonLatAlt city <*> pfcLonLatAlt parsedCollection) == Just False]
           errors = errorSRID ++ errorOrig ++ fcErrors
           (fcErrors,objects, liness) = processScenario (defHeight $ csettings city)  (defElevation $ csettings city) cscale cshift parsedCollection
 --          updates = JS.map (geomId . T.unwrap) objects
