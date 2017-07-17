@@ -45,6 +45,7 @@ import Data.Geometry.Structure.LineString (LineString (), MultiLineString ())
 import Data.Geometry.Structure.Point (Point (), MultiPoint ())
 import Data.Geometry.Structure.Polygon (Polygon (), MultiPolygon ())
 import Data.Coerce
+import Data.Maybe (isJust)
 
 
 import Program.Settings
@@ -130,7 +131,7 @@ data ParsedFeatureCollection n x = ParsedFeatureCollection
   , pfcLonLatAlt    :: Maybe (Vector 3 Float)
   , pfcSRID         :: Maybe Int
   , pfcCitySettings :: Maybe JSVal
-  , pfcOldSRID      :: Maybe Int
+  , pfcTransform    :: Bool
   }
 
 
@@ -142,12 +143,12 @@ smartProcessGeometryInput :: Int -- ^ maximum geomId in current City
                           -> SomeJSONInput
                           -> ParsedFeatureCollection n x
 smartProcessGeometryInput n defVals input = case input of
-    SJIGeoJSON fc -> smartProcessFeatureCollection n defVals "Unknown" Nothing fc
+    SJIGeoJSON fc  -> smartProcessFeatureCollection n defVals "Unknown" Nothing fc
     SJIExtended gi -> parsedFeatureCollection
                           { pfcSRID = newSRID
                           , pfcLonLatAlt = newLonLatAlt
                           , pfcCitySettings = sjCitySetttings gi
-                          , pfcOldSRID = oldSRID
+                          , pfcTransform = pfcTransform parsedFeatureCollection
                           }
                         where
                           parsedFeatureCollection = smartProcessFeatureCollection n defVals cs explicitOLonLatAlt (sjFeatureCollection gi)
@@ -155,7 +156,6 @@ smartProcessGeometryInput n defVals input = case input of
                             Just 4326 -> ("WGS84", Nothing)
                             Just s    -> ("Metric", Just s)
                             _         -> ("Unknown", Nothing)
-                          oldSRID = sjSRID gi <|> pfcSRID parsedFeatureCollection
                           explicitOLonLatAlt = vector3 <$> sjLon gi <*> sjLat gi <*> sjAlt gi
                           newLonLatAlt = case explicitOLonLatAlt of
                             Just x -> Just x
@@ -167,11 +167,12 @@ smartProcessFeatureCollection :: Int -- ^ maximum geomId in current City
                               -> Maybe (Vector3 Float)
                               -> FeatureCollection
                               -> ParsedFeatureCollection n x
-smartProcessFeatureCollection n defVals cs originLonLatAlt fc = ParsedFeatureCollection points lins polys deletes errors cmin cmax cdims mLonLatAlt mSRID Nothing mSRID
+smartProcessFeatureCollection n defVals cs originLonLatAlt fc = ParsedFeatureCollection points lins polys deletes errors cmin cmax cdims mLonLatAlt Nothing Nothing transform
   where
-    explicitOLonLatAlt = asJSVal originLonLatAlt
-    mLonLatAlt = asLikeJS jsLonLatAlt :: Maybe (Vector 3 x) -- if SRID = 4326 and originLonLatAlt is provided, then mLonLatAlt == originLonLatAlt
-    mSRID = 4326 <$ mLonLatAlt
+    explicitOLonLatAlt = asJSVal originLonLatAlt -- If oLonLatAlt is explicitly provided, the value will be passed to the js function.
+    mLonLatAlt = asLikeJS jsLonLatAlt :: Maybe (Vector 3 x) -- If oLonLatAlt is not explicitly provided, the js function will compute a center and return it to mLonLatAlt. Otherwise, mLonLatAlt == explicitOLonLatAlt.
+    transform = isJust mLonLatAlt
+
     (points, lins, polys, deletes, errors, cmin, cmax, cdims, jsLonLatAlt) = js_smartProcessFeatureCollection fc explicitOLonLatAlt cs defVals n
 
 
