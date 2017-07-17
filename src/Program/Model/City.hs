@@ -343,7 +343,7 @@ buildCity sets scenario = (,) fcErrors City
     { activeObjId = 0
 --    , activeObjSnapshot = Nothing
     , objectsIn = objects
-    , ground = buildGround (groundDilate sets) mforcedGround objects
+    , ground = buildGround (groundDilate csets) mforcedGround objects
     , cityTransform = (cscale, cshift)
     , csettings = csets
     , clutter = createLineSet lineColor liness
@@ -351,11 +351,14 @@ buildCity sets scenario = (,) fcErrors City
     , originLonLatAlt = pfcLonLatAlt parsedCollection
     , srid = pfcSRID parsedCollection
     }
-    where (rcscale,cshift)  = scenarioViewScaling (diagFunction sets) parsedCollection
-          (fcErrors,objects, liness) = processScenario (defHeight sets) (defElevation sets) cscale cshift parsedCollection
-          cscale = fromMaybe rcscale (defScale sets)
+    where (rcscale,cshift)  = scenarioViewScaling (diagFunction csets) parsedCollection
+          (fcErrors,objects, liness) = processScenario (defHeight csets) (defElevation csets) cscale cshift parsedCollection
+          cscale = fromMaybe rcscale (defScale csets)
           parsedCollection = smartProcessGeometryInput 2 (vector3 0 0 (defElevation sets)) scenario
-          csets = parseCitySettings parsedCollection
+          csets = parsedCsets {defScale = case defScale parsedCsets of
+                                              Just x  -> Just x
+                                              Nothing -> defScale sets }
+          parsedCsets = parseCitySettings parsedCollection
           (HexColor lineColor) = defaultLineColor csets
           mforcedGround = PS.mapSet (\x -> broadcastVector cscale * (x - cshift)) <$> forcedArea csets
 
