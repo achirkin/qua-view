@@ -150,16 +150,16 @@ smartProcessGeometryInput n defVals input = case input of
                           , pfcOldSRID = oldSRID
                           }
                         where
-                          explicitOLonLatAlt = vector3 <$> sjLon gi <*> sjLat gi <*> sjAlt gi
                           parsedFeatureCollection = smartProcessFeatureCollection n defVals cs explicitOLonLatAlt (sjFeatureCollection gi)
                           (cs, newSRID) = case sjSRID gi of
                             Just 4326 -> ("WGS84", Nothing)
                             Just s    -> ("Metric", Just s)
                             _         -> ("Unknown", Nothing)
-                          newLonLatAlt = case explicitOLonLatAlt of
-                            Just xxx -> Just xxx
-                            Nothing  -> pfcLonLatAlt parsedFeatureCollection
                           oldSRID = sjSRID gi <|> pfcSRID parsedFeatureCollection
+                          explicitOLonLatAlt = vector3 <$> sjLon gi <*> sjLat gi <*> sjAlt gi
+                          newLonLatAlt = case explicitOLonLatAlt of
+                            Just x -> Just x
+                            Nothing  -> pfcLonLatAlt parsedFeatureCollection
 
 smartProcessFeatureCollection :: Int -- ^ maximum geomId in current City
                               -> Vector n x -- ^ default vector to substitute
@@ -169,10 +169,10 @@ smartProcessFeatureCollection :: Int -- ^ maximum geomId in current City
                               -> ParsedFeatureCollection n x
 smartProcessFeatureCollection n defVals cs originLonLatAlt fc = ParsedFeatureCollection points lins polys deletes errors cmin cmax cdims mLonLatAlt mSRID Nothing mSRID
   where
-    providedLonLatAlt = asJSVal originLonLatAlt
+    explicitOLonLatAlt = asJSVal originLonLatAlt
     mLonLatAlt = asLikeJS jsLonLatAlt :: Maybe (Vector 3 x) -- if SRID = 4326 and originLonLatAlt is provided, then mLonLatAlt == originLonLatAlt
     mSRID = 4326 <$ mLonLatAlt
-    (points, lins, polys, deletes, errors, cmin, cmax, cdims, jsLonLatAlt) = js_smartProcessFeatureCollection fc providedLonLatAlt cs defVals n
+    (points, lins, polys, deletes, errors, cmin, cmax, cdims, jsLonLatAlt) = js_smartProcessFeatureCollection fc explicitOLonLatAlt cs defVals n
 
 
 foreign import javascript unsafe "var a = gm$smartProcessFeatureCollection($1, $2, $3, $4, $5);$r1=a[0];$r2=a[1];$r3=a[2];$r4=a[3];$r5=a[4];$r6=a[5];$r7=a[6];$r8=a[7];$r9=a[8];"
