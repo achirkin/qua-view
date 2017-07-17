@@ -433,8 +433,10 @@ function getProperties(p1a, p1b, p2, p3, p4) {
     heightD = dir1;
   }
   // ensure heightDirection is pi/2 CCW of widthDirection
-  if((Math.atan2(heightD[1], heightD[0]) -
-      Math.atan2(widthD[1], widthD[0])) < 0) {
+  var checkAngle = (Math.atan2(heightD[1], heightD[0]) -
+                    Math.atan2(widthD[1], widthD[0]))
+  if(checkAngle < 0) checkAngle += 2*Math.PI;
+  if(checkAngle > Math.PI) {
     heightD[0] = -heightD[0];
     heightD[1] = -heightD[1];
   }
