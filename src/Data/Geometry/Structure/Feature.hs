@@ -152,14 +152,10 @@ smartProcessGeometryInput n defVals input = case input of
                         where
                           explicitOLonLatAlt = vector3 <$> sjLon gi <*> sjLat gi <*> sjAlt gi
                           parsedFeatureCollection = smartProcessFeatureCollection n defVals cs explicitOLonLatAlt (sjFeatureCollection gi)
-                          cs = case (sjSRID gi, explicitOLonLatAlt) of
-                                (Just 4326, _) -> "WGS84"
-                                (Nothing, Nothing) -> "Unknown"
-                                _ -> "Metric"
-                          newSRID = case sjSRID gi of
-                            Just 4326 -> Nothing
-                            Just i    -> Just i
-                            Nothing   -> Nothing
+                          (cs, newSRID) = case sjSRID gi of
+                            Just 4326 -> ("WGS84", Nothing)
+                            Just s    -> ("Metric", Just s)
+                            _         -> ("Unknown", Nothing)
                           newLonLatAlt = case explicitOLonLatAlt of
                             Just xxx -> Just xxx
                             Nothing  -> pfcLonLatAlt parsedFeatureCollection
