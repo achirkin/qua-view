@@ -332,8 +332,8 @@ parseCitySettings pfc = case pfcCitySettings pfc of
     Just val -> rawCitySettings{ forcedArea = newForcedArea }
       where
         rawCitySettings = asLikeJS val
-        newForcedArea = case (,) <$> pfcLonLatAlt pfc <*> pfcOldSRID pfc of
-                            Just (lla, 4326) -> js_linearRingWgs84ToMetric lla <$> forcedArea rawCitySettings
+        newForcedArea = case (pfcLonLatAlt pfc, pfcTransform pfc) of
+                            (Just lla, True) -> js_linearRingWgs84ToMetric lla <$> forcedArea rawCitySettings
                             _ -> forcedArea rawCitySettings
 
 buildCity :: CitySettings -- ^ desired diagonal length of the city
