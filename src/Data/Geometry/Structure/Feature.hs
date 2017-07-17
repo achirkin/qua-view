@@ -30,7 +30,6 @@ module Data.Geometry.Structure.Feature
     ) where
 
 
-import Control.Applicative ((<|>))
 import GHC.TypeLits (KnownNat, SomeNat (..), someNatVal)
 ---- import GHCJS.Foreign (isTruthy)
 --import GHCJS.Marshal.Pure (PToJSVal (..))
