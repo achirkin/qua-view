@@ -5,9 +5,8 @@ closure-compiler --warning_level=QUIET\
                  --language_in=ECMASCRIPT5\
                  --compilation_level=ADVANCED_OPTIMIZATIONS\
                  --define='DEBUG=false'\
-                 --externs=web/numeric.min.js\
-                 --externs=jsbits/qua-server-externs.js\
- dist/build/qua-view/qua-view.jsexe/all.js >> web/qua-view.js
+                 --externs= $(stack path --dist-dir)/build/qua-view/qua-view.jsexe/all.js.externs\
+ $(stack path --dist-dir)/build/qua-view/qua-view.jsexe/all.js >> web/qua-view.js
 echo "}" >> web/qua-view.js
 echo "window.onload = runQuaView.bind(this);" >> web/qua-view.js
 
