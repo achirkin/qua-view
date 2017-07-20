@@ -17,14 +17,17 @@ module SmallGL.Helpers (GLErrorCode(..), checkGLError) where
 
 import Control.Monad (unless)
 
-import JsHs.WebGL
+import JavaScript.WebGL
 
 -- check if the is an error
 checkGLError :: WebGLRenderingContext -> String -> IO ()
 checkGLError gl s = do
     x <- getError gl
-    unless (x == 0) . putStrLn $ "OpenGL error occured: "
-        ++ s ++ " - " ++ show (toEnum . fromEnum $ x :: GLErrorCode)
+    unless (x == 0) . putStrLn $ unwords
+        [ "[SmallGL] Error occured:"
+        , show x
+        , show (toEnum . fromEnum $ x :: GLErrorCode)
+        , "-", s ]
 -- | Errors of OpenGL calls
 data GLErrorCode = GL_INVALID_ENUM | GL_INVALID_VALUE | GL_INVALID_OPERATION | GL_STACK_OVERFLOW
                  | GL_STACK_UNDERFLOW | GL_OUT_OF_MEMORY | GL_INVALID_FRAMEBUFFER_OPERATION
