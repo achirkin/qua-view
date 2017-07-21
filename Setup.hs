@@ -9,13 +9,17 @@ import Distribution.Simple.Setup
 --import Distribution.Simple.Program.Db
 import Distribution.Simple.LocalBuildInfo
 
+import Control.Arrow (second)
+
 import Control.Monad (when)
 
 import System.Directory
+import System.Environment
 
 main :: IO ()
 main = defaultMainWithHooks simpleUserHooks
-         { postBuild = copyOutputHook . wrapCodeHook $ postBuild simpleUserHooks
+         { preBuild = addBuildEnvHook $ preBuild simpleUserHooks
+         , postBuild = copyOutputHook . wrapCodeHook $ postBuild simpleUserHooks
          }
 -- postBuild :: Args -> BuildFlags -> PackageDescription -> LocalBuildInfo -> IO ()
 
@@ -52,4 +56,12 @@ copyOutputHook defaultPostBuild as bf pd lbi = do
     quaServerPath = "../qua-server/static/js"
     quaView = unPackageName . pkgName $ package pd
     exeFile = buildDir lbi ++ "/" ++ quaView ++ "/" ++ quaView ++ ".jsexe/all.wrapped.js"
+
+addBuildEnvHook :: (Args -> BuildFlags -> IO HookedBuildInfo)
+                ->  Args -> BuildFlags -> IO HookedBuildInfo
+addBuildEnvHook preBuildF args bf = do
+    hbi <- preBuildF args bf
+    let updateBI x = x {cppOptions =  ("-DMYVAR=" ++ show "hey ho! \\ / \"cool\"!11") : cppOptions x}
+    return $ second (fmap $ second updateBI) hbi
+--    buildF pd lbi uh bf { buildArgs = ("-Dmyvar=" ++ show "hey ho! \\ / \"cool\"!11")  : buildArgs bf}
 
