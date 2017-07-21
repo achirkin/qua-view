@@ -1,5 +1,7 @@
 {-# LANGUAGE JavaScriptFFI #-}
 {-# LANGUAGE OverloadedStrings #-}
+
+{-# LANGUAGE TemplateHaskell #-}
 module Main ( main ) where
 
 
@@ -18,8 +20,12 @@ import Types
 
 import Widgets.LoadingSplash
 
+
+import Language.Haskell.TH
+
 main :: IO ()
 main = do
+    putStrLn $(LitE . StringL . loc_filename <$> location)
     mainWidget $ do
       -- Change the state of the program
       (isProgramBusy, setIsProgramBusy) <- newTriggerEvent
