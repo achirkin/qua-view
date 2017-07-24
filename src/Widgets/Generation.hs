@@ -22,6 +22,10 @@ import qualified Data.JSString as JSString
 import Data.Text (Text)
 import qualified Data.Text.Lazy as LText
 import qualified Data.Text as SText
+import Data.Map (Map)
+import qualified Data.Map as Map
+import Data.Set (Set)
+import qualified Data.Set as Set
 
 import Control.Monad.IO.Class
 import Reflex.Dom (Element (..), GhcjsDomSpace)
@@ -68,17 +72,14 @@ qhtml h = do
 --   This is a preferred method to put moderate chunks of css code into a widget,
 --   because it allows to keep css separately from js.
 --
---   TODO: there is a problem with this approach; during development of a single module,
---         number of unique ids varies, so generated css files may duplicate.
---         As a workaround, we can `stack clean` the project from time to time.
+--   NOTE: this code relies on an assumption that all TH splices in a single file run in a single
+--         environment (i.e. they share IORefs created by `unsafePerformIO newIORef`).
 qcss :: CssUrl url -> Q ()
 qcss css = do
-    curLoc <- location
-    let fNameBase = (>>= \c -> if c == '.' then "zi" else [c]) $ loc_module curLoc
-    fUniqPart <- newLocalUnique
-    let fNameFull = JSString.pack $ cssGenPath </> (fNameBase ++ 'z':fUniqPart) <.> "css"
+    mName <- getModuleName
+    let fNameFull = cssGenPath </> mName <.> "css"
         content = JSString.pack . LText.unpack $ renderCss (css undefined)
-    runIO $ js_writeFile fNameFull content
+    writeCss fNameFull content
 
 
 -- | Use this to get values of unique vars inside a splice.
@@ -102,6 +103,25 @@ newVar = SText.pack <$> newGlobalUnique
 -- * Generating unique names
 ----------------------------------------------------------------------------------------------------
 
+-- | Write css code to a new file if it should not exist by now,
+--   or append css code to an existing file (if there were splices writing css above in the module).
+writeCss :: String -> JSString -> Q ()
+writeCss mname c = runIO $ do
+    isNew <- atomicModifyIORef' cssStarted
+                   $ \s -> if Set.member mname s then (s, False)
+                                                 else (Set.insert mname s, True)
+    if isNew then js_writeFile  (JSString.pack mname) c
+             else js_appendFile (JSString.pack mname) c
+
+
+-- | Set {module name}
+--   A set of modules which have a css file bound.
+--   Don't expect this set to have all css files.
+--   The idea behind this variable is to track if current module has started its css file.
+cssStarted :: IORef (Set String)
+cssStarted  = unsafePerformIO (newIORef Set.empty)
+
+
 -- | Write JSString into file.
 --   Use this only in TH environment!
 --
@@ -109,6 +129,14 @@ newVar = SText.pack <$> newGlobalUnique
 --   because we use "-DDGHCJS_BROWSER" option for efficiency reasons.
 --   This option removes all code related to filesystem interaction, even though wee need it fo TH.
 foreign import javascript unsafe "require('fs').writeFileSync($1, $2);" js_writeFile :: JSString -> JSString -> IO ()
+
+-- | Append JSString into file.
+--   Use this only in TH environment!
+--
+--   We have to use this function instead of normal haskell writeFile,
+--   because we use "-DDGHCJS_BROWSER" option for efficiency reasons.
+--   This option removes all code related to filesystem interaction, even though wee need it fo TH.
+foreign import javascript unsafe "require('fs').appendFileSync($1, $2);" js_appendFile :: JSString -> JSString -> IO ()
 
 
 -- | cssGenPath is an absolute path to build CssGen folder, where TH generates a list of css files
@@ -126,27 +154,35 @@ cssGenPath = "CssGen"
 -- * Generating unique names
 ----------------------------------------------------------------------------------------------------
 
-getModuleUnique :: Q String
-getModuleUnique = do
-    mName <- JSString.pack . (>>= \c -> if c == '.' then "zi" else [c]) . loc_module <$> location
-    runIO $ encodeIntU <$> js_module_unique (JSString.pack modulesUniqPath) mName
+getModuleName :: Q String
+getModuleName = (>>= \c -> if c == '.' then "zi" else [c]) . loc_module <$> location
 
-newLocalUnique :: Q String
-newLocalUnique = runIO $ atomicModifyIORef' mUniqSource (\(ModuleUnique i) -> (ModuleUnique $! i + 1, encodeIntU i) )
+getModuleUnique :: String -> Q String
+getModuleUnique mName =
+    runIO $ encodeIntU <$> js_module_unique (JSString.pack modulesUniqPath) (JSString.pack mName)
+
+newLocalUnique :: String -> Q String
+newLocalUnique moduleName = runIO $ atomicModifyIORef' mUniqSource f
+    where
+      f m = let m' = Map.alter sureAdd moduleName m in (m', encodeIntU $ m' Map.! moduleName)
+      sureAdd Nothing = Just 1
+      sureAdd (Just i) = Just (i+1)
 
 newGlobalUnique :: Q String
-newGlobalUnique = (\m l -> m ++ 'z':l) <$> getModuleUnique <*> newLocalUnique
+newGlobalUnique = do
+    mName <- getModuleName
+    (\m l -> m ++ 'z':l) <$> getModuleUnique mName <*> newLocalUnique mName
 
 
 encodeIntU :: Int -> String
 encodeIntU = map (toEnum . (49+) . fromEnum) . show
 
--- | An abstract unique object.
+-- | Map {module name} -> {unique local id}
 --   I am using it only in TH splices to generate unique names within a single module.
-newtype ModuleUnique = ModuleUnique Int
-mUniqSource :: IORef ModuleUnique
-mUniqSource = unsafePerformIO (newIORef (ModuleUnique 0))
+mUniqSource :: IORef (Map String Int)
+mUniqSource = unsafePerformIO (newIORef Map.empty)
 {-# NOINLINE mUniqSource #-}
+
 
 -- | This function gets a unique order number for haskell module.
 --   It does so by keeping module names in a file separated by a special character.
