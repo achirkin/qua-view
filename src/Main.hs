@@ -22,17 +22,17 @@ import qualified Widgets.ControlButtons as Widgets ()
 import qualified SmallGL
 
 main :: IO ()
-main = mainWidget $ do
+main = mainWidgetInElementById "qua-view-widgets" $ do
   -- Change the state of the program
   (isProgramBusy, setIsProgramBusy) <- newTriggerEvent
   (isStartedUp, doStartUp ) <- newTriggerEvent
+  -- register loading splash so that we can change its visibility
   Widgets.loadingSplashD isProgramBusy
-  liftIO $ setIsProgramBusy Busy
   -- add canvas element
   -- Note: we have to create canvas before "main build" block,
   --       so that registerAnimationHandler happens after canvas settles down;
   --       this is important to calculate canvas size correctly
-  canvas <- Widgets.webGLCanvas
+  canvas <- Widgets.getWebGLCanvas
   -- Main build block.
   -- We assume that building can take a while, so we run a special "loading splash"
   -- during this block execution.
@@ -79,6 +79,17 @@ $(do
         background-color: #FFFFFF
         touch-action: none
         color: #BF360C
+
+      #qua-view-widgets
+        position: fixed
+        left: 0
+        top: 0
+        padding: 0
+        margin: 0
+        z-index: 1
+        overflow: hidden
+        width: 100%
+        height: 100%
     |]
   return []
  )
