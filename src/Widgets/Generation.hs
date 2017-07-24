@@ -1,11 +1,12 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE JavaScriptFFI #-}
 module Widgets.Generation
     ( setInnerHTML, getElementById, makeElementFromHtml
-    , qhtml, qcss
+    , qhtml, qcss, qjs
     , newVar, returnVars
-    , hamlet, cassius
+    , hamlet, cassius, julius
     ) where
 
 import System.IO.Unsafe (unsafePerformIO)
@@ -18,6 +19,7 @@ import GHCJS.Nullable
 
 import Text.Hamlet (HtmlUrl,hamlet)
 import Text.Blaze.Html.Renderer.String (renderHtml)
+import Text.Julius (JavascriptUrl, renderJavascriptUrl, julius)
 import Text.Cassius (cassius)
 import Text.Internal.Css (CssUrl, renderCss)
 import Data.JSString (JSString)
@@ -32,8 +34,8 @@ import qualified Data.Set as Set
 
 import Control.Monad.IO.Class
 import Reflex.Class (Reflex)
-import Reflex.Dom ( Element (..), GhcjsDomSpace, GhcjsDomSpace, Widget, RawElementConfig
-                  , EventResult, wrapRawElement)
+import Reflex.Dom ( Element (..), GhcjsDomSpace, GhcjsDomSpace, Widget, ElementConfig
+                  , EventResult, wrapRawElement, extractRawElementConfig, placeRawElement)
 
 
 import System.IO (FilePath)
@@ -61,6 +63,7 @@ qhtml h = do
   where
     funCode = "$r = " ++ show (renderHtml $ h (const $ const SText.empty)) ++ ";"
 
+
 -- | Generate CSS into a .css file at compile time.
 --
 --   This function does no return an expression, so you have to use `returnVars` function inside a splice.
@@ -86,6 +89,24 @@ qcss css = do
     let fNameFull = cssGenPath </> mName <.> "css"
         content = JSString.pack . LText.unpack $ renderCss (css undefined)
     writeCss fNameFull content
+
+
+-- | Generate JavaScript into a JSString at compile time and execute it as an action.
+--   The content of JavaScript script is transformed into a string and evaluated using function 'eval'.
+--   This means you should not put top-level function declarations there.
+--
+--   > $(qjs [julius| console.log("hello!") |] :: MonadIO m => m ()
+--
+--   Please do not (ab)use this unless strictly necessary!
+qjs :: JavascriptUrl url -> Q Exp
+qjs j = do
+    fName <- newGlobalUnique >>= newName
+    qAddTopDecls [ForeignD (ImportF JavaScript Unsafe funCode fName (ConT ''IO `AppT` ConT ''()) )]
+    return $ VarE 'liftIO `AppE` VarE fName
+  where
+    funCode = "eval(" ++ show (renderJavascriptUrl (const $ const SText.empty) j) ++ ");"
+
+
 
 
 -- | Use this to get values of unique vars inside a splice.
@@ -217,29 +238,31 @@ modulesUniqPath = "modules.unique"
 -- | Get existing element by its ids.
 --   Use this function with care: a good use case is accessing an element that is hardcoded into html page.
 getElementById :: Reflex t
-               => RawElementConfig EventResult t GhcjsDomSpace
+               => ElementConfig EventResult t GhcjsDomSpace
                -> JSString -> Widget x (Maybe (Element EventResult GhcjsDomSpace t))
 getElementById cfg elId = do
     me <- liftIO $ nullableToMaybe <$> js_getElementById elId
     case me of
-      Just e -> Just <$> wrapRawElement e cfg
+      Just e -> Just <$> wrapRawElement e (extractRawElementConfig cfg)
       Nothing -> return Nothing
 
 -- | Create an element directly from html code.
 --   The html code must have exactly one root element;
 --   otherwise the function fails at runtime.
 makeElementFromHtml :: Reflex t
-                    => RawElementConfig EventResult t GhcjsDomSpace
+                    => ElementConfig EventResult t GhcjsDomSpace
                     -> JSString -> Widget x (Element EventResult GhcjsDomSpace t)
 makeElementFromHtml cfg content = do
     me <- liftIO $ nullableToMaybe <$> js_createElement content
     case me of
-      Just e -> wrapRawElement e cfg
+      Just e -> placeRawElement e >> wrapRawElement e (extractRawElementConfig cfg)
       Nothing -> error "hamlet splice must have exactly one root html element."
 
 
 foreign import javascript unsafe "$r = document.getElementById($1);"
     js_getElementById :: JSString -> IO (Nullable Element.Element)
-foreign import javascript unsafe "var d = document.createElement('div');d.innerHTML = $1;if(d.childNodes.length === 1){$r = d.firstChild;}else{$r = null;}"
+foreign import javascript unsafe "var d = document.createElement('div');d.innerHTML = $1;$r = d.firstChild;"
     js_createElement :: JSString -> IO (Nullable Element.Element)
+
+
 

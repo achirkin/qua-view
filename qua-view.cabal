@@ -60,6 +60,7 @@ executable qua-view
         CommonTypes
         Widgets.Canvas
         Widgets.ControlButtons
+        Widgets.ControlPanel
         Widgets.Generation
         Widgets.LoadingSplash
     ghc-options: -Wall -fwarn-tabs -O0
