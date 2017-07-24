@@ -1,7 +1,9 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeFamilies #-}
 module Widgets.Generation
-    ( setInnerHTML, qhtml, qcss
+    ( setInnerHTML, getElementById, makeElementFromHtml
+    , qhtml, qcss
     , newVar, returnVars
     , hamlet, cassius
     ) where
@@ -9,9 +11,10 @@ module Widgets.Generation
 import System.IO.Unsafe (unsafePerformIO)
 import Data.IORef
 
-import qualified GHCJS.DOM.Element as Element (js_setInnerHTML)
+import qualified GHCJS.DOM.Element as Element (js_setInnerHTML, Element)
 import Language.Haskell.TH
 import Language.Haskell.TH.Syntax (qAddTopDecls)
+import GHCJS.Nullable
 
 import Text.Hamlet (HtmlUrl,hamlet)
 import Text.Blaze.Html.Renderer.String (renderHtml)
@@ -28,7 +31,10 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 
 import Control.Monad.IO.Class
-import Reflex.Dom (Element (..), GhcjsDomSpace)
+import Reflex.Class (Reflex)
+import Reflex.Dom ( Element (..), GhcjsDomSpace, GhcjsDomSpace, Widget, RawElementConfig
+                  , EventResult, wrapRawElement)
+
 
 import System.IO (FilePath)
 import System.FilePath ((</>), (<.>))
@@ -202,4 +208,38 @@ modulesUniqPath = MODULES_UNIQUE_PATH
 modulesUniqPath = "modules.unique"
 {-# WARNING cssGenPath "CPP definition MODULES_UNIQUE_PATH is not found! This means I don't know where to look for unique modules identifiers." #-}
 #endif
+
+
+----------------------------------------------------------------------------------------------------
+-- * Getting document elements
+----------------------------------------------------------------------------------------------------
+
+-- | Get existing element by its ids.
+--   Use this function with care: a good use case is accessing an element that is hardcoded into html page.
+getElementById :: Reflex t
+               => RawElementConfig EventResult t GhcjsDomSpace
+               -> JSString -> Widget x (Maybe (Element EventResult GhcjsDomSpace t))
+getElementById cfg elId = do
+    me <- liftIO $ nullableToMaybe <$> js_getElementById elId
+    case me of
+      Just e -> Just <$> wrapRawElement e cfg
+      Nothing -> return Nothing
+
+-- | Create an element directly from html code.
+--   The html code must have exactly one root element;
+--   otherwise the function fails at runtime.
+makeElementFromHtml :: Reflex t
+                    => RawElementConfig EventResult t GhcjsDomSpace
+                    -> JSString -> Widget x (Element EventResult GhcjsDomSpace t)
+makeElementFromHtml cfg content = do
+    me <- liftIO $ nullableToMaybe <$> js_createElement content
+    case me of
+      Just e -> wrapRawElement e cfg
+      Nothing -> error "hamlet splice must have exactly one root html element."
+
+
+foreign import javascript unsafe "$r = document.getElementById($1);"
+    js_getElementById :: JSString -> IO (Nullable Element.Element)
+foreign import javascript unsafe "var d = document.createElement('div');d.innerHTML = $1;if(d.childNodes.length === 1){$r = d.firstChild;}else{$r = null;}"
+    js_createElement :: JSString -> IO (Nullable Element.Element)
 
