@@ -48,7 +48,9 @@ wrapCodeHook lbi = readFile exeFile >>= \content -> writeFile exeFile' $ unlines
     , "\"use strict\""
     , content
     , "}"
-    , "window.onload = h$runQuaView.bind(this);"
+    , "if (document.readyState === 'complete')"
+    , "{ h$runQuaView.bind(global)(); }"
+    , "else { window.onload = h$runQuaView.bind(global); }"
     ]
   where
     exeDir =  makeExeDir $ buildDir lbi
@@ -56,13 +58,19 @@ wrapCodeHook lbi = readFile exeFile >>= \content -> writeFile exeFile' $ unlines
     exeFile' = exeDir </> myExeName <.> "js"
 
 
--- | If we have the qua-sever folder near the qua-view folder (i.e. in the qua-kit repo),
+-- | Copy generated files to web folder
+--   If we have the qua-sever folder near the qua-view folder (i.e. in the qua-kit repo),
 --   then copy generate javascript and css files there.
 copyOutputHook :: LocalBuildInfo -> IO ()
-copyOutputHook lbi = doesDirectoryExist quaServerPath >>= \e -> when e $ do
-    copyFile jsFile  (quaServerPath </> "js"  </> myExeName <.> "js")
-    copyFile cssFile (quaServerPath </> "css" </> myExeName <.> "css")
+copyOutputHook lbi = do
+    doesDirectoryExist webPath >>= \e -> when e $ do
+      copyFile jsFile  (webPath </> myExeName <.> "js")
+      copyFile cssFile (webPath </> myExeName <.> "css")
+    doesDirectoryExist quaServerPath >>= \e -> when e $ do
+      copyFile jsFile  (quaServerPath </> "js"  </> myExeName <.> "js")
+      copyFile cssFile (quaServerPath </> "css" </> myExeName <.> "css")
   where
+    webPath = "web"
     quaServerPath = ".." </> "qua-server" </> "static"
     jsFile = makeExeDir (buildDir lbi) </> myExeName <.> "js"
     cssFile = makeExeDir (buildDir lbi) </> myExeName <.> "css"
