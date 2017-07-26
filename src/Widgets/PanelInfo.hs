@@ -16,7 +16,7 @@ import Widgets.Generation
 panelInfo :: Reflex t => Dynamic t PanelState -> Widget x ()
 panelInfo pStateD = 
     elDynClass "div" (toPanelClass <$> pStateD) $ do
-      text "I"
+      text "Info pane will be here."
   where
     toPanelClass PanelInfo = openPanelState
     toPanelClass _ = closedPanelState
