@@ -13,13 +13,19 @@ import CommonTypes
 import Widgets.Generation
 import Widgets.ControlButtons
 import Widgets.PanelNavigator
+import Widgets.PanelGeometry
+import Widgets.PanelInfo
+import Widgets.PanelServices
 
 -- | Control panel widget is a place for all controls in qua-view!
 controlPanel :: Reflex t => Widget x (Dynamic t ControlPanelState)
 controlPanel = mdo
     stateD <- Dom.elDynClass "div" (toClass <$> stateD) $ do
+      panelState <- panelNavigator
+      panelGeometry panelState
+      panelInfo panelState
+      panelServices panelState
       -- GUI control buttons
-      panelNavigator
       controlButtonGroup
     return stateD
   where
