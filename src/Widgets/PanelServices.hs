@@ -21,7 +21,7 @@ panelServices pStateD =
         [hamlet|
           <div>
             Select a remote service to run
-              <table style="width: 98%">
+              <table style="width: 95%">
                 <tr>
                   <td style="width: 5%">
                     <a.btn.btn-flat.btn-red.waves-attach title="Refresh list of available services" #refreshServicesBtn>
@@ -32,32 +32,5 @@ panelServices pStateD =
           <div.form-group #guiServiceParams>
         |])
   where
-    toPanelClass PanelServices = openPanelState
-    toPanelClass _ = closedPanelState
-    -- Styles for the panel are generated statically.
-    -- newVar guarantees that the class name is unique.
-    (openPanelState, closedPanelState) = $(do
-        placeholder <- newVar
-        let ostate = placeholder <> "-open"
-            cstate = placeholder <> "-closed"
-        qcss
-          [cassius|
-            .spKey
-              padding: 2px
-              text-align: right
-            .spVal
-              padding: 2px
-
-            .#{placeholder}
-                position: absolute
-
-            .#{ostate}
-                visibility: visible
-
-            .#{cstate}
-                visibility: hidden
-
-          |]
-        -- Combine two classes: {.base .base-open} and {.base .base-closed}
-        returnVars $ fmap ((placeholder <> " ") <>) [ostate, cstate]
-      )
+    toPanelClass PanelServices = "tab-pane fade active in"
+    toPanelClass _ = "tab-pane fade"
