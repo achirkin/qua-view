@@ -22,9 +22,10 @@ controlPanel :: Reflex t => Widget x (Dynamic t ControlPanelState)
 controlPanel = mdo
     stateD <- Dom.elDynClass "div" (toClass <$> stateD) $ do
       panelState <- panelNavigator
-      panelGeometry panelState
+      browseE <- panelGeometry panelState
       panelInfo panelState
       panelServices panelState
+      popupScenario browseE
       -- GUI control buttons
       controlButtonGroup
     return stateD
