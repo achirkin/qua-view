@@ -23,23 +23,22 @@ import Text.Julius (julius)
 import CommonTypes
 import Widgets.Generation
 
-
-
 -- | Control panel widget is a place for all controls in qua-view!
-controlButtonGroup :: Reflex t =>  Widget x (Dynamic t ControlPanelState)
+controlButtonGroup :: Reflex t =>  Widget x (Dynamic t ControlPanelState, Event t ())
 controlButtonGroup = mdo
-    (toggleGroupD, cpStateD) <-
+    (toggleGroupD, cpStateD, popupHelpE) <-
         Dom.elDynClass "div" (toPanelClass <$> cpStateD) $ do
           Dom.elDynClass "div" toggleGroupD $ do
             -- toggle visibility of buttons
             toggleGroupD'  <- expandCtrlGroupButton
             -- show all buttons
-            groupContents <- Dom.elClass "div" "fbtn-dropup" $ do
+            (groupContents, helpE) <- Dom.elClass "div" "fbtn-dropup" $ do
+                helpE' <- helpButton
                 toggleFullScreenButton
                 cpStateD' <- controlPanelButton
-                return cpStateD'
-            return (toggleGroupD', groupContents)
-    return cpStateD
+                return (cpStateD', helpE')
+            return (toggleGroupD', groupContents, helpE)
+    return (cpStateD, popupHelpE)
   where
     toPanelClass ControlPanelOpen   = openPanelState
     toPanelClass ControlPanelClosed = closedPanelState
@@ -165,6 +164,18 @@ toggleFullScreenButton = do
             };
         |])
 
+helpButton :: Reflex t => Widget x (Event t ())
+helpButton = do
+    e <- makeElementFromHtml def $(qhtml
+        [hamlet|
+          <a .fbtn .waves-attach .waves-circle .waves-effect>
+            <span .fbtn-text .fbtn-text-left>
+              How-to: mouse & finger controls
+            <span .icon .icon-lg>
+              help_outline
+        |])
+    return $ Dom.domEvent Dom.Click e
+
 
 ----------------------------------------------------------------------------------------------------
 -- below are drafts: buttons that not implemented yet
@@ -184,21 +195,6 @@ resetCameraButton = do
               videocam
         |])
     return e
-
-helpButton :: Reflex t => Widget x (Element Dom.EventResult Dom.GhcjsDomSpace t)
-helpButton = do
-    e <- makeElementFromHtml def $(qhtml
-        [hamlet|
-          <a .fbtn .waves-attach .waves-circle>
-            <span .fbtn-text .fbtn-text-left>
-              How-to: mouse & finger controls
-            <span .icon .icon-lg>
-              help_outline
-        |])
-    return e
-
-
-
 
 submitProposalButton :: Reflex t => Widget x (Element Dom.EventResult Dom.GhcjsDomSpace t)
 submitProposalButton = do
