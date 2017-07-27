@@ -22,10 +22,12 @@ controlPanel :: Reflex t => Widget x (Dynamic t ControlPanelState)
 controlPanel = mdo
     stateD <- Dom.elDynClass "div" (toClass <$> stateD) $ do
       panelState <- panelNavigator
-      browseE <- panelGeometry panelState
-      panelInfo panelState
-      panelServices panelState
-      popupScenario browseE
+      (browsePopupE, savePopupE) <- Dom.elClass "div" "tab-content" $ do
+        (browsePopupE, savePopupE) <- panelGeometry panelState
+        panelInfo panelState
+        panelServices panelState
+        return (browsePopupE, savePopupE)
+      popupScenario browsePopupE savePopupE
       -- GUI control buttons
       controlButtonGroup
     return stateD
@@ -74,6 +76,10 @@ controlPanel = mdo
                 .#{cstate}
                     box-shadow: 0
                     right: -400px
+
+            .tab-content
+                padding-left: 20px;
+                padding-right: 20px;
           |]
         -- Combine two classes: {.base .base-open} and {.base .base-closed}
         returnVars $ fmap ((baseclass <> " ") <>) [ostate, cstate]
