@@ -59,6 +59,7 @@ executable qua-view
         SmallGL.Shader
         CommonTypes
         Widgets.Canvas
+        Widgets.CommonWidget
         Widgets.ControlButtons
         Widgets.ControlPanel
         Widgets.Generation
@@ -67,5 +68,6 @@ executable qua-view
         Widgets.PanelInfo
         Widgets.PanelNavigator
         Widgets.PanelServices
+        Widgets.PopupHelp
     ghc-options: -Wall -fwarn-tabs -O0
 

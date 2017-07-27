@@ -13,6 +13,7 @@ import Data.Semigroup
 import Reflex.Dom
 
 import CommonTypes
+import Widgets.CommonWidget
 import Widgets.Generation
 
 panelGeometry :: Reflex t => Dynamic t PanelState -> Widget x (Event t (), Event t ())
@@ -119,14 +120,6 @@ browseScenarioPane browsePopupE = mdo
     displayClass False = ""
     displayStyle True  = "flex"
     displayStyle False = "none"
-
-flatButton' :: Reflex t => Text -> Widget x (Event t ())
-flatButton' name = do
-    (e, _) <- elAttr' "a" attrs $ text name
-    return $ domEvent Click e
-  where
-    attrs = ("class" =: "btn btn-flat btn-brand-accent waves-attach waves-effect")
-         <> ("data-dismiss" =: "modal")
 
 saveScenarioPane :: Reflex t => Event t () -> Widget x ()
 saveScenarioPane savePopupE = mdo
