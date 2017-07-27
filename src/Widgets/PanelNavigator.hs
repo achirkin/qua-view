@@ -8,6 +8,7 @@ module Widgets.PanelNavigator
     ) where
 
 import Data.Default (def)
+import Data.Semigroup
 import Reflex.Dynamic
 import Reflex.Dom
 
@@ -16,8 +17,8 @@ import Widgets.Generation
 
 panelNavigator :: Reflex t => Widget x (Dynamic t PanelState)
 panelNavigator = do
-  (geometryEl, infoEl, servicesEl) <- elClass "nav" "tab-nav tab-nav-red margin-top-no" $ do
-    elClass "ul" "nav nav-justified" $ do
+  (geometryE, infoE, servicesE) <- elClass "nav" "tab-nav tab-nav-red margin-top-no" $ do
+    (gE, iE, sE) <- elClass "ul" "nav nav-justified" $ do
       geometryEl <- makeElementFromHtml def $(qhtml
         [hamlet|
           <li class="active">
@@ -36,7 +37,9 @@ panelNavigator = do
             <a aria-expanded="false" class="waves-attach waves-effect" data-toggle="tab" href="#itabServices">
               Services
         |])
-      return (geometryEl, infoEl, servicesEl)
-  holdDyn PanelGeometry $ leftmost [PanelGeometry <$ domEvent Click geometryEl, 
-                                    PanelInfo <$ domEvent Click infoEl, 
-                                    PanelServices <$ domEvent Click servicesEl]
+      return (domEvent Click geometryEl, domEvent Click infoEl, domEvent Click servicesEl)
+    elAttr "div" (("class" =: "tab-nav-indicator") <> ("style" =: "left: 0px; right: 412px;")) blank
+    return (gE, iE, sE)
+  holdDyn PanelGeometry $ leftmost [PanelGeometry <$ geometryE, 
+                                    PanelInfo <$ infoE, 
+                                    PanelServices <$ servicesE]
