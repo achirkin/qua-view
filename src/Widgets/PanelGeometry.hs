@@ -29,10 +29,10 @@ fileUploadGeometry :: Reflex t => Widget x ()
 fileUploadGeometry = do
   text "Read GeoJSON from file"
   el "div" $ do
-    clearGeometryBtn <- redButton "clear"
-    filesBtn <- redButton "files"
-    fileNameIndicator $ constDyn "placeholder.geojson"
-    jsonFileInput
+    clearGeometryBtn <- redButton "clear" -- TODO: Clear Geometry
+    filesBtn <- redButton "files" -- TODO: Connect this with jsonFileInput for file uploading
+    fileNameIndicator $ constDyn "placeholder.geojson" -- TODO: Dynamic text correspond with the uploaded file name
+    jsonFileInput -- TODO: file uploadings
 
 redButton :: Reflex t => Text -> Widget x ()
 redButton = elClass "a" "btn btn-red waves-attach waves-light waves-effect" . text
@@ -70,8 +70,8 @@ luciScenarioPane = do
   el "div" $ text "Remote (Luci scenarios)"
   el "div" $ do
     browsePopupE <- browseScenarioWidget
-    savePopupE <- saveScenarioWidget $ constDyn True -- Placeholder dynamic Bool
-    fileNameIndicator $ constDyn "placeholder"
+    savePopupE <- saveScenarioWidget $ constDyn True -- TODO: Hide this button when there is no active scenario
+    fileNameIndicator $ constDyn "placeholder" -- TODO: Dynamic text correspond with saved file name
     return (browsePopupE, savePopupE)
 
 browseScenarioWidget :: Reflex t => Widget x (Event t ())
@@ -105,7 +105,7 @@ browseScenarioPane browsePopupE = mdo
           elAttr "div" (("class" =: "modal-heading") <> ("style" =: "max-height: 10%")) $ do
             elClass "p" "modal-title" $ text "Select scenario"
           elAttr "div" (("class" =: "modal-inner") <> ("style" =: "max-height: 80%")) $ do
-            text "Scenario List Table will be here."
+            text "Scenario List Table will be here." -- TODO: Scenario list table
           elAttr "div" (("class" =: "modal-footer") <> ("style" =: "max-height: 10%")) $ do
             elClass "p" "text-right" $ do
               flatButton' "Cancel"
@@ -143,7 +143,7 @@ saveScenarioPane savePopupE = mdo
           elClass "div" "modal-footer" $ do
             elClass "p" "text-right" $ do
               ce <- flatButton' "Cancel"
-              se <- flatButton' "Save"
+              se <- flatButton' "Save" -- TODO: Save scenario
               return (ce, se)
     blank
   where

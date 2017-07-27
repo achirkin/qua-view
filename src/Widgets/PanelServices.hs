@@ -14,6 +14,7 @@ import Reflex.Dom
 import CommonTypes
 import Widgets.Generation
 
+-- TODO: Add functionality to Panel Services
 panelServices :: Reflex t => Dynamic t PanelState -> Widget x ()
 panelServices pStateD = 
     elDynClass "div" (toPanelClass <$> pStateD) $ do
@@ -24,12 +25,11 @@ panelServices pStateD =
               <table style="width: 95%">
                 <tr>
                   <td style="width: 5%">
-                    <a.btn.btn-flat.btn-red.waves-attach title="Refresh list of available services" #refreshServicesBtn>
+                    <a.btn.btn-flat.btn-red.waves-attach title="Refresh list of available services">
                       <span.icon.icon-lg>refresh
-                  <td style="width: 95%" onchange="activeVisService($(this).find(':selected').val())">
-                    <select.form-control #serviceListControlMenu>
-
-          <div.form-group #guiServiceParams>
+                  <td style="width: 95%">
+                    <select.form-control>
+          <div.form-group>
         |])
   where
     toPanelClass PanelServices = "tab-pane fade active in"

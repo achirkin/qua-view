@@ -16,7 +16,7 @@ import Widgets.Generation
 panelInfo :: Reflex t => Dynamic t PanelState -> Widget x ()
 panelInfo pStateD = 
     elDynClass "div" (toPanelClass <$> pStateD) $ do
-      text "Info pane will be here."
+      text "Info pane will be here." -- TODO: Info pane
   where
     toPanelClass PanelInfo = "tab-pane fade active in"
     toPanelClass _ = "tab-pane fade"
