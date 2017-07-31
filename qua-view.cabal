@@ -70,6 +70,7 @@ executable qua-view
         Widgets.LoadingSplash
         Widgets.Modal
         Widgets.Modal.BrowseScenario
+        Widgets.Modal.EdxGuide
         Widgets.Modal.Help
         Widgets.Modal.SaveScenario
     ghc-options: -Wall -fwarn-tabs -O0
