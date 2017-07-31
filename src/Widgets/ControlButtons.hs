@@ -27,7 +27,7 @@ import Widgets.Generation
 controlButtonGroup :: Reflex t =>  Widget x (Dynamic t ControlPanelState, Event t ())
 controlButtonGroup = mdo
     (toggleGroupD, cpStateD, popupHelpE) <-
-        Dom.elDynClass "div" (toPanelClass <$> cpStateD) $ do
+        Dom.elDynClass "div" (toPanelClass <$> cpStateD) $
           Dom.elDynClass "div" toggleGroupD $ do
             -- toggle visibility of buttons
             toggleGroupD'  <- expandCtrlGroupButton

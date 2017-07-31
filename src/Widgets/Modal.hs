@@ -1,6 +1,4 @@
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE RecursiveDo #-}
 
 module Widgets.Modal
@@ -14,10 +12,9 @@ createModal :: Reflex t => Event t () -> Bool -> (a -> Event t ()) -> Widget x a
 createModal openModalE defaultOpen getCloseModalE contentWidget = mdo
     modalActive <- holdDyn defaultOpen $ leftmost [False <$ closeModalE, True <$ openModalE]
     let closeModalE = getCloseModalE contentReturn
-    contentReturn <- elDynAttr "div" (attrs <$> modalActive) $ do
-      elClass "div" "modal-dialog" $ do
-        elClass "div" "modal-content" $ do
-          contentWidget
+    contentReturn <- elDynAttr "div" (attrs <$> modalActive) $
+      elClass "div" "modal-dialog" $
+        elClass "div" "modal-content" contentWidget
     elDynClass "div" (backdropClass <$> modalActive) blank
     return contentReturn
   where

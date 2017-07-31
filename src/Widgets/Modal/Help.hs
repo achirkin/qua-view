@@ -19,7 +19,7 @@ popupHelp helpPopupE = createModal helpPopupE True id popupHelpContent
 
 popupHelpContent :: Reflex t => Widget x (Event t ())
 popupHelpContent = do
-    elClass "div" "modal-heading" $ do
+    elClass "div" "modal-heading" $
       elClass "p" "modal-title" $ text "Welcome to Quick Urban Analysis kit - the web geometry viewer"
     elClass "div" "modal-inner" $ do
       return addCss -- Not sure if this is the right way
@@ -127,8 +127,8 @@ popupHelpContent = do
       elAttr "div" ("style" =: "text-align: justify") $ do
         el "em" $ text "Note: "
         text "for research purposes some of your actions (e.g. moving and rotating geometry objects) on this page may be anonymously recorded and sent to our servers; by proceeding you agree to share these data."
-    elClass "div" "modal-footer" $ do
-      elClass "p" "text-right" $ do
+    elClass "div" "modal-footer" $
+      elClass "p" "text-right" $
         flatButton' "Ok, let's go"
   where
     addCss = $(do

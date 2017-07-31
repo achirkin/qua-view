@@ -1,7 +1,4 @@
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE RecursiveDo #-}
 
 module Widgets.ControlPanel.Geometry
     ( panelGeometry
@@ -55,8 +52,8 @@ luciScenarios = do
     elDynAttr "p" (attrs1 <$> luciState) $ text "Luci scenarios are not available"
     elDynAttr "div" (attrs2 <$> luciState) luciScenarioPane
   where
-    attrs1 state = ("style" =: ("display: " <> display1 state))
-    attrs2 state = ("style" =: ("display: " <> display2 state))
+    attrs1 state = "style" =: ("display: " <> display1 state)
+    attrs2 state = "style" =: ("display: " <> display2 state)
     display1 Connected = "none"
     display1 Disconnected = "inline"
     display2 Connected = "inline"

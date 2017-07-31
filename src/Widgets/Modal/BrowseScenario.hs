@@ -1,7 +1,4 @@
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE RecursiveDo #-}
 
 module Widgets.Modal.BrowseScenario
     ( browseScenarioPane
@@ -18,10 +15,10 @@ browseScenarioPane browsePopupE = createModal browsePopupE False id browseScenar
 
 browseScenarioContent :: Reflex t => Widget x (Event t ())
 browseScenarioContent = do
-  elAttr "div" (("class" =: "modal-heading") <> ("style" =: "max-height: 10%")) $ do
+  elAttr "div" (("class" =: "modal-heading") <> ("style" =: "max-height: 10%")) $
     elClass "p" "modal-title" $ text "Select scenario"
-  elAttr "div" (("class" =: "modal-inner") <> ("style" =: "max-height: 80%")) $ do
+  elAttr "div" (("class" =: "modal-inner") <> ("style" =: "max-height: 80%")) $
     text "Scenario List Table will be here." -- TODO: Scenario list table
-  elAttr "div" (("class" =: "modal-footer") <> ("style" =: "max-height: 10%")) $ do
-    elClass "p" "text-right" $ do
+  elAttr "div" (("class" =: "modal-footer") <> ("style" =: "max-height: 10%")) $
+    elClass "p" "text-right" $
       flatButton' "Cancel"
