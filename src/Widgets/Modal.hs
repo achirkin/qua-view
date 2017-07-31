@@ -10,16 +10,15 @@ module Widgets.Modal
 import Data.Semigroup
 import Reflex.Dom
 
-import Widgets.Generation
-
-createModal :: Reflex t => Event t () -> (a -> Event t ()) -> Widget x a -> Widget x a
-createModal openModalE getCloseModalE contentWidget = mdo
-    modalActive <- holdDyn False $ leftmost [False <$ closeModalE, True <$ openModalE]
+createModal :: Reflex t => Event t () -> Bool -> (a -> Event t ()) -> Widget x a -> Widget x a
+createModal openModalE defaultOpen getCloseModalE contentWidget = mdo
+    modalActive <- holdDyn defaultOpen $ leftmost [False <$ closeModalE, True <$ openModalE]
     let closeModalE = getCloseModalE contentReturn
     contentReturn <- elDynAttr "div" (attrs <$> modalActive) $ do
       elClass "div" "modal-dialog" $ do
         elClass "div" "modal-content" $ do
           contentWidget
+    elDynClass "div" (backdropClass <$> modalActive) blank
     return contentReturn
   where
     attrs active = ("class" =: ("modal modal-va-middle fade" <> displayClass active))
@@ -30,3 +29,5 @@ createModal openModalE getCloseModalE contentWidget = mdo
     displayClass False = ""
     displayStyle True  = "flex"
     displayStyle False = "none"
+    backdropClass True  = "modal-backdrop fade in"
+    backdropClass False = ""

@@ -13,6 +13,7 @@ import CommonTypes
 import Widgets.Generation
 import Widgets.ControlButtons
 import Widgets.Modal.BrowseScenario
+import Widgets.Modal.EdxGuide
 import Widgets.Modal.Help
 import Widgets.Modal.SaveScenario
 import Widgets.ControlPanel.Geometry

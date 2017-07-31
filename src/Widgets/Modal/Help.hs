@@ -8,7 +8,6 @@ module Widgets.Modal.Help
     ) where
 
 import Control.Monad (void)
-import Data.Semigroup
 import Reflex.Dom
 
 import Widgets.CommonWidget
@@ -16,7 +15,7 @@ import Widgets.Generation
 import Widgets.Modal
 
 popupHelp :: Reflex t => Event t () -> Widget x (Event t ())
-popupHelp helpPopupE = createModal helpPopupE id popupHelpContent
+popupHelp helpPopupE = createModal helpPopupE True id popupHelpContent
 
 popupHelpContent :: Reflex t => Widget x (Event t ())
 popupHelpContent = do

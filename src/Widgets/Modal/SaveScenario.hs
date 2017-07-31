@@ -14,7 +14,7 @@ import Widgets.CommonWidget
 import Widgets.Modal
 
 saveScenarioPane :: Reflex t => Event t () -> Widget x (Event t (), Event t ())
-saveScenarioPane savePopupE = createModal savePopupE fst saveScenarioContent
+saveScenarioPane savePopupE = createModal savePopupE False fst saveScenarioContent
 
 saveScenarioContent :: Reflex t => Widget x (Event t (), Event t ())
 saveScenarioContent = do

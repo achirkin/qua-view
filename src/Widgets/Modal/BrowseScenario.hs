@@ -14,7 +14,7 @@ import Widgets.CommonWidget
 import Widgets.Modal
 
 browseScenarioPane :: Reflex t => Event t () -> Widget x (Event t ())
-browseScenarioPane browsePopupE = createModal browsePopupE id browseScenarioContent
+browseScenarioPane browsePopupE = createModal browsePopupE False id browseScenarioContent
 
 browseScenarioContent :: Reflex t => Widget x (Event t ())
 browseScenarioContent = do
