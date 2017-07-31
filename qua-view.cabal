@@ -62,15 +62,15 @@ executable qua-view
         Widgets.CommonWidget
         Widgets.ControlButtons
         Widgets.ControlPanel
+        Widgets.ControlPanel.Geometry
+        Widgets.ControlPanel.Info
+        Widgets.ControlPanel.Navigator
+        Widgets.ControlPanel.Services
         Widgets.Generation
         Widgets.LoadingSplash
         Widgets.Modal
         Widgets.Modal.BrowseScenario
         Widgets.Modal.Help
         Widgets.Modal.SaveScenario
-        Widgets.PanelGeometry
-        Widgets.PanelInfo
-        Widgets.PanelNavigator
-        Widgets.PanelServices
     ghc-options: -Wall -fwarn-tabs -O0
 

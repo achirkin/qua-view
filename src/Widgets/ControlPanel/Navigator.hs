@@ -3,7 +3,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE RecursiveDo #-}
 
-module Widgets.PanelNavigator
+module Widgets.ControlPanel.Navigator
     ( panelNavigator
     ) where
 

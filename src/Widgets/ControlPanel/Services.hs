@@ -3,7 +3,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE RecursiveDo #-}
 
-module Widgets.PanelServices
+module Widgets.ControlPanel.Services
     ( panelServices
     ) where
 

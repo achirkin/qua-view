@@ -3,7 +3,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE RecursiveDo #-}
 
-module Widgets.PanelInfo
+module Widgets.ControlPanel.Info
     ( panelInfo
     ) where
 
