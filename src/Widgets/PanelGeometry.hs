@@ -4,17 +4,13 @@
 {-# LANGUAGE RecursiveDo #-}
 
 module Widgets.PanelGeometry
-    ( panelGeometry,
-      popupScenario
+    ( panelGeometry
     ) where
 
-import Control.Monad (void)
 import Data.Semigroup
 import Reflex.Dom
 
 import CommonTypes
-import Widgets.CommonWidget
-import Widgets.Generation
 
 panelGeometry :: Reflex t => Dynamic t PanelState -> Widget x (Event t (), Event t ())
 panelGeometry pStateD = 
@@ -86,65 +82,6 @@ saveScenarioWidget scenarioActive = do
   return $ domEvent Click e
   where
     attrs active = ("class" =: "btn btn-red waves-attach waves-light waves-effect")
-                <> ("style" =: ("display: " <> display active))
-    display True  = "inline"
-    display False = "none"
-
--- Pop up Scenario
-
-popupScenario :: Reflex t => Event t () -> Event t ()-> Widget x ()
-popupScenario browsePopupE savePopupE = do
-  browseScenarioPane browsePopupE
-  saveScenarioPane savePopupE
-
-browseScenarioPane :: Reflex t => Event t () -> Widget x ()
-browseScenarioPane browsePopupE = mdo
-    paneActive <- holdDyn False $ leftmost [False <$ cancelE, True <$ browsePopupE]
-    cancelE <- elDynAttr "div" (attrs <$> paneActive) $ do
-      elAttr "div" (("class" =: "modal-dialog") <> ("style" =: "max-height: 100%")) $ do
-        elAttr "div" (("class" =: "modal-content") <> ("style" =: "max-height: 100%")) $ do
-          elAttr "div" (("class" =: "modal-heading") <> ("style" =: "max-height: 10%")) $ do
-            elClass "p" "modal-title" $ text "Select scenario"
-          elAttr "div" (("class" =: "modal-inner") <> ("style" =: "max-height: 80%")) $ do
-            text "Scenario List Table will be here." -- TODO: Scenario list table
-          elAttr "div" (("class" =: "modal-footer") <> ("style" =: "max-height: 10%")) $ do
-            elClass "p" "text-right" $ do
-              flatButton' "Cancel"
-    blank
-  where
-    attrs active = ("class" =: ("modal modal-va-middle fade" <> displayClass active))
-                <> ("role" =: "dialog")
-                <> ("tabindex" =: "-1")
-                <> ("style" =: ("display: " <> displayStyle active))
-    displayClass True  = " modal-va-middle-show in"
-    displayClass False = ""
-    displayStyle True  = "flex"
-    displayStyle False = "none"
-
-saveScenarioPane :: Reflex t => Event t () -> Widget x ()
-saveScenarioPane savePopupE = mdo
-    paneActive <- holdDyn False $ leftmost [False <$ cancelE, True <$ savePopupE]
-    (cancelE, saveE) <- elDynAttr "div" (attrs <$> paneActive) $ do
-      elClass "div" "modal-dialog" $ do
-        elClass "div" "modal-content" $ do
-          elClass "div" "modal-heading" $ do
-            elClass "p" "modal-title" $ text "Enter a name for a new scenario to save it on a server"
-          elClass "div" "modal-inner" $ do
-            elClass "div" "form-group form-group-label" $ do
-              elAttr "label" (("class" =: "floating-label") <> ("for" =: "save-scenario-name-input")) $ text "Scenario name"
-              textInput $ def & attributes .~ constDyn (("class" =: "form-control") <> ("id" =: "save-scenario-name-input"))
-          elClass "div" "modal-footer" $ do
-            elClass "p" "text-right" $ do
-              ce <- flatButton' "Cancel"
-              se <- flatButton' "Save" -- TODO: Save scenario
-              return (ce, se)
-    blank
-  where
-    attrs active = ("class" =: ("modal modal-va-middle fade" <> displayClass active))
-                <> ("role" =: "dialog")
-                <> ("tabindex" =: "-1")
-                <> ("style" =: ("display: " <> displayStyle active))
-    displayClass True  = " modal-va-middle-show in"
-    displayClass False = ""
-    displayStyle True  = "flex"
-    displayStyle False = "none"
+                <> ("style" =: ("display: " <> displayClass active))
+    displayClass True  = "inline"
+    displayClass False = "none"
