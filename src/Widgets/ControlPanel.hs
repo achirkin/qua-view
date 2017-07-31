@@ -12,11 +12,13 @@ import Data.Semigroup
 import CommonTypes
 import Widgets.Generation
 import Widgets.ControlButtons
+import Widgets.Modal.BrowseScenario
+import Widgets.Modal.Help
+import Widgets.Modal.SaveScenario
 import Widgets.PanelNavigator
 import Widgets.PanelGeometry
 import Widgets.PanelInfo
 import Widgets.PanelServices
-import Widgets.PopupHelp
 
 -- | Control panel widget is a place for all controls in qua-view!
 controlPanel :: Reflex t => Widget x (Dynamic t ControlPanelState)
@@ -28,7 +30,8 @@ controlPanel = mdo
         panelInfo panelState
         panelServices panelState
         return (browsePopupE, savePopupE)
-      popupScenario browsePopupE savePopupE
+      browseScenarioPane browsePopupE
+      saveScenarioPane savePopupE
       -- GUI control buttons
       (stateD', popupHelpE) <- controlButtonGroup
       popupHelp popupHelpE
