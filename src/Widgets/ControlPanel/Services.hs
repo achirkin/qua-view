@@ -17,7 +17,7 @@ import Widgets.Generation
 -- TODO: Add functionality to Panel Services
 panelServices :: Reflex t => Dynamic t PanelState -> Widget x ()
 panelServices pStateD = 
-    elDynClass "div" (toPanelClass <$> pStateD) $ do
+    elDynClass "div" (toPanelClass <$> pStateD) $
       void $ makeElementFromHtml def $(qhtml
         [hamlet|
           <div>

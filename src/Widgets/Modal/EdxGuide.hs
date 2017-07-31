@@ -20,7 +20,7 @@ popupEdxGuide edxGuidePopupE = createModal edxGuidePopupE True id popupEdxGuideC
 
 popupEdxGuideContent :: Reflex t => Widget x (Event t ())
 popupEdxGuideContent = do
-    elClass "div" "modal-heading" $ do
+    elClass "div" "modal-heading" $
       elClass "p" "modal-title" $ text "Welcome to Quick Urban Analysis kit - the web geometry viewer"
     elClass "div" "modal-inner" $ do
       text "Dear student,"
@@ -101,8 +101,8 @@ popupEdxGuideContent = do
                     by proceeding you agree to share these data.
             |]
         )
-    elClass "div" "modal-footer" $ do
-      elClass "p" "text-right" $ do
+    elClass "div" "modal-footer" $
+      elClass "p" "text-right" $
         flatButton' "Ok, let's go"
   where
     addCss = $(do

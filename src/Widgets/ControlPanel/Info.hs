@@ -1,7 +1,4 @@
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE RecursiveDo #-}
 
 module Widgets.ControlPanel.Info
     ( panelInfo
@@ -15,7 +12,7 @@ import Widgets.Generation
 
 panelInfo :: Reflex t => Dynamic t PanelState -> Widget x ()
 panelInfo pStateD = 
-    elDynClass "div" (toPanelClass <$> pStateD) $ do
+    elDynClass "div" (toPanelClass <$> pStateD) $
       text "Info pane will be here." -- TODO: Info pane
   where
     toPanelClass PanelInfo = "tab-pane fade active in"
