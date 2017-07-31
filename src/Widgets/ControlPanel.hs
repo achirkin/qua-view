@@ -16,21 +16,13 @@ import Widgets.Modal.BrowseScenario
 import Widgets.Modal.EdxGuide
 import Widgets.Modal.Help
 import Widgets.Modal.SaveScenario
-import Widgets.ControlPanel.Geometry
-import Widgets.ControlPanel.Info
-import Widgets.ControlPanel.Navigator
-import Widgets.ControlPanel.Services
+import Widgets.Tabs
 
 -- | Control panel widget is a place for all controls in qua-view!
 controlPanel :: Reflex t => Widget x (Dynamic t ControlPanelState)
 controlPanel = mdo
     stateD <- Dom.elDynClass "div" (toClass <$> stateD) $ do
-      panelState <- panelNavigator
-      (browsePopupE, savePopupE) <- Dom.elClass "div" "tab-content" $ do
-        (browsePopupE, savePopupE) <- panelGeometry panelState
-        panelInfo panelState
-        panelServices panelState
-        return (browsePopupE, savePopupE)
+      (browsePopupE, savePopupE) <- Dom.elClass "div" "tab-content" panelTabs
       browseScenarioPane browsePopupE
       saveScenarioPane savePopupE
       -- GUI control buttons

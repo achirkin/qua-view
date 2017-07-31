@@ -3,7 +3,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE RecursiveDo #-}
 
-module Widgets.ControlPanel.Services
+module Widgets.Tabs.Services
     ( panelServices
     ) where
 
@@ -11,8 +11,8 @@ import Control.Monad (void)
 import Data.Semigroup
 import Reflex.Dom
 
-import CommonTypes
 import Widgets.Generation
+import Widgets.Tabs.Navigator (PanelState (..))
 
 -- TODO: Add functionality to Panel Services
 panelServices :: Reflex t => Dynamic t PanelState -> Widget x ()
