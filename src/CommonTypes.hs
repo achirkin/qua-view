@@ -12,7 +12,6 @@ module CommonTypes
     , Text, JSString, JSVal
       -- * Local types
     , IsBusy (..)
-    , PanelState (..)
     ) where
 
 import Data.Text (Text)
@@ -25,7 +24,3 @@ import Reflex.Dom.Widget.Animation
 -- | Whether the program or component is busy doing some extensive work.
 data IsBusy (s :: Symbol) = Busy | Idle
     deriving (Eq, Show)
-
--- | Determining which panel is active
-data PanelState = PanelGeometry | PanelInfo | PanelServices
-    deriving Eq

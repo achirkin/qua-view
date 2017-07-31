@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Widgets.ControlPanel.Geometry
+module Widgets.Tabs.Geometry
     ( panelGeometry
     ) where
 
@@ -8,6 +8,7 @@ import Data.Semigroup
 import Reflex.Dom
 
 import CommonTypes
+import Widgets.Tabs.Navigator (PanelState (..))
 
 panelGeometry :: Reflex t => Dynamic t PanelState -> Widget x (Event t (), Event t ())
 panelGeometry pStateD = 

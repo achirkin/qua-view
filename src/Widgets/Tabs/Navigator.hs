@@ -3,20 +3,22 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE RecursiveDo #-}
 
-module Widgets.ControlPanel.Navigator
-    ( panelNavigator
+module Widgets.Tabs.Navigator
+    ( PanelState (..),
+      tabsNavigator
     ) where
 
-import Data.Default (def)
 import Data.Semigroup
-import Reflex.Dynamic
 import Reflex.Dom
 
-import CommonTypes
 import Widgets.Generation
 
-panelNavigator :: Reflex t => Widget x (Dynamic t PanelState)
-panelNavigator = do
+-- | Determining which panel is active
+data PanelState = PanelGeometry | PanelInfo | PanelServices
+    deriving Eq
+
+tabsNavigator :: Reflex t => Widget x (Dynamic t PanelState)
+tabsNavigator = do
   (geometryE, infoE, servicesE) <- elClass "nav" "tab-nav tab-nav-red margin-top-no" $ do
     (gE, iE, sE) <- elClass "ul" "nav nav-justified" $ do
       geometryEl <- makeElementFromHtml def $(qhtml

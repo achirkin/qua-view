@@ -1,14 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Widgets.ControlPanel.Info
+module Widgets.Tabs.Info
     ( panelInfo
     ) where
 
-import Data.Semigroup
 import Reflex.Dom
 
-import CommonTypes
-import Widgets.Generation
+import Widgets.Tabs.Navigator (PanelState (..))
 
 panelInfo :: Reflex t => Dynamic t PanelState -> Widget x ()
 panelInfo pStateD = 
