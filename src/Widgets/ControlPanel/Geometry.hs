@@ -3,7 +3,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE RecursiveDo #-}
 
-module Widgets.PanelGeometry
+module Widgets.ControlPanel.Geometry
     ( panelGeometry
     ) where
 
