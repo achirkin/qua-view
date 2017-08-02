@@ -1,5 +1,8 @@
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module CommonTypes
     ( -- * Re-exported from Reflex
       Reflex, Event, Behavior, Dynamic, Widget, Element
@@ -11,7 +14,7 @@ module CommonTypes
       -- * Some commonly used types re-exported
     , Text, JSString, JSVal
       -- * Local types
-    , IsBusy (..)
+    , IsBusy (..), ComponentState (..), ElementClick (..)
     ) where
 
 import Data.Text (Text)
@@ -23,4 +26,14 @@ import Reflex.Dom.Widget.Animation
 
 -- | Whether the program or component is busy doing some extensive work.
 data IsBusy (s :: Symbol) = Busy | Idle
+    deriving (Eq, Show)
+
+-- | Click event tagged by the name of a program component that was clicked.
+data ElementClick (s :: Symbol) = ElementClick
+    deriving Eq
+instance KnownSymbol s => Show (ElementClick s) where
+    show _ = "ElementClick :: " ++ symbolVal (ElementClick @s)
+
+-- | Represents a state of a component (e.g. DOM element or any other component)
+data ComponentState (s :: Symbol) = Active | Inactive
     deriving (Eq, Show)

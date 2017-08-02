@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE RecursiveDo #-}
+{-# LANGUAGE DataKinds #-}
 
 module Widgets.Modal.Help
     ( popupHelp
@@ -10,14 +11,18 @@ module Widgets.Modal.Help
 import Control.Monad (void)
 import Reflex.Dom
 
+import CommonTypes
 import Widgets.CommonWidget
 import Widgets.Generation
 import Widgets.Modal
 
-popupHelp :: Reflex t => Event t () -> Widget x (Event t ())
-popupHelp helpPopupE = createModal helpPopupE True id popupHelpContent
+-- | Nobody interested in the state of help popup modal,
+--   so we can safely discard its value.
+popupHelp :: Reflex t => Event t (ElementClick helpButton) -> Widget x ()
+popupHelp helpPopupE = void $ createModalWithClicks' helpPopupE Inactive popupHelpContent
 
-popupHelpContent :: Reflex t => Widget x (Event t ())
+
+popupHelpContent :: Reflex t => Widget x (Event t (ElementClick "close help popup"))
 popupHelpContent = do
     elClass "div" "modal-heading" $
       elClass "p" "modal-title" $ text "Welcome to Quick Urban Analysis kit - the web geometry viewer"
@@ -129,7 +134,7 @@ popupHelpContent = do
         text "for research purposes some of your actions (e.g. moving and rotating geometry objects) on this page may be anonymously recorded and sent to our servers; by proceeding you agree to share these data."
     elClass "div" "modal-footer" $
       elClass "p" "text-right" $
-        flatButton' "Ok, let's go"
+        flatButton "Ok, let's go"
   where
     addCss = $(do
         qcss

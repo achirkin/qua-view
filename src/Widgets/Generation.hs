@@ -7,6 +7,7 @@ module Widgets.Generation
     , qhtml, qcss, qjs
     , newVar, returnVars
     , hamlet, cassius, julius
+    , appendElementToAnotherById
     ) where
 
 import System.IO.Unsafe (unsafePerformIO)
@@ -16,6 +17,7 @@ import qualified GHCJS.DOM.Element as Element (js_setInnerHTML, Element)
 import Language.Haskell.TH
 import Language.Haskell.TH.Syntax (qAddTopDecls)
 import GHCJS.Nullable
+import GHCJS.DOM.Node (appendChild_)
 
 import Text.Hamlet (HtmlUrl,hamlet)
 import Text.Blaze.Html.Renderer.String (renderHtml)
@@ -30,6 +32,7 @@ import qualified Data.Text as SText
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Set (Set)
+import Data.Default (def)
 import qualified Data.Set as Set
 
 import Control.Monad.IO.Class
@@ -257,6 +260,23 @@ makeElementFromHtml cfg content = do
     case me of
       Just e -> placeRawElement e >> wrapRawElement e (extractRawElementConfig cfg)
       Nothing -> error "hamlet splice must have exactly one root html element."
+
+
+-- | Append an element to another one, given by its id.
+--   Very unsafe function, please do not use it if you can!
+appendElementToAnotherById :: Reflex t
+                           => JSString
+                           -> Widget x (Element EventResult GhcjsDomSpace t, a)
+                           -> Widget x (Maybe (Element EventResult GhcjsDomSpace t, a))
+appendElementToAnotherById parentId elw = do
+    mp <- getElementById def parentId
+    case mp of
+      Nothing -> pure Nothing
+      Just p  -> do
+        (el, a) <- elw
+        appendChild_ (_element_raw p) (_element_raw el)
+        return $ Just (el, a)
+
 
 
 foreign import javascript unsafe "$r = document.getElementById($1);"

@@ -2,12 +2,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE RecursiveDo #-}
+{-# LANGUAGE DataKinds #-}
 module Widgets.ControlButtons
-    ( controlButtonGroup, ControlPanelState (..)
+    ( controlButtonGroup
       -- the module below should expose only controlButtonGroup widget and related data types.
       -- buttons below are not implemented yet...
     , resetCameraButton
-    , helpButton
     , submitProposalButton
     , serviceClearButton
     , serviceRunButton
@@ -22,26 +22,28 @@ import Text.Julius (julius)
 
 import CommonTypes
 import Widgets.Generation
+import Widgets.Modal.Help
 
--- | Control panel widget is a place for all controls in qua-view!
-controlButtonGroup :: Reflex t =>  Widget x (Dynamic t ControlPanelState, Event t ())
+-- | Control button group is a column of colourfull buttons in the bottom-right corner of the screen.
+--   It defines the most useful functions of qua-kit.
+controlButtonGroup :: Reflex t =>  Widget x (Dynamic t (ComponentState "ControlPanel"))
 controlButtonGroup = mdo
-    (toggleGroupD, cpStateD, popupHelpE) <-
+    (toggleGroupD, cpStateD) <-
         Dom.elDynClass "div" (toPanelClass <$> cpStateD) $
           Dom.elDynClass "div" toggleGroupD $ do
             -- toggle visibility of buttons
             toggleGroupD'  <- expandCtrlGroupButton
             -- show all buttons
-            (groupContents, helpE) <- Dom.elClass "div" "fbtn-dropup" $ do
-                helpE' <- helpButton
+            groupContents <- Dom.elClass "div" "fbtn-dropup" $ do
+                helpButton
                 toggleFullScreenButton
                 cpStateD' <- controlPanelButton
-                return (cpStateD', helpE')
-            return (toggleGroupD', groupContents, helpE)
-    return (cpStateD, popupHelpE)
+                return cpStateD'
+            return (toggleGroupD', groupContents)
+    return cpStateD
   where
-    toPanelClass ControlPanelOpen   = openPanelState
-    toPanelClass ControlPanelClosed = closedPanelState
+    toPanelClass Active   = openPanelState
+    toPanelClass Inactive = closedPanelState
     -- Styles for the panel are generated statically.
     -- newVar guarantees that the class name is unique.
     (openPanelState, closedPanelState) = $(do
@@ -94,12 +96,8 @@ expandCtrlGroupButton = do
 
 
 
--- | Whether control panel is visible or not
-data ControlPanelState = ControlPanelOpen | ControlPanelClosed
-    deriving Eq
-
 -- | Open or close control panel
-controlPanelButton :: Reflex t => Widget x (Dynamic t ControlPanelState)
+controlPanelButton :: Reflex t => Widget x (Dynamic t (ComponentState "ControlPanel"))
 controlPanelButton = do
     e <- makeElementFromHtml def $(qhtml
         [hamlet|
@@ -107,10 +105,10 @@ controlPanelButton = do
             <span .fbtn-text .fbtn-text-left>Control panel
             <span .icon .icon-lg>settings
         |])
-    Reflex.accum flipPanel ControlPanelClosed $ Dom.domEvent Dom.Click e
+    Reflex.accum flipPanel Inactive $ Dom.domEvent Dom.Click e
   where
-    flipPanel ControlPanelOpen   = const ControlPanelClosed
-    flipPanel ControlPanelClosed = const ControlPanelOpen
+    flipPanel Active   = const Inactive
+    flipPanel Inactive = const Active
 
 
 -- | Fullscreen button is quite independent.
@@ -164,7 +162,9 @@ toggleFullScreenButton = do
             };
         |])
 
-helpButton :: Reflex t => Widget x (Event t ())
+
+-- | Show help popup on click event
+helpButton :: Reflex t => Widget x ()
 helpButton = do
     e <- makeElementFromHtml def $(qhtml
         [hamlet|
@@ -174,7 +174,7 @@ helpButton = do
             <span .icon .icon-lg>
               help_outline
         |])
-    return $ Dom.domEvent Dom.Click e
+    popupHelp (ElementClick <$ Dom.domEvent Dom.Click e)
 
 
 ----------------------------------------------------------------------------------------------------

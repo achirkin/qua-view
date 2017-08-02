@@ -1,30 +1,90 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecursiveDo #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE JavaScriptFFI #-}
+{-# LANGUAGE TypeApplications #-}
+
 
 module Widgets.Modal
     ( createModal
+    , createModalWithClicks
+    , createModalWithClicks'
     ) where
 
+
+import qualified GHCJS.DOM.Element as Element
+
+import Control.Monad.IO.Class
+import Control.Lens ((%~))
 import Data.Semigroup
+import Data.Proxy
 import Reflex.Dom
 
-createModal :: Reflex t => Event t () -> Bool -> (a -> Event t ()) -> Widget x a -> Widget x a
-createModal openModalE defaultOpen getCloseModalE contentWidget = mdo
-    modalActive <- holdDyn defaultOpen $ leftmost [False <$ closeModalE, True <$ openModalE]
-    let closeModalE = getCloseModalE contentReturn
-    contentReturn <- elDynAttr "div" (attrs <$> modalActive) $
-      elClass "div" "modal-dialog" $
-        elClass "div" "modal-content" contentWidget
-    elDynClass "div" (backdropClass <$> modalActive) blank
-    return contentReturn
+import CommonTypes
+import Widgets.Generation
+
+-- | Create a modal window ("popup") with arbitrary content inside.
+createModal :: Reflex t
+            => Event t (ComponentState modalName) -- ^ get open or close command from outside
+            -> ComponentState modalName -- ^ initial state (open or closed)
+            -> Widget x a -- ^ content of the widget
+            -> Widget x (Dynamic t (ComponentState modalName), a)
+createModal outsideStateE defaultState contentWidget = fmap resultOrError . appendElementToAnotherById "qua-view-modals" $ mdo
+    let stateEvs = leftmost [Inactive <$ domEvent Click backpane, outsideStateE]
+        changeState Active = liftIO $ js_showModal (_element_raw backpane)
+        changeState Inactive = liftIO $ js_hideModal (_element_raw backpane)
+    modalActive <- holdDyn defaultState stateEvs
+    (backpane, contentReturn) <- elAttr' "div"
+                                     (  ("class" =: "modal modal-va-middle fade")
+                                     <> ("aria-hidden" =: "true")
+                                     <> ("role" =: "dialog")
+                                     <> ("tabindex" =: "-1")
+                                     <> ("style" =: "display: none")
+                                     ) $
+      fmap snd $
+       element "div" ( def & initialAttributes .~ ("class" =: "modal-dialog")
+                           & elementConfig_eventSpec @_ @_ @GhcjsDomSpace @_ @GhcjsDomSpace
+                                               %~ addEventSpecFlags (Proxy @GhcjsDomSpace)
+                                                                    Click
+                                                                    (const $ preventDefault <> stopPropagation)
+                     ) $
+         elClass "div" "modal-content" contentWidget
+    performEvent_ $ changeState <$> stateEvs
+    return (backpane, (modalActive, contentReturn))
   where
-    attrs active = ("class" =: ("modal modal-va-middle fade" <> displayClass active))
-                <> ("role" =: "dialog")
-                <> ("tabindex" =: "-1")
-                <> ("style" =: ("display: " <> displayStyle active))
-    displayClass True  = " modal-va-middle-show in"
-    displayClass False = ""
-    displayStyle True  = "flex"
-    displayStyle False = "none"
-    backdropClass True  = "modal-backdrop fade in"
-    backdropClass False = ""
+    resultOrError Nothing = error "Could not add modal to qua-view page!"
+    resultOrError (Just (_,a)) = a
+
+
+
+-- | Create a modal window ("popup") with arbitrary content inside.
+--   Provides a typical use case: outside button opens the modal,
+--   modal close button closed the modal.
+createModalWithClicks :: Reflex t
+                      => Event t (ElementClick linkToActivate) -- ^ event from a link opening the modal
+                      -> ComponentState modalName              -- ^ initial state
+                      -> Widget x (Event t (ElementClick linkToDeactivate), a) -- ^ Content with an event to close the modal.
+                      -> Widget x (Dynamic t (ComponentState modalName), a)
+createModalWithClicks openClickE defaultState contentWidget = mdo
+    (stateD, (closeClickE, r)) <- createModal (leftmost [Inactive <$ closeClickE, Active <$ openClickE])
+                                              defaultState
+                                               contentWidget
+    return (stateD, r)
+
+-- | Create a modal window ("popup") with arbitrary content inside.
+--   Provides a typical use case: outside button opens the modal,
+--   modal close button closed the modal.
+createModalWithClicks' :: Reflex t
+                       => Event t (ElementClick linkToActivate) -- ^ event from a link opening the modal
+                       -> ComponentState modalName              -- ^ initial state
+                       -> Widget x (Event t (ElementClick linkToDeactivate)) -- ^ Content with an event to close the modal.
+                       -> Widget x (Dynamic t (ComponentState modalName))
+createModalWithClicks' openClickE defaultState contentWidget = mdo
+    (stateD, closeClickE) <- createModal (leftmost [Inactive <$ closeClickE, Active <$ openClickE])
+                                              defaultState
+                                               contentWidget
+    return stateD
+
+
+foreign import javascript unsafe "$($1).modal('show');" js_showModal :: Element.Element -> IO ()
+foreign import javascript unsafe "$($1).modal('hide');" js_hideModal :: Element.Element -> IO ()
