@@ -22,7 +22,7 @@ import Widgets.Tabs
 controlPanel :: Reflex t => Widget x (Dynamic t ControlPanelState)
 controlPanel = mdo
     stateD <- Dom.elDynClass "div" (toClass <$> stateD) $ do
-      (browsePopupE, savePopupE) <- Dom.elClass "div" "tab-content" panelTabs
+      (browsePopupE, savePopupE) <- Dom.elClass "div" tabContent panelTabs
       browseScenarioPane browsePopupE
       saveScenarioPane savePopupE
       -- GUI control buttons
@@ -35,8 +35,9 @@ controlPanel = mdo
     toClass ControlPanelClosed = closedState
     -- Styles for the panel are generated statically.
     -- newVar guarantees that the class name is unique.
-    (openState, closedState) = $(do
+    (tabContent, openState, closedState) = $(do
         baseclass <- newVar
+        tabContentClass <- newVar
         let ostate = baseclass <> "-open"
             cstate = baseclass <> "-closed"
         qcss
@@ -76,11 +77,11 @@ controlPanel = mdo
                     box-shadow: 0
                     right: -400px
 
-            .tab-content
+            .#{tabContentClass}
                 padding-left: 20px;
                 padding-right: 20px;
-          |]
+          |] -- TODO padding properties in tabContentClass lead to incorrect layout of the tab pane. consider removing it.
         -- Combine two classes: {.base .base-open} and {.base .base-closed}
-        returnVars $ fmap ((baseclass <> " ") <>) [ostate, cstate]
+        returnVars $ tabContentClass : fmap ((baseclass <> " ") <>) [ostate, cstate]
       )
 
