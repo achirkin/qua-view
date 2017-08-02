@@ -2,8 +2,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE RecursiveDo #-}
+{-# LANGUAGE DataKinds #-}
 module Widgets.ControlPanel
-    ( controlPanel, ControlPanelState (..)
+    ( controlPanel
     ) where
 
 import qualified Reflex.Dom as Dom
@@ -12,27 +13,19 @@ import Data.Semigroup
 import CommonTypes
 import Widgets.Generation
 import Widgets.ControlButtons
-import Widgets.Modal.BrowseScenario
-import Widgets.Modal.EdxGuide
-import Widgets.Modal.Help
-import Widgets.Modal.SaveScenario
 import Widgets.Tabs
 
 -- | Control panel widget is a place for all controls in qua-view!
-controlPanel :: Reflex t => Widget x (Dynamic t ControlPanelState)
+controlPanel :: Reflex t => Widget x (Dynamic t (ComponentState "ControlPanel"))
 controlPanel = mdo
     stateD <- Dom.elDynClass "div" (toClass <$> stateD) $ do
-      (browsePopupE, savePopupE) <- Dom.elClass "div" tabContent panelTabs
-      browseScenarioPane browsePopupE
-      saveScenarioPane savePopupE
+      _outputEvs <- Dom.elClass "div" tabContent panelTabs
       -- GUI control buttons
-      (stateD', popupHelpE) <- controlButtonGroup
-      popupHelp popupHelpE
-      return stateD'
+      controlButtonGroup
     return stateD
   where
-    toClass ControlPanelOpen   = openState
-    toClass ControlPanelClosed = closedState
+    toClass Active   = openState
+    toClass Inactive = closedState
     -- Styles for the panel are generated statically.
     -- newVar guarantees that the class name is unique.
     (tabContent, openState, closedState) = $(do

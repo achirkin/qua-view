@@ -65,7 +65,7 @@ executable qua-view
         Widgets.Generation
         Widgets.LoadingSplash
         Widgets.Modal
-        Widgets.Modal.BrowseScenario
+        Widgets.Modal.BrowseScenarios
         Widgets.Modal.EdxGuide
         Widgets.Modal.Help
         Widgets.Modal.SaveScenario

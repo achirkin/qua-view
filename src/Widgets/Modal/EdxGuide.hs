@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE RecursiveDo #-}
+{-# LANGUAGE DataKinds #-}
 
 module Widgets.Modal.EdxGuide
     ( popupEdxGuide
@@ -11,14 +12,20 @@ import Control.Monad (void)
 import Data.Semigroup
 import Reflex.Dom
 
+import CommonTypes
 import Widgets.CommonWidget
 import Widgets.Generation
 import Widgets.Modal
 
-popupEdxGuide :: Reflex t => Event t () -> Widget x (Event t ())
-popupEdxGuide edxGuidePopupE = createModal edxGuidePopupE True id popupEdxGuideContent
 
-popupEdxGuideContent :: Reflex t => Widget x (Event t ())
+-- | EdX help page is shown only at startup, only to edX students, and only if requested.
+popupEdxGuide :: Reflex t
+              => ComponentState "EdxGuide"
+              -> Widget x ()
+popupEdxGuide showAtStartUp = void $ createModalWithClicks' never showAtStartUp popupEdxGuideContent
+
+
+popupEdxGuideContent :: Reflex t => Widget x (Event t (ElementClick "Close edX guide"))
 popupEdxGuideContent = do
     elClass "div" "modal-heading" $
       elClass "p" "modal-title" $ text "Welcome to Quick Urban Analysis kit - the web geometry viewer"
@@ -103,7 +110,7 @@ popupEdxGuideContent = do
         )
     elClass "div" "modal-footer" $
       elClass "p" "text-right" $
-        flatButton' "Ok, let's go"
+        flatButton "Ok, let's go"
   where
     addCss = $(do
         qcss
@@ -114,4 +121,4 @@ popupEdxGuideContent = do
           |]
         returnVars []
       )
- 
+
