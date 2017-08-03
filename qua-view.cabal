@@ -55,6 +55,7 @@ executable qua-view
     hs-source-dirs: src
     other-modules:
         Commons
+        Model.Camera
         SmallGL
         SmallGL.Helpers
         SmallGL.Shader

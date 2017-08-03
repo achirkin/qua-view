@@ -70,7 +70,10 @@ newtype RenderingApi = RenderingApi
 
 
 data SmallGLInput a where
-    ViewPortResize :: SmallGLInput Animation.ResizeEvent
+    ViewPortResize      :: SmallGLInput Animation.ResizeEvent
+    -- ^ Every time windows is resized
+    ViewTransformChange :: SmallGLInput (Matrix Float 4 4)
+    -- ^ Camera actions
 
 
 createRenderingEngine :: (MonadIO m, Reflex t, MonadIO (Performable m), PerformEvent t m)
