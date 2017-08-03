@@ -83,5 +83,5 @@ createModalWithClicks' openClickE defaultState contentWidget = mdo
     return stateD
 
 
-foreign import javascript unsafe "$($1).modal('show');" js_showModal :: Element.Element -> IO ()
-foreign import javascript unsafe "$($1).modal('hide');" js_hideModal :: Element.Element -> IO ()
+foreign import javascript unsafe "$($1)['modal']('show');" js_showModal :: Element.Element -> IO ()
+foreign import javascript unsafe "$($1)['modal']('hide');" js_hideModal :: Element.Element -> IO ()
