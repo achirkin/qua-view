@@ -27,11 +27,33 @@ popupHelpContent = do
     elClass "div" "modal-heading" $
       elClass "p" "modal-title" $ text "Welcome to Quick Urban Analysis kit - the web geometry viewer"
     elClass "div" "modal-inner" $ do
-      return addCss -- Not sure if this is the right way
-      void $ makeElementFromHtml def $(do
-          helpIcons <- newVar
-          qhtml
-            [hamlet|
+      void $ makeElementFromHtml def helpHtml
+      el "hr" blank
+      elAttr "div" ("style" =: "text-align: justify") $ do
+        el "em" $ text "Note: "
+        text "for research purposes some of your actions (e.g. moving and rotating geometry objects) on this page may be anonymously recorded and sent to our servers; by proceeding you agree to share these data."
+    elClass "div" "modal-footer" $
+      elClass "p" "text-right" $
+        flatButton "Ok, let's go"
+  where
+    -- here is how we create a static html with css styles attached
+    helpHtml = $(do
+        -- define necessary classes (they become unique strings)
+        helpIconsClass <- newVar
+        -- define whole css (it goes into a separate file "qua-view.css")
+        qcss
+          [cassius|
+            .#{helpIconsClass}
+                display: inline
+                height: 32px
+                padding: 0
+                margin: 0
+                vertical-align: middle
+          |]
+        -- define html code (this is converted into a static JSString)
+        -- always make sure it has only one root element if you use it in makeElementFromHtml function
+        qhtml
+          [hamlet|
               <table>
                 <tr>
                   <td>
@@ -40,7 +62,7 @@ popupHelpContent = do
                       You can use mouse to move camera and buildings:
                 <tr>
                   <td>
-                    <svg.help-icons fill="none" #mouseLeftIcon timelinebegin="loadbegin" version="1.1" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+                    <svg.#{helpIconsClass} fill="none" #mouseLeftIcon timelinebegin="loadbegin" version="1.1" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
                       <path d="m 60,66 0,-8.233239 c -3.690856,-1.401015 -6.258857,-4.504114 -6.258857,-8.109972 l 0,-15.313352 c 0,-3.605859 2.567755,-6.708958 6.258857,-8.109972 L 60,10 55.836735,10 C 38.253796,10 24,22.692958 24,38.350648 L 24,66 60,66 Z" #leftButton style="fill:#FF5722">
                       <path d="M 71,47.54717 C 71,51.110943 67.865965,54 64.000001,54 l 0,0 C 60.134035,54 57,51.110943 57,47.54717 L 57,36.45283 C 57,32.889056 60.134035,30 64.000001,30 l 0,0 C 67.865965,30 71,32.889056 71,36.45283 l 0,11.09434 z" #middleButton style="fill:#020202">
                       <path d="m 68,26.233239 c 3.690857,1.401015 6.258857,4.504113 6.258857,8.109973 l 0,15.313351 c 0,3.605859 -2.567755,6.708958 -6.258857,8.109972 L 68,66 l 36,0 0,-27.649352 C 104,22.692958 89.746203,10 72.163265,10 L 68,10 68,26.233239 Z" #rightButton style="fill:#020202">
@@ -50,7 +72,7 @@ popupHelpContent = do
 
                 <tr>
                   <td>
-                    <svg.help-icons fill="none" #mouseLeftIcon timelinebegin="loadbegin" version="1.1" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+                    <svg.#{helpIconsClass} fill="none" #mouseLeftIcon timelinebegin="loadbegin" version="1.1" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
                       <path d="m 60,66 0,-8.233239 c -3.690856,-1.401015 -6.258857,-4.504114 -6.258857,-8.109972 l 0,-15.313352 c 0,-3.605859 2.567755,-6.708958 6.258857,-8.109972 L 60,10 55.836735,10 C 38.253796,10 24,22.692958 24,38.350648 L 24,66 60,66 Z" #leftButton style="fill:#FF5722">
                       <path d="M 71,47.54717 C 71,51.110943 67.865965,54 64.000001,54 l 0,0 C 60.134035,54 57,51.110943 57,47.54717 L 57,36.45283 C 57,32.889056 60.134035,30 64.000001,30 l 0,0 C 67.865965,30 71,32.889056 71,36.45283 l 0,11.09434 z" #middleButton style="fill:#020202">
                       <path d="m 68,26.233239 c 3.690857,1.401015 6.258857,4.504113 6.258857,8.109973 l 0,15.313351 c 0,3.605859 -2.567755,6.708958 -6.258857,8.109972 L 68,66 l 36,0 0,-27.649352 C 104,22.692958 89.746203,10 72.163265,10 L 68,10 68,26.233239 Z" #rightButton style="fill:#020202">
@@ -61,7 +83,7 @@ popupHelpContent = do
 
                 <tr>
                   <td>
-                    <svg.help-icons fill="none" #mouseLeftIcon timelinebegin="loadbegin" version="1.1" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+                    <svg.#{helpIconsClass} fill="none" #mouseLeftIcon timelinebegin="loadbegin" version="1.1" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
                       <path d="m 60,66 0,-8.233239 c -3.690856,-1.401015 -6.258857,-4.504114 -6.258857,-8.109972 l 0,-15.313352 c 0,-3.605859 2.567755,-6.708958 6.258857,-8.109972 L 60,10 55.836735,10 C 38.253796,10 24,22.692958 24,38.350648 L 24,66 60,66 Z" #leftButton style="fill:#020202">
                       <path d="M 71,47.54717 C 71,51.110943 67.865965,54 64.000001,54 l 0,0 C 60.134035,54 57,51.110943 57,47.54717 L 57,36.45283 C 57,32.889056 60.134035,30 64.000001,30 l 0,0 C 67.865965,30 71,32.889056 71,36.45283 l 0,11.09434 z" #middleButton style="fill:#FF5722">
                       <path d="m 68,26.233239 c 3.690857,1.401015 6.258857,4.504113 6.258857,8.109973 l 0,15.313351 c 0,3.605859 -2.567755,6.708958 -6.258857,8.109972 L 68,66 l 36,0 0,-27.649352 C 104,22.692958 89.746203,10 72.163265,10 L 68,10 68,26.233239 Z" #rightButton style="fill:#020202">
@@ -72,7 +94,7 @@ popupHelpContent = do
 
                 <tr>
                   <td>
-                    <svg.help-icons fill="none" #mouseLeftIcon timelinebegin="loadbegin" version="1.1" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+                    <svg.#{helpIconsClass} fill="none" #mouseLeftIcon timelinebegin="loadbegin" version="1.1" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
                       <path d="m 60,66 0,-8.233239 c -3.690856,-1.401015 -6.258857,-4.504114 -6.258857,-8.109972 l 0,-15.313352 c 0,-3.605859 2.567755,-6.708958 6.258857,-8.109972 L 60,10 55.836735,10 C 38.253796,10 24,22.692958 24,38.350648 L 24,66 60,66 Z" #leftButton style="fill:#020202">
                       <path d="M 71,47.54717 C 71,51.110943 67.865965,54 64.000001,54 l 0,0 C 60.134035,54 57,51.110943 57,47.54717 L 57,36.45283 C 57,32.889056 60.134035,30 64.000001,30 l 0,0 C 67.865965,30 71,32.889056 71,36.45283 l 0,11.09434 z" #middleButton style="fill:#020202">
                       <path d="m 68,26.233239 c 3.690857,1.401015 6.258857,4.504113 6.258857,8.109973 l 0,15.313351 c 0,3.605859 -2.567755,6.708958 -6.258857,8.109972 L 68,66 l 36,0 0,-27.649352 C 104,22.692958 89.746203,10 72.163265,10 L 68,10 68,26.233239 Z" #rightButton style="fill:#FF5722">
@@ -88,7 +110,7 @@ popupHelpContent = do
                       If your device has a multitouch screen, you can use touch controls:
                 <tr>
                   <td>
-                    <svg.help-icons fill="none" #singleTouch timelinebegin="loadbegin" version="1.1" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+                    <svg.#{helpIconsClass} fill="none" #singleTouch timelinebegin="loadbegin" version="1.1" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
                       <circle cx="64" cy="64" fill="none" #outerCircle r="40" stroke="#FF5722" stroke-width="8">
                       <circle cx="64" cy="64" fill="#999999" #innerCircle r="30">
                   <td>
@@ -96,7 +118,7 @@ popupHelpContent = do
 
                 <tr>
                   <td>
-                    <svg.help-icons fill="none" #singleDrag timelinebegin="loadbegin" version="1.1" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+                    <svg.#{helpIconsClass} fill="none" #singleDrag timelinebegin="loadbegin" version="1.1" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
                       <circle cx="64" cy="64" fill="none" #outerCircle r="40" stroke="#FF5722" stroke-width="8">
                       <circle cx="64" cy="64" fill="#999999" #innerCircle r="30">
                       <path d="m 32,0 -12,13.886719 4.697266,0 0,10.810547 -10.810547,0 0,-4.697266 L 0,32 l 13.886719,12 0,-4.697266 10.810547,0 0,10.808594 -4.697266,0 L 32,64 44,50.111328 l -4.697266,0 0,-10.808594 10.808594,0 0,4.697266 L 64,32 50.111328,20 l 0,4.697266 -10.808594,0 0,-10.810547 4.697266,0 L 32,0 Z" #dragArrows style="fill:#FF5722;opacity:0.5" transform="translate(64,64)">
@@ -105,7 +127,7 @@ popupHelpContent = do
 
                 <tr>
                   <td>
-                    <svg.help-icons fill="none" #twinDrag timelinebegin="loadbegin" version="1.1" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+                    <svg.#{helpIconsClass} fill="none" #twinDrag timelinebegin="loadbegin" version="1.1" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
                       <circle cx="32" cy="75" fill="none" #outerCircle r="29" stroke="#FF5722" stroke-width="6">
                       <circle cx="32" cy="75" fill="#999999" #innerCircle r="22">
                       <circle cx="91" cy="40" fill="none" #outerCircle r="29" stroke="#FF5722" stroke-width="6">
@@ -116,7 +138,7 @@ popupHelpContent = do
 
                 <tr>
                   <td>
-                    <svg.help-icons fill="none" #twinDrag timelinebegin="loadbegin" version="1.1" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+                    <svg.#{helpIconsClass} fill="none" #twinDrag timelinebegin="loadbegin" version="1.1" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
                       <circle cx="29" cy="60" fill="none" #outerCircle r="26" stroke="#FF5722" stroke-width="6">
                       <circle cx="29" cy="60" fill="#999999" #innerCircle r="20">
                       <circle cx="91" cy="29" fill="none" #outerCircle r="26" stroke="#FF5722" stroke-width="6">
@@ -126,25 +148,5 @@ popupHelpContent = do
                       <path d="m 32,0 -12,13.886719 4.697266,0 0,10.810547 -10.810547,0 0,-4.697266 L 0,32 l 13.886719,12 0,-4.697266 10.810547,0 0,10.808594 -4.697266,0 L 32,64 44,50.111328 l -4.697266,0 0,-10.808594 10.808594,0 0,4.697266 L 64,32 50.111328,20 l 0,4.697266 -10.808594,0 0,-10.810547 4.697266,0 L 32,0 Z" #dragArrows style="fill:#FF5722;opacity:0.5" transform="translate(64,64)">
                   <td>
                     Use three fingers to rotate camera in all directions
-            |]
-        )
-      el "hr" blank
-      elAttr "div" ("style" =: "text-align: justify") $ do
-        el "em" $ text "Note: "
-        text "for research purposes some of your actions (e.g. moving and rotating geometry objects) on this page may be anonymously recorded and sent to our servers; by proceeding you agree to share these data."
-    elClass "div" "modal-footer" $
-      elClass "p" "text-right" $
-        flatButton "Ok, let's go"
-  where
-    addCss = $(do
-        qcss
-          [cassius|
-            .help-icons
-                display: inline
-                height: 32px
-                padding: 0
-                margin: 0
-                vertical-align: middle
           |]
-        returnVars []
       )
