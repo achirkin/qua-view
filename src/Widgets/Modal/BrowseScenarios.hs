@@ -14,9 +14,9 @@ import Widgets.CommonWidget
 import Widgets.Modal
 
 
--- | TODO this datatype should be in luci module;
---  it should contain info required to visualize a single row in a scenario list.
-data ScenarioDesc
+-- -- | TODO this datatype should be in luci module;
+-- --  it should contain info required to visualize a single row in a scenario list.
+-- data ScenarioDesc
 
 -- | TODO this datatype should be in luci module;
 --   represents a scenario id

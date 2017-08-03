@@ -44,8 +44,8 @@ fileUploadGeometry :: Reflex t => Widget x ()
 fileUploadGeometry = do
   text "Read GeoJSON from file"
   el "div" $ do
-    clearGeometryBtn <- redButton "clear" -- TODO: Clear Geometry
-    filesBtn <- redButton "files" -- TODO: Connect this with jsonFileInput for file uploading
+    _clearGeometryBtn <- redButton "clear" -- TODO: Clear Geometry
+    _filesBtn <- redButton "files" -- TODO: Connect this with jsonFileInput for file uploading
     fileNameIndicator $ constDyn "placeholder.geojson" -- TODO: Dynamic text correspond with the uploaded file name
     jsonFileInput -- TODO: file uploadings
 

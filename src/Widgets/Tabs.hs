@@ -4,7 +4,6 @@ module Widgets.Tabs
 
 import Reflex.Dom
 
-import CommonTypes
 import Widgets.Tabs.Navigator
 import Widgets.Tabs.Geometry
 import Widgets.Tabs.Info
