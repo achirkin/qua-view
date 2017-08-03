@@ -8,7 +8,6 @@ module Widgets.Tabs.Services
     ) where
 
 import Control.Monad (void)
-import Data.Semigroup
 import Reflex.Dom
 
 import Widgets.Generation
@@ -16,10 +15,10 @@ import Widgets.Tabs.Navigator (PanelState (..))
 
 -- TODO: Add functionality to Panel Services
 panelServices :: Reflex t => Dynamic t PanelState -> Widget x ()
-panelServices pStateD = 
+panelServices pStateD =
     elDynClass "div" (toPanelClass <$> pStateD) $
       void $ makeElementFromHtml def $(qhtml
-        [hamlet|
+        [hamlet| -- TODO: this splice must have a single root html element! use setInnerHTML if you want several children
           <div>
             Select a remote service to run
               <table style="width: 95%">
