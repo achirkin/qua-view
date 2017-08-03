@@ -1,15 +1,14 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE RecursiveDo #-}
 
 module Widgets.Tabs.Services
     ( panelServices
     ) where
 
-import Control.Monad (void)
 import Reflex.Dom
 
+import Commons
 import Widgets.Generation
 import Widgets.Tabs.Navigator (PanelState (..))
 

@@ -10,6 +10,7 @@ module Widgets.Generation
     , appendElementToAnotherById
     ) where
 
+import Commons
 import System.IO.Unsafe (unsafePerformIO)
 import Data.IORef
 
@@ -24,7 +25,6 @@ import Text.Blaze.Html.Renderer.String (renderHtml)
 import Text.Julius (JavascriptUrl, renderJavascriptUrl, julius)
 import Text.Cassius (cassius)
 import Text.Internal.Css (CssUrl, renderCss)
-import Data.JSString (JSString)
 import qualified Data.JSString as JSString
 import Data.Text (Text)
 import qualified Data.Text.Lazy as LText
@@ -32,10 +32,8 @@ import qualified Data.Text as SText
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Set (Set)
-import Data.Default (def)
 import qualified Data.Set as Set
 
-import Control.Monad.IO.Class
 import Reflex.Class (Reflex)
 import Reflex.Dom ( Element (..), GhcjsDomSpace, GhcjsDomSpace, Widget, ElementConfig
                   , EventResult, wrapRawElement, extractRawElementConfig, placeRawElement)

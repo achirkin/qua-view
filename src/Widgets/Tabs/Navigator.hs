@@ -1,16 +1,15 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE RecursiveDo #-}
 
 module Widgets.Tabs.Navigator
     ( PanelState (..),
       tabsNavigator
     ) where
 
-import Data.Semigroup
-import Reflex.Dom
 
+import Reflex.Dom
+import Commons
 import Widgets.Generation
 
 -- | Determining which panel is active
@@ -42,6 +41,6 @@ tabsNavigator = do
       return (domEvent Click geometryEl, domEvent Click infoEl, domEvent Click servicesEl)
     elAttr "div" (("class" =: "tab-nav-indicator") <> ("style" =: "left: 0px; right: 412px;")) blank
     return (gE, iE, sE)
-  holdDyn PanelGeometry $ leftmost [PanelGeometry <$ geometryE, 
-                                    PanelInfo <$ infoE, 
+  holdDyn PanelGeometry $ leftmost [PanelGeometry <$ geometryE,
+                                    PanelInfo <$ infoE,
                                     PanelServices <$ servicesE]

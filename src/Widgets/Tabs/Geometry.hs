@@ -11,10 +11,9 @@ module Widgets.Tabs.Geometry
     , UserAsksSaveScenario (..)
     ) where
 
-import Data.Semigroup
 import Reflex.Dom
 
-import CommonTypes
+import Commons
 import Widgets.Modal.BrowseScenarios
 import Widgets.Modal.SaveScenario
 import Widgets.Tabs.Navigator (PanelState (..))

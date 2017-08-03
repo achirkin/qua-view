@@ -1,18 +1,15 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE DataKinds #-}
 
 module Widgets.Modal.EdxGuide
     ( popupEdxGuide
     ) where
 
-import Control.Monad (void)
-import Data.Semigroup
 import Reflex.Dom
 
-import CommonTypes
+import Commons
 import Widgets.CommonWidget
 import Widgets.Generation
 import Widgets.Modal

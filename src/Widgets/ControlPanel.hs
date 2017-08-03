@@ -8,9 +8,8 @@ module Widgets.ControlPanel
     ) where
 
 import qualified Reflex.Dom as Dom
-import Data.Semigroup
 
-import CommonTypes
+import Commons
 import Widgets.Generation
 import Widgets.ControlButtons
 import Widgets.Tabs

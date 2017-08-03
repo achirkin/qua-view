@@ -1,18 +1,16 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE DataKinds #-}
 
 module Widgets.Modal.Help
     ( popupHelp
     ) where
 
-import Control.Monad (void)
 import Reflex.Dom
 
-import CommonTypes
-import Widgets.CommonWidget
+import Commons
+import Widgets.Commons
 import Widgets.Generation
 import Widgets.Modal
 

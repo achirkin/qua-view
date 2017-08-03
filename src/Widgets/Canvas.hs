@@ -9,11 +9,9 @@ module Widgets.Canvas
     ) where
 
 import qualified Reflex.Dom as Dom
-import Control.Monad.IO.Class
 import qualified Reflex.Dom.Widget.Animation as Animation
-import Data.Default (def)
 
-import CommonTypes
+import Commons
 import Widgets.Generation
 
 -- | Create WebGL canvas
