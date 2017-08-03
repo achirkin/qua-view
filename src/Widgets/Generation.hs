@@ -150,7 +150,7 @@ writeCss mname c = runIO $ do
 --   The idea behind this variable is to track if current module has started its css file.
 cssStarted :: IORef (Set String)
 cssStarted  = unsafePerformIO (newIORef Set.empty)
-
+{-# NOINLINE cssStarted #-}
 
 -- | Write JSString into file.
 --   Use this only in TH environment!
@@ -158,7 +158,7 @@ cssStarted  = unsafePerformIO (newIORef Set.empty)
 --   We have to use this function instead of normal haskell writeFile,
 --   because we use "-DDGHCJS_BROWSER" option for efficiency reasons.
 --   This option removes all code related to filesystem interaction, even though wee need it fo TH.
-foreign import javascript unsafe "require('fs').writeFileSync($1, $2);" js_writeFile :: JSString -> JSString -> IO ()
+foreign import javascript interruptible "require('fs').writeFile($1, $2, function(err){$c();});" js_writeFile :: JSString -> JSString -> IO ()
 
 -- | Append JSString into file.
 --   Use this only in TH environment!
@@ -166,7 +166,7 @@ foreign import javascript unsafe "require('fs').writeFileSync($1, $2);" js_write
 --   We have to use this function instead of normal haskell writeFile,
 --   because we use "-DDGHCJS_BROWSER" option for efficiency reasons.
 --   This option removes all code related to filesystem interaction, even though wee need it fo TH.
-foreign import javascript unsafe "require('fs').appendFileSync($1, $2);" js_appendFile :: JSString -> JSString -> IO ()
+foreign import javascript interruptible "require('fs').appendFile($1, $2, function(err){$c();});" js_appendFile :: JSString -> JSString -> IO ()
 
 
 -- | cssGenPath is an absolute path to build CssGen folder, where TH generates a list of css files
@@ -216,8 +216,8 @@ mUniqSource = unsafePerformIO (newIORef Map.empty)
 
 -- | This function gets a unique order number for haskell module.
 --   It does so by keeping module names in a file separated by a special character.
-foreign import javascript unsafe
-  "var fs = require('fs'), l = fs.readFileSync($1, {encoding: 'utf-8'}).split('|'), i = l.indexOf($2); if(i >= 0){$r = i;} else {fs.appendFileSync($1,$2.concat('|'));$r = l.length - 1;}"
+foreign import javascript interruptible
+  "var fs = require('fs');fs.readFile($1, {encoding: 'utf-8'}, function(err,str){var l = str.split('|'), i = l.indexOf($2);if(i >= 0){$c(i);} else {fs.appendFile($1,$2.concat('|'),function(err){$c(l.length - 1);});}});"
   js_module_unique :: JSString -> JSString -> IO Int
 
 
