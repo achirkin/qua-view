@@ -12,6 +12,8 @@ import Reflex.Dom.Widget.Animation (resizeEvents)
 
 import Commons
 
+import qualified Model.Camera           as Model
+
 import           Widgets.Generation
 import qualified Widgets.LoadingSplash  as Widgets
 import qualified Widgets.Canvas         as Widgets
