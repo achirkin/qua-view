@@ -6,11 +6,10 @@ module Widgets.Modal.BrowseScenarios
     , UserSelectedScenario (..)
     ) where
 
-import Data.Semigroup
 import Reflex.Dom
 
-import CommonTypes
-import Widgets.CommonWidget
+import Commons
+import Widgets.Commons
 import Widgets.Modal
 
 

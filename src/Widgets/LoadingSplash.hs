@@ -6,13 +6,10 @@ module Widgets.LoadingSplash
     ( loadingSplash, loadingSplashD
     ) where
 
-import Control.Monad (void)
-import Reflex.Dom ((=:))
 import qualified Reflex.Dom as Dom
-import Data.Default (def)
 import Control.Lens ((.~), (&))
 
-import CommonTypes
+import Commons
 import Widgets.Generation
 
 -- | When the incoming event is Busy, it shows the loading splash.

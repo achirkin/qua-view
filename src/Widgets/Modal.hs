@@ -14,13 +14,10 @@ module Widgets.Modal
 
 import qualified GHCJS.DOM.Element as Element
 
-import Control.Monad.IO.Class
 import Control.Lens ((%~))
-import Data.Semigroup
-import Data.Proxy
 import Reflex.Dom
 
-import CommonTypes
+import Commons
 import Widgets.Generation
 
 -- | Create a modal window ("popup") with arbitrary content inside.

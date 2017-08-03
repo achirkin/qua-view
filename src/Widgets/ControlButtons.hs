@@ -13,14 +13,11 @@ module Widgets.ControlButtons
     , serviceRunButton
     ) where
 
-import Control.Monad (void)
 import qualified Reflex.Class as Reflex
 import qualified Reflex.Dom as Dom
-import Data.Semigroup
-import Data.Default (def)
 import Text.Julius (julius)
 
-import CommonTypes
+import Commons
 import Widgets.Generation
 import Widgets.Modal.Help
 
@@ -37,8 +34,7 @@ controlButtonGroup = mdo
             groupContents <- Dom.elClass "div" "fbtn-dropup" $ do
                 helpButton
                 toggleFullScreenButton
-                cpStateD' <- controlPanelButton
-                return cpStateD'
+                controlPanelButton
             return (toggleGroupD', groupContents)
     return cpStateD
   where
@@ -183,8 +179,7 @@ helpButton = do
 
 
 resetCameraButton :: Reflex t => Widget x (Element Dom.EventResult Dom.GhcjsDomSpace t)
-resetCameraButton = do
-    e <- makeElementFromHtml def $(qhtml
+resetCameraButton = makeElementFromHtml def $(qhtml
         [hamlet|
           <a .fbtn .waves-attach .waves-circle .waves-effect .fbtn-brand-accent>
             <span .fbtn-text .fbtn-text-left>
@@ -194,11 +189,10 @@ resetCameraButton = do
             <span .icon style="margin-left: -24px;font-size: 1em;line-height: 1em;">
               videocam
         |])
-    return e
+
 
 submitProposalButton :: Reflex t => Widget x (Element Dom.EventResult Dom.GhcjsDomSpace t)
-submitProposalButton = do
-    e <- makeElementFromHtml def $(qhtml
+submitProposalButton = makeElementFromHtml def $(qhtml
         [hamlet|
           <a .fbtn .waves-attach .waves-circle .waves-effect .fbtn-brand>
             <span .fbtn-text .fbtn-text-left>
@@ -206,11 +200,10 @@ submitProposalButton = do
             <span .icon .icon-lg>
               save
         |])
-    return e
+
 
 serviceClearButton :: Reflex t => Widget x (Element Dom.EventResult Dom.GhcjsDomSpace t)
-serviceClearButton = do
-    e <- makeElementFromHtml def $(qhtml
+serviceClearButton = makeElementFromHtml def $(qhtml
         [hamlet|
           <a .fbtn .waves-attach .waves-circle .waves-effect .waves-light .fbtn-brand-accent>
             <span .fbtn-text .fbtn-text-left>
@@ -218,11 +211,10 @@ serviceClearButton = do
             <span .icon .icon-lg>
               visibility_off
         |])
-    return e
+
 
 serviceRunButton :: Reflex t => Widget x (Element Dom.EventResult Dom.GhcjsDomSpace t)
-serviceRunButton = do
-    e <- makeElementFromHtml def $(qhtml
+serviceRunButton = makeElementFromHtml def $(qhtml
         [hamlet|
           <a .fbtn .waves-attach .waves-circle .waves-effect .fbtn-green>
             <span class="fbtn-text fbtn-text-left">
@@ -230,5 +222,5 @@ serviceRunButton = do
             <span class="icon icon-lg">
               play_arrow
         |])
-    return e
+
 

@@ -1,13 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Widgets.CommonWidget
+module Widgets.Commons
     ( flatButton
     ) where
 
-import Data.Semigroup
 import Reflex.Dom
-
-import CommonTypes
+import Commons
 
 -- | Render a button with a click event attached.
 --   Click event is labeled with a component name.

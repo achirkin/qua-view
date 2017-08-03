@@ -22,14 +22,13 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE QuasiQuotes #-}
 module SmallGL
     ( RenderingApi (..), SmallGLInput (..)
     , createRenderingEngine
     ) where
 
 
-import Control.Arrow ((***))
-import Control.Monad.IO.Class (MonadIO (..))
 import Unsafe.Coerce (unsafeCoerce)
 import qualified GHCJS.DOM.JSFFI.Generated.Element as JSFFI
 
@@ -50,6 +49,7 @@ import Numeric.DataFrame.IO
 import Numeric.Dimensions
 
 
+import Commons
 
 data RenderingEngine = RenderingEngine
   { gl  :: !WebGLRenderingContext
@@ -255,21 +255,25 @@ drawBuffers gl (posLoc, colLoc) (size,buf,mibuf) = do
             drawElements gl gl_TRIANGLES size gl_UNSIGNED_SHORT 0
 
 fragmentShaderText :: JSString
-fragmentShaderText = unlines [
-  "precision mediump float;",
-  "varying vec4 vColor;",
-  "void main(void) {",
-  "    gl_FragColor = vColor;",
-  "}"]
+fragmentShaderText =
+  [jsstring|
+     precision mediump float;
+     varying vec4 vColor;
+     void main(void) {
+       gl_FragColor = vColor;
+     }
+  |]
 
 vertexShaderText :: JSString
-vertexShaderText = unlines [
-  "attribute vec3 aVertexPosition;",
-  "attribute vec4 aVertexColor;",
-  "uniform mat4 uPMV;",
-  "varying vec4 vColor;",
-  "void main(void) {",
-  "  gl_Position = uPMV * vec4(aVertexPosition, 1.0);",
-  "  vColor = aVertexColor;",
-  "}"]
+vertexShaderText =
+  [jsstring|
+    attribute vec3 aVertexPosition;
+    attribute vec4 aVertexColor;
+    uniform mat4 uPMV;
+    varying vec4 vColor;
+    void main(void) {
+      gl_Position = uPMV * vec4(aVertexPosition, 1.0);
+      vColor = aVertexColor;
+    }
+  |]
 

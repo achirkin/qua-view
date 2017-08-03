@@ -6,12 +6,11 @@
 {-# LANGUAGE RecursiveDo #-}
 module Main ( main ) where
 
-import Control.Monad.IO.Class (liftIO)
 
 import Reflex.Dom
 import Reflex.Dom.Widget.Animation (resizeEvents)
 
-import CommonTypes
+import Commons
 
 import           Widgets.Generation
 import qualified Widgets.LoadingSplash  as Widgets
