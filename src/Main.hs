@@ -8,7 +8,9 @@ module Main ( main ) where
 
 
 import Reflex.Dom
-import Reflex.Dom.Widget.Animation (resizeEvents)
+import Reflex.Dom.Widget.Animation (resizeEvents, animationEvents, viewPortSizeI)
+import Numeric.DataFrame
+
 
 import Commons
 
@@ -38,11 +40,19 @@ main = mainWidgetInElementById "qua-view-widgets" $ mdo
     -- initialize WebGL rendering context
     let smallGLESel :: forall t a . Reflex t => SmallGL.SmallGLInput a -> Event t a
         smallGLESel SmallGL.ViewPortResize = resizeEvents aHandler
+        smallGLESel SmallGL.ProjTransformChange = SmallGL.ProjM . Model.projMatrix <$> updated cameraD
+        smallGLESel SmallGL.ViewTransformChange = SmallGL.ViewM . Model.viewMatrix <$> updated cameraD
 
     renderingApi <- SmallGL.createRenderingEngine canvas (EventSelector smallGLESel)
     -- initialize animation handler (and all pointer events).
     aHandler <- Widgets.registerAnimationHandler canvas (SmallGL.render renderingApi)
-
+    -- supply animation events to camera
+    let icamera = Model.initCamera (realToFrac . fst $ viewPortSizeI aHandler)
+                                   (realToFrac . snd $ viewPortSizeI aHandler)
+                                   Model.CState { Model.viewPoint  = vec3 (-17.5) (-17) 0
+                                                , Model.viewAngles = (0.345, 0.825)
+                                                , Model.viewDist = 138 }
+    cameraD <- Model.dynamicCamera icamera (animationEvents aHandler)
 
 
     -- Notify everyone that the program h finished starting up now

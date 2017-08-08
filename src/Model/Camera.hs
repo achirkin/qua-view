@@ -7,24 +7,35 @@ module Model.Camera
     , initCamera
     , scroll, dragHorizontal, dragVertical, rotateCentered, twoFingerControl
     , dragObject, rotateObject, twoFingerObject
-    , cameraBehavior
-    , ObjectTransform (..), objectTransformEvents
+    , dynamicCamera
+--    , cameraBehavior
+--    , ObjectTransform (..), objectTransformEvents
     ) where
 
 import Data.Fixed (mod')
 
+import Reflex.Class
 import Reflex.Dom.Widget.Animation as Animation
-import JavaScript.WebGL
 
 import Numeric.DataFrame
-import Numeric.Dimensions
+--import Numeric.Dimensions
+import qualified Numeric.Matrix as Matrix
+import qualified Numeric.Quaternion as Q
 
-import Commons
+-- import Commons
 
 
 ----------------------------------------------------------------------------------------------
 -- Definitions -------------------------------------------------------------------------------
 ----------------------------------------------------------------------------------------------
+
+dynamicCamera :: ( Reflex t, MonadHold t m )
+              => Camera
+              -> EventSelector t Animation.AEventType
+              -> m (Dynamic t Camera)
+dynamicCamera icam _eventSel =
+    holdDyn icam never
+
 --
 ---- | Reactive-banana-like camera behavior
 --cameraBehavior :: MonadMoment m
@@ -163,7 +174,7 @@ initCamera :: Float -- ^ width of the viewport
            -> Camera
 initCamera width height state = Camera
     { viewportSize = (width,height)
-    , projMatrix   = perspectiveM 0.1 1000 fovy ratio
+    , projMatrix   = Matrix.perspective 0.1 1000 fovy ratio
     , oldState     = state
     , newState     = state
     } where ratio = width / height
@@ -181,9 +192,10 @@ stateToView CState {
         viewPoint  = v,
         viewAngles = (φ, theta),
         viewDist   = ρ
-    } = lookAtMatrix (vector3 0 0 1) (v + dv) v
-        where dv = vector3 (t * cos φ) (t * sin φ)  (ρ * sin theta)
-              t = ρ * cos theta
+    } = Matrix.lookAt (vec3 0 0 1) (v + dv) v
+  where
+    dv = vec3 (t * cos φ) (t * sin φ)  (ρ * sin theta)
+    t = ρ * cos theta
 
 ----------------------------------------------------------------------------------------------
 -- Camera movement functions -----------------------------------------------------------------
@@ -194,27 +206,17 @@ dragHorizontal :: Vec2f -- ^ Old screen coordinates
                -> Vec2f -- ^ New screen coordinates
                -> Camera -- ^ Modify the camera state
                -> Camera
-dragHorizontal (unpackV2 -> (ox,oy) ) (unpackV2 -> (x,y)) camera@Camera {
-        viewportSize = (width, height),
-        projMatrix = projmat,
+dragHorizontal oldPoint newPoint camera@Camera {
         oldState   = ostate@CState {
-            viewPoint = v@(indexVector 2 -> pz)
+            viewPoint = vp
         }
     } = camera {
         newState = ostate {
-            viewPoint = v + dv
+            viewPoint = vp + proj oldPoint - proj newPoint
         }
-    } where imat = inverse (projmat %* stateToView ostate)
-            campos = fromHom $ imat %* vec4 0 0 0 1
-            oldpos = fromHom $ imat %* vec4
-                (2 * ox / width - 1)
-                (1 - 2 * oy / height) 1 1
-            newpos = fromHom $ imat %* vec4
-                (2 * x / width - 1)
-                (1 - 2 * y / height) 1 1
-            oldPoint = findPos campos (oldpos - campos) pz
-            newPoint = findPos campos (newpos - campos) pz
-            dv = oldPoint - newPoint
+    }
+  where
+    proj = screenToWorld camera (vp ! 2)
 
 -- | Dragging - pan world on xy plane
 dragVertical :: Vec2f -- ^ Old screen coordinates
@@ -233,11 +235,11 @@ dragVertical (unpackV2 -> (ox,oy) ) (unpackV2 -> (x,y)) camera@Camera {
             viewPoint = v + dv
         }
     } where imat = inverse (projmat %* stateToView ostate) :: Mat44f
-            sdx = ρ * (x-ox) / width
+            sdx = scalar $ ρ * (x-ox) / width
             dz = ρ * (y-oy) / height
-            (dx, dy, _) = unpackV3 $ broadcastVector sdx *
-                (unit . resizeVector $ imat %* vec4 (-1) 0 0 0 )-- 0 0 1 1 - imat %* vec4 1 0 1 1)
-            dv = vector3 dx dy dz
+            (dx, dy, _) = unpackV3 $ fromScalar sdx *
+                (unit . fromHom $ imat %* vec4 (-1) 0 0 0 )-- 0 0 1 1 - imat %* vec4 1 0 1 1)
+            dv = vec3 dx dy dz
 
 
 -- | Rotating around viewPoint
@@ -281,7 +283,7 @@ twoFingerControl (unpackV2 -> (opx1,opy1),unpackV2 -> (opx2,opy2))
                     viewportSize = (width, height),
                     projMatrix   = projmat,
                     oldState     = ostate@CState {
-                        viewPoint  = ovp@(indexVector 2 -> h),
+                        viewPoint  = ovp@((! 2) -> h),
                         viewAngles = (φ, theta),
                         viewDist   = ρ
                     }
@@ -289,14 +291,14 @@ twoFingerControl (unpackV2 -> (opx1,opy1),unpackV2 -> (opx2,opy2))
         newState = ostate {
             viewPoint  = nvp, -- ovp + dvp,
             viewAngles = (φ', theta),
-            viewDist   = max 0.1 (ρ*dlen)
+            viewDist   = max 0.1 (ρ * dlen)
         }
     } where imat = inverse $ projmat %* stateToView ostate
             screenO1 = vec4 (2 * opx1 / width - 1) (1 - 2 * opy1 / height) 1 1
             screenO2 = vec4 (2 * opx2 / width - 1) (1 - 2 * opy2 / height) 1 1
             screenN1 = vec4 (2 * npx1 / width - 1) (1 - 2 * npy1 / height) 1 1
             screenN2 = vec4 (2 * npx2 / width - 1) (1 - 2 * npy2 / height) 1 1
-            up = vector3 0 0 1
+            up = vec3 0 0 1
             campos = fromHom $ imat %* vec4 0 0 0 1
             realO1 = findPos campos (fromHom (imat %* screenO1) - campos) h
             realO2 = findPos campos (fromHom (imat %* screenO2) - campos) h
@@ -306,9 +308,9 @@ twoFingerControl (unpackV2 -> (opx1,opy1),unpackV2 -> (opx2,opy2))
             dNew = realN2 - realN1
             realN = 0.5 * (realN1 + realN2)
             realO = 0.5 * (realO1 + realO2)
-            qs = getRotScale dNew dOld
+            qs = Q.getRotScale dNew dOld
             -- scaling
-            dlen = normL2 $ toVec4 qs
+            dlen = sqrt $ Q.square qs
 --            olen = normL2 dOld
 --            nlen = normL2 dNew
 --            dlen = if abs (olen/nlen - 1) < 0.05
@@ -316,12 +318,12 @@ twoFingerControl (unpackV2 -> (opx1,opy1),unpackV2 -> (opx2,opy2))
 --                else let dl0 = olen/nlen
 --                     in 1 + (dl0 - 1) * min 1 (50 / (1 + ρ)) -- prevent going too far away on large distances
             -- rotating
-            dφ = let da = signum (dot up $ imVec qs) * qArg qs -- atan2 (indexVector 2 $ cross dNew dOld) (dot dNew dOld)
+            dφ = let da = signum (unScalar . dot up $ Q.imVec qs) * Q.qArg qs -- atan2 (indexVector 2 $ cross dNew dOld) (dot dNew dOld)
                  in if abs da < 0.05 then 0 else da
             φ' = mod' (φ+dφ+pi) (2*pi) - pi
             -- panning
             -- combine actions
-            nvp = rotScale qs (ovp - realN) + realO
+            nvp = Q.rotScale qs (ovp - realN) + realO
 --            nvp = rotScale (realToFrac dlen * axisRotation up (φ - φ')) (ovp-realN1)
 --                  + realO1 -- + 2*newPoint
 
@@ -337,43 +339,27 @@ dragObject :: Vec2f -- ^ Old screen coordinates
            -> Vec2f -- ^ New screen coordinates
            -> Camera -- ^ Get matrices
            -> Mat44f  -- ^ transformation matrix
-dragObject (unpackV2 -> (ox,oy) ) (unpackV2 -> (x,y)) camera = ap $ translate dv id
-    where imat = inverse (projMatrix camera %* viewMatrix camera)
-          (width, height) = viewportSize camera
-          campos = fromHom $ imat %* vec4 0 0 0 1
-          oldpos = fromHom $ imat %* vec4
-                (2 * ox / width - 1)
-                (1 - 2 * oy / height) 1 1
-          newpos = fromHom $ imat %* vec4
-                (2 * x / width - 1)
-                (1 - 2 * y / height) 1 1
-          oldPoint = findPos campos (oldpos - campos) 0
-          newPoint = findPos campos (newpos - campos) 0
-          dv = newPoint - oldPoint
-
+dragObject oldScreenPos newScreenPos camera
+    = Matrix.translate3 $ proj newScreenPos - proj oldScreenPos
+  where
+    proj = screenToWorld camera 0
 
 -- | Rotating - rotate object on w.r.t. y axis (e.g. using right mouse button)
 rotateObject :: Vec2f -- ^ Old screen coordinates
              -> Vec2f -- ^ New screen coordinates
              -> Camera -- ^ Get matrices
+             -> Vec3f -- ^ World position of rotation center
              -> Mat44f  -- ^ transformation matrix
-rotateObject (unpackV2 -> (ox,oy) ) (unpackV2 -> (x,y)) camera = f
-    where imat = inverse (projMatrix camera %* viewMatrix camera)
-          (width, height) = viewportSize camera
-          campos = fromHom $ imat %* vec4 0 0 0 1
-          oldpos = fromHom $ imat %* vec4
-                (2 * ox / width - 1)
-                (1 - 2 * oy / height) 1 1
-          newpos = fromHom $ imat %* vec4
-                (2 * x / width - 1)
-                (1 - 2 * y / height) 1 1
-          oldPoint = findPos campos (oldpos - campos) 0
-          newPoint = findPos campos (newpos - campos) 0
-          f t = t >>= rotateZ a
-                where dv1 = unit $ newPoint - p
-                      dv0 = unit $ oldPoint - p
-                      p = transform $ wrap 0 t
-                      a = atan2 (indexVector 2 $ cross dv0 dv1) (dot dv1 dv0)
+rotateObject oldScreenPos newScreenPos camera p = Matrix.rotateZ a
+  where
+    proj = screenToWorld camera 0
+    op = proj oldScreenPos
+    np = proj newScreenPos
+
+    -- rotation angle
+    dv1 = unit $ np - p
+    dv0 = unit $ op - p
+    a = unScalar $ atan2 (2 !. cross dv0 dv1) (dot dv1 dv0)
 
 
 -- | Rotate, scale, and pan with two fingers
@@ -381,43 +367,58 @@ twoFingerObject :: (Vec2f, Vec2f) -- ^ Old screen coordinates
                 -> (Vec2f, Vec2f) -- ^ New screen coordinates
                 -> Camera -- ^ Get matrices
                 -> Mat44f -- ^ transformation matrix
-twoFingerObject (unpackV2 -> (ox1,oy1), unpackV2 -> (ox2,oy2))
-                (unpackV2 -> (x1,y1)  , unpackV2 -> (x2,y2)  )
-                 camera = f
-    where imat = inverse (projMatrix camera %* viewMatrix camera)
-          (width, height) = viewportSize camera
-          ox = (ox1 + ox2) / 2
-          oy = (oy1 + oy2) / 2
-          x = (x1 + x2) / 2
-          y = (y1 + y2) / 2
-          -- rotating
-          oangle = atan2 (ox1 - ox2) (oy1 - oy2)
-          nangle = atan2 (x1 - x2) (y1 - y2)
-          dφ = if abs (nangle-oangle) < 0.05 then 0 else nangle-oangle
-          -- panning
-          campos = fromHom $ imat %* vec4 0 0 0 1
-          oldpos = fromHom $ imat %* vec4
-                (2 * ox / width - 1)
-                (1 - 2 * oy / height) 1 1
-          newpos = fromHom $ imat %* vec4
-                (2 * x / width - 1)
-                (1 - 2 * y / height) 1 1
-          oldPoint = findPos campos (oldpos - campos) 0
-          newPoint = findPos campos (newpos - campos) 0
-          dv = newPoint - oldPoint
-          f t = translate dv id <*> (t >>= rotateZ dφ)
+twoFingerObject (oScreenPos1, oScreenPos2)
+                (nScreenPos1, nScreenPos2)
+                camera
+    = Matrix.translate3 dv %* Q.toMatrix44 rotq
+  where
+    proj = screenToWorld camera 0
+    oldPoint = (op1 + op2) / 2
+    newPoint = (np1 + np2) / 2
+    op1 = proj oScreenPos1
+    op2 = proj oScreenPos2
+    np1 = proj nScreenPos1
+    np2 = proj nScreenPos2
+    dv = newPoint - oldPoint
+    rotq = signum $ Q.getRotScale (op2 - op1) (np2 - np1)
+
 
 ----------------------------------------------------------------------------------------------
 -- Helpers  ----------------------------------------------------------------------------------
 ----------------------------------------------------------------------------------------------
 
+-- | Transform a point in screen coordinates into a point on a ground in world coordinates.
+--   z coordinate of the result is zero.
+--
+--   Use this function partially applied if you need a projection several times.
+screenToWorld :: Camera -> Scf -> Vec2f -> Vec3f
+screenToWorld camera z = imat `seq` campos `seq` width `seq` height `seq` f
+  where
+    imat = inverse (projMatrix camera %* viewMatrix camera)
+    (width, height) = viewportSize camera
+    campos = fromHom $ imat %* vec4 0 0 0 1
+    f (unpackV2 -> (px,py)) = findPos campos (p - campos) z
+        where
+          p = fromHom $ imat %* vec4
+                (2 * px / width - 1)
+                (1 - 2 * py / height) 1 1
+
+
+
 -- | find position of the intersection of a ray traced from camera point to ground
 findPos :: Vec3f -- ^ camera position
         -> Vec3f -- ^ camera sight vector
-        -> Float -- ^ height level of the point
+        -> Scf -- ^ height level of the point
         -> Vec3f -- ^ position of the point in 3D
-findPos (unpackV3 -> (c1, c2, c3)) (unpackV3 -> (v1, v2, v3)) h = vector3 x y h
-    where l = (h - c3)/v3'
+findPos (unpackV3 -> (c1, c2, c3)) (unpackV3 -> (v1, v2, v3)) h = vec3 x y (unScalar h)
+    where l = (unScalar h - c3)/v3'
           x = c1 + v1*l
           y = c2 + v2*l
           v3' = if abs v3 < 0.0000000001 then signum v3 * 0.0000000001 else v3
+
+unit :: Vec3f -> Vec3f
+unit v | n == 0 = 0
+       | otherwise = ewmap (/n) v
+    where
+     n = normL2 v
+

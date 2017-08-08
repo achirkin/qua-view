@@ -86,8 +86,6 @@ jsstring = QuasiQuoter
                          ++ '_' : showLoc (loc_start loc)
                          ++ '_' : showLoc (loc_end loc))
         qAddTopDecls [ForeignD (ImportF JavaScript Unsafe funCode fName funType )]
-        runIO $ print varNames
-        runIO $ print chunks
         return $ foldl AppE (VarE fName) varNames
     , quotePat  = undefined
     , quoteType = undefined

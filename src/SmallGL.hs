@@ -24,7 +24,8 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE QuasiQuotes #-}
 module SmallGL
-    ( RenderingApi (..), SmallGLInput (..)
+    ( ProjMatrix (..), ViewMatrix (..)
+    , RenderingApi (..), SmallGLInput (..)
     , createRenderingEngine
     ) where
 
@@ -63,6 +64,11 @@ data RenderingEngine = RenderingEngine
   , rectbuf :: !(GLsizei, WebGLBuffer, Maybe WebGLBuffer)
   }
 
+-- | Project camera space coordinates to screen normalized coordinates
+newtype ProjMatrix = ProjM Mat44f
+-- | Project global coordinates to camera space coordinates
+newtype ViewMatrix = ViewM Mat44f
+
 -- | Exposed functionality of
 newtype RenderingApi = RenderingApi
   { render :: AnimationTime -> IO ()
@@ -72,8 +78,10 @@ newtype RenderingApi = RenderingApi
 data SmallGLInput a where
     ViewPortResize      :: SmallGLInput Animation.ResizeEvent
     -- ^ Every time windows is resized
-    ViewTransformChange :: SmallGLInput (Matrix Float 4 4)
-    -- ^ Camera actions
+    ProjTransformChange :: SmallGLInput ProjMatrix
+    -- ^ Camera updates of viewport projection
+    ViewTransformChange :: SmallGLInput ViewMatrix
+    -- ^ Camera motions
 
 
 createRenderingEngine :: (MonadIO m, Reflex t, MonadIO (Performable m), PerformEvent t m)
@@ -96,6 +104,12 @@ createRenderingEngine canvasElem evS = do
 
     liftIO $ setupViewPort re
     rre <- liftIO $ newIORef re
+
+    -- update camera matrices (at this moment only proj
+    performEvent_ . ffor (select evS ProjTransformChange) $ \(ProjM m) -> liftIO $ do
+        RenderingEngine{..} <- readIORef rre
+        uniformMatrix4fv gl matLoc False m
+
 
     performEvent_ . ffor (select evS ViewPortResize) $ \(ResizeEvent newVPSize) -> liftIO $ do
         r' <- atomicModifyIORef' rre (\r -> let r' = r{vpSize = (floor *** floor) newVPSize } in (r', r'))
