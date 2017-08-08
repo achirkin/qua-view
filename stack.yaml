@@ -14,7 +14,7 @@ packages:
   # Matrices, vectors, and geometry
   - location:
       git: https://github.com/achirkin/easytensor.git
-      commit: 4a0cebf39209a1a85904c12b53961057422d2621
+      commit: 71c6031d5f6fcf8c9ad9432c8462bceb466973de
     subdirs:
       - dimensions
       - easytensor
@@ -27,7 +27,7 @@ packages:
   # pointer events and animation frames for reflex
   - location:
       git: https://github.com/achirkin/reflex-animated.git
-      commit: 20e0a1e04e5fdc1d21a6b179e70c2a5047933f75
+      commit: e922a9198f16271df6d4c5352050998a906b972c
     extra-dep: true
   # DOM components for reflex platform
   - location:
