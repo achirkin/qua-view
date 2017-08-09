@@ -26,13 +26,14 @@ module Commons
       -- * Some commonly used types re-exported
     , Text, JSString, JSVal
       -- * Other useful libraries
-    , MonadIO (..), Default (..)
+    , MonadIO (..), Default (..), MonadFix (..)
     ) where
 
 
 import Control.Arrow (first, second, (***), (&&&))
 import Control.Monad (when, unless, void)
 import Control.Monad.IO.Class (MonadIO (..))
+import Control.Monad.Fix
 import Data.Coerce
 import Data.Default
 import Data.Proxy
