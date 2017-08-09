@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, ViewPatterns, DataKinds #-}
+{-# LANGUAGE FlexibleContexts, ViewPatterns, DataKinds, RecordWildCards #-}
 
 module Model.Camera
     ( Camera (..)
@@ -15,14 +15,15 @@ module Model.Camera
 import Data.Fixed (mod')
 
 import Reflex.Class
-import Reflex.Dom.Widget.Animation as Animation
+import           Reflex.Dom.Widget.Animation (AEventType(..))
+import qualified Reflex.Dom.Widget.Animation as Animation
 
 import Numeric.DataFrame
 --import Numeric.Dimensions
 import qualified Numeric.Matrix as Matrix
 import qualified Numeric.Quaternion as Q
 
--- import Commons
+import Commons
 
 
 ----------------------------------------------------------------------------------------------
@@ -31,10 +32,23 @@ import qualified Numeric.Quaternion as Q
 
 dynamicCamera :: ( Reflex t, MonadHold t m )
               => Camera
-              -> EventSelector t Animation.AEventType
+              -> EventSelector t AEventType
               -> m (Dynamic t Camera)
-dynamicCamera icam _eventSel =
-    holdDyn icam never
+dynamicCamera Camera {..} eventSel = do
+    -- all changes of the viewport size come from AResizeEvent
+    viewportSizeD <- holdDyn viewportSize resizeEvs
+    -- projection matrix also changes only at AResizeEvents
+    projMatrixD <- holdDyn projMatrix $ makeProjM <$> resizeEvs
+
+
+    return $ Camera <$> viewportSizeD
+                    <*> projMatrixD
+                    <*> pure oldState
+                    <*> pure newState
+  where
+    -- resize events in local format
+    resizeEvs = (\(Animation.ResizeEvent s) -> realToFrac *** realToFrac $ s)
+              <$> select eventSel AResizeEvent
 
 --
 ---- | Reactive-banana-like camera behavior
@@ -152,7 +166,11 @@ data Camera = Camera
     { viewportSize :: !(Float, Float)
     , projMatrix   :: !Mat44f
     , oldState     :: !CState
+      -- ^ This state changes at the end of user action, e.g. PointerUp or MouseWheel.
+      --   At such moments newState is copied to oldState
     , newState     :: !CState
+      -- ^ This state changes all the time and represents current state of the camera.
+      --   Even if a mouse in drag state, newState keeps being updated.
     } deriving Show
 
 
@@ -174,12 +192,17 @@ initCamera :: Float -- ^ width of the viewport
            -> Camera
 initCamera width height state = Camera
     { viewportSize = (width,height)
-    , projMatrix   = Matrix.perspective 0.1 1000 fovy ratio
+    , projMatrix   = makeProjM (width,height)
     , oldState     = state
     , newState     = state
-    } where ratio = width / height
-            fovy = (1*) . atan2 height . sqrt $ height*height + width*width
+    }
 
+
+makeProjM :: (Float, Float) -> Mat44f
+makeProjM (width, height) = Matrix.perspective 0.1 1000 fovy ratio
+  where
+    ratio = width / height
+    fovy = (1*) . atan2 height . sqrt $ height*height + width*width
 
 
 ----------------------------------------------------------------------------------------------
