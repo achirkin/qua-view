@@ -8,7 +8,7 @@ module Main ( main ) where
 
 
 import Reflex.Dom
-import Reflex.Dom.Widget.Animation (resizeEvents, animationEvents, viewPortSizeI)
+import Reflex.Dom.Widget.Animation (resizeEvents, viewPortSizeI)
 import Numeric.DataFrame
 
 
@@ -49,10 +49,11 @@ main = mainWidgetInElementById "qua-view-widgets" $ mdo
     -- supply animation events to camera
     let icamera = Model.initCamera (realToFrac . fst $ viewPortSizeI aHandler)
                                    (realToFrac . snd $ viewPortSizeI aHandler)
-                                   Model.CState { Model.viewPoint  = vec3 (-17.5) (-17) 0
-                                                , Model.viewAngles = (0.345, 0.825)
-                                                , Model.viewDist = 138 }
-    cameraD <- Model.dynamicCamera icamera (animationEvents aHandler)
+                                   Model.CState { Model.viewPoint  = vec3 (-2) 3 0
+                                                , Model.viewAngles = (2.745, 0.825)
+                                                , Model.viewDist = 68 }
+    cameraD <- Model.dynamicCamera icamera aHandler
+--    performEvent_ $ liftIO . print <$> updated (Model.oldState <$> cameraD)
 
 
     -- Notify everyone that the program h finished starting up now

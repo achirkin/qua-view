@@ -59,6 +59,7 @@ executable qua-view
         SmallGL
         SmallGL.Helpers
         SmallGL.Shader
+        SmallGL.Types
         Widgets.Canvas
         Widgets.Commons
         Widgets.ControlButtons

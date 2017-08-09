@@ -18,7 +18,7 @@ module SmallGL.Shader
     ) where
 
 import GHCJS.Types (JSVal)
-import Data.JSString (JSString, unpack', pack)
+import Data.JSString (JSString, unpack')
 import Control.Monad
 
 import JavaScript.WebGL
@@ -59,7 +59,7 @@ foreign import javascript unsafe "$1 != null && $1.hasOwnProperty('location')" j
 newtype JSMap a = JSMap JSVal
 
 jsMapFromList :: Coercible a JSVal => [(JSString, a)] -> JSMap a
-jsMapFromList xs = foldl f mm xs
+jsMapFromList = foldl f mm
     where mm = js_emptyMap
           f m (name, val) = jssetMapVal name val m
 
@@ -98,7 +98,7 @@ unifLoc program name = let UniformProps p = uniformsOf program `jsIndexMap` name
 
 -- | Initialize shader program by supplying a number of source codes.
 --   One source code per shader.
-initShaders :: WebGLRenderingContext -> [(ShaderType, String)] -> [(GLuint, JSString)] -> IO ShaderProgram
+initShaders :: WebGLRenderingContext -> [(ShaderType, JSString)] -> [(GLuint, JSString)] -> IO ShaderProgram
 initShaders gl shtexts explicitLocs = do
     -- create program
     shaderProgram <- createProgram gl
@@ -124,7 +124,7 @@ initShaders gl shtexts explicitLocs = do
     -- load attributes' information
     attrCount <- fromMaybe (0::GLuint) . pFromJSVal <$>getProgramParameter gl shaderProgram gl_ACTIVE_ATTRIBUTES
 --    putStrLn $ "Shader attributes: " ++ show attrCount
-    shaderAttribs <- liftM jsMapFromList $ sequence . flip map [0..attrCount-1] $ \i -> do
+    shaderAttribs <- fmap jsMapFromList $ sequence . flip map [0..attrCount-1] $ \i -> do
         activeInfo <- getActiveAttrib gl shaderProgram i
         checkGLError gl $ "GetActiveAttrib gl for getting shader attrib " ++ show i
         aPos <- getAttribLocation gl shaderProgram (aiName activeInfo)
@@ -132,7 +132,7 @@ initShaders gl shtexts explicitLocs = do
     -- load uniforms' information
     uniCount <- fromMaybe (0::GLuint) . pFromJSVal <$> getProgramParameter gl shaderProgram gl_ACTIVE_UNIFORMS
 --    putStrLn $ "Shader uniforms: " ++ show attrCount
-    shaderUniforms <- liftM jsMapFromList $ sequence . flip map [0..uniCount-1] $ \i -> do
+    shaderUniforms <- fmap jsMapFromList $ sequence . flip map [0..uniCount-1] $ \i -> do
         activeInfo <- getActiveUniform gl shaderProgram i
         checkGLError gl $ "GetActiveUniform gl for getting shader uniform " ++ show i
         uPos <- getUniformLocation gl shaderProgram (aiName activeInfo)
@@ -146,11 +146,11 @@ initShaders gl shtexts explicitLocs = do
         }
 
 -- | Helper function to load shader
-getShader :: WebGLRenderingContext -> ShaderType -> String-> IO WebGLShader
+getShader :: WebGLRenderingContext -> ShaderType -> JSString-> IO WebGLShader
 getShader gl t src = do
     shaderId <- createShader gl t
     checkGLError gl ("CreateShader gl type " ++ show t)
-    shaderSource gl shaderId (pack src)
+    shaderSource gl shaderId src
     checkGLError gl ("ShaderSource gl type " ++ show t)
     compileShader gl shaderId
     checkGLError gl ("CompileShader gl type" ++ show t)
@@ -160,5 +160,5 @@ getShader gl t src = do
         logm <- getShaderInfoLog gl shaderId
         checkGLError gl "GetShaderInfoLog gl"
         putStrLn . unpack' $ logm
-        putStrLn src
+        putStrLn $ unpack' src
     return shaderId
