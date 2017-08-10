@@ -38,12 +38,13 @@ import           Commons
 dynamicCamera :: ( Reflex t, MonadHold t m, MonadFix m )
               => Camera
               -> AnimationHandler t
+              -> Event t (ElementClick "Reset Camera")
               -> m (Dynamic t Camera)
-dynamicCamera icam aHandler = mdo
-    -- all changes of the viewport size come from AResizeEvent
-    viewportSizeD <- holdDyn (viewportSize icam) resizeE
-    -- projection matrix also changes only at AResizeEvents
-    projMatrixD <- holdDyn (projMatrix icam) $ makeProjM <$> resizeE
+dynamicCamera icam aHandler resetCameraE = mdo
+    -- all changes of the viewport size come from AResizeEvent (or resetCameraE)
+    viewportSizeD <- holdDyn (viewportSize icam) $ leftmost [resizeE, viewportSize icam <$ resetCameraE]
+    -- projection matrix also changes only at AResizeEvents (or resetCameraE)
+    projMatrixD <- holdDyn (projMatrix icam) $ leftmost [makeProjM <$> resizeE, projMatrix icam <$ resetCameraE]
     -- checkpoint camera states - when there are no active actions, such as mouse dragging
     oldStateD <- holdDyn (oldState icam) $ leftmost
         [ -- mouse wheel is an atomic event, so we update oldState directly
@@ -54,6 +55,8 @@ dynamicCamera icam aHandler = mdo
         , newState <$> camB <@ select (A.animationEvents aHandler) (APointerEvent PCancelEvent)
           -- should not be needed, but also should not harm?
         , newState <$> camB <@ select (A.animationEvents aHandler) (APointerEvent PDownEvent)
+          -- reset camera
+        , oldState icam <$ resetCameraE
         ]
     -- updates on every action
     newStateD <- holdDyn (newState icam) $ leftmost
