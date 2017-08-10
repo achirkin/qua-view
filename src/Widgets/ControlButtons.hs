@@ -3,6 +3,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE DataKinds #-}
+
 module Widgets.ControlButtons
     ( controlButtonGroup
       -- the module below should expose only controlButtonGroup widget and related data types.
@@ -15,6 +16,7 @@ module Widgets.ControlButtons
 
 import qualified Reflex.Class as Reflex
 import qualified Reflex.Dom as Dom
+import Reflex.Dynamic
 import Text.Julius (julius)
 
 import Commons
@@ -36,6 +38,7 @@ controlButtonGroup = mdo
                 helpButton
                 toggleFullScreenButton
                 groupContents' <- controlPanelButton
+                _serviceStateD <- serviceButtons -- TODO: For running service
                 return (resetCamE, groupContents')
             return (toggleGroupD', resetCameraE', groupContents)
     return (resetCameraE, cpStateD)
@@ -188,6 +191,38 @@ resetCameraButton = do
         |])
     return (ElementClick <$ Dom.domEvent Dom.Click e)
 
+serviceButtons :: Reflex t => Widget x (Dynamic t (ComponentState "Service"))
+serviceButtons = mdo
+    serviceStateD <- holdDyn Inactive $ Reflex.leftmost [Active <$ serviceRunE, Inactive <$ serviceClearE]
+    serviceRunE   <- serviceRunButton serviceStateD
+    serviceClearE <- serviceClearButton serviceStateD
+    return serviceStateD
+    
+
+serviceClearButton :: Reflex t => Dynamic t (ComponentState "Service") -> Widget x (Event t (ElementClick s))
+serviceClearButton stateD = do
+    (e, _) <- Dom.elDynAttr' "a" (attrs <$> stateD) $ do
+                Dom.elClass "span" "fbtn-text fbtn-text-left" $ Dom.text "Clear service results"
+                Dom.elClass "span" "icon icon-lg" $ Dom.text "visibility_off"
+    return (ElementClick <$ Dom.domEvent Dom.Click e)
+  where
+    attrs stateD = ("class" =: "fbtn waves-attach waves-circle waves-effect waves-light fbtn-brand-accent")
+            <> displayButton stateD
+    displayButton Inactive = "style" =: "display: none"
+    displayButton Active   = mempty
+
+serviceRunButton :: Reflex t => Dynamic t (ComponentState "Service") -> Widget x (Event t (ElementClick s))
+serviceRunButton stateD = do
+    (e, _) <- Dom.elDynAttr' "a" (attrs <$> stateD) $ do
+                Dom.elClass "span" "fbtn-text fbtn-text-left" $ Dom.text "Run evaluation service"
+                Dom.elClass "span" "icon icon-lg" $ Dom.text "play_arrow"
+    return (ElementClick <$ Dom.domEvent Dom.Click e)
+  where
+    attrs stateD = ("class" =: "fbtn waves-attach waves-circle waves-effect fbtn-green")
+            <> displayButton stateD
+    displayButton Active   = "style" =: "display: none"
+    displayButton Inactive = mempty
+
 ----------------------------------------------------------------------------------------------------
 -- below are drafts: buttons that not implemented yet
 ----------------------------------------------------------------------------------------------------
@@ -201,27 +236,4 @@ submitProposalButton = makeElementFromHtml def $(qhtml
             <span .icon .icon-lg>
               save
         |])
-
-
-serviceClearButton :: Reflex t => Widget x (Element Dom.EventResult Dom.GhcjsDomSpace t)
-serviceClearButton = makeElementFromHtml def $(qhtml
-        [hamlet|
-          <a .fbtn .waves-attach .waves-circle .waves-effect .waves-light .fbtn-brand-accent>
-            <span .fbtn-text .fbtn-text-left>
-              Clear service results
-            <span .icon .icon-lg>
-              visibility_off
-        |])
-
-
-serviceRunButton :: Reflex t => Widget x (Element Dom.EventResult Dom.GhcjsDomSpace t)
-serviceRunButton = makeElementFromHtml def $(qhtml
-        [hamlet|
-          <a .fbtn .waves-attach .waves-circle .waves-effect .fbtn-green>
-            <span class="fbtn-text fbtn-text-left">
-              Run evaluation service
-            <span class="icon icon-lg">
-              play_arrow
-        |])
-
 
