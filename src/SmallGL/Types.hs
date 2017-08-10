@@ -2,11 +2,14 @@
 {-# LANGUAGE GADTs     #-}
 {-# LANGUAGE KindSignatures     #-}
 {-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 module SmallGL.Types where
 
 
 import Reflex.Dom.Widget.Animation as Animation
 import Numeric.DataFrame
+import Numeric.DataFrame.IO
 import Numeric.Dimensions
 import JavaScript.WebGL
 
@@ -35,16 +38,16 @@ newtype ViewMatrix = ViewM { getViewM :: Mat44f }
 --
 --    * Points (4th coordinate is 1)
 --    * Normals (4th coordinate is 0, norm == 1)
-newtype CoordsNormals (n :: Nat) = CoordsNormals (DataFrame Float '[4, 2, n])
+newtype CoordsNormals (n :: Nat) = CoordsNormals (IODataFrame Float '[4, 2, n])
 
 -- | Specifying colors as 4D unsigned bytes
-newtype Colors (n :: Nat) = Colors (DataFrame GLubyte '[4, n])
+newtype Colors (n :: Nat) = Colors (IODataFrame GLubyte '[4, n])
 
 -- | Mapping textures
-newtype TexCoords (n :: Nat) = TexCoords (DataFrame GLushort '[2, n])
+newtype TexCoords (n :: Nat) = TexCoords (IODataFrame GLushort '[2, n])
 
 -- | Draw elements by these indices (note, maxBound == 65535 for GLushort)
-newtype Indices (m :: Nat) = Indices (DataFrame GLushort '[m])
+newtype Indices (m :: Nat) = Indices (IODataFrame GLushort '[m])
 
 -- | All data for a solid-colored object in one existential place
 data ColoredData = forall n m . (KnownDim n, KnownDim m)
@@ -54,6 +57,10 @@ data ColoredData = forall n m . (KnownDim n, KnownDim m)
 data TexturedData = forall n m . (KnownDim n, KnownDim m)
   => TexturedData (CoordsNormals n) (TexCoords n) (Indices m)
 
+
+cdVertexNum :: ColoredData -> Int
+cdVertexNum (ColoredData _ (Colors (_ :: IODataFrame GLubyte '[4,n])) _) = dimVal' @n
+
 -- | All WebGL information to render a geometry with colors (but no textures)
 data ColoredGeometryWebGLData
   = ColoredGeometryWebGLData
@@ -62,6 +69,8 @@ data ColoredGeometryWebGLData
   , cgColorsBuf        :: WebGLBuffer
   , cgIndicesBuf       :: WebGLBuffer
   }
+
+
 
 
 -- * Shader attribute locations

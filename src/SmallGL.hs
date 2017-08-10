@@ -52,6 +52,8 @@ import Commons
 import SmallGL.Types
 import SmallGL.Shader
 
+import SmallGL.RenderingCell
+
 data RenderingEngine = RenderingEngine
   { gl  :: !WebGLRenderingContext
     -- ^ WebGL context
@@ -89,7 +91,7 @@ createRenderingEngine canvasElem evS = do
                                       ,(attrLocColors, "aVertexColor")
                                       ]
     -- create objects (including sending data to device)
-    rectbuf <- liftIO $ createBuffers gl rectangle
+    rectbuf <- liftIO $ rectangle >>= createBuffers gl
 
 
     let uProjLoc = unifLoc program "uProjM"
@@ -153,7 +155,7 @@ renderFunction RenderingEngine {..} _ = do
 
 ----------------------------------------------------------------------------------------------------
 
-rectangle :: ColoredData
+rectangle :: IO ColoredData
 rectangle
   | SomeDataFrame ixs <- fromList [0,1,2,0,2,3::Scalar GLushort]
   , crsnrs <-   (vec4  5 9  0 1 <::> vec4 0 0 1 0)
@@ -164,7 +166,11 @@ rectangle
            <::> vec4 0 255 0 255
            <+:> vec4 0 0 255 255
            <+:> vec4 0 127 127 255
-  = ColoredData (CoordsNormals crsnrs) (Colors colors) (Indices ixs)
+  = do
+    crsnrs' <- thawDataFrame crsnrs
+    colors' <- thawDataFrame colors
+    ixs'    <- thawDataFrame ixs
+    return $ ColoredData (CoordsNormals crsnrs') (Colors colors') (Indices ixs')
 
 
 
@@ -181,15 +187,15 @@ createBuffers gl (ColoredData (CoordsNormals crsnrs) (Colors colors) (Indices ix
     -- send data to buffers
 
     bindBuffer gl gl_ARRAY_BUFFER cgCoordsNormalsBuf
-    thawDataFrame crsnrs >>= arrayBuffer >>= \buf ->
+    arrayBuffer crsnrs >>= \buf ->
         bufferData gl gl_ARRAY_BUFFER buf gl_STATIC_DRAW
 
     bindBuffer gl gl_ARRAY_BUFFER cgColorsBuf
-    thawDataFrame colors >>= arrayBuffer >>= \buf ->
+    arrayBuffer colors >>= \buf ->
         bufferData gl gl_ARRAY_BUFFER buf gl_STATIC_DRAW
 
     bindBuffer gl gl_ELEMENT_ARRAY_BUFFER cgIndicesBuf
-    thawDataFrame ixs >>= arrayBuffer >>= \buf ->
+    arrayBuffer ixs >>= \buf ->
         bufferData gl gl_ELEMENT_ARRAY_BUFFER buf gl_STATIC_DRAW
 
 
