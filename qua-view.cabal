@@ -58,6 +58,7 @@ executable qua-view
         Model.Camera
         SmallGL
         SmallGL.Helpers
+        SmallGL.RenderingCell
         SmallGL.Shader
         SmallGL.Types
         Widgets.Canvas
