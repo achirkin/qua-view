@@ -15,13 +15,13 @@ import Widgets.ControlButtons
 import Widgets.Tabs
 
 -- | Control panel widget is a place for all controls in qua-view!
-controlPanel :: Reflex t => Widget x (Dynamic t (ComponentState "ControlPanel"))
+controlPanel :: Reflex t => Widget x (Event t (ElementClick "Reset Camera"), Dynamic t (ComponentState "ControlPanel"))
 controlPanel = mdo
-    stateD <- Dom.elDynClass "div" (toClass <$> stateD) $ do
+    (resetCameraE, stateD) <- Dom.elDynClass "div" (toClass <$> stateD) $ do
       _outputEvs <- panelTabs
       -- GUI control buttons
       controlButtonGroup
-    return stateD
+    return (resetCameraE, stateD)
   where
     toClass Active   = openState
     toClass Inactive = closedState

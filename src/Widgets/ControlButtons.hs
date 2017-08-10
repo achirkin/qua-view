@@ -23,20 +23,22 @@ import Widgets.Modal.Help
 
 -- | Control button group is a column of colourfull buttons in the bottom-right corner of the screen.
 --   It defines the most useful functions of qua-kit.
-controlButtonGroup :: Reflex t =>  Widget x (Dynamic t (ComponentState "ControlPanel"))
+controlButtonGroup :: Reflex t =>  Widget x (Event t (ElementClick "Reset Camera"), Dynamic t (ComponentState "ControlPanel"))
 controlButtonGroup = mdo
-    (toggleGroupD, cpStateD) <-
+    (toggleGroupD, resetCameraE, cpStateD) <-
         Dom.elDynClass "div" (toPanelClass <$> cpStateD) $
           Dom.elDynClass "div" toggleGroupD $ do
             -- toggle visibility of buttons
             toggleGroupD'  <- expandCtrlGroupButton
             -- show all buttons
-            groupContents <- Dom.elClass "div" "fbtn-dropup" $ do
+            (resetCameraE', groupContents) <- Dom.elClass "div" "fbtn-dropup" $ do
+                resetCamE <- resetCameraButton
                 helpButton
                 toggleFullScreenButton
-                controlPanelButton
-            return (toggleGroupD', groupContents)
-    return cpStateD
+                groupContents' <- controlPanelButton
+                return (resetCamE, groupContents')
+            return (toggleGroupD', resetCameraE', groupContents)
+    return (resetCameraE, cpStateD)
   where
     toPanelClass Active   = openPanelState
     toPanelClass Inactive = closedPanelState
@@ -172,14 +174,9 @@ helpButton = do
         |])
     popupHelp (ElementClick <$ Dom.domEvent Dom.Click e)
 
-
-----------------------------------------------------------------------------------------------------
--- below are drafts: buttons that not implemented yet
-----------------------------------------------------------------------------------------------------
-
-
-resetCameraButton :: Reflex t => Widget x (Element Dom.EventResult Dom.GhcjsDomSpace t)
-resetCameraButton = makeElementFromHtml def $(qhtml
+resetCameraButton :: Reflex t => Widget x (Event t (ElementClick s))
+resetCameraButton = do
+    e <- makeElementFromHtml def $(qhtml
         [hamlet|
           <a .fbtn .waves-attach .waves-circle .waves-effect .fbtn-brand-accent>
             <span .fbtn-text .fbtn-text-left>
@@ -189,7 +186,11 @@ resetCameraButton = makeElementFromHtml def $(qhtml
             <span .icon style="margin-left: -24px;font-size: 1em;line-height: 1em;">
               videocam
         |])
+    return (ElementClick <$ Dom.domEvent Dom.Click e)
 
+----------------------------------------------------------------------------------------------------
+-- below are drafts: buttons that not implemented yet
+----------------------------------------------------------------------------------------------------
 
 submitProposalButton :: Reflex t => Widget x (Element Dom.EventResult Dom.GhcjsDomSpace t)
 submitProposalButton = makeElementFromHtml def $(qhtml
