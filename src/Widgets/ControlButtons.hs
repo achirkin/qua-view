@@ -206,8 +206,8 @@ serviceClearButton stateD = do
                 Dom.elClass "span" "icon icon-lg" $ Dom.text "visibility_off"
     return (ElementClick <$ Dom.domEvent Dom.Click e)
   where
-    attrs stateD = ("class" =: "fbtn waves-attach waves-circle waves-effect waves-light fbtn-brand-accent")
-            <> displayButton stateD
+    attrs s = ("class" =: "fbtn waves-attach waves-circle waves-effect waves-light fbtn-brand-accent")
+              <> displayButton s
     displayButton Inactive = "style" =: "display: none"
     displayButton Active   = mempty
 
@@ -218,8 +218,8 @@ serviceRunButton stateD = do
                 Dom.elClass "span" "icon icon-lg" $ Dom.text "play_arrow"
     return (ElementClick <$ Dom.domEvent Dom.Click e)
   where
-    attrs stateD = ("class" =: "fbtn waves-attach waves-circle waves-effect fbtn-green")
-            <> displayButton stateD
+    attrs s = ("class" =: "fbtn waves-attach waves-circle waves-effect fbtn-green")
+              <> displayButton s
     displayButton Active   = "style" =: "display: none"
     displayButton Inactive = mempty
 
