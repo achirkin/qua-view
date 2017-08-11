@@ -22,6 +22,8 @@ import Text.Julius (julius)
 import Commons
 import Widgets.Generation
 import Widgets.Modal.Help
+import Widgets.Modal.Share
+import Widgets.Modal.SubmitProposal
 
 -- | Control button group is a column of colourfull buttons in the bottom-right corner of the screen.
 --   It defines the most useful functions of qua-kit.
@@ -34,11 +36,13 @@ controlButtonGroup = mdo
             toggleGroupD'  <- expandCtrlGroupButton
             -- show all buttons
             (resetCameraE', groupContents) <- Dom.elClass "div" "fbtn-dropup" $ do
+                shareButton "placeholder link"
                 resetCamE <- resetCameraButton
                 helpButton
                 toggleFullScreenButton
                 groupContents' <- controlPanelButton
                 _serviceStateD <- serviceButtons -- TODO: For running service
+                _ <- submitProposalButton -- TODO: Submit proposal
                 return (resetCamE, groupContents')
             return (toggleGroupD', resetCameraE', groupContents)
     return (resetCameraE, cpStateD)
@@ -223,17 +227,32 @@ serviceRunButton stateD = do
     displayButton Active   = "style" =: "display: none"
     displayButton Inactive = mempty
 
+shareButton :: Reflex t 
+            => Text -- ^ share link
+            -> Widget x ()
+shareButton link = do
+    e <- makeElementFromHtml def $(qhtml
+          [hamlet|
+            <a .fbtn .waves-attach .waves-circle .waves-effect .fbtn-brand>
+              <span .fbtn-text .fbtn-text-left>
+                Submit proposal
+              <span .icon .icon-lg>
+                share
+          |])
+    popupShare (ElementClick <$ Dom.domEvent Dom.Click e) link
+
+submitProposalButton :: Reflex t => Widget x (Event t UserAsksSubmitProposal)
+submitProposalButton = do
+    e <- makeElementFromHtml def $(qhtml
+          [hamlet|
+            <a .fbtn .waves-attach .waves-circle .waves-effect .fbtn-brand>
+              <span .fbtn-text .fbtn-text-left>
+                Submit proposal
+              <span .icon .icon-lg>
+                save
+          |])
+    popupSubmitProposal (ElementClick <$ Dom.domEvent Dom.Click e)
+
 ----------------------------------------------------------------------------------------------------
 -- below are drafts: buttons that not implemented yet
 ----------------------------------------------------------------------------------------------------
-
-submitProposalButton :: Reflex t => Widget x (Element Dom.EventResult Dom.GhcjsDomSpace t)
-submitProposalButton = makeElementFromHtml def $(qhtml
-        [hamlet|
-          <a .fbtn .waves-attach .waves-circle .waves-effect .fbtn-brand>
-            <span .fbtn-text .fbtn-text-left>
-              Submit proposal
-            <span .icon .icon-lg>
-              save
-        |])
-

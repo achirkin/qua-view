@@ -71,6 +71,8 @@ executable qua-view
         Widgets.Modal.EdxGuide
         Widgets.Modal.Help
         Widgets.Modal.SaveScenario
+        Widgets.Modal.Share
+        Widgets.Modal.SubmitProposal
         Widgets.Tabs
         Widgets.Tabs.Geometry
         Widgets.Tabs.Info
