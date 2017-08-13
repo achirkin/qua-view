@@ -277,6 +277,65 @@ setRenderedObjectColor gl RenderingCell{..} (RenderedObjectId i) c
 setRenderedObjectColor _ _ _ _ = return ()
 
 
+-- | Delete an object from being rendered in a cell
+deleteRenderedObject :: WebGLRenderingContext
+                     -> RenderingCell
+                     -> RenderedObjectId
+                     -> IO RenderingCell
+deleteRenderedObject gl rc (RenderedObjectId i)
+    | Just ro@RenderedObjRef {..} <- IntMap.lookup i $ rcObjects rc
+    , rcObjects'               <- IntMap.delete i $ rcObjects rc
+    , ColoredData (CoordsNormals rcCrsnrs)
+                  (Colors rcColors)
+                  (Indices rcIndices) <- rcData rc
+    , toCopyN <- max 0 $ rcContentDataLength rc + 1 - roDataLength - roDataIdx
+    , toCopyM <- max 0 $ rcContentIndexLength rc + 1 - roIndexLength - roIndexIdx
+    , Just (SomeIntNat (Proxy :: Proxy toCopyN)) <- someIntNatVal toCopyN
+    , Just (SomeIntNat (Proxy :: Proxy toCopyM)) <- someIntNatVal toCopyM
+      = if toCopyN == 0 && toCopyM == 0
+        then return rc -- if the delete object was last in the list, just reduce counter
+          { rcContentDataLength = roDataIdx - 1
+          , rcObjects = rcObjects'
+          , rcGPUData = (rcGPUData rc)
+              { cgIdxLen = fromIntegral $ roIndexIdx - 1 }
+          }
+        else do -- if the object was in the middle of the list, we have to copy whole cell
+    toCopyCrsnrs   <- unsafeSubArray @GLfloat  @'[4,2] @toCopyN rcCrsnrs  (roDataIdx + roDataLength :! Z)
+    toCopyColors   <- unsafeSubArray @GLubyte  @'[4]   @toCopyN rcColors  (roDataIdx + roDataLength :! Z)
+    toCopyIndices' <- ewmap @_ @'[] (flip (-) $ fromIntegral roDataLength)
+                  <$> unsafeSubArrayFreeze @GLushort @'[]    @toCopyM rcIndices (roIndexIdx + roIndexLength :! Z)
+    toCopyIndices  <- unsafeArrayThaw toCopyIndices'
+
+    -- send data to buffers BEFORE doing copy within data arrays
+    bindBuffer gl gl_ARRAY_BUFFER (cgCoordsNormalsBuf $ rcGPUData rc)
+    bufferSubData' gl gl_ARRAY_BUFFER (32 * (roDataIdx - 1)) toCopyCrsnrs
+
+    bindBuffer gl gl_ARRAY_BUFFER (cgColorsBuf $ rcGPUData rc)
+    bufferSubData' gl gl_ARRAY_BUFFER (4 * (roDataIdx - 1)) toCopyColors
+
+    bindBuffer gl gl_ELEMENT_ARRAY_BUFFER (cgIndicesBuf $ rcGPUData rc)
+    bufferSubData' gl gl_ELEMENT_ARRAY_BUFFER (2 * (roIndexIdx - 1)) toCopyIndices
+
+    -- update arrays
+    copyMutableDataFrame toCopyCrsnrs (roDataIdx:!Z) rcCrsnrs
+    copyMutableDataFrame toCopyColors (roDataIdx:!Z) rcColors
+    copyMutableDataFrame toCopyIndices (roIndexIdx:!Z) rcIndices
+
+    return $ rc
+      { rcContentDataLength = rcContentDataLength rc - roDataLength
+      , rcObjects = shift ro <$> rcObjects'
+      , rcGPUData = (rcGPUData rc)
+              { cgIdxLen = cgIdxLen (rcGPUData rc) - fromIntegral roIndexLength }
+      }
+  where
+    shift ro ro' | roDataIdx ro' < roDataIdx ro = ro'
+                 | otherwise = ro'
+                    { roDataIdx = roDataIdx ro' - roDataLength ro
+                    , roIndexIdx = roIndexIdx ro' - roIndexLength ro
+                    }
+deleteRenderedObject _ rc _ = return rc
+
+
 -- | Bind drawing buffers, set up shader attributes, and draw geometry.
 --   This does not include enabling vertex buffers.
 renderCell :: WebGLRenderingContext -> RenderingCell -> IO ()

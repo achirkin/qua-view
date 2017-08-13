@@ -28,7 +28,7 @@ module SmallGL
     , createRenderingEngine
     ) where
 
-
+import Control.Monad.Trans.State.Strict
 import Unsafe.Coerce (unsafeCoerce)
 import qualified GHCJS.DOM.JSFFI.Generated.Element as JSFFI
 
@@ -92,19 +92,26 @@ createRenderingEngine canvasElem evS = do
                                       ,(attrLocColors, "aVertexColor")
                                       ]
     -- create objects (including sending data to device)
-    rCell <- liftIO $ do
-       rCell0 <- initRenderingCell gl
-       rectData <- rectangle
-       (rId1, rCell1) <- addRenderedObject gl rectData rCell0
-       (rId2, rCell2) <- addRenderedObject gl rectData rCell1
-       (rId3, rCell3)  <- addRenderedObject gl rectData rCell2
-       (rId4, rCell4)  <- addRenderedObject gl rectData rCell3
-       transformRenderedObject gl rCell4 rId3 (M.translate3 $ vec3 0 20 0)
-       transformRenderedObject gl rCell4 rId2 (M.translate4 $ vec4 0 10 0 0)
-       transformRenderedObject gl rCell4 rId4 (M.translate4 $ vec4 0 (-10) 0 0)
-       setRenderedObjectColor gl rCell4 rId1 $ vec4 255 0 25 255
-       setRenderedObjectColor gl rCell4 rId2 $ vec4 0 0 25 127
-       return rCell4
+    rCell <- fmap snd . liftIO . (initRenderingCell gl >>=) . runStateT $ do
+       rectData <- liftIO rectangle
+       rId1 <- StateT $ addRenderedObject gl rectData
+       rId2 <- StateT $ addRenderedObject gl rectData
+       rId3 <- StateT $ addRenderedObject gl rectData
+       rId4 <- StateT $ addRenderedObject gl rectData
+       rId5 <- StateT $ addRenderedObject gl rectData
+       rId6 <- StateT $ addRenderedObject gl rectData
+       rId7 <- StateT $ addRenderedObject gl rectData
+       StateT $ \c -> flip (,) c <$> transformRenderedObject gl c rId3 (M.translate3 $ vec3 0 20 0)
+       StateT $ \c -> flip (,) c <$> transformRenderedObject gl c rId2 (M.translate4 $ vec4 0 10 0 0)
+       StateT $ \c -> flip (,) c <$> transformRenderedObject gl c rId4 (M.translate4 $ vec4 0 (-10) 0 0)
+       StateT $ \c -> flip (,) c <$> transformRenderedObject gl c rId5 (M.translate4 $ vec4 0 (-20) 0 0)
+       StateT $ \c -> flip (,) c <$> transformRenderedObject gl c rId6 (M.translate4 $ vec4 0 (-30) 0 0)
+       StateT $ \c -> flip (,) c <$> transformRenderedObject gl c rId7 (M.translate4 $ vec4 0 (-40) 0 0)
+       StateT $ \c -> flip (,) c <$> setRenderedObjectColor gl c rId1 (vec4 255 0 25 255)
+       StateT $ \c -> flip (,) c <$> setRenderedObjectColor gl c rId2 (vec4 0 0 25 127)
+       StateT $ \c -> (,) () <$> deleteRenderedObject gl c rId4
+       StateT $ \c -> (,) () <$> deleteRenderedObject gl c rId7
+       return ()
 
 
 
