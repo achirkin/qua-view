@@ -12,22 +12,20 @@ module SmallGL.RenderingCell where
 
 import JavaScript.WebGL
 
-import Data.IORef
-import Data.Bits
-import Unsafe.Coerce
 
 import Numeric.DataFrame
 import Numeric.DataFrame.IO
 import Numeric.Dimensions
+import Numeric.Dimensions.Traverse.IO
 import Numeric.TypeLits
 
 import           Data.IntMap.Strict (IntMap)
 import qualified Data.IntMap.Strict as IntMap
 
 
-import Commons
+--import Commons
 import SmallGL.Types
-import SmallGL.Shader
+--import SmallGL.Shader
 
 
 
@@ -44,6 +42,7 @@ data RenderingCell = RenderingCell
     -- ^ Collection of the rendered objects, so that we can update, add, or delete objects dynamically.
   , rcContentDataLength  :: !Int
     -- ^ How many vertices are stored in the RenderingCell already
+  , rcNextObjId :: !Int
   }
 
 -- | How many indices are stored in the RenderingCell already
@@ -91,21 +90,19 @@ initRenderingCell' gl = do
 
     -- send data to buffers
     bindBuffer gl gl_ARRAY_BUFFER cgCoordsNormalsBuf
-    arrayBuffer crsnrs >>= \buf ->
-        bufferData gl gl_ARRAY_BUFFER buf gl_STATIC_DRAW
+    bufferData' gl gl_ARRAY_BUFFER crsnrs gl_STATIC_DRAW
 
     bindBuffer gl gl_ARRAY_BUFFER cgColorsBuf
-    arrayBuffer colors >>= \buf ->
-        bufferData gl gl_ARRAY_BUFFER buf gl_STATIC_DRAW
+    bufferData' gl gl_ARRAY_BUFFER colors gl_STATIC_DRAW
 
     bindBuffer gl gl_ELEMENT_ARRAY_BUFFER cgIndicesBuf
-    arrayBuffer ixs >>= \buf ->
-        bufferData gl gl_ELEMENT_ARRAY_BUFFER buf gl_STATIC_DRAW
+    bufferData' gl gl_ELEMENT_ARRAY_BUFFER ixs gl_STATIC_DRAW
 
     let rcGPUData = ColoredGeometryWebGLData {..}
         rcData  = ColoredData (CoordsNormals crsnrs) (Colors colors) (Indices ixs)
         rcObjects = IntMap.empty
         rcContentDataLength = 0
+        rcNextObjId = 0
 
     return RenderingCell {..}
 
@@ -117,7 +114,6 @@ growRenderingCellData gl rc@RenderingCell {..}
                   (Colors (colors :: IODataFrame GLubyte '[4,n]))
                   ixs <- rcData
     , Evidence <- inferTimesKnownDim @2 @n
-    , Evidence <- unsafeCoerce (Evidence :: Evidence (1 <= 2)) :: Evidence (n <= 2*n)
     = do
     -- cleanup existing webgl buffers
     deleteBuffer gl (cgCoordsNormalsBuf rcGPUData)
@@ -136,12 +132,10 @@ growRenderingCellData gl rc@RenderingCell {..}
 
     -- send data to buffers
     bindBuffer gl gl_ARRAY_BUFFER cgCoordsNormalsBuf'
-    arrayBuffer crsnrs >>= \buf ->
-        bufferData gl gl_ARRAY_BUFFER buf gl_STATIC_DRAW
+    bufferData' gl gl_ARRAY_BUFFER crsnrs' gl_STATIC_DRAW
 
     bindBuffer gl gl_ARRAY_BUFFER cgColorsBuf'
-    arrayBuffer colors >>= \buf ->
-        bufferData gl gl_ARRAY_BUFFER buf gl_STATIC_DRAW
+    bufferData' gl gl_ARRAY_BUFFER colors' gl_STATIC_DRAW
 
     return rc
       { rcData = ColoredData (CoordsNormals crsnrs') (Colors colors') ixs
@@ -158,7 +152,6 @@ growRenderingCellIndices gl rc@RenderingCell {..}
                   colors
                   (Indices (ixs :: IODataFrame GLushort '[m])) <- rcData
     , Evidence <- inferTimesKnownDim @2 @m
-    , Evidence <- unsafeCoerce (Evidence :: Evidence (1 <= 2)) :: Evidence (m <= 2*m)
     = do
     -- cleanup existing webgl buffers
     deleteBuffer gl (cgIndicesBuf rcGPUData)
@@ -173,8 +166,7 @@ growRenderingCellIndices gl rc@RenderingCell {..}
 
     -- send data to buffers
     bindBuffer gl gl_ELEMENT_ARRAY_BUFFER cgIndicesBuf'
-    arrayBuffer ixs' >>= \buf ->
-        bufferData gl gl_ELEMENT_ARRAY_BUFFER buf gl_STATIC_DRAW
+    bufferData' gl gl_ELEMENT_ARRAY_BUFFER ixs' gl_STATIC_DRAW
 
     return rc
       { rcData = ColoredData crsnrs colors (Indices ixs')
@@ -184,14 +176,116 @@ growRenderingCellIndices gl rc@RenderingCell {..}
       }
 
 
-
-addRenderedObject :: ColoredData
+-- | Add one more object to the cell
+addRenderedObject :: WebGLRenderingContext
+                  -> ColoredData
                   -> RenderingCell
-                  -> (RenderedObjectId, RenderingCell)
-addRenderedObject = undefined
+                  -> IO (RenderedObjectId, RenderingCell)
+addRenderedObject gl obj rc@RenderingCell{rcGPUData = gpuData}
+    | cdVertexNum obj + rcContentDataLength rc > cdVertexNum (rcData rc)
+      = growRenderingCellData gl rc >>= addRenderedObject gl obj
+    | cdIndexNum obj + rcContentIndexLength rc > cdIndexNum (rcData rc)
+      = growRenderingCellIndices gl rc >>= addRenderedObject gl obj
+    | ColoredData (CoordsNormals objCrsnrs)
+                  (Colors objColors)
+                  (Indices objIndices) <- obj
+    , ColoredData (CoordsNormals rcCrsnrs)
+                  (Colors rcColors)
+                  (Indices rcIndices) <- rcData rc
+    , dataOff <- rcContentDataLength rc
+    , roDataLength  <- cdVertexNum obj
+    , roDataIdx     <- dataOff + 1
+    , roIndexLength <- cdIndexNum obj
+    , roIndexIdx    <- rcContentIndexLength rc + 1
+    , ro <- RenderedObjRef {..}
+    , rc' <- rc
+      { rcContentDataLength = dataOff + roDataLength
+      , rcNextObjId = rcNextObjId rc + 1
+      , rcObjects = IntMap.insert (rcNextObjId rc) ro (rcObjects rc)
+      , rcGPUData = gpuData
+          { cgIdxLen = cgIdxLen gpuData + fromIntegral roIndexLength
+          }
+      }
+      = do
+    copyMutableDataFrame objCrsnrs (roDataIdx:!Z) rcCrsnrs
+    copyMutableDataFrame objColors (roDataIdx:!Z) rcColors
+    objIndices' <- ewmap @_ @'[] (fromIntegral dataOff +)
+                <$> unsafeFreezeDataFrame objIndices
+    copyDataFrame objIndices' (roIndexIdx:!Z) rcIndices
+    objIndeces'' <- unsafeArrayThaw objIndices'
+
+    -- send data to buffers
+    bindBuffer gl gl_ARRAY_BUFFER (cgCoordsNormalsBuf gpuData)
+    bufferSubData' gl gl_ARRAY_BUFFER (32 * dataOff) objCrsnrs
+
+    bindBuffer gl gl_ARRAY_BUFFER (cgColorsBuf gpuData)
+    bufferSubData' gl gl_ARRAY_BUFFER (4 * dataOff) objColors
+
+    bindBuffer gl gl_ELEMENT_ARRAY_BUFFER (cgIndicesBuf gpuData)
+    bufferSubData' gl gl_ELEMENT_ARRAY_BUFFER (2 * rcContentIndexLength rc) objIndeces''
+
+    return (RenderedObjectId $ rcNextObjId rc, rc')
+
+foreign import javascript "console.log($1);"
+    js_logdf :: IODataFrame t ds -> IO ()
 
 
+-- | transform object in a cell using its rendering id and tranformation matrix
+transformRenderedObject :: WebGLRenderingContext
+                        -> RenderingCell
+                        -> RenderedObjectId
+                        -> Mat44f -- ^ transformation matrix to apply on every point and normal
+                        -> IO ()
+transformRenderedObject gl RenderingCell{..} (RenderedObjectId i) m
+    | ColoredData (CoordsNormals rcCrsnrs) _ _ <- rcData
+    , Just RenderedObjRef {..} <- IntMap.lookup i rcObjects
+    , Just (SomeIntNat (Proxy :: Proxy n)) <- someIntNatVal roDataLength
+      = do
+    -- apply matrix transform on subarray of points and normals
+    objCrsnrs <- ewmap @Float @'[4] @_ @_ @Float @'[4] (m %*)
+             <$> unsafeSubArrayFreeze @Float @'[4,2] @n rcCrsnrs (roDataIdx :! Z)
+    copyDataFrame objCrsnrs (roDataIdx:!Z) rcCrsnrs
+    objCrsnrs' <- unsafeArrayThaw objCrsnrs
 
 
+    -- send data to buffers
+    bindBuffer gl gl_ARRAY_BUFFER (cgCoordsNormalsBuf rcGPUData)
+    bufferSubData' gl gl_ARRAY_BUFFER (32 * (roDataIdx - 1)) objCrsnrs'
+-- could not lookup RenderedObjRef by its id
+transformRenderedObject _ _ _ _ = return ()
+
+
+-- | Fill a single object with a single color
+setRenderedObjectColor :: WebGLRenderingContext
+                       -> RenderingCell
+                       -> RenderedObjectId
+                       -> Vector GLubyte 4 -- ^ Pre-multiplied color vector @(r*a g*a b*a a)@
+                       -> IO ()
+setRenderedObjectColor gl RenderingCell{..} (RenderedObjectId i) c
+    | ColoredData _ (Colors colors) _ <- rcData
+    , Just RenderedObjRef {..} <- IntMap.lookup i rcObjects
+    , Just (SomeIntNat (Proxy :: Proxy n)) <- someIntNatVal roDataLength
+      = do
+    -- get color subarray
+    objColors <- unsafeSubArray @GLubyte @'[4] @n colors (roDataIdx :! Z)
+    -- apply matrix transform on subarray of points and normals
+    overDimIdx_ (dim @'[n]) (\j -> copyDataFrame c (1:!j) objColors)
+    -- send data to buffers
+    bindBuffer gl gl_ARRAY_BUFFER (cgColorsBuf rcGPUData)
+    bufferSubData' gl gl_ARRAY_BUFFER (4 * (roDataIdx - 1)) objColors
+-- could not lookup RenderedObjRef by its id
+setRenderedObjectColor _ _ _ _ = return ()
+
+
+-- | Bind drawing buffers, set up shader attributes, and draw geometry.
+--   This does not include enabling vertex buffers.
+renderCell :: WebGLRenderingContext -> RenderingCell -> IO ()
+renderCell gl RenderingCell { rcGPUData = ColoredGeometryWebGLData {..} }
+        | cgIdxLen == 0 = return ()
+        | otherwise = do
+    bindBuffer gl gl_ARRAY_BUFFER cgCoordsNormalsBuf >> setCoordsNormalsBuf gl
+    bindBuffer gl gl_ARRAY_BUFFER cgColorsBuf >> setColorsBuf gl
+    bindBuffer gl gl_ELEMENT_ARRAY_BUFFER cgIndicesBuf
+    drawElements gl gl_TRIANGLES cgIdxLen gl_UNSIGNED_SHORT 0
 
 

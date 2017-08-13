@@ -45,7 +45,8 @@ import Data.JSString hiding (length, map)
 
 import Numeric.DataFrame
 import Numeric.DataFrame.IO
-import Numeric.Dimensions
+import qualified Numeric.Matrix as M
+--import Numeric.Dimensions
 
 
 import Commons
@@ -55,15 +56,15 @@ import SmallGL.Shader
 import SmallGL.RenderingCell
 
 data RenderingEngine = RenderingEngine
-  { gl  :: !WebGLRenderingContext
+  { gl       :: !WebGLRenderingContext
     -- ^ WebGL context
-  , vpSize :: !(GLsizei, GLsizei)
+  , vpSize   :: !(GLsizei, GLsizei)
     -- ^ size of the viewport
   , uProjLoc :: !WebGLUniformLocation
   , uViewLoc :: !WebGLUniformLocation
   , uProjM   :: !ProjMatrix
   , uViewM   :: !ViewMatrix
-  , rectbuf  :: !ColoredGeometryWebGLData
+  , rCell    :: !RenderingCell
   }
 
 
@@ -91,7 +92,20 @@ createRenderingEngine canvasElem evS = do
                                       ,(attrLocColors, "aVertexColor")
                                       ]
     -- create objects (including sending data to device)
-    rectbuf <- liftIO $ rectangle >>= createBuffers gl
+    rCell <- liftIO $ do
+       rCell0 <- initRenderingCell gl
+       rectData <- rectangle
+       (rId1, rCell1) <- addRenderedObject gl rectData rCell0
+       (rId2, rCell2) <- addRenderedObject gl rectData rCell1
+       (rId3, rCell3)  <- addRenderedObject gl rectData rCell2
+       (rId4, rCell4)  <- addRenderedObject gl rectData rCell3
+       transformRenderedObject gl rCell4 rId3 (M.translate3 $ vec3 0 20 0)
+       transformRenderedObject gl rCell4 rId2 (M.translate4 $ vec4 0 10 0 0)
+       transformRenderedObject gl rCell4 rId4 (M.translate4 $ vec4 0 (-10) 0 0)
+       setRenderedObjectColor gl rCell4 rId1 $ vec4 255 0 25 255
+       setRenderedObjectColor gl rCell4 rId2 $ vec4 0 0 25 127
+       return rCell4
+
 
 
     let uProjLoc = unifLoc program "uProjM"
@@ -150,7 +164,7 @@ renderFunction RenderingEngine {..} _ = do
     uniformMatrix4fv gl uProjLoc False (getProjM uProjM)
     uniformMatrix4fv gl uViewLoc False (getViewM uViewM)
     -- draw objects
-    drawBuffers gl rectbuf
+    renderCell gl rCell
 
 
 ----------------------------------------------------------------------------------------------------
@@ -173,42 +187,6 @@ rectangle
     return $ ColoredData (CoordsNormals crsnrs') (Colors colors') (Indices ixs')
 
 
-
--- | Pack geometry data into buffers
-createBuffers :: WebGLRenderingContext -> ColoredData -> IO ColoredGeometryWebGLData
-createBuffers gl (ColoredData (CoordsNormals crsnrs) (Colors colors) (Indices ixs)) = do
-    let cgIdxLen = fromIntegral $ totalDim ixs
-    -- create device buffers
-    cgCoordsNormalsBuf <- createBuffer gl
-    cgColorsBuf        <- createBuffer gl
-    cgIndicesBuf       <- createBuffer gl
-
-
-    -- send data to buffers
-
-    bindBuffer gl gl_ARRAY_BUFFER cgCoordsNormalsBuf
-    arrayBuffer crsnrs >>= \buf ->
-        bufferData gl gl_ARRAY_BUFFER buf gl_STATIC_DRAW
-
-    bindBuffer gl gl_ARRAY_BUFFER cgColorsBuf
-    arrayBuffer colors >>= \buf ->
-        bufferData gl gl_ARRAY_BUFFER buf gl_STATIC_DRAW
-
-    bindBuffer gl gl_ELEMENT_ARRAY_BUFFER cgIndicesBuf
-    arrayBuffer ixs >>= \buf ->
-        bufferData gl gl_ELEMENT_ARRAY_BUFFER buf gl_STATIC_DRAW
-
-
-    return ColoredGeometryWebGLData {..}
-
-
--- | Draw our tiny geometry
-drawBuffers :: WebGLRenderingContext -> ColoredGeometryWebGLData -> IO ()
-drawBuffers gl ColoredGeometryWebGLData {..} = do
-    bindBuffer gl gl_ARRAY_BUFFER cgCoordsNormalsBuf >> setCoordsNormalsBuf gl
-    bindBuffer gl gl_ARRAY_BUFFER cgColorsBuf >> setColorsBuf gl
-    bindBuffer gl gl_ELEMENT_ARRAY_BUFFER cgIndicesBuf
-    drawElements gl gl_TRIANGLES cgIdxLen gl_UNSIGNED_SHORT 0
 
 
 fragmentShaderText :: JSString
