@@ -4,6 +4,9 @@
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE JavaScriptFFI #-}
 module SmallGL.Types where
 
 
@@ -11,7 +14,10 @@ import Reflex.Dom.Widget.Animation as Animation
 import Numeric.DataFrame
 import Numeric.DataFrame.IO
 import Numeric.Dimensions
+import Numeric.TypeLits
 import JavaScript.WebGL
+import GHCJS.Types (JSVal)
+import Unsafe.Coerce (unsafeCoerce)
 
 
 -- import Commons
@@ -57,9 +63,14 @@ data ColoredData = forall n m . (KnownDim n, KnownDim m)
 data TexturedData = forall n m . (KnownDim n, KnownDim m)
   => TexturedData (CoordsNormals n) (TexCoords n) (Indices m)
 
-
+-- | Get number of vertices
 cdVertexNum :: ColoredData -> Int
 cdVertexNum (ColoredData _ (Colors (_ :: IODataFrame GLubyte '[4,n])) _) = dimVal' @n
+
+-- | Get number of indices
+cdIndexNum :: ColoredData -> Int
+cdIndexNum (ColoredData _ _ (Indices (_ :: IODataFrame GLushort '[m]))) = dimVal' @m
+
 
 -- | All WebGL information to render a geometry with colors (but no textures)
 data ColoredGeometryWebGLData
@@ -80,10 +91,10 @@ data ColoredGeometryWebGLData
 -- | constant attribute locations for all shaders (set if necessary)
 --
 attrLocCoords, attrLocNormals, attrLocColors, attrLocTexCoords :: GLuint
-attrLocCoords    = 1
-attrLocNormals   = 2
-attrLocColors    = 3
-attrLocTexCoords = 4
+attrLocCoords    = 0
+attrLocNormals   = 1
+attrLocColors    = 2
+attrLocTexCoords = 3
 
 setCoordsNormalsBuf :: WebGLRenderingContext -> IO ()
 setCoordsNormalsBuf gl = do
@@ -118,4 +129,48 @@ enableTexCoordsBuf gl = enableVertexAttribArray gl attrLocTexCoords
 disableTexCoordsBuf :: WebGLRenderingContext -> IO ()
 disableTexCoordsBuf gl = disableVertexAttribArray gl attrLocTexCoords
 
+-- | void bufferData(GLenum target, BufferDataSource? data, GLenum usage) (OpenGL ES 2.0 §2.9, man page)
+--   Set the size of the currently bound WebGLBuffer object for the passed target to the size of the passed data,
+--   then write the contents of data to the buffer object.
+foreign import javascript unsafe "$1.bufferData($2, $3, $4)"
+    bufferData' :: WebGLRenderingContext -> GLenum -> IODataFrame t ds -> GLenum -> IO ()
+
+-- | void bufferSubData(GLenum target, GLintptr offset, BufferDataSource? data) (OpenGL ES 2.0 §2.9, man page)
+--   For the WebGLBuffer object bound to the passed target write the passed data starting at the passed offset.
+--   If the data would be written past the end of the buffer object an INVALID_VALUE error is generated.
+--   If data is null then an INVALID_VALUE error is generated.
+foreign import javascript unsafe "$1.bufferSubData($2, $3, $4)"
+    bufferSubData' :: WebGLRenderingContext -> GLenum -> Int -> IODataFrame t ds -> IO ()
+
+
+foreign import javascript unsafe "$1.subarray($2,$3)"
+    js_unsafeSubArrayFreeze :: IODataFrame t asbs -> Int -> Int -> IO JSVal
+
+unsafeSubArrayFreeze :: forall t (as :: [Nat]) (b' :: Nat) (b :: Nat) (bs :: [Nat]) (asbs :: [Nat])
+                   . ( ConcatList as (b :+ bs) asbs
+                     , Dimensions (b :+ bs)
+                     , Dimensions (as +: b')
+                     , Dimensions as
+                     )
+                   => IODataFrame t asbs -> Idx (b :+ bs) -> IO (DataFrame t (as +: b'))
+unsafeSubArrayFreeze df i
+  | off <- fromEnum i * dimVal (dim @as)
+  = unsafeCoerce <$> js_unsafeSubArrayFreeze df off (off + totalDim (Proxy @(as +: b')))
+
+
+unsafeSubArray :: forall t (as :: [Nat]) (b' :: Nat) (b :: Nat) (bs :: [Nat]) (asbs :: [Nat])
+                . ( ConcatList as (b :+ bs) asbs
+                  , Dimensions (b :+ bs)
+                  , Dimensions (as +: b')
+                  , Dimensions as
+                  )
+               => IODataFrame t asbs -> Idx (b :+ bs) -> IO (IODataFrame t (as +: b'))
+unsafeSubArray df i
+  | off <- fromEnum i * dimVal (dim @as)
+  = unsafeCoerce <$> js_unsafeSubArrayFreeze df off (off + totalDim (Proxy @(as +: b')))
+
+
+
+unsafeArrayThaw :: DataFrame t (a :+ as) -> IO (IODataFrame t (a :+ as))
+unsafeArrayThaw df = pure (unsafeCoerce df)
 
