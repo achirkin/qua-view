@@ -1,6 +1,6 @@
-{-# LANGUAGE TemplateHaskell #-}
+-- {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE QuasiQuotes #-}
+-- {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE DataKinds #-}
 
 module Widgets.Modal.Share
@@ -11,17 +11,17 @@ import Reflex.Dom
 
 import Commons
 import Widgets.Commons
-import Widgets.Generation
+--import Widgets.Generation
 import Widgets.Modal
 
-popupShare :: Reflex t 
-           => Event t (ElementClick shareButton) 
+popupShare :: Reflex t
+           => Event t (ElementClick shareButton)
            -> Text -- ^ share link
            -> Widget x ()
 popupShare sharePopupE shareLink = void $ createSmallModalWithClicks' sharePopupE Inactive $ popupShareContent shareLink
 
 
-popupShareContent :: Reflex t 
+popupShareContent :: Reflex t
                   => Text -- ^ share link
                   -> Widget x (Event t (ElementClick "close share popup"))
 popupShareContent shareLink = do
@@ -36,7 +36,7 @@ popupShareContent shareLink = do
       --     -- define html code (this is converted into a static JSString)
       --     -- always make sure it has only one root element if you use it in makeElementFromHtml function
       --     qhtml
-      --       [hamlet|                
+      --       [hamlet|
       --           <div style="text-align:center">
       --             <a.shareButton onclick="FB.ui({method: 'share',mobile_iframe: true, href: '#{shareLink}'}, function(response){});">
       --               <img src="@{StaticR img_fbIcon_png}" style="width:40px;height:40px;" title="Share on Facebook" alt="Share on Facebook">
@@ -51,4 +51,4 @@ popupShareContent shareLink = do
     elClass "div" "modal-footer" $
       elClass "p" "text-right" $
         flatButton "Close"
-  where
+
