@@ -77,7 +77,6 @@ executable qua-view
         Widgets.Tabs
         Widgets.Tabs.Geometry
         Widgets.Tabs.Info
-        Widgets.Tabs.Navigator
         Widgets.Tabs.Services
     ghc-options: -Wall -fwarn-tabs -O0
 

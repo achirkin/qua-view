@@ -10,14 +10,12 @@ import Reflex.Dom
 
 import Commons
 import Widgets.Generation
-import Widgets.Tabs.Navigator (PanelState (..))
 
 -- TODO: Add functionality to Panel Services
-panelServices :: Reflex t => Dynamic t PanelState -> Widget x ()
-panelServices pStateD =
-    elDynClass "div" (toPanelClass <$> pStateD) $ do
+panelServices :: Reflex t => Widget x ()
+panelServices = do
       el "div" $ do
-        text $ "Select a remote service to run"
+        text "Select a remote service to run"
         void $ makeElementFromHtml def $(do
             qcss
               [cassius|
@@ -41,7 +39,5 @@ panelServices pStateD =
       elAttr "div" attrs $
         el "table" blank -- TODO: For service parameters.
   where
-    toPanelClass PanelServices = "tab-pane fade active in"
-    toPanelClass _ = "tab-pane fade"
     attrs = ("class" =: "form-group")
          <> ("id" =: "guiServiceParams")
