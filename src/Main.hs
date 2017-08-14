@@ -35,7 +35,7 @@ main = mainWidgetInElementById "qua-view-widgets" $ mdo
     canvas <- Widgets.getWebGLCanvas
 
     -- add the control panel to the page
-    _panelStateD <- Widgets.controlPanel
+    (resetCameraE, _panelStateD) <- Widgets.controlPanel
 
     -- initialize WebGL rendering context
     let smallGLESel :: forall t a . Reflex t => SmallGL.SmallGLInput a -> Event t a
@@ -52,7 +52,7 @@ main = mainWidgetInElementById "qua-view-widgets" $ mdo
                                    Model.CState { Model.viewPoint  = vec3 (-2) 3 0
                                                 , Model.viewAngles = (2.745, 0.825)
                                                 , Model.viewDist = 68 }
-    cameraD <- Model.dynamicCamera icamera aHandler
+    cameraD <- Model.dynamicCamera icamera aHandler resetCameraE
 --    performEvent_ $ liftIO . print <$> updated (Model.oldState <$> cameraD)
 
 

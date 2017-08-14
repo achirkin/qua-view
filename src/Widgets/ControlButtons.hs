@@ -3,6 +3,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE DataKinds #-}
+
 module Widgets.ControlButtons
     ( controlButtonGroup
       -- the module below should expose only controlButtonGroup widget and related data types.
@@ -15,28 +16,36 @@ module Widgets.ControlButtons
 
 import qualified Reflex.Class as Reflex
 import qualified Reflex.Dom as Dom
+import Reflex.Dynamic
 import Text.Julius (julius)
 
 import Commons
 import Widgets.Generation
 import Widgets.Modal.Help
+import Widgets.Modal.Share
+import Widgets.Modal.SubmitProposal
 
 -- | Control button group is a column of colourfull buttons in the bottom-right corner of the screen.
 --   It defines the most useful functions of qua-kit.
-controlButtonGroup :: Reflex t =>  Widget x (Dynamic t (ComponentState "ControlPanel"))
+controlButtonGroup :: Reflex t =>  Widget x (Event t (ElementClick "Reset Camera"), Dynamic t (ComponentState "ControlPanel"))
 controlButtonGroup = mdo
-    (toggleGroupD, cpStateD) <-
+    (toggleGroupD, resetCameraE, cpStateD) <-
         Dom.elDynClass "div" (toPanelClass <$> cpStateD) $
           Dom.elDynClass "div" toggleGroupD $ do
             -- toggle visibility of buttons
             toggleGroupD'  <- expandCtrlGroupButton
             -- show all buttons
-            groupContents <- Dom.elClass "div" "fbtn-dropup" $ do
+            (resetCameraE', groupContents) <- Dom.elClass "div" "fbtn-dropup" $ do
+                shareButton "placeholder link"
+                resetCamE <- resetCameraButton
                 helpButton
                 toggleFullScreenButton
-                controlPanelButton
-            return (toggleGroupD', groupContents)
-    return cpStateD
+                groupContents' <- controlPanelButton
+                _serviceStateD <- serviceButtons -- TODO: For running service
+                _ <- submitProposalButton -- TODO: Submit proposal
+                return (resetCamE, groupContents')
+            return (toggleGroupD', resetCameraE', groupContents)
+    return (resetCameraE, cpStateD)
   where
     toPanelClass Active   = openPanelState
     toPanelClass Inactive = closedPanelState
@@ -172,14 +181,9 @@ helpButton = do
         |])
     popupHelp (ElementClick <$ Dom.domEvent Dom.Click e)
 
-
-----------------------------------------------------------------------------------------------------
--- below are drafts: buttons that not implemented yet
-----------------------------------------------------------------------------------------------------
-
-
-resetCameraButton :: Reflex t => Widget x (Element Dom.EventResult Dom.GhcjsDomSpace t)
-resetCameraButton = makeElementFromHtml def $(qhtml
+resetCameraButton :: Reflex t => Widget x (Event t (ElementClick s))
+resetCameraButton = do
+    e <- makeElementFromHtml def $(qhtml
         [hamlet|
           <a .fbtn .waves-attach .waves-circle .waves-effect .fbtn-brand-accent>
             <span .fbtn-text .fbtn-text-left>
@@ -189,38 +193,66 @@ resetCameraButton = makeElementFromHtml def $(qhtml
             <span .icon style="margin-left: -24px;font-size: 1em;line-height: 1em;">
               videocam
         |])
+    return (ElementClick <$ Dom.domEvent Dom.Click e)
 
+serviceButtons :: Reflex t => Widget x (Dynamic t (ComponentState "Service"))
+serviceButtons = mdo
+    serviceStateD <- holdDyn Inactive $ Reflex.leftmost [Active <$ serviceRunE, Inactive <$ serviceClearE]
+    serviceRunE   <- serviceRunButton serviceStateD
+    serviceClearE <- serviceClearButton serviceStateD
+    return serviceStateD
+    
 
-submitProposalButton :: Reflex t => Widget x (Element Dom.EventResult Dom.GhcjsDomSpace t)
-submitProposalButton = makeElementFromHtml def $(qhtml
-        [hamlet|
-          <a .fbtn .waves-attach .waves-circle .waves-effect .fbtn-brand>
-            <span .fbtn-text .fbtn-text-left>
-              Submit proposal
-            <span .icon .icon-lg>
-              save
-        |])
+serviceClearButton :: Reflex t => Dynamic t (ComponentState "Service") -> Widget x (Event t (ElementClick s))
+serviceClearButton stateD = do
+    (e, _) <- Dom.elDynAttr' "a" (attrs <$> stateD) $ do
+                Dom.elClass "span" "fbtn-text fbtn-text-left" $ Dom.text "Clear service results"
+                Dom.elClass "span" "icon icon-lg" $ Dom.text "visibility_off"
+    return (ElementClick <$ Dom.domEvent Dom.Click e)
+  where
+    attrs s = ("class" =: "fbtn waves-attach waves-circle waves-effect waves-light fbtn-brand-accent")
+              <> displayButton s
+    displayButton Inactive = "style" =: "display: none"
+    displayButton Active   = mempty
 
+serviceRunButton :: Reflex t => Dynamic t (ComponentState "Service") -> Widget x (Event t (ElementClick s))
+serviceRunButton stateD = do
+    (e, _) <- Dom.elDynAttr' "a" (attrs <$> stateD) $ do
+                Dom.elClass "span" "fbtn-text fbtn-text-left" $ Dom.text "Run evaluation service"
+                Dom.elClass "span" "icon icon-lg" $ Dom.text "play_arrow"
+    return (ElementClick <$ Dom.domEvent Dom.Click e)
+  where
+    attrs s = ("class" =: "fbtn waves-attach waves-circle waves-effect fbtn-green")
+              <> displayButton s
+    displayButton Active   = "style" =: "display: none"
+    displayButton Inactive = mempty
 
-serviceClearButton :: Reflex t => Widget x (Element Dom.EventResult Dom.GhcjsDomSpace t)
-serviceClearButton = makeElementFromHtml def $(qhtml
-        [hamlet|
-          <a .fbtn .waves-attach .waves-circle .waves-effect .waves-light .fbtn-brand-accent>
-            <span .fbtn-text .fbtn-text-left>
-              Clear service results
-            <span .icon .icon-lg>
-              visibility_off
-        |])
+shareButton :: Reflex t 
+            => Text -- ^ share link
+            -> Widget x ()
+shareButton link = do
+    e <- makeElementFromHtml def $(qhtml
+          [hamlet|
+            <a .fbtn .waves-attach .waves-circle .waves-effect .fbtn-brand>
+              <span .fbtn-text .fbtn-text-left>
+                Submit proposal
+              <span .icon .icon-lg>
+                share
+          |])
+    popupShare (ElementClick <$ Dom.domEvent Dom.Click e) link
 
+submitProposalButton :: Reflex t => Widget x (Event t UserAsksSubmitProposal)
+submitProposalButton = do
+    e <- makeElementFromHtml def $(qhtml
+          [hamlet|
+            <a .fbtn .waves-attach .waves-circle .waves-effect .fbtn-brand>
+              <span .fbtn-text .fbtn-text-left>
+                Submit proposal
+              <span .icon .icon-lg>
+                save
+          |])
+    popupSubmitProposal (ElementClick <$ Dom.domEvent Dom.Click e)
 
-serviceRunButton :: Reflex t => Widget x (Element Dom.EventResult Dom.GhcjsDomSpace t)
-serviceRunButton = makeElementFromHtml def $(qhtml
-        [hamlet|
-          <a .fbtn .waves-attach .waves-circle .waves-effect .fbtn-green>
-            <span class="fbtn-text fbtn-text-left">
-              Run evaluation service
-            <span class="icon icon-lg">
-              play_arrow
-        |])
-
-
+----------------------------------------------------------------------------------------------------
+-- below are drafts: buttons that not implemented yet
+----------------------------------------------------------------------------------------------------
