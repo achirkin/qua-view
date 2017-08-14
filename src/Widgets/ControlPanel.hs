@@ -12,15 +12,31 @@ import qualified Reflex.Dom as Dom
 import Commons
 import Widgets.Generation
 import Widgets.ControlButtons
+
 import Widgets.Tabs
+import Widgets.Tabs.Geometry
+import Widgets.Tabs.Info
+import Widgets.Tabs.Services
+
 
 -- | Control panel widget is a place for all controls in qua-view!
 controlPanel :: Reflex t => Widget x (Event t (ElementClick "Reset Camera"), Dynamic t (ComponentState "ControlPanel"))
 controlPanel = mdo
     (resetCameraE, stateD) <- Dom.elDynClass "div" (toClass <$> stateD) $ do
-      _outputEvs <- panelTabs
+
+      -- tab pane
+      _outputEvs <-
+        Dom.elAttr "div" ("style" =: "overflow-y: auto; overflow-x: hidden; height: 100%;") $ do
+          Dom.elAttr "div" ("style" =: "margin: 0; padding: 0; height: 56px;") Dom.blank
+          runTabWidget $ do
+            r <- addTab "Geometry" panelGeometry
+            addTab "Info" panelInfo
+            addTab "Services" panelServices
+            return r
+
       -- GUI control buttons
       controlButtonGroup
+
     return (resetCameraE, stateD)
   where
     toClass Active   = openState
@@ -71,4 +87,5 @@ controlPanel = mdo
         -- Combine two classes: {.base .base-open} and {.base .base-closed}
         returnVars $ fmap ((baseclass <> " ") <>) [ostate, cstate]
       )
+
 

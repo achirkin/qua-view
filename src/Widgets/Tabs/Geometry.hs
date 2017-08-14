@@ -16,7 +16,6 @@ import Reflex.Dom
 import Commons
 import Widgets.Modal.BrowseScenarios
 import Widgets.Modal.SaveScenario
-import Widgets.Tabs.Navigator (PanelState (..))
 
 
 
@@ -29,15 +28,12 @@ data GeometryTabOutE e where
 -- TODO do the same trick for input events if necessary
 
 
-panelGeometry :: Reflex t => Dynamic t PanelState -> Widget x (EventSelector t GeometryTabOutE)
-panelGeometry pStateD =
-    elDynClass "div" (toPanelClass <$> pStateD) $ do
-      fileUploadGeometry
-      luciScenarios
-  where
-    toPanelClass PanelGeometry = "tab-pane fade active in"
-    toPanelClass _ = "tab-pane fade"
--- File Upload Geometry
+panelGeometry :: Reflex t => Widget x (EventSelector t GeometryTabOutE)
+panelGeometry = do
+    fileUploadGeometry
+    luciScenarios
+
+
 
 fileUploadGeometry :: Reflex t => Widget x ()
 fileUploadGeometry = do
@@ -72,7 +68,7 @@ data LuciState = Connected | Disconnected
 luciScenarios :: Reflex t => Widget x (EventSelector t GeometryTabOutE)
 luciScenarios = do
     let luciState = constDyn Connected -- Placeholder
-    elDynAttr "div" (attrs1 <$> luciState) $ 
+    elDynAttr "div" (attrs1 <$> luciState) $
       el "div" $ text "Luci scenarios are not available"
     elDynAttr "div" (attrs2 <$> luciState) luciScenarioPane
   where

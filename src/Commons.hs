@@ -11,12 +11,12 @@ module Commons
     , jsstring
       -- * Commonly used standard types
     , first, second, (***), (&&&)
-    , when, unless, void
+    , when, unless, void, for
     , Proxy (..)
     , Semigroup (..), Monoid (..)
     , Coercible, coerce
       -- * Re-exported from Reflex
-    , Reflex, Event, Behavior, Dynamic, Widget, Element
+    , Reflex, Event, Behavior, Dynamic, Widget, Element, EventSelector
     , AnimationTime (..), AnimationHandler
     , PointerEvent, AEventType (..), PEventType (..), PointerEventType (..)
     , WheelEvent (..), ModKey (..)
@@ -39,6 +39,7 @@ import Data.Default
 import Data.Proxy
 import Data.Semigroup
 import Data.Text (Text)
+import Data.Traversable (for)
 import Language.Haskell.TH
 import Language.Haskell.TH.Syntax (qAddTopDecls)
 import Language.Haskell.TH.Quote (QuasiQuoter(..))
