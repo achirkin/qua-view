@@ -33,7 +33,9 @@ popupBrowseScenarios browsePopupE
 
 
 
-browseScenariosContent :: Reflex t => Widget x (Event t (ElementClick "Close browse scenarios modal"), Event t UserSelectedScenario)
+browseScenariosContent :: Reflex t
+                       => Widget x ( Event t (ElementClick "Close browse scenarios modal")
+                                   , Event t UserSelectedScenario)
 browseScenariosContent = flip (,) never <$> do
   elAttr "div" (("class" =: "modal-heading") <> ("style" =: "max-height: 10%")) $
     elClass "p" "modal-title" $ text "Select scenario"
