@@ -1,12 +1,17 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 -- | This module should not depend on anything in qua-view.
 --   It can be imported by any other modules to use certain handy functions or types.
 module Commons
     ( -- * Local types
       IsBusy (..), ComponentState (..), ElementClick (..)
+    , CompState (..), byCompName
       -- * Local functions
     , jsstring
       -- * Commonly used standard types
@@ -23,8 +28,10 @@ module Commons
     , (=:)
       -- * Re-exported from GHC.TypeLits
     , Symbol, Nat, KnownNat, KnownSymbol, natVal, symbolVal
+      -- * Dependent maps
+    , DMap, DSum (..)
       -- * Some commonly used types re-exported
-    , Text, JSString, JSVal
+    , Text, JSString, JSVal, Map
       -- * Other useful libraries
     , MonadIO (..), Default (..), MonadFix (..)
     ) where
@@ -38,6 +45,10 @@ import Data.Coerce
 import Data.Default
 import Data.Proxy
 import Data.Semigroup
+import Data.Map.Lazy (Map)
+import Data.Dependent.Map (DMap, DSum (..))
+import Data.Type.Equality
+import qualified Data.GADT.Compare as GADT
 import Data.Text (Text)
 import Data.Traversable (for)
 import Language.Haskell.TH
@@ -48,6 +59,7 @@ import GHC.TypeLits
 import Reflex.Class
 import Reflex.Dom
 import Reflex.Dom.Widget.Animation
+import Unsafe.Coerce (unsafeCoerce)
 
 
 
@@ -67,9 +79,30 @@ data ComponentState (s :: Symbol) = Active | Inactive
 instance KnownSymbol s => Show (ComponentState s) where
     show s = "ComponentState :: " ++ symbolVal s
 
+-- | Let us select event by a corresponding type-level component name
+data CompState a
+    = forall (s :: Symbol)
+    . (KnownSymbol s, a ~ ComponentState s) => CompState
 
+-- | Convenient function to select component state
+byCompName :: forall (s :: Symbol) . KnownSymbol s => CompState (ComponentState s)
+byCompName = CompState
 
+instance GADT.GEq CompState where
+  geq s@CompState
+      t@CompState = case sameSymbol (toCSProxy s) (toCSProxy t) of
+        Nothing -> Nothing
+        Just Refl -> Just GADT.Refl
 
+instance GADT.GCompare CompState where
+  gcompare s@CompState
+           t@CompState = case symbolVal (toCSProxy s) `compare` symbolVal (toCSProxy t) of
+                LT -> unsafeCoerce GADT.GLT
+                EQ -> unsafeCoerce GADT.GEQ
+                GT -> unsafeCoerce GADT.GGT
+
+toCSProxy :: forall (s :: Symbol) . CompState (ComponentState s) -> Proxy s
+toCSProxy _ = Proxy
 
 -- | Create a multiline JavaScript string using a splice.
 --   Presumably, it performs faster than any other way of creating JSString, because it avoids

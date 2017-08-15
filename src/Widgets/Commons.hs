@@ -1,18 +1,53 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE ExistentialQuantification #-}
 
 module Widgets.Commons
-    ( flatButton
+    ( -- * Buttons
+      buttonFlat, buttonRed
+      -- * Common classes to use
+    , smallMarginClass
     ) where
 
 import Reflex.Dom
 import Commons
+import Widgets.Generation
 
 -- | Render a button with a click event attached.
 --   Click event is labeled with a component name.
-flatButton :: Reflex t => Text -> Widget x (Event t (ElementClick s))
-flatButton name = do
+buttonFlat :: forall s t x
+           .  Reflex t
+           => Text  -- ^ name of the button
+           -> Map Text Text -- ^ additional attributes
+           -> Widget x (Event t (ElementClick s))
+buttonFlat name moreAttrs = do
     (e, _) <- elAttr' "a" attrs $ text name
     return $ ElementClick <$ domEvent Click e
   where
-    attrs = ("class" =: "btn btn-flat btn-brand-accent waves-attach waves-effect")
-         <> ("data-dismiss" =: "modal")
+    attrs = "class" =: ("btn btn-flat btn-brand-accent waves-attach waves-effect " <> smallMarginClass) <> moreAttrs
+
+-- | Render a button with a click event attached.
+--   Click event is labeled with a component name.
+buttonRed :: forall s t x
+           . Reflex t
+          => Text  -- ^ name of the button
+          -> Map Text Text -- ^ additional attributes
+          -> Widget x (Event t (ElementClick s))
+buttonRed name moreAttrs = do
+    (e, _) <- elAttr' "a" attrs $ text name
+    return $ ElementClick <$ domEvent Click e
+  where
+    attrs = "class" =: ("btn btn-red waves-attach waves-light waves-effect " <> smallMarginClass) <> moreAttrs
+
+
+-- | add this class to make a small margin between buttons
+smallMarginClass :: Text
+smallMarginClass = $(do
+    c <- newVar
+    qcss [cassius|
+          .#{c}
+            margin: 2px
+         |]
+    returnVars [c]
+  )

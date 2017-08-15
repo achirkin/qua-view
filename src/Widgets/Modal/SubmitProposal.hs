@@ -30,6 +30,6 @@ saveScenarioContent = do
       textArea $ def & attributes .~ constDyn (("class" =: "form-control") <> ("id" =: "submit-proposal-name-input"))
   elClass "div" "modal-footer" $
     elClass "p" "text-right" $ do
-      ce <- flatButton "Cancel"
-      se <- flatButton "Save" -- TODO: Save scenario
+      ce <- buttonFlat "Cancel" def
+      se <- buttonFlat "Save" def -- TODO: Save scenario
       return (ce, UserAsksSubmitProposal undefined <$ se)

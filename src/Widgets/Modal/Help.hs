@@ -32,7 +32,7 @@ popupHelpContent = do
         text "for research purposes some of your actions (e.g. moving and rotating geometry objects) on this page may be anonymously recorded and sent to our servers; by proceeding you agree to share these data."
     elClass "div" "modal-footer" $
       elClass "p" "text-right" $
-        flatButton "Ok, let's go"
+        buttonFlat "Ok, let's go" def
   where
     -- here is how we create a static html with css styles attached
     helpHtml = $(do
