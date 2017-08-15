@@ -4,15 +4,20 @@
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE RecursiveDo #-}
+
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TypeApplications #-}
 module Main ( main ) where
 
 
 import Reflex.Dom
 import Reflex.Dom.Widget.Animation (resizeEvents, viewPortSizeI)
 import Numeric.DataFrame
-
+import qualified Data.Dependent.Map as DMap
 
 import Commons
+
 
 import qualified Model.Camera           as Model
 
@@ -35,13 +40,19 @@ main = mainWidgetInElementById "qua-view-widgets" $ mdo
     canvas <- Widgets.getWebGLCanvas
 
     -- add the control panel to the page
-    (resetCameraE, _panelStateD) <- Widgets.controlPanel
+    (resetCameraE, _panelStateD) <- Widgets.controlPanel compStateEvs
 
     -- initialize WebGL rendering context
     let smallGLESel :: forall t a . Reflex t => SmallGL.SmallGLInput a -> Event t a
         smallGLESel SmallGL.ViewPortResize = resizeEvents aHandler
         smallGLESel SmallGL.ProjTransformChange = SmallGL.ProjM . Model.projMatrix <$> updated cameraD
         smallGLESel SmallGL.ViewTransformChange = SmallGL.ViewM . Model.viewMatrix <$> updated cameraD
+
+        -- here we can put various events that enable/disable various components
+        compStateEvs = fan . merge $ DMap.fromList
+           [ byCompName @"Hello" :=> never
+           , byCompName @"Wold"  :=> never
+           ]
 
     renderingApi <- SmallGL.createRenderingEngine canvas (EventSelector smallGLESel)
     -- initialize animation handler (and all pointer events).

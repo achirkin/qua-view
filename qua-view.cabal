@@ -47,7 +47,9 @@ executable qua-view
         shakespeare >=2,
         blaze-html >=0.8,
         filepath >=1.4,
-        data-default >=0.7
+        data-default >=0.7,
+        dependent-map >= 0.2.4,
+        dependent-sum >= 0.4
     cpp-options: -DGHCJS_BROWSER
     js-sources:
         jsbits/LuciClient.js

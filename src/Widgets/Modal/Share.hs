@@ -50,5 +50,5 @@ popupShareContent shareLink = do
       --   )
     elClass "div" "modal-footer" $
       elClass "p" "text-right" $
-        flatButton "Close"
+        buttonFlat "Close" def
 

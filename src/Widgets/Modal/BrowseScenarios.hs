@@ -41,4 +41,4 @@ browseScenariosContent = flip (,) never <$> do
     text "Scenario List Table will be here." -- TODO: Scenario list table
   elAttr "div" (("class" =: "modal-footer") <> ("style" =: "max-height: 10%")) $
     elClass "p" "text-right" $
-      flatButton "Cancel"
+      buttonFlat "Cancel" def -- ("data-dismiss" =: "modal")
