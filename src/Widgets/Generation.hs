@@ -17,7 +17,6 @@ import Data.IORef
 import qualified GHCJS.DOM.Element as Element (js_setInnerHTML, Element)
 import Language.Haskell.TH
 import Language.Haskell.TH.Syntax (qAddTopDecls)
-import GHCJS.Nullable
 import GHCJS.DOM.Node (appendChild_)
 
 import Text.Hamlet (HtmlUrl,hamlet)
