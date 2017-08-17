@@ -14,12 +14,21 @@ import System.IO
 main :: IO ()
 main = defaultMainWithHooks simpleUserHooks
          { preBuild = addBuildEnvHook
-         , postBuild = \as bf pd lbi -> do
-              postBuild simpleUserHooks as bf pd lbi
-              wrapCodeHook lbi
-              aggregateCssHook lbi
-              copyOutputHook lbi
+         , postBuild = \args bf pd lbi -> do
+             postBuild simpleUserHooks args bf pd lbi
+             mapM_ (`postBuildHooks` lbi) args
          }
+
+postBuildHooks :: String -> LocalBuildInfo -> IO ()
+postBuildHooks "exe:qua-view" lbi = do
+    wrapCodeHook lbi
+    aggregateCssHook lbi
+    copyOutputHook "qua-view" "qua-view" "css" lbi
+    copyOutputHook "qua-view" "qua-view" "js" lbi
+postBuildHooks "exe:qua-worker-loadgeometry" lbi =
+    copyOutputHook "qua-worker-loadgeometry" "all" "js" lbi
+postBuildHooks as _ =
+    putStrLn $  "Warning: ignoring postbuild argument: " ++ show as
 
 
 -- | It's just a simple way to get the main executable name.
@@ -31,8 +40,8 @@ makeCssGenPath :: FilePath -> FilePath
 makeCssGenPath buildD = buildD </> myExeName </> (myExeName ++ "-tmp") </> "CssGen"
 
 -- | Where all generated js code is stored
-makeExeDir :: FilePath -> FilePath
-makeExeDir buildD = buildD </> myExeName </> (myExeName ++ ".jsexe")
+makeExeDir :: String -> FilePath -> FilePath
+makeExeDir cname buildD = buildD </> cname </> (cname ++ ".jsexe")
 
 -- | A path to a special file.
 --   This file contains a list of modules using TH unique identifiers.
@@ -53,7 +62,7 @@ wrapCodeHook lbi = readFile exeFile >>= \content -> writeFile exeFile' $ unlines
     , "else { window.onload = h$runQuaView.bind(global); }"
     ]
   where
-    exeDir =  makeExeDir $ buildDir lbi
+    exeDir =  makeExeDir myExeName $ buildDir lbi
     exeFile = exeDir </> "all.js"
     exeFile' = exeDir </> myExeName <.> "js"
 
@@ -61,26 +70,24 @@ wrapCodeHook lbi = readFile exeFile >>= \content -> writeFile exeFile' $ unlines
 -- | Copy generated files to web folder
 --   If we have the qua-sever folder near the qua-view folder (i.e. in the qua-kit repo),
 --   then copy generate javascript and css files there.
-copyOutputHook :: LocalBuildInfo -> IO ()
-copyOutputHook lbi = do
-    doesDirectoryExist webPath >>= \e -> when e $ do
-      copyFile jsFile  (webPath </> myExeName <.> "js")
-      copyFile cssFile (webPath </> myExeName <.> "css")
-    doesDirectoryExist quaServerPath >>= \e -> when e $ do
-      copyFile jsFile  (quaServerPath </> "js"  </> myExeName <.> "js")
-      copyFile cssFile (quaServerPath </> "css" </> myExeName <.> "css")
+copyOutputHook :: String -> String -> String -> LocalBuildInfo -> IO ()
+copyOutputHook compName origName ext lbi = do
+    doesDirectoryExist webPath >>= \e -> when e $
+      copyFile fname  (webPath </> compName <.> ext)
+    doesDirectoryExist quaServerPath >>= \e -> when e $
+      copyFile fname  (quaServerPath </> ext </> compName <.> ext)
   where
     webPath = "web"
     quaServerPath = ".." </> "qua-server" </> "static"
-    jsFile = makeExeDir (buildDir lbi) </> myExeName <.> "js"
-    cssFile = makeExeDir (buildDir lbi) </> myExeName <.> "css"
+    fname = makeExeDir compName (buildDir lbi) </> origName <.> ext
+
 
 -- | Get all files from CssGen folder and put their content into a single css file qua-view.css
 aggregateCssHook :: LocalBuildInfo -> IO ()
 aggregateCssHook lbi = do
     buildPrefix <- canonicalizePath (buildDir lbi) >>= makeAbsolute
     let cssGenDir = makeCssGenPath buildPrefix
-        exeDir    = makeExeDir buildPrefix
+        exeDir    = makeExeDir myExeName buildPrefix
         cssFile   = exeDir </> myExeName <.> "css"
         filterExistingCss fname = do
             let fpath = cssGenDir </> fname

@@ -42,6 +42,11 @@ packages:
       git: https://github.com/reflex-frp/reflex.git
       commit: a1092192c61f3dec924a8e2686dfe3440681bab3
     extra-dep: true
+  # faster text via jsstring
+  #- location:
+  #    git: https://github.com/obsidiansystems/text.git
+  #    commit: e9a5dca15cb5b96ac434aa21db18907383db25a2
+  #  extra-dep: true
 
 ghc-options:
   reflex: -O2 -dedupe
