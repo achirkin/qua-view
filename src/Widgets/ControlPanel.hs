@@ -21,43 +21,33 @@ import Widgets.Tabs.Services
 
 
 -- | Control panel widget is a place for all controls in qua-view!
-controlPanel :: Reflex t => EventSelector t CompState ->  Widget x (Event t (ElementClick "Reset Camera"), Dynamic t (ComponentState "ControlPanel"))
+controlPanel :: Reflex t
+             => EventSelector t CompState
+             -> WidgetWithLogs x
+                          ( Event t (ElementClick "Reset Camera")
+                          , Dynamic t (ComponentState "ControlPanel")
+                          , LoggerFunc
+                          )
 controlPanel compStates = mdo
-    (resetCameraE, stateD) <- Dom.elDynClass "div" (toClass <$> stateD) $ mdo
+    r@(_, stateD, _) <- Dom.elDynClass "div" (toClass <$> stateD) $ mdo
 
       -- tab pane
       _outputEvs <-
         Dom.elAttr "div" ("style" =: "overflow-y: auto; overflow-x: hidden; height: 100%;") $ do
           Dom.elAttr "div" ("style" =: "margin: 0; padding: 0; height: 56px;") Dom.blank
           runTabWidget $ do
-            r <- addTab "Geometry" (flip runReaderT loggerFunc $ panelGeometry compStates)
+            gr <- addTab "Geometry" (panelGeometry compStates)
             addTab "Info" panelInfo
             addTab "Services" panelServices
-            return r
+            return gr
 
-      loggerFunc <- loggerWidget
-      flip runReaderT loggerFunc $ do
-        logUser @JSString "Hey ho!"
-        logUser @Text "He asdfsdf "
-        logUser @String "Hehehehe!"
-        logUser @JSString "This is only visible in console"
-        logUser @JSString "1"
-        logUser @JSString "H2"
-        logUser @JSString "3!"
-        logUser @JSString "777777777"
-        logUser @JSString "88 88 88888"
-        logUser @JSString "8899999999998"
-        logUser @JSString "Wow! Tenth message!"
-        logUser @JSString "The first message should go away by now."
-        logDebug @JSString "control panel" "Secret message!"
-        logInfo  @JSString "control panel" "Secret message!"
-        logWarn  @JSString "control panel" "Secret message!"
-        logError @JSString "control panel" "Secret message!"
+      loggerFunc <- lift loggerWidget
 
       -- GUI control buttons
-      controlButtonGroup
+      (resetCameraE', stateD') <- lift controlButtonGroup
+      return (resetCameraE', stateD', loggerFunc)
 
-    return (resetCameraE, stateD)
+    return r
   where
     toClass Active   = openState
     toClass Inactive = closedState

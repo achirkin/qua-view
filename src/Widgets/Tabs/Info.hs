@@ -7,5 +7,5 @@ module Widgets.Tabs.Info
 import Commons
 import Reflex.Dom
 
-panelInfo :: Reflex t => Widget x ()
+panelInfo :: (Reflex t, DomBuilder t m) => m ()
 panelInfo = text "Info pane will be here." -- TODO: Info pane

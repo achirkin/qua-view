@@ -1,6 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Widgets.Tabs.Services
     ( panelServices
@@ -12,7 +13,12 @@ import Commons
 import Widgets.Generation
 
 -- TODO: Add functionality to Panel Services
-panelServices :: Reflex t => Widget x ()
+panelServices :: ( Reflex t
+                 , DomBuilder t m
+                 , DomBuilderSpace m ~ GhcjsDomSpace
+                 , MonadIO m
+                 )
+              => m ()
 panelServices = do
       el "div" $ do
         text "Select a remote service to run"

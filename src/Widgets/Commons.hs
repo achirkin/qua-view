@@ -2,6 +2,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module Widgets.Commons
     ( -- * Buttons
@@ -16,11 +17,11 @@ import Widgets.Generation
 
 -- | Render a button with a click event attached.
 --   Click event is labeled with a component name.
-buttonFlat :: forall s t x
-           .  Reflex t
+buttonFlat :: forall s t m
+            . (Reflex t, DomBuilder t m)
            => Text  -- ^ name of the button
            -> Map Text Text -- ^ additional attributes
-           -> Widget x (Event t (ElementClick s))
+           -> m (Event t (ElementClick s))
 buttonFlat name moreAttrs = do
     (e, _) <- elAttr' "a" attrs $ text name
     return $ ElementClick <$ domEvent Click e
@@ -29,11 +30,11 @@ buttonFlat name moreAttrs = do
 
 -- | Render a button with a click event attached.
 --   Click event is labeled with a component name.
-buttonRed :: forall s t x
-           . Reflex t
+buttonRed :: forall s t m
+           . (Reflex t, DomBuilder t m)
           => Text  -- ^ name of the button
           -> Map Text Text -- ^ additional attributes
-          -> Widget x (Event t (ElementClick s))
+          -> m (Event t (ElementClick s))
 buttonRed name moreAttrs = do
     (e, _) <- elAttr' "a" attrs $ text name
     return $ ElementClick <$ domEvent Click e

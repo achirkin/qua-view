@@ -40,7 +40,7 @@ main = mainWidgetInElementById "qua-view-widgets" $ mdo
     canvas <- Widgets.getWebGLCanvas
 
     -- add the control panel to the page
-    (resetCameraE, _panelStateD) <- Widgets.controlPanel compStateEvs
+    (resetCameraE, _panelStateD, loggerFunc) <- flip runReaderT loggerFunc $ Widgets.controlPanel compStateEvs
 
     -- initialize WebGL rendering context
     let smallGLESel :: forall t a . Reflex t => SmallGL.SmallGLInput a -> Event t a
@@ -71,6 +71,23 @@ main = mainWidgetInElementById "qua-view-widgets" $ mdo
     mainBuilt <- getPostBuild
     performEvent_ $ (liftIO (setIsProgramBusy Idle) >> Widgets.play aHandler) <$ mainBuilt
 
+    flip runReaderT loggerFunc $ do
+      logUser @JSString "Hey ho!"
+      logUser @Text "He asdfsdf "
+      logUser @String "Hehehehe!"
+      logUser @JSString "This is only visible in console"
+      logUser @JSString "1"
+      logUser @JSString "H2"
+      logUser @JSString "3!"
+      logUser @JSString "777777777"
+      logUser @JSString "88 88 88888"
+      logUser @JSString "8899999999998"
+      logUser @JSString "Wow! Tenth message!"
+      logUser @JSString "The first message should go away by now."
+      logDebug @JSString "control panel" "Secret message!"
+      logInfo  @JSString "control panel" "Secret message!"
+      logWarn  @JSString "control panel" "Secret message!"
+      logError @JSString "control panel" "Secret message!"
 
 -- | Create a global css splice.
 --   Do not abuse this!

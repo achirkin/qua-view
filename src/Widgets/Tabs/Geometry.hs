@@ -51,7 +51,7 @@ panelGeometry _compStateEvs = do
     clearGeometryClickedE <-
       el "div" $ do
         -- clear geometry button
-        cgClicked <- lift $ buttonRed @"ClearGeometry" "Clear" def
+        cgClicked <- buttonRed @"ClearGeometry" "Clear" def
         -- File upload button and its dynamic label
         rezE <- fileUpload cgClicked
         -- Log file content on debug level
@@ -83,7 +83,7 @@ fileUpload :: Reflex t
            => Event t (ElementClick "ClearGeometry")
            -> WidgetWithLogs x (Event t LoadedTextContent)
 fileUpload clearGeomEv = mdo
-    _ <- lift $ buttonRed "Files" ("onclick" =: ("document.getElementById('" <> finputId <> "').click()"))
+    _ <- buttonRed "Files" ("onclick" =: ("document.getElementById('" <> finputId <> "').click()"))
     elAttr "div" ("style" =: "display:inline; font-size: 0.9em;"
                <> "class" =: smallMarginClass)
                  $ dynText fileNameD

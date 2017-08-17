@@ -2,24 +2,29 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module Widgets.Tabs
     ( TabWidget, SelectedTab (..)
     , runTabWidget, addTab
     ) where
 
-import Reflex.Dom
-import Data.Text (pack)
-import Commons
-import Widgets.Generation
 
 import Control.Monad.Trans.Class (MonadTrans (..))
 import Control.Monad.Trans.RWS.Lazy
+import GHCJS.DOM.Types (IsNode)
+import Reflex.Dom
+import Data.Text (pack)
+
+import Commons
+import Widgets.Generation
+
+
 
 -- | Wrapper around widget that keeps track of tab names.
 --   Use `addTab` function to add new content in there,
 --   and `runTabWidget` to build a normal widget.
-newtype TabWidget x t a = TabWidget (RWST Text [(Int, SelectedTab)] Int (Widget x) a)
+newtype TabWidget m t a = TabWidget (RWST Text [(Int, SelectedTab)] Int m a)
   deriving (Functor, Applicative, Monad, MonadFix, MonadIO)
 
 
@@ -28,7 +33,8 @@ newtype SelectedTab = SelectedTab Text
   deriving Eq
 
 -- | Internal function that creates a tab pane with tab names
-tabsNavigator :: Reflex t => Text -> [(Int, SelectedTab)] -> Widget x (Dynamic t SelectedTab)
+tabsNavigator :: (Reflex t, DomBuilder t m, MonadHold t m)
+              => Text -> [(Int, SelectedTab)] -> m (Dynamic t SelectedTab)
 tabsNavigator baseid tabs = do
       evs <- elClass "ul" "nav nav-justified" $
         for tabs $ \(tid, SelectedTab tname) -> do
@@ -46,7 +52,8 @@ tabsNavigator baseid tabs = do
 
 
 -- | Add a widget tab
-addTab :: Reflex t => Text -> Widget x a -> TabWidget x t a
+addTab :: (Reflex t, DomBuilder t m)
+       => Text -> m a -> TabWidget m t a
 addTab tname twidget = TabWidget $ do
     baseIdStr <- ask
     i <- state (\j -> (j, j+1))
@@ -60,7 +67,11 @@ addTab tname twidget = TabWidget $ do
 
 
 -- | Build a widgets from several tabs
-runTabWidget :: Reflex t => TabWidget x t a -> Widget x (Dynamic t SelectedTab, a)
+runTabWidget :: ( Reflex t, DomBuilder t m, MonadHold t m
+                , IsNode (RawElement (DomBuilderSpace m))
+                , MonadIO m
+                )
+             => TabWidget m t a -> m (Dynamic t SelectedTab, a)
 runTabWidget (TabWidget tw) = do
     (contentEl, (r, _, tabNames)) <- elClass' "div" ("tab-content " <> tabContentClass) $
                  runRWST tw baseIdStr 1

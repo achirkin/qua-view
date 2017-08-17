@@ -7,6 +7,7 @@ module Commons.Import
     , Coercible, coerce
       -- * Re-exported from Reflex
     , Reflex, Event, Behavior, Dynamic, Widget, Element, EventSelector
+    , DomBuilder, DomBuilderSpace
     , AnimationTime (..), AnimationHandler
     , PointerEvent, AEventType (..), PEventType (..), PointerEventType (..)
     , WheelEvent (..), ModKey (..)
@@ -21,7 +22,7 @@ module Commons.Import
     , PFromJSVal (..), PToJSVal (..), ToJSVal (..), ToJSString, toJSString
       -- * Other useful libraries
     , MonadIO (..), Default (..), MonadFix (..)
-    , ReaderT (..)
+    , ReaderT (..), MonadTrans (..)
     ) where
 
 
@@ -31,6 +32,7 @@ import Control.Monad (when, unless, void)
 import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.Fix
 import Control.Monad.Trans.Reader (ReaderT (..))
+import Control.Monad.Trans.Class (MonadTrans (..))
 import Data.Coerce
 import Data.Default
 import Data.Proxy
