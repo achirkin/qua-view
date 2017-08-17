@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 module Commons.Import
     ( -- * Commonly used standard types
       first, second, (***), (&&&)
@@ -6,12 +7,15 @@ module Commons.Import
     , Semigroup (..), Monoid (..)
     , Coercible, coerce
       -- * Re-exported from Reflex
-    , Reflex, Event, Behavior, Dynamic, Widget, Element, EventSelector
+    , Reflex, Event, Behavior, Dynamic, EventSelector
+#ifndef ISWORKER
+    , Widget, Element
     , DomBuilder, DomBuilderSpace
     , AnimationTime (..), AnimationHandler
     , PointerEvent, AEventType (..), PEventType (..), PointerEventType (..)
     , WheelEvent (..), ModKey (..)
     , (=:)
+#endif
       -- * Re-exported from GHC.TypeLits
     , Symbol, Nat, KnownNat, KnownSymbol, natVal, symbolVal
       -- * Dependent maps
@@ -47,5 +51,7 @@ import GHCJS.DOM.Types ( Nullable (..), nullableToMaybe, maybeToNullable, toJSSt
                        , PFromJSVal (..), PToJSVal (..), ToJSString, ToJSVal (..))
 import GHC.TypeLits
 import Reflex.Class
+#ifndef ISWORKER
 import Reflex.Dom
 import Reflex.Dom.Widget.Animation
+#endif

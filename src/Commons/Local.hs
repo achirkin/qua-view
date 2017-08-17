@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE KindSignatures #-}
@@ -13,7 +14,9 @@ module Commons.Local
     , JSError (..)
     , LoadedTextContent (..)
       -- * Local functions
+#ifndef ISWORKER
     , jsstring
+#endif
     , castToJSString
     ) where
 
@@ -24,9 +27,11 @@ import Data.String (IsString (..))
 import Data.Type.Equality
 import qualified Data.GADT.Compare as GADT
 import GHC.TypeLits
+#ifndef ISWORKER
 import Language.Haskell.TH
 import Language.Haskell.TH.Syntax (qAddTopDecls)
 import Language.Haskell.TH.Quote (QuasiQuoter(..))
+#endif
 import Unsafe.Coerce (unsafeCoerce)
 
 import Commons.Import
@@ -74,6 +79,7 @@ instance GADT.GCompare CompState where
 toCSProxy :: forall (s :: Symbol) . CompState (ComponentState s) -> Proxy s
 toCSProxy _ = Proxy
 
+#ifndef ISWORKER
 -- | Create a multiline JavaScript string using a splice.
 --   Presumably, it performs faster than any other way of creating JSString, because it avoids
 --   conversion between HS string and JSString.
@@ -123,7 +129,7 @@ jsstring = QuasiQuoter
     mkFunAndArgs' _ [c] = (show c ++ "].join('');", ConT ''JSString)
     mkFunAndArgs' i (c:chunks) = let (e, a) = mkFunAndArgs' (i+1) chunks
                                  in (show c ++ ",$" ++ show i ++ ',':e, AppT ArrowT (ConT ''JSString) `AppT` a)
-
+#endif
 
 -- | Error messages coming from various widgets, etc.
 newtype JSError = JSError { getJSError :: JSString }
