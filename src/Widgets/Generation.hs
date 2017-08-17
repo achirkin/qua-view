@@ -33,8 +33,7 @@ import qualified Data.Map as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
 
-import Reflex.Class (Reflex)
-import Reflex.Dom ( Element (..), GhcjsDomSpace, GhcjsDomSpace, Widget, ElementConfig
+import Reflex.Dom ( Element (..), GhcjsDomSpace, GhcjsDomSpace, ElementConfig
                   , EventResult, wrapRawElement, extractRawElementConfig, placeRawElement)
 
 
@@ -237,9 +236,13 @@ modulesUniqPath = "modules.unique"
 
 -- | Get existing element by its ids.
 --   Use this function with care: a good use case is accessing an element that is hardcoded into html page.
-getElementById :: Reflex t
+getElementById :: ( Reflex t
+                  , DomBuilder t m
+                  , DomBuilderSpace m ~ GhcjsDomSpace
+                  , MonadIO m
+                  )
                => ElementConfig EventResult t GhcjsDomSpace
-               -> JSString -> Widget x (Maybe (Element EventResult GhcjsDomSpace t))
+               -> JSString -> m (Maybe (Element EventResult GhcjsDomSpace t))
 getElementById cfg elId = do
     me <- liftIO $ nullableToMaybe <$> js_getElementById elId
     case me of
@@ -249,9 +252,13 @@ getElementById cfg elId = do
 -- | Create an element directly from html code.
 --   The html code must have exactly one root element;
 --   otherwise the function fails at runtime.
-makeElementFromHtml :: Reflex t
+makeElementFromHtml :: ( Reflex t
+                       , DomBuilder t m
+                       , DomBuilderSpace m ~ GhcjsDomSpace
+                       , MonadIO m
+                       )
                     => ElementConfig EventResult t GhcjsDomSpace
-                    -> JSString -> Widget x (Element EventResult GhcjsDomSpace t)
+                    -> JSString -> m (Element EventResult GhcjsDomSpace t)
 makeElementFromHtml cfg content = do
     me <- liftIO $ nullableToMaybe <$> js_createElement content
     case me of
@@ -261,10 +268,14 @@ makeElementFromHtml cfg content = do
 
 -- | Append an element to another one, given by its id.
 --   Very unsafe function, please do not use it if you can!
-appendElementToAnotherById :: Reflex t
+appendElementToAnotherById :: ( Reflex t
+                              , DomBuilder t m
+                              , DomBuilderSpace m ~ GhcjsDomSpace
+                              , MonadIO m
+                              )
                            => JSString
-                           -> Widget x (Element EventResult GhcjsDomSpace t, a)
-                           -> Widget x (Maybe (Element EventResult GhcjsDomSpace t, a))
+                           -> m (Element EventResult GhcjsDomSpace t, a)
+                           -> m (Maybe (Element EventResult GhcjsDomSpace t, a))
 appendElementToAnotherById parentId elw = do
     mp <- getElementById def parentId
     case mp of
