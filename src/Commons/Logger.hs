@@ -5,19 +5,25 @@
 {-# LANGUAGE FlexibleContexts #-}
 
 module Commons.Logger
-    ( LogLevel(..), LogOutput (..), LogSource (..), LoggerFunc, WidgetWithLogs
-    , MonadLogger (..), logMsg', logMsg, logMsgEvents', logMsgEvents
+    ( LogLevel(..), LogOutput (..), LogSource (..), LoggerFunc
+    , MonadLogger (..), logMsg', logMsg
     , logDebug  , logInfo  , logWarn  , logError , logUser
     , logDebug' , logInfo' , logWarn' , logError', logUser'
+#ifndef ISWORKER
+    , WidgetWithLogs, logMsgEvents', logMsgEvents
     , logDebugEvents  , logInfoEvents  , logWarnEvents  , logErrorEvents , logUserEvents
     , logDebugEvents' , logInfoEvents' , logWarnEvents' , logErrorEvents', logUserEvents'
-    , makeWidgetLogger, stdOutLogger
+    , makeWidgetLogger
+#endif
+    , stdOutLogger
     ) where
 
 
 import Control.Monad.Trans.Reader
 import Data.String (IsString (..))
+#ifndef ISWORKER
 import Reflex.PerformEvent.Class
+#endif
 
 import Commons.Import
 
@@ -56,8 +62,10 @@ newtype LogSource = LogSource JSString
 -- | A callback to send logging messages to a browser console or some widget.
 type LoggerFunc = LogOutput -> LogLevel -> LogSource -> JSString -> Maybe JSVal -> IO ()
 
+#ifndef ISWORKER
 -- | A widget wrapped into reader transformer that can log stuff.
 type WidgetWithLogs x a = ReaderT LoggerFunc (Widget x) a
+#endif
 
 class MonadIO m => MonadLogger m where
     askLogger :: m LoggerFunc
@@ -165,7 +173,7 @@ logUser = logMsg OutWidget LevelInfo (LogSource "User message")
 
 
 
-
+#ifndef ISWORKER
 -- | Log a message and show an attached JS value
 logMsgEvents' :: ( ToJSString msg
                  , PToJSVal attachment
@@ -272,6 +280,7 @@ logUserEvents :: (ToJSString msg, MonadLogger m, PerformEvent t m, MonadIO (Perf
               => Event t msg -> m ()
 logUserEvents = logMsgEvents OutWidget LevelInfo (LogSource "User message")
 {-# INLINE logUserEvents #-}
+#endif
 
 
 
@@ -285,8 +294,7 @@ logUserEvents = logMsgEvents OutWidget LevelInfo (LogSource "User message")
 
 
 
-
-
+#ifndef ISWORKER
 -- | Supply a customized widget logging callback to get a proper `LoggerFunc`.
 makeWidgetLogger :: (LogLevel -> JSString -> Maybe JSVal -> IO ()) -> LoggerFunc
 makeWidgetLogger _ OutConsole ll ls msg mv = logToConsole ll ls msg mv
@@ -295,7 +303,7 @@ makeWidgetLogger f OutWidget  ll _ msg mv = f ll msg mv
 #else
 makeWidgetLogger f OutWidget  ll ls msg mv = logToConsole ll ls msg mv >> f ll msg mv
 #endif
-
+#endif
 
 -- | Default logger function that sends all messages to console.
 stdOutLogger :: LoggerFunc
