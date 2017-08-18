@@ -2,8 +2,6 @@ dist
 testdata
 cabal-dev
 SourceGraph
-web/modeler-icons
-web/qua-view.js
 *~
 *.o
 *.hi
