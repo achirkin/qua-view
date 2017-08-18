@@ -20,8 +20,10 @@ module Workers
 import Commons
 
 import qualified GHCJS.DOM.Types as JSFFI
+#ifdef DEVELOPMENT
 import Data.Time.Clock.POSIX
 import qualified Data.JSString as JSString
+#endif
 import qualified GHCJS.DOM.EventM as JSFFI
 import qualified GHCJS.DOM.JSFFI.Generated.DedicatedWorkerGlobalScope as JSFFI
 import qualified GHCJS.DOM.JSFFI.Generated.MessageEvent as JSFFI
@@ -38,11 +40,16 @@ import Reflex.TriggerEvent.Class
 
 -- | Create a WebWorker
 create :: MonadIO m => JSString -> m JSFFI.DedicatedWorkerGlobalScope
-create name = liftIO $ do
+create name =
+#ifdef DEVELOPMENT
+  liftIO $ do
     t <- getCurrentTime
     unsafeCoerce <$> WebWorker.create $ name
                        `JSString.append` "?"
                        `JSString.append` JSString.pack (show $ utcTimeToPOSIXSeconds t)
+#else
+  liftIO $ unsafeCoerce <$> WebWorker.create name
+#endif
 
 -- | Send a message without attachments
 postMessage :: (ToJSVal msg, MonadIO m) => JSFFI.DedicatedWorkerGlobalScope -> msg -> m ()
