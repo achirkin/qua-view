@@ -26,13 +26,14 @@ controlPanel :: Reflex t
              -> WidgetWithLogs x
                           ( Event t (ElementClick "Reset Camera")
                           , Dynamic t (ComponentState "ControlPanel")
+                          , EventSelector t GeometryTabOutE
                           , LoggerFunc
                           )
 controlPanel compStates = mdo
-    r@(_, stateD, _) <- Dom.elDynClass "div" (toClass <$> stateD) $ mdo
+    r@(_, stateD, _, _) <- Dom.elDynClass "div" (toClass <$> stateD) $ mdo
 
       -- tab pane
-      _outputEvs <-
+      outputEvs <-
         Dom.elAttr "div" ("style" =: "overflow-y: auto; overflow-x: hidden; height: 100%;") $ do
           Dom.elAttr "div" ("style" =: "margin: 0; padding: 0; height: 56px;") Dom.blank
           runTabWidget $ do
@@ -45,7 +46,7 @@ controlPanel compStates = mdo
 
       -- GUI control buttons
       (resetCameraE', stateD') <- lift controlButtonGroup
-      return (resetCameraE', stateD', loggerFunc)
+      return (resetCameraE', stateD', snd outputEvs, loggerFunc)
 
     return r
   where

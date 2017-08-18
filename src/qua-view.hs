@@ -4,17 +4,14 @@
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE RecursiveDo #-}
-
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeApplications #-}
 module Main ( main ) where
 
-import Control.Concurrent
 import Reflex.Dom
 import Reflex.Dom.Widget.Animation (resizeEvents, viewPortSizeI)
 import Numeric.DataFrame
-import Numeric.DataFrame.IO
 import qualified Data.Dependent.Map as DMap
 
 import Commons
@@ -26,9 +23,10 @@ import           Widgets.Generation
 import qualified Widgets.LoadingSplash  as Widgets
 import qualified Widgets.Canvas         as Widgets
 import qualified Widgets.ControlPanel   as Widgets
+import qualified Widgets.Tabs.Geometry  as Widgets
 
 import qualified SmallGL
-import qualified Workers
+import qualified Workers.LoadGeometry as Workers
 
 main :: IO ()
 main = mainWidgetInElementById "qua-view-widgets" $ mdo
@@ -42,7 +40,16 @@ main = mainWidgetInElementById "qua-view-widgets" $ mdo
     canvas <- Widgets.getWebGLCanvas
 
     -- add the control panel to the page
-    (resetCameraE, _panelStateD, loggerFunc) <- flip runReaderT loggerFunc $ Widgets.controlPanel compStateEvs
+    (resetCameraE, _panelStateD, geomTabEvs, loggerFunc)
+        <- flip runReaderT loggerFunc $ Widgets.controlPanel compStateEvs
+
+    -- initialize web workers
+    loadedGeometryE <- Workers.runLoadGeometryWorker $ -- I would need to add other loaded geom events here
+        select geomTabEvs Widgets.GeomOutUserLoadsGeomFile
+    performEvent_ $ ( \m -> runReaderT
+                        ( logInfo' @JSString "main" "Got this back:" m
+                        ) loggerFunc
+                    ) <$> loadedGeometryE
 
     -- initialize WebGL rendering context
     let smallGLESel :: forall t a . Reflex t => SmallGL.SmallGLInput a -> Event t a
@@ -66,43 +73,14 @@ main = mainWidgetInElementById "qua-view-widgets" $ mdo
                                                 , Model.viewAngles = (2.745, 0.825)
                                                 , Model.viewDist = 68 }
     cameraD <- Model.dynamicCamera icamera aHandler resetCameraE
---    performEvent_ $ liftIO . print <$> updated (Model.oldState <$> cameraD)
 
 
     -- Notify everyone that the program h finished starting up now
     mainBuilt <- getPostBuild
     performEvent_ . flip fmap mainBuilt . const $ do
+        liftIO (setIsProgramBusy Idle)
+        Widgets.play aHandler
 
-      liftIO (setIsProgramBusy Idle)
-      Widgets.play aHandler
-
-      void . liftIO . forkIO . flip runReaderT loggerFunc $ do
-          logUser @JSString "Hey ho!"
-          logUser @Text "He asdfsdf "
-          logUser @String "Hehehehe!"
-          logUser @JSString "This is only visible in console"
-          logUser @JSString "1"
-          logUser @JSString "H2"
-          logUser @JSString "3!"
-          logUser @JSString "777777777"
-          logUser @JSString "88 88 88888"
-          logUser @JSString "8899999999998"
-          logUser @JSString "Wow! Tenth message!"
-          logUser @JSString "The first message should go away by now."
-          logDebug @JSString "control panel" "Secret message!"
-          logInfo  @JSString "control panel" "Secret message!"
-          logWarn  @JSString "control panel" "Secret message!"
-          logError @JSString "control panel" "Secret message!"
-
-          logInfo  @JSString "control panel" "Going to create worker..."
-          w <- Workers.create "qua-worker-loadgeometry.js"
-          logInfo  @JSString "control panel" "Created a worker! Waiting..."
-          liftIO $ threadDelay 3000000
-          logInfo  @JSString "control panel" "Sending a message..."
-          Workers.postMessage' @JSString w ("First message!" :: JSString)
-          mydf <- liftIO $ newDataFrame @Float @'[2,5,5] >>= Workers.dfToArrayBuffer
-          Workers.postMsgWithBuf w "Hello world worker!" mydf
-          logInfo  @JSString "control panel" "Message sent!"
 
 
 

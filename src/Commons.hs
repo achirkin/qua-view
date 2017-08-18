@@ -7,9 +7,12 @@ module Commons
     , module Commons.Import
       -- * Logging facilities
     , module Commons.Logger
+      -- * EasyTensor helpers and instances
+    , module Commons.EasyTensorJSFFI
     ) where
 
 
 import Commons.Import
 import Commons.Local
 import Commons.Logger
+import Commons.EasyTensorJSFFI
