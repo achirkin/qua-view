@@ -23,7 +23,7 @@ module Commons.Import
       -- * Some commonly used types re-exported
     , Text, JSString, JSVal, Map
     , Nullable (..), nullableToMaybe, maybeToNullable
-    , PFromJSVal (..), PToJSVal (..), ToJSVal (..), ToJSString, toJSString
+    , PFromJSVal (..), PToJSVal (..), ToJSVal (..), FromJSVal (..), ToJSString, toJSString
       -- * Other useful libraries
     , MonadIO (..), Default (..), MonadFix (..)
     , ReaderT (..), MonadTrans (..)
@@ -48,7 +48,7 @@ import Data.Text (Text)
 import Data.Traversable (for)
 import GHCJS.Types (JSVal)
 import GHCJS.DOM.Types ( Nullable (..), nullableToMaybe, maybeToNullable, toJSString
-                       , PFromJSVal (..), PToJSVal (..), ToJSString, ToJSVal (..))
+                       , PFromJSVal (..), PToJSVal (..), ToJSString, ToJSVal (..), FromJSVal (..))
 import GHC.TypeLits
 import Reflex.Class
 #ifndef ISWORKER

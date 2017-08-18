@@ -48,16 +48,14 @@ panelGeometry :: forall t x . Reflex t
 panelGeometry _compStateEvs = do
 
     el "div" $ text "Read GeoJSON from file"
-    clearGeometryClickedE <-
+    (clearGeometryClickedE, geometryLoadedE) <-
       el "div" $ do
         -- clear geometry button
         cgClicked <- buttonRed @"ClearGeometry" "Clear" def
         -- File upload button and its dynamic label
         rezE <- fileUpload cgClicked
-        -- Log file content on debug level
-        logDebugEvents "LoadingFileGeometry" $ getTextContent <$> rezE
 
-        return cgClicked
+        return (cgClicked, rezE)
 
     (asksSaveScenarioE, asksSelectScenarioE) <- lift luciScenarioPane
 
@@ -66,6 +64,7 @@ panelGeometry _compStateEvs = do
         outEvsSel GeomOutUserAsksClearGeometry = clearGeometryClickedE
         outEvsSel GeomOutUserAsksSaveScenario  = asksSaveScenarioE
         outEvsSel GeomOutUserSelectedScenario  = asksSelectScenarioE
+        outEvsSel GeomOutUserLoadsGeomFile     = geometryLoadedE
 
     return $ EventSelector outEvsSel
 

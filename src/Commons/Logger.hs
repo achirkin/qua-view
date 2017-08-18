@@ -21,7 +21,9 @@ module Commons.Logger
 
 import Control.Monad.Trans.Reader
 import Data.String (IsString (..))
-#ifndef ISWORKER
+#ifdef ISWORKER
+import Data.Conduit
+#else
 import Reflex.PerformEvent.Class
 #endif
 
@@ -71,11 +73,11 @@ class MonadIO m => MonadLogger m where
     askLogger :: m LoggerFunc
 
 -- | Log a message and show an attached JS value
-logMsg' :: (ToJSString msg, PToJSVal attachment, MonadLogger m)
+logMsg' :: (ToJSString msg, ToJSVal attachment, MonadLogger m)
         => LogOutput -> LogLevel -> LogSource -> msg -> attachment -> m ()
 logMsg' lo ll ls msg a = do
     f <- askLogger
-    liftIO $ f lo ll ls (toJSString msg) (Just $ pToJSVal a)
+    liftIO $ toJSVal a >>= f lo ll ls (toJSString msg) . Just
 
 -- | Log a message
 logMsg :: (ToJSString msg,  MonadLogger m)
@@ -87,8 +89,13 @@ logMsg lo ll ls msg = do
 instance MonadIO m => MonadLogger (ReaderT LoggerFunc m) where
     askLogger = ask
 
+#ifdef ISWORKER
+instance MonadLogger m => MonadLogger (ConduitM i o m) where
+    askLogger = lift askLogger
+#endif
 
-logDebug' :: (ToJSString msg,  PToJSVal attachment, MonadLogger m)
+
+logDebug' :: (ToJSString msg,  ToJSVal attachment, MonadLogger m)
           => LogSource -> msg -> attachment -> m ()
 #if LOGLEVEL >= 1
 logDebug' _ _ _ = pure ()
@@ -106,7 +113,7 @@ logDebug = logMsg OutConsole LevelDebug
 #endif
 {-# INLINE logDebug #-}
 
-logInfo' :: (ToJSString msg,  PToJSVal attachment, MonadLogger m)
+logInfo' :: (ToJSString msg,  ToJSVal attachment, MonadLogger m)
           => LogSource -> msg -> attachment -> m ()
 #if LOGLEVEL >= 2
 logInfo' _ _ _ = pure ()
@@ -124,7 +131,7 @@ logInfo = logMsg OutConsole LevelInfo
 #endif
 {-# INLINE logInfo #-}
 
-logWarn' :: (ToJSString msg,  PToJSVal attachment, MonadLogger m)
+logWarn' :: (ToJSString msg,  ToJSVal attachment, MonadLogger m)
           => LogSource -> msg -> attachment -> m ()
 #if LOGLEVEL >= 3
 logWarn' _ _ _ = pure ()
@@ -142,7 +149,7 @@ logWarn = logMsg OutConsole LevelWarn
 #endif
 {-# INLINE logWarn #-}
 
-logError' :: (ToJSString msg,  PToJSVal attachment, MonadLogger m)
+logError' :: (ToJSString msg,  ToJSVal attachment, MonadLogger m)
           => LogSource -> msg -> attachment -> m ()
 #if LOGLEVEL >= 4
 logError' _ _ _ = pure ()
@@ -160,7 +167,7 @@ logError = logMsg OutConsole LevelError
 #endif
 {-# INLINE logError #-}
 
-logUser' :: (ToJSString msg,  PToJSVal attachment, MonadLogger m)
+logUser' :: (ToJSString msg,  ToJSVal attachment, MonadLogger m)
          => msg -> attachment -> m ()
 logUser' = logMsg' OutWidget LevelInfo (LogSource "User message")
 {-# INLINE logUser' #-}
@@ -176,7 +183,7 @@ logUser = logMsg OutWidget LevelInfo (LogSource "User message")
 #ifndef ISWORKER
 -- | Log a message and show an attached JS value
 logMsgEvents' :: ( ToJSString msg
-                 , PToJSVal attachment
+                 , ToJSVal attachment
                  , MonadLogger m
                  , PerformEvent t m
                  , MonadIO (Performable m)
@@ -184,7 +191,7 @@ logMsgEvents' :: ( ToJSString msg
               => LogOutput -> LogLevel -> LogSource -> Event t (msg, Maybe attachment) -> m ()
 logMsgEvents' lo ll ls ea = do
     f <- askLogger
-    performEvent_ $ (\(msg,ma) -> liftIO $ f lo ll ls (toJSString msg) (pToJSVal <$> ma)) <$> ea
+    performEvent_ $ (\(msg,ma) -> liftIO $ mapM toJSVal ma >>= f lo ll ls (toJSString msg)) <$> ea
 
 
 -- | Log a message
@@ -199,7 +206,7 @@ logMsgEvents lo ll ls ea = do
     performEvent_ $ (\msg -> liftIO $ f lo ll ls (toJSString msg) Nothing) <$> ea
 
 
-logDebugEvents' :: (ToJSString msg, PToJSVal attachment, MonadLogger m, PerformEvent t m, MonadIO (Performable m))
+logDebugEvents' :: (ToJSString msg, ToJSVal attachment, MonadLogger m, PerformEvent t m, MonadIO (Performable m))
                 => LogSource -> Event t (msg, Maybe attachment) -> m ()
 #if LOGLEVEL >= 1
 logDebugEvents' _ _ = pure ()
@@ -217,7 +224,7 @@ logDebugEvents = logMsgEvents OutConsole LevelDebug
 #endif
 {-# INLINE logDebugEvents #-}
 
-logInfoEvents' :: (ToJSString msg, PToJSVal attachment, MonadLogger m, PerformEvent t m, MonadIO (Performable m))
+logInfoEvents' :: (ToJSString msg, ToJSVal attachment, MonadLogger m, PerformEvent t m, MonadIO (Performable m))
                => LogSource -> Event t (msg, Maybe attachment) -> m ()
 #if LOGLEVEL >= 2
 logInfoEvents' _ _ = pure ()
@@ -235,7 +242,7 @@ logInfoEvents = logMsgEvents OutConsole LevelInfo
 #endif
 {-# INLINE logInfoEvents #-}
 
-logWarnEvents' :: (ToJSString msg, PToJSVal attachment, MonadLogger m, PerformEvent t m, MonadIO (Performable m))
+logWarnEvents' :: (ToJSString msg, ToJSVal attachment, MonadLogger m, PerformEvent t m, MonadIO (Performable m))
                => LogSource -> Event t (msg, Maybe attachment) -> m ()
 #if LOGLEVEL >= 3
 logWarnEvents' _ _ = pure ()
@@ -253,7 +260,7 @@ logWarnEvents = logMsgEvents OutConsole LevelWarn
 #endif
 {-# INLINE logWarnEvents #-}
 
-logErrorEvents' :: (ToJSString msg, PToJSVal attachment, MonadLogger m, PerformEvent t m, MonadIO (Performable m))
+logErrorEvents' :: (ToJSString msg, ToJSVal attachment, MonadLogger m, PerformEvent t m, MonadIO (Performable m))
                 => LogSource -> Event t (msg, Maybe attachment) -> m ()
 #if LOGLEVEL >= 4
 logErrorEvents' _ _ = pure ()
@@ -271,7 +278,7 @@ logErrorEvents = logMsgEvents OutConsole LevelError
 #endif
 {-# INLINE logErrorEvents #-}
 
-logUserEvents' :: (ToJSString msg, PToJSVal attachment, MonadLogger m, PerformEvent t m, MonadIO (Performable m))
+logUserEvents' :: (ToJSString msg, ToJSVal attachment, MonadLogger m, PerformEvent t m, MonadIO (Performable m))
                => Event t (msg, Maybe attachment) -> m ()
 logUserEvents' = logMsgEvents' OutWidget LevelInfo (LogSource "User message")
 {-# INLINE logUserEvents' #-}

@@ -1,5 +1,6 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE Rank2Types #-}
@@ -17,7 +18,7 @@ module Commons.Local
 #ifndef ISWORKER
     , jsstring
 #endif
-    , castToJSString
+    , castToJSString, parseJSON
     ) where
 
 
@@ -35,7 +36,7 @@ import Language.Haskell.TH.Quote (QuasiQuoter(..))
 import Unsafe.Coerce (unsafeCoerce)
 
 import Commons.Import
-
+import JavaScript.JSON.Types.Internal
 
 
 -- | Whether the program or component is busy doing some extensive work.
@@ -133,7 +134,7 @@ jsstring = QuasiQuoter
 
 -- | Error messages coming from various widgets, etc.
 newtype JSError = JSError { getJSError :: JSString }
-  deriving (PToJSVal, ToJSVal, ToJSString, IsString, Show, Eq)
+  deriving (PFromJSVal, PToJSVal, ToJSVal, ToJSString, IsString, Show, Eq)
 
 
 -- | Try to cast JavaScript object to a string.
@@ -149,4 +150,17 @@ foreign import javascript unsafe "((typeof $1 === 'string') ? $1 : null)"
 --   but we can also load some other text files from various places.
 --   Hence, this data type is used to depict some transefrable chunk of JavaScript string data.
 newtype LoadedTextContent = LoadedTextContent { getTextContent :: JSString }
+    deriving (PFromJSVal, PToJSVal, FromJSVal, ToJSVal)
 
+-- | Use JavaScript's JSON.parse
+parseJSON :: MonadIO m => JSString -> m (Either JSError Value)
+parseJSON str = liftIO $  do
+    (mv, me) <- (nullableToMaybe *** nullableToMaybe) <$> js_parseJSON str
+    case mv of
+      Just v -> return $ Right $ coerce v
+      Nothing -> case me of
+        Nothing -> return $ Left "Could not read JSON value, but also could not get error message."
+        Just e  -> return $ Left e
+
+foreign import javascript unsafe "try{$r1 = JSON.parse($1); $r2 = null;}catch(err){$r1 = null; $r2 = err;}"
+    js_parseJSON :: JSString -> IO (Nullable JSVal, Nullable JSError)
