@@ -31,4 +31,5 @@ cabal.config
 # qua-view specific stuff:
 #   do not persist auto-generated files
 web/qua-view.css
-web/qua-view.js
+web/qua-*.js
+web/qua-*.js
