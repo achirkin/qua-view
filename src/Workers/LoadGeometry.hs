@@ -19,7 +19,7 @@ import Workers
 #ifdef ISWORKER
 import Data.Conduit
 import JavaScript.JSON.Types.Internal
-
+--import Model.GeoJSON.Point ()
 
 loadGeometryConduit :: (MonadIO m, MonadLogger m)
                     => Int -> Conduit LoadedTextContent m (JSVal, [Transferable])
