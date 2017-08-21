@@ -19,22 +19,19 @@ import Workers
 #ifdef ISWORKER
 import Data.Conduit
 import JavaScript.JSON.Types.Internal
---import Model.GeoJSON.Point ()
+import Model.GeoJSON.Coordinates
 
 loadGeometryConduit :: (MonadIO m, MonadLogger m)
-                    => Int -> Conduit LoadedTextContent m (JSVal, [Transferable])
-loadGeometryConduit n | n <= 0    = return ()
-                      | otherwise = do
-    mmsg <- await
-    case mmsg of
-      Nothing  -> logWarn @JSString (workerLS loadGeometryDef) "No messages anymore. Strange!"
-      Just msg -> do
-        errOrVal <- parseJSON $ getTextContent msg
-        case errOrVal of
-          Left err -> logError (workerLS loadGeometryDef) err
-          Right (SomeValue val) -> logInfo' @JSString (workerLS loadGeometryDef) "Got a message!" val
-        yield (pToJSVal ("Thanks!" :: JSString), [])
-        loadGeometryConduit (n - 1)
+                    => Conduit LoadedTextContent m (JSVal, [Transferable])
+loadGeometryConduit = awaitForever $ \msg -> do
+    errOrVal <- parseJSON $ getTextContent msg
+    case errOrVal of
+      Left err -> logError (workerLS loadGeometryDef) err
+      Right (SomeValue val) -> do
+        logInfo' @JSString (workerLS loadGeometryDef) "Got a message!" val
+        logInfo' @JSString (workerLS loadGeometryDef) "Centres:" (js_getObjectCentres val)
+    yield (pToJSVal ("Thanks!" :: JSString), [])
+
 
 
 #else

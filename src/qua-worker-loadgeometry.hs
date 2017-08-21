@@ -7,6 +7,6 @@ import Workers
 import Workers.LoadGeometry
 
 main :: IO ()
-main = runReaderT (execWorkerConduit loadGeometryDef $ loadGeometryConduit 3) stdOutLogger
+main = runReaderT (execWorkerConduit loadGeometryDef loadGeometryConduit) stdOutLogger
 
 
