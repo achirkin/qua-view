@@ -82,12 +82,13 @@ fileUpload :: Reflex t
            => Event t (ElementClick "ClearGeometry")
            -> WidgetWithLogs x (Event t LoadedTextContent)
 fileUpload clearGeomEv = mdo
-    _ <- buttonRed "Files" ("onclick" =: ("document.getElementById('" <> finputId <> "').click()"))
+    _ <- elAttr "label" ("for" =: finputId) $ buttonRed "Files" def
     elAttr "div" ("style" =: "display:inline; font-size: 0.9em;"
                <> "class" =: smallMarginClass)
                  $ dynText fileNameD
     fInput <- fileInput $ def & fileInputConfig_attributes
-                              %~ (fmap . mappend $ "style" =: "display:none" <> "id" =: finputId)
+                              %~ (fmap . mappend $ "style" =: hideWorkaroundStile
+                                                <> "id" =: finputId)
     let fileD = headMaybe <$> (fInput ^. fileInput_value)
     fileNameE <- performEvent $ maybe (pure "") JSFFI.getName <$> updated fileD
     fileNameD <- holdDyn "" $ leftmost [fileNameE, "" <$ clearGeomEv]
@@ -117,6 +118,8 @@ fileUpload clearGeomEv = mdo
     finputId = $(newVar >>= returnVars . (:[]))
     headMaybe (x:_) = Just x
     headMaybe [] = Nothing
+    hideWorkaroundStile = "position:fixed;top:-10000px;left:-10000px;"
+     -- "visibility:hidden;width:0;height:0;padding:0;margin:0;border:0;min-height:0;"
     maybeNotRead Nothing = Left "Could not read file (FileReader.readAsText returned Nothing)."
     maybeNotRead (Just r) = case castToJSString r of
         Nothing -> Left "Scenario file must be a text file, but got binary file."

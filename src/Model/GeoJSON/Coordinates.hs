@@ -25,6 +25,7 @@ module Model.GeoJSON.Coordinates
     , PointSeq (..), LinearRing (..), LinearRingWithNormals (..)
     , bestFittingPlaneN, bestFittingLineN
     , varX, meanX
+    , js_getObjectCentres
     ) where
 
 import Numeric.DataFrame
@@ -143,6 +144,10 @@ instance FromJSON (LinearRing, PaddedZeros) where
 
 
 
+newtype ObjectCentres = ObjectCentres (DataFrame Float '[N 2, XN 0])
+
+
+
 
 foreign import javascript unsafe
     "var a = h$geojson_parseVec3($1); $r1 = a[0]; $r2 = a[1];"
@@ -163,3 +168,7 @@ foreign import javascript unsafe
 foreign import javascript unsafe
     "h$geojson_nestingLvl($1)"
     js_arrayNestingLvl :: JSArray -> Int
+
+foreign import javascript unsafe
+    "h$geojson_getObjectCentres($1)"
+    js_getObjectCentres :: JSVal -> JSVal

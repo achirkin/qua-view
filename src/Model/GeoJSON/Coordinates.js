@@ -45,3 +45,46 @@ function h$geojson_parseLinearRing(arr) {
       );
     return [new Float32Array(ans[0]), arr.length, ans[1]];
 }
+
+
+// Get a flat list of 2D points corresponding to every Geometry in the GeoJSON file
+function h$geojson_getObjectCentres(x) {
+  "use strict"
+  if (Array.isArray(x)) {
+    // if this is a coordinate, just return it (the only place where result is not wrapped)
+    if (typeof x[0] === "number" && typeof x[1] === "number") {
+      return [x[0], x[1]];
+    } else if (Array.isArray(x[0])) {
+      // flatten one layer of multi-layered array
+      if (Array.isArray(x[0][0])) {
+        return h$geojson_getObjectCentres([].concat.apply([],x));
+      }
+      // compute avgs and wrap them into one more layer of a list
+      var sum = x.reduce(
+                function(a,e) {
+                  var r = h$geojson_getObjectCentres(e);
+                  if(a == null) {
+                    return r;
+                  } else {
+                    return [a[0] + r[0], a[1] + r[1]];
+                  }
+                }
+                , null
+             ),
+          n = x.length;
+      return (n == 0 || sum == null) ? [] : [[sum[0]/n, sum[1]/n]];
+    } else { // map join results from all features / geometries
+        return [].concat.apply([],x.map(h$geojson_getObjectCentres));
+    }
+  } else if (x.hasOwnProperty('features')) {
+      return h$geojson_getObjectCentres(x['features']);
+  } else if (x.hasOwnProperty('geometry')) {
+      return h$geojson_getObjectCentres(x['geometry']);
+  } else if (x.hasOwnProperty('geometries')) {
+      return h$geojson_getObjectCentres(x['geometries']);
+  } else if (x.hasOwnProperty('coordinates')) {
+      return h$geojson_getObjectCentres(x['coordinates']);
+  } else {
+      return [];
+  }
+}
