@@ -25,18 +25,20 @@ module Model.GeoJSON.Coordinates
     , PointSeq (..), LinearRing (..), LinearRingWithNormals (..)
     , bestFittingPlaneN, bestFittingLineN
     , varX, meanX
-    , js_getObjectCentres
+    , ObjectCentres (..)
+    , getScenarioStatistics
     ) where
 
 import Numeric.DataFrame
 import Numeric.Dimensions
 import Numeric.TypeLits
 import Commons
---import JavaScript.JSON.Types.Internal
+import JavaScript.JSON.Types.Internal
 import JavaScript.JSON.Types.Instances
-import JavaScript.Array
-import JavaScript.Array.Internal
+import JavaScript.Array (JSArray)
+import qualified JavaScript.Array as JSArray
 import Unsafe.Coerce
+import Model.Scenario.Statistics
 
 newtype PaddedZeros = PaddedZeros Bool
   deriving (Eq, Show)
@@ -121,7 +123,8 @@ instance FromJSON (PointSeq, PaddedZeros) where
                     Nothing -> fail $
                        "Could not set DataFrame length: " ++ show len ++ "."
                     Just (SomeIntNat (_ :: Proxy n)) ->
-                       pure (PointSeq $ SomeDataFrame (unsafeCoerce jsv :: DataFrame Float '[4,n]), PaddedZeros pz)
+                       pure (PointSeq $ SomeDataFrame (unsafeCoerce jsv :: DataFrame Float '[4,n])
+                                                      , PaddedZeros pz)
                   else fail $
                     "Length of a point array must be greater than 1, but the array length is "
                       ++ show len ++ "."
@@ -137,16 +140,32 @@ instance FromJSON (LinearRing, PaddedZeros) where
                     Nothing -> fail $
                        "Could not set DataFrame length: " ++ show len ++ "."
                     Just (SomeIntNat (_ :: Proxy n)) ->
-                       pure (LinearRing $ SomeDataFrame (unsafeCoerce jsv :: DataFrame Float '[4,n]), PaddedZeros pz)
+                       pure (LinearRing $ SomeDataFrame (unsafeCoerce jsv :: DataFrame Float '[4,n])
+                                                        , PaddedZeros pz)
                   else fail $
                     "Length of a point array must be greater than 3, but the array length is "
                       ++ show len ++ "."
 
 
+-- | Go over a 2D point set and derive neccessary statistics
+getScenarioStatistics :: ObjectCentres -> ScenarioStatistics
+getScenarioStatistics (ObjectCentres (SomeDataFrame centres))
+    = ewfoldMap (\v -> ScenarioStatistics v v 1 v) centres
 
+-- | Try hard to parse JSON containing feature collection or geometry
+--   and return collection of object centres in 2D
 newtype ObjectCentres = ObjectCentres (DataFrame Float '[N 2, XN 0])
 
-
+instance FromJSON ObjectCentres where
+    parseJSON (SomeValue jsv) = case someIntNatVal n of
+        Nothing -> fail $ "Could not set DataFrame length: " ++ show n ++ "."
+        Just (SomeIntNat (_ :: Proxy n)) ->
+          pure (ObjectCentres $ SomeDataFrame
+                     (unsafeCoerce (js_wrapFloat32ArrayVec xs) :: DataFrame Float '[2,n])
+               )
+      where
+        xs = js_getObjectCentres jsv
+        n  = JSArray.length xs
 
 
 foreign import javascript unsafe
@@ -171,4 +190,11 @@ foreign import javascript unsafe
 
 foreign import javascript unsafe
     "h$geojson_getObjectCentres($1)"
-    js_getObjectCentres :: JSVal -> JSVal
+    js_getObjectCentres :: JSVal -> JSArray
+
+foreign import javascript unsafe
+    "new Float32Array([].concat.apply([], $1))"
+    js_wrapFloat32ArrayVec :: JSArray -> JSVal
+
+
+

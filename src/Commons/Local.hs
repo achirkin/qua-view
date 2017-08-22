@@ -8,6 +8,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# OPTIONS_GHC -fno-warn-orphans       #-}
 module Commons.Local
     ( -- * Local types
       IsBusy (..), ComponentState (..), ElementClick (..)
@@ -18,13 +19,14 @@ module Commons.Local
 #ifndef ISWORKER
     , jsstring
 #endif
-    , castToJSString, parseJSON
+    , castToJSString, parseJSONValue
     ) where
 
 
 
 
 import Data.String (IsString (..))
+import qualified Data.JSString as JSString
 import Data.Type.Equality
 import qualified Data.GADT.Compare as GADT
 import GHC.TypeLits
@@ -145,6 +147,9 @@ castToJSString = nullableToMaybe . js_castToJSString . pToJSVal
 foreign import javascript unsafe "((typeof $1 === 'string') ? $1 : null)"
     js_castToJSString :: JSVal -> Nullable JSString
 
+instance Semigroup JSString where
+    (<>) = JSString.append
+    sconcat (x :| xs) = JSString.concat (x:xs)
 
 -- | Usually we get geometry in a form of GeoJSON string,
 --   but we can also load some other text files from various places.
@@ -153,14 +158,17 @@ newtype LoadedTextContent = LoadedTextContent { getTextContent :: JSString }
     deriving (PFromJSVal, PToJSVal, FromJSVal, ToJSVal)
 
 -- | Use JavaScript's JSON.parse
-parseJSON :: MonadIO m => JSString -> m (Either JSError Value)
-parseJSON str = liftIO $  do
+parseJSONValue :: MonadIO m => JSString -> m (Either JSError Value)
+parseJSONValue str = liftIO $  do
     (mv, me) <- (nullableToMaybe *** nullableToMaybe) <$> js_parseJSON str
     case mv of
       Just v -> return $ Right $ coerce v
       Nothing -> case me of
         Nothing -> return $ Left "Could not read JSON value, but also could not get error message."
-        Just e  -> return $ Left e
+        Just (JSError e) -> return . Left . JSError $
+                                "[JSON.parse] Input is not a valid JSON: " `JSString.append` e
 
 foreign import javascript unsafe "try{$r1 = JSON.parse($1); $r2 = null;}catch(err){$r1 = null; $r2 = err;}"
     js_parseJSON :: JSString -> IO (Nullable JSVal, Nullable JSError)
+
+
