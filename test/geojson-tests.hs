@@ -99,7 +99,7 @@ test tName propOp = Test testI
 
 testFromJSON :: (FromJSON a, Eq a) => JSString -> a -> IO Progress
 testFromJSON j val = do
-    ejsonval <- Commons.parseJSON j
+    ejsonval <- parseJSONValue j
     return $ case ejsonval of
       Left err -> Finished .  Fail $ "JSON.parse: " ++ show err
       Right v  -> case fromJSON v of

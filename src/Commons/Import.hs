@@ -4,7 +4,7 @@ module Commons.Import
       first, second, (***), (&&&)
     , when, unless, void, for
     , Proxy (..)
-    , Semigroup (..), Monoid (..)
+    , Semigroup (..), Monoid (..), NonEmpty (..)
     , Coercible, coerce
       -- * Re-exported from Reflex
     , Reflex, Event, Behavior, Dynamic, EventSelector
@@ -39,6 +39,7 @@ import Control.Monad.Trans.Reader (ReaderT (..))
 import Control.Monad.Trans.Class (MonadTrans (..))
 import Data.Coerce
 import Data.Default
+import Data.List.NonEmpty
 import Data.Proxy
 import Data.Semigroup
 import Data.Map.Lazy (Map)
