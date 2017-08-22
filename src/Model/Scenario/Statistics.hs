@@ -1,5 +1,5 @@
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveGeneric #-}
 -- | Information about scenarios
 --
 --   Read various info about objects count and positions
@@ -11,6 +11,8 @@ module Model.Scenario.Statistics
 
 import JavaScript.JSON.Types.Internal
 import JavaScript.JSON.Types.Instances
+import JavaScript.JSON.Types.Generic ()
+import GHC.Generics
 import Numeric.DataFrame
 import Commons
 
@@ -20,7 +22,15 @@ data ScenarioStatistics = ScenarioStatistics
     , upperCorner :: !Vec2f
     , objNumber   :: !Int
     , centerPoint :: !Vec2f
-    }
+    } deriving Generic
+
+instance FromJSON ScenarioStatistics
+instance ToJSON  ScenarioStatistics
+instance FromJSVal ScenarioStatistics
+instance ToJSVal ScenarioStatistics where
+    toJSVal  = pure . pToJSVal
+instance PToJSVal ScenarioStatistics where
+    pToJSVal = coerce . toJSON
 
 instance Semigroup ScenarioStatistics where
     sca@ScenarioStatistics{objNumber = n} <> scb@ScenarioStatistics{objNumber = m}
@@ -49,32 +59,6 @@ instance Monoid ScenarioStatistics where
     mappend = (<>)
 
 
-instance PToJSVal ScenarioStatistics where
-    pToJSVal ScenarioStatistics {..} = coerce . objectValue $ object
-      [ ("lowerCorner", toJSON lowerCorner)
-      , ("upperCorner", toJSON upperCorner)
-      , ("objNumber"  , doubleValue $ fromIntegral objNumber)
-      , ("centerPoint", toJSON centerPoint)
-      ]
-
-instance ToJSVal ScenarioStatistics where
-  toJSVal = pure . pToJSVal
-
-instance FromJSON ScenarioStatistics where
-    parseJSON val = flip (withObject "ScenarioStatistics") val $ \obj ->
-        ScenarioStatistics
-          <$> obj .:? "lowerCorner" .!= lowerCorner d
-          <*> obj .:? "upperCorner" .!= upperCorner d
-          <*> obj .:? "objNumber"   .!= objNumber d
-          <*> obj .:? "centerPoint" .!= centerPoint d
-      where
-       d = mempty
-
-
-instance FromJSVal ScenarioStatistics where
-    fromJSVal jsv = pure $ case fromJSON (SomeValue jsv) of
-      Error _   -> Nothing
-      Success x -> Just x
 
 
 

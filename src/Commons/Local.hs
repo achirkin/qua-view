@@ -8,6 +8,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans       #-}
 module Commons.Local
     ( -- * Local types
@@ -26,9 +27,10 @@ module Commons.Local
 
 
 import Data.String (IsString (..))
-import qualified Data.JSString as JSString
 import Data.Type.Equality
 import qualified Data.GADT.Compare as GADT
+import qualified Data.Map.Strict as Map
+import qualified Data.JSString as JSString
 import GHC.TypeLits
 #ifndef ISWORKER
 import Language.Haskell.TH
@@ -39,6 +41,7 @@ import Unsafe.Coerce (unsafeCoerce)
 
 import Commons.Import
 import JavaScript.JSON.Types.Internal
+import JavaScript.JSON.Types.Instances
 
 
 -- | Whether the program or component is busy doing some extensive work.
@@ -170,5 +173,30 @@ parseJSONValue str = liftIO $  do
 
 foreign import javascript unsafe "try{$r1 = JSON.parse($1); $r2 = null;}catch(err){$r1 = null; $r2 = err;}"
     js_parseJSON :: JSString -> IO (Nullable JSVal, Nullable JSError)
+
+
+
+instance PFromJSVal a => PFromJSVal (Map JSString a) where
+    pFromJSVal v = case fromJSON $ coerce v of
+      Error   _ -> Map.empty
+      Success m -> pFromJSVal . (coerce :: Value -> JSVal) <$> m
+instance PToJSVal a => PToJSVal (Map JSString a) where
+    pToJSVal = coerce . objectValue . object . fmap (fmap $ coerce . pToJSVal) . Map.assocs
+
+instance FromJSON a => FromJSON (Map JSString a) where
+    parseJSON = withObject "Object assocs"
+       (fmap Map.fromList . traverse (traverse parseJSON) . objectAssocs)
+instance ToJSON a => ToJSON (Map JSString a) where
+    toJSON = objectValue . object . fmap (fmap toJSON) . Map.assocs
+
+instance FromJSON Object where
+    parseJSON = withObject "Object" pure
+instance ToJSON Object where
+    toJSON = objectValue
+
+instance PToJSVal Value where
+    pToJSVal = coerce
+instance PFromJSVal Value where
+    pFromJSVal = coerce
 
 
