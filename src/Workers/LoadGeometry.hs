@@ -23,7 +23,9 @@ import Model.Scenario.Statistics
 #ifdef ISWORKER
 import Numeric.DataFrame
 import Data.Conduit
+import Model.Scenario
 import Model.GeoJSON.Coordinates
+import Model.GeoJSON.Scenario ()
 
 loadGeometryConduit :: (MonadIO m, MonadLogger m)
                     => Conduit LoadedTextContent m (LGWMessage, [Transferable])
@@ -39,6 +41,11 @@ loadGeometryConduit = awaitForever $ \msg -> do
               yield (LGWSCStat $ getScenarioStatistics cs, [])
            Error s ->
               logWarn (workerLS loadGeometryDef) $ "Could not parse centres" <> s
+        case fromJSON val of
+           Success sc@Scenario {} ->
+              logInfo' @JSString (workerLS loadGeometryDef) "Scenario:" sc
+           Error s ->
+              logWarn (workerLS loadGeometryDef) $ "Could not parse scenario" <> s
     yield (LGWString "Thanks!", [])
 
 
