@@ -10,7 +10,6 @@
 module SmallGL.Types where
 
 
-import Reflex.Dom.Widget.Animation as Animation
 import Numeric.DataFrame
 import Numeric.DataFrame.IO
 import Numeric.Dimensions
@@ -20,17 +19,10 @@ import GHCJS.Types (JSVal)
 import Unsafe.Coerce (unsafeCoerce)
 
 
--- import Commons
-
-
-data SmallGLInput a where
-    ViewPortResize      :: SmallGLInput Animation.ResizeEvent
-    -- ^ Every time windows is resized
-    ProjTransformChange :: SmallGLInput ProjMatrix
-    -- ^ Camera updates of viewport projection
-    ViewTransformChange :: SmallGLInput ViewMatrix
-    -- ^ Camera motions
-
+-- | Id of an object within rendering system
+--    (should be kept by other components, but not exposed outside viewer).
+newtype RenderedObjectId = RenderedObjectId Int
+    deriving (Eq, Ord)
 
 -- | Project camera space coordinates to screen normalized coordinates
 newtype ProjMatrix = ProjM { getProjM :: Mat44f }

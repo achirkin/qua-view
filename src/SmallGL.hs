@@ -74,6 +74,16 @@ newtype RenderingApi = RenderingApi
   }
 
 
+data SmallGLInput a where
+    ViewPortResize      :: SmallGLInput Animation.ResizeEvent
+    -- ^ Every time windows is resized
+    ProjTransformChange :: SmallGLInput ProjMatrix
+    -- ^ Camera updates of viewport projection
+    ViewTransformChange :: SmallGLInput ViewMatrix
+    -- ^ Camera motions
+
+
+
 createRenderingEngine :: (MonadIO m, Reflex t, MonadIO (Performable m), PerformEvent t m)
                       => Element EventResult GhcjsDomSpace t -> EventSelector t SmallGLInput -> m RenderingApi
 createRenderingEngine canvasElem evS = do

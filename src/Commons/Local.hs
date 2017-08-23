@@ -194,9 +194,11 @@ instance FromJSON Object where
 instance ToJSON Object where
     toJSON = objectValue
 
+instance FromJSON JSVal where
+    parseJSON (SomeValue jsv) = pure jsv
+
 instance PToJSVal Value where
     pToJSVal = coerce
 instance PFromJSVal Value where
     pFromJSVal = coerce
-
 
