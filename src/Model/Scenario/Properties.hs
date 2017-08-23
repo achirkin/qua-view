@@ -3,10 +3,11 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE JavaScriptFFI #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Model.Scenario.Properties
     ( Properties, PropName(..), PropValue
     , toPropValue, fromPropValue, propValue
-    , property
+    , property, propertyWithParsing
     , HexColor, colorVeci, colorVecf
     ) where
 
@@ -63,6 +64,35 @@ property pName f m = g <$> f (Map.lookup pName m >>= fromPropValue)
     where
       g Nothing  = m
       g (Just v) = Map.insert pName (toPropValue v) m
+
+propertyWithParsing :: (Functor f, FromJSONOrString a, ToJSON a)
+                    => PropName
+                    -> (Maybe a -> f (Maybe a))
+                    -> Properties -> f Properties
+propertyWithParsing pName f m = g <$> f (Map.lookup pName m >>= parseJSONOrString . coerce)
+    where
+      g Nothing  = m
+      g (Just v) = Map.insert pName (toPropValue v) m
+
+class FromJSONOrString a where
+    parseJSONOrString :: Value -> Maybe a
+
+instance FromJSONOrString Bool where
+    parseJSONOrString v = case match v of
+        Bool b -> pure b
+        String "true"  -> pure True
+        String "false" -> pure False
+        _ -> Nothing
+
+instance FromJSONOrString Double where
+    parseJSONOrString v = case match v of
+        Number x -> Just x
+        String s -> nullableToMaybe $ js_parseDouble s
+        _ -> Nothing
+
+foreign import javascript unsafe
+    "var a = parseFloat($1); $r = isNaN(a) ? null : a;"
+    js_parseDouble :: JSString -> Nullable Double
 
 
 

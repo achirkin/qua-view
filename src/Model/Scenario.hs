@@ -8,6 +8,7 @@ module Model.Scenario
     ( Scenario (..)
     , name, geoLoc, properties
     , defaultActiveColor, defaultStaticColor, defaultBlockColor, defaultLineColor
+    , defaultObjectHeight
     ) where
 
 
@@ -80,6 +81,13 @@ defaultLineColor :: Functor f
 defaultLineColor f = properties $ property "defaultLineColor" g
    where
      g Nothing  = Just <$> f "#CC6666FF"
+     g (Just c) = Just <$> f c
+
+defaultObjectHeight :: Functor f
+                    => (Double -> f Double) -> Scenario -> f Scenario
+defaultObjectHeight f = properties $ property "defaultObjectHeight" g
+   where
+     g Nothing  = Just <$> f 3.5
      g (Just c) = Just <$> f c
 
 
