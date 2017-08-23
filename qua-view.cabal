@@ -72,6 +72,8 @@ executable qua-view
         Commons.Logger
         Model.Camera
         Model.Scenario
+        Model.Scenario.Object
+        Model.Scenario.Properties
         Model.Scenario.Statistics
         SmallGL
         SmallGL.Helpers
@@ -112,6 +114,7 @@ executable qua-worker-loadgeometry
         base >=4.8 && <5,
         ghcjs-base >=0.2.0.0,
         ghcjs-prim >=0.1.0.0,
+        ghcjs-webgl -any,
         reflex >=0.5,
         text >=1.2.0.0,
         containers >=0.5,
@@ -142,7 +145,10 @@ executable qua-worker-loadgeometry
         Model.GeoJSON.Coordinates
         Model.GeoJSON.Scenario
         Model.Scenario
+        Model.Scenario.Object
+        Model.Scenario.Properties
         Model.Scenario.Statistics
+        SmallGL.Types
         Workers
         Workers.LoadGeometry
     ghc-options: -Wall -fwarn-tabs
@@ -158,6 +164,7 @@ test-suite geojson-tests
         base >=4.8 && <5,
         ghcjs-base >=0.2.0.0,
         ghcjs-prim >=0.1.0.0,
+        ghcjs-webgl -any,
         reflex >=0.5,
         text >=1.2.0.0,
         containers >=0.5,
@@ -189,5 +196,8 @@ test-suite geojson-tests
         Model.GeoJSON.Point
         Model.GeoJSON.Scenario
         Model.Scenario
+        Model.Scenario.Object
+        Model.Scenario.Properties
         Model.Scenario.Statistics
+        SmallGL.Types
     ghc-options: -Wall -fwarn-tabs -O0

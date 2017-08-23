@@ -24,13 +24,13 @@ instance FromJSON Scenario where
     parseJSON v = flip (withObject "Scenario object") v $ \scObj -> do
        -- basic properties are all optional,
        -- they are parsed only if we are given scenario object (wrapped FeatureCollection
-       name       <- scObj .:? "name"
-       -- msrid <- scObj .:? "srid"
-       mlon       <- scObj .:? "lon"
-       mlat       <- scObj .:? "lat"
-       alt        <- scObj .:? "alt" .!= 0
-       properties <- scObj .:? "properties" .!= def
-       let geoLoc = (,,) <$> mlon <*> mlat <*> Just alt
+       _name       <- scObj .:? "name"
+       -- msrid       <- scObj .:? "srid"
+       mlon        <- scObj .:? "lon"
+       mlat        <- scObj .:? "lat"
+       alt         <- scObj .:? "alt" .!= 0
+       _properties <- scObj .:? "properties" .!= def
+       let _geoLoc = (,,) <$> mlon <*> mlat <*> Just alt
 
        -- Feature collection maybe this object itself or 'geometry' sub-object
        _fc <- scObj .:? "geometry" .!= scObj

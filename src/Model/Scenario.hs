@@ -6,32 +6,98 @@
 --
 module Model.Scenario
     ( Scenario (..)
+    , name, geoLoc, properties
+    , defaultActiveColor, defaultStaticColor, defaultBlockColor, defaultLineColor
     ) where
 
 
 --import qualified Data.Map.Strict as Map
+--import Control.Lens
 import JavaScript.JSON.Types.Internal
 import Commons
+import Model.Scenario.Properties
+import qualified Model.Scenario.Object as Object ()
 
 data Scenario
   = Scenario
-  { name       :: !(Maybe JSString)
+  { _name       :: !(Maybe JSString)
     -- ^ Friendly name for a scenario
-  , geoLoc     :: !(Maybe (Double, Double, Double))
+  , _geoLoc     :: !(Maybe (Double, Double, Double))
     -- ^ Longitude, Latitude, and Altitude of scenario reference point
-  , properties :: !(Map JSString Value)
+  , _properties :: !Properties
   }
+
+
+-- * Lenses
+
+name :: Functor f
+     => (Maybe JSString -> f (Maybe JSString))
+     -> Scenario -> f Scenario
+name f s = (\x -> s{_name = x}) <$> f (_name s)
+
+geoLoc :: Functor f
+       => (Maybe (Double, Double, Double) -> f (Maybe (Double, Double, Double)))
+       -> Scenario -> f Scenario
+geoLoc f s = (\x -> s{_geoLoc = x}) <$> f (_geoLoc s)
+
+
+properties :: Functor f
+           => (Properties -> f Properties)
+           -> Scenario -> f Scenario
+properties f s = (\x -> s{_properties = x}) <$> f (_properties s)
+
+
+
+
+
+
+
+-- * Special properties
+
+defaultActiveColor :: Functor f
+                   => (HexColor -> f HexColor) -> Scenario -> f Scenario
+defaultActiveColor f = properties $ property "defaultActiveColor" g
+   where
+     g Nothing  = Just <$> f "#FF8888FF"
+     g (Just c) = Just <$> f c
+
+defaultStaticColor :: Functor f
+                   => (HexColor -> f HexColor) -> Scenario -> f Scenario
+defaultStaticColor f = properties $ property "defaultStaticColor" g
+   where
+     g Nothing  = Just <$> f "#808088FF"
+     g (Just c) = Just <$> f c
+
+defaultBlockColor :: Functor f
+                  => (HexColor -> f HexColor) -> Scenario -> f Scenario
+defaultBlockColor f = properties $ property "defaultBlockColor" g
+   where
+     g Nothing  = Just <$> f "#C0C082FF"
+     g (Just c) = Just <$> f c
+
+defaultLineColor :: Functor f
+                  => (HexColor -> f HexColor) -> Scenario -> f Scenario
+defaultLineColor f = properties $ property "defaultLineColor" g
+   where
+     g Nothing  = Just <$> f "#CC6666FF"
+     g (Just c) = Just <$> f c
+
+
+
+
+
+
 
 instance ToJSVal Scenario where
     toJSVal = pure . pToJSVal
 
 instance PToJSVal Scenario where
     pToJSVal Scenario{..} = coerce . objectValue . object
-       $ "name" =:? name
-      <> "lon"  =:? (fst3 <$> geoLoc)
-      <> "lat"  =:? (snd3 <$> geoLoc)
-      <> "alt"  =:? (thd3 <$> geoLoc)
-      <> "properties" =:: properties
+       $ "name" =:? _name
+      <> "lon"  =:? (fst3 <$> _geoLoc)
+      <> "lat"  =:? (snd3 <$> _geoLoc)
+      <> "alt"  =:? (thd3 <$> _geoLoc)
+      <> "properties" =:: _properties
 
 (=:?) :: PToJSVal a => JSString -> Maybe a -> [(JSString, Value)]
 (=:?) _ Nothing = []

@@ -29,8 +29,6 @@ import SmallGL.Types
 
 
 
-newtype RenderedObjectId = RenderedObjectId Int
-    deriving (Eq, Ord)
 
 -- | Coollection of objects in a small area packed in a single set of WebGL buffers for drawing.
 data RenderingCell = RenderingCell

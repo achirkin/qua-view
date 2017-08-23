@@ -24,8 +24,10 @@ import Model.Scenario.Statistics
 import Numeric.DataFrame
 import Data.Conduit
 import Model.Scenario
+import Model.Scenario.Properties
 import Model.GeoJSON.Coordinates
 import Model.GeoJSON.Scenario ()
+import Control.Lens
 
 loadGeometryConduit :: (MonadIO m, MonadLogger m)
                     => Conduit LoadedTextContent m (LGWMessage, [Transferable])
@@ -42,8 +44,13 @@ loadGeometryConduit = awaitForever $ \msg -> do
            Error s ->
               logWarn (workerLS loadGeometryDef) $ "Could not parse centres" <> s
         case fromJSON val of
-           Success sc@Scenario {} ->
+           Success sc@Scenario {} -> do
               logInfo' @JSString (workerLS loadGeometryDef) "Scenario:" sc
+              logInfo (workerLS loadGeometryDef) $ "scActiveColor: " <> toJSString (sc ^. defaultActiveColor)
+              logInfo (workerLS loadGeometryDef) $ "scActiveColor: "
+                                                <> show (sc^.defaultActiveColor.colorVeci)
+              logInfo (workerLS loadGeometryDef) $ "scActiveColor: "
+                                                <> show (sc^.defaultActiveColor.colorVecf)
            Error s ->
               logWarn (workerLS loadGeometryDef) $ "Could not parse scenario" <> s
     yield (LGWString "Thanks!", [])
