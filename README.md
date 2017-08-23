@@ -10,35 +10,59 @@ Compiled application currently is available on http://qua-kit.ethz.ch/
 Supports mouse and finger control. Works best on chrome (desktop or mobile), but most other browsers working too.
 
 
-## developing qua-view
+## Developer setup
 
 First, we need to install GHCJS. We install GHCJS via stack, but before that some dependencies need to be installed.
-Refer to [GHCJS documentation](https://github.com/ghcjs/ghcjs/tree/ghc-8.0) to check, which dependencies we need to install.
+Refer to [GHCJS documentation](https://github.com/ghcjs/ghcjs/tree/ghc-8.0) to check, which are needed.
 In particular, the following command installs everything needed on Ubuntu:
-```
-sudo apt-get install nodejs libtinfo-dev
-```
-Note, you might need to make an alias `node` to `nodejs` to make GHCJS recognize the toolname correctly.
+
+    sudo apt-get install libtinfo-dev nodejs nodejs-legacy npm 
+
+(`nodejs-legacy is only needed for the alias from `node` to `nodejs`.)
 
 Next step is to install haskell dependencies. At this moment we use stack snapshot `lts-8.21`:
-```
-stack install alex happy haddock-2.17.4 haddock-api-2.17.4 hoogle --resolver=lts-8.21
-```
+
+    stack install alex happy haddock-2.17.4 haddock-api-2.17.4 hscolour hoogle --resolver=lts-8.21
 
 Then, clone this repository and setup GHCJS using stack:
+
 ```
 git clone -b reflex https://github.com/achirkin/qua-view
 cd qua-view
+ln -s `stack path --compiler-bin`/ghcjs-pkg `stack path --compiler-bin`/ghc-pkg
 stack setup
 ```
 
+### Build documentation
+
 Another important step is to correctly build haddocks, because our crucial dependencies are not in hackage or stackage.
-Run haddock in the `qua-view` project folder
+Run haddock in the `qua-view` project folder (do this before running `stack build` the first time).
+
 ```
 stack haddock
 ```
 
 The last thing is to run hoogle to make it easier to lookup function names.
+
 ```
-stack hoogle -- server --port=8080
+stack hoogle generate -- --local
+stack hoogle -- server --port=8080 --local
 ```
+
+Also have a look at the following file for `GHCJS` and `JavaScript` module docs
+
+    ~/.ghcjs/XXX/ghcjs/doc/html/index.html
+
+and this [Reflex tutorial](https://github.com/reflex-frp/reflex-platform#tutorial)
+and [function reference](https://github.com/reflex-frp/reflex/blob/develop/Quickref.md).
+
+### Build the project
+
+Finally, you can generate the website into the `/web` directory:
+
+    stack build --file-watch
+
+To view the result, you need to run a small web server due to browsers' same-origin policy, e.g.
+
+    cd qua-view/web
+    python -m SimpleHTTPServer
