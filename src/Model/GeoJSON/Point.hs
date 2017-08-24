@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Model.GeoJSON.Point
-    ( Point (..)
+    ( -- Point (..)
     ) where
 
 
@@ -15,15 +15,15 @@ import JavaScript.JSON.Types.Instances
 
 import Model.GeoJSON.Coordinates
 
-data Point
-  = Point
-  { _pCoordinates :: Vec3f
-  } deriving (Eq, Show)
-
-
-
-instance FromJSON (Point, PaddedZeros) where
-    parseJSON val = flip (withObject "GeoJSON point") val $ \point ->
-        first Point <$> point .: "coordinates"
-
-
+--data Point
+--  = Point
+--  { _pCoordinates :: Vec3f
+--  } deriving (Eq, Show)
+--
+--
+--
+--instance FromJSON (Point, PaddedZeros) where
+--    parseJSON val = flip (withObject "GeoJSON point") val $ \point ->
+--        first Point <$> point .: "coordinates"
+--
+--

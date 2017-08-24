@@ -16,6 +16,7 @@ import Numeric.DataFrame
 import Commons
 import SmallGL.Types
 import Model.Scenario.Properties
+import Model.Scenario.Object.Geometry
 
 -- | Refernce to object in a scenario.
 --
@@ -28,7 +29,7 @@ data Object
   = Object
   { _renderingId :: !RenderedObjectId
   , _center      :: !Vec4f
-  , _geometry    :: !Int -- Geometry
+  , _geometry    :: !Geometry
   , _properties  :: !Properties
   }
 
@@ -49,7 +50,7 @@ center f s = (\x -> s{_center = x}) <$> f (_center s)
 
 
 geometry :: Functor f
-         => (Int -> f Int)
+         => (Geometry -> f Geometry)
          -> Object -> f Object
 geometry f s = (\x -> s{_geometry = x}) <$> f (_geometry s)
 
@@ -76,4 +77,7 @@ objectBehavior f = properties $ propertyWithParsing "static" g
   where
     g (Just True) = Just . (Static ==) <$> f Static
     g _           = Just . (Static ==) <$> f Dynamic
+
+
+
 
