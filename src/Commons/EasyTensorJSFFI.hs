@@ -3,6 +3,10 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-orphans       #-}
 module Commons.EasyTensorJSFFI
     ( dataFrameToTransferable
@@ -14,11 +18,15 @@ module Commons.EasyTensorJSFFI
 import Commons.Import
 import Numeric.DataFrame
 import Numeric.DataFrame.IO
+import Numeric.Dimensions
+import Numeric.TypeLits
 import GHCJS.DOM.Types
+import GHCJS.Types (jsval)
 import Unsafe.Coerce (unsafeCoerce)
 import JavaScript.Array (JSArray)
 import JavaScript.JSON.Types.Internal
 import JavaScript.JSON.Types.Instances
+import JavaScript.Object
 
 instance ToJSVal    (IODataFrame t ns) where
     toJSVal = pure . coerce
@@ -41,6 +49,48 @@ instance FromJSVal  (DataFrame t (n':ns :: [Nat])) where
     fromJSValUnchecked = pure . pFromJSVal
     fromJSVal = pure . fmap (pFromJSVal :: JSVal -> DataFrame t (n':ns :: [Nat]))
                      . nullableToMaybe . Nullable
+
+instance ToJSVal (SomeIODataFrame t '[N n, XN k]) where
+    toJSVal (SomeIODataFrame (df :: IODataFrame t ns))
+      | (Evidence :: Evidence ([n,m] ~ ns)) <- unsafeCoerce (Evidence :: Evidence ()) = do
+        o <- create
+        unsafeSetProp "n"  (pToJSVal (dimVal' @m)) o
+        unsafeSetProp "df" (coerce df) o
+        return $ jsval o
+
+instance (KnownDim n, ElemTypeInference t)
+      => FromJSVal (SomeIODataFrame t '[N n, XN k]) where
+    fromJSVal jsv = do
+      let o = unsafeCoerce jsv
+      maybeM <- someIntNatVal . pFromJSVal <$> unsafeGetProp "n" o
+      case maybeM of
+        Nothing -> return Nothing
+        Just (SomeIntNat (_ :: Proxy m)) -> case inferNumericFrame @t @'[n,m] of
+          Evidence -> do
+            df <- coerce <$> unsafeGetProp "df" o :: IO (IODataFrame t '[n, m])
+            return . Just $ SomeIODataFrame df
+
+instance ToJSVal (SomeIODataFrame t '[N n1, N n2, XN k]) where
+    toJSVal (SomeIODataFrame (df :: IODataFrame t ns))
+      | (Evidence :: Evidence ([n1,n2,m] ~ ns)) <- unsafeCoerce (Evidence :: Evidence ()) = do
+        o <- create
+        unsafeSetProp "n"  (pToJSVal (dimVal' @m)) o
+        unsafeSetProp "df" (coerce df) o
+        return $ jsval o
+
+instance (KnownDim n1, KnownDim n2, ElemTypeInference t)
+      => FromJSVal (SomeIODataFrame t '[N n1, N n2, XN k]) where
+    fromJSVal jsv = do
+      let o = unsafeCoerce jsv
+      maybeM <- someIntNatVal . pFromJSVal <$> unsafeGetProp "n" o
+      case maybeM of
+        Nothing -> return Nothing
+        Just (SomeIntNat (_ :: Proxy m)) -> case inferNumericFrame @t @'[n1,n2,m] of
+          Evidence -> do
+            df <- coerce <$> unsafeGetProp "df" o :: IO (IODataFrame t '[n1,n2,m])
+            return . Just $ SomeIODataFrame df
+
+
 
 instance PToJSVal t => PToJSVal (DataFrame t ('[] :: [Nat])) where
     pToJSVal = pToJSVal . unScalar

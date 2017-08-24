@@ -1,13 +1,5 @@
 
 
-function h$geojson_parseVec3(x) {
-    var r = new Float32Array(3);
-    r[0] = x[0]||0;
-    r[1] = x[1]||0;
-    r[2] = x[2]||0;
-    return [r, x.length < 3];
-}
-
 function h$geojson_parseVec4(x) {
     var r = new Float32Array(4);
     r[0] = x[0]||0;
@@ -25,25 +17,93 @@ function h$geojson_nestingLvl(x) {
     return n;
 }
 
+// Parse MultiPoint or LineString
+// Returns: flattened array, its length, and is every point padded with zeros
 function h$geojson_parsePointSeq(arr) {
     var x, ans = arr.reduce(
         function(a,e){
            x = [e[0]||0,e[1]||0,e[2]||0,1];
-           return [a[0].concat(x), a[1] || e.length < 3 ];
-        }, [[], false]
+           return [a[0].concat(x), a[1] && e.length < 3 ];
+        }, [[], true]
       );
-
-    return [new Float32Array(ans[0]), arr.length, ans[1]];
+    return [ans[0], arr.length, ans[1]];
 }
 
+// Parse MultiLineString and pack it into a single ArrayBuffer.
+// then return lists of data frames, their sizes, and is every point padded with zeros
+function h$geojson_parseMultiLineString(arr) {
+    var x, df, dfs = [], points = [], sizes = [], padded = true, shifts = [0];
+    for(var i = 0; i < arr.length; i++) {
+      x = h$geojson_parsePointSeq(arr[i]);
+      points = points.concat(x[0]);
+      sizes.push(x[1]);
+      padded = padded && x[2];
+      shifts.push(points.length);
+    }
+    df = new Float32Array(points);
+    for(var i = 0; i < shifts.length - 1; i++) {
+      x = df.subarray(shifts[i],shifts[i+1]);
+      dfs.push(x);
+    }
+    return [dfs, sizes, padded];
+}
+
+// This function parses an array of nesting level 2
+// and returns a triple
+// [flat coordinates, number of points, is every point padded with zeroes]
 function h$geojson_parseLinearRing(arr) {
-    var x, ans = arr.slice(0, arr.length - 1).reduce(
-        function(a,e){
-           x = [e[0]||0,e[1]||0,e[2]||0,1];
-           return [a[0].concat(x), a[1] || e.length < 3 ];
-        }, [[], false]
-      );
-    return [new Float32Array(ans[0]), arr.length, ans[1]];
+    var x, points = [], size = arr.length - 1, padded = true;
+    for(var i = 0; i < size; i++) {
+        points.push(arr[i][0]||0);
+        points.push(arr[i][1]||0);
+        points.push(arr[i][2]||0);
+        points.push(1);
+        points.push(0);
+        points.push(0);
+        points.push(0);
+        points.push(1);
+        padded = padded && arr[i].length < 3;
+    }
+    return [points, size, padded];
+}
+
+// This function parses an array of nesting level 3
+// and returns a list
+//  [ array (flat coordinates)
+//  , number of points
+//  , hole indices
+//  , is every point padded with zeroes
+//  ]
+function h$geojson_parsePolygon(arr) {
+    var points = [], size = 0, padded = true, holes = [0], x;
+    for(var i = 0; i < arr.length; i++) {
+        x = h$geojson_parseLinearRing(arr[i]);
+        points = points.concat(x[0]);
+        size += x[1];
+        holes.push(size);
+        padded = padded && x[2];
+    }
+    holes.pop();
+    return [points, size, holes.slice(1), padded];
+}
+
+// This function parses an array of nesting level 4
+function h$geojson_parseMultiPolygon(arr) {
+    var points = [], sizes = [], padded = true, holes = [], x, df, dfs = [], shifts = [0];
+    for(var i = 0; i < arr.length; i++) {
+      x = h$geojson_parsePolygon(arr[i]);
+      points = points.concat(x[0]);
+      sizes.push(x[1]);
+      holes.push(x[2]);
+      padded = padded && x[3];
+      shifts.push(points.length);
+    }
+    df = new Float32Array(points);
+    for(var i = 0; i < shifts.length - 1; i++) {
+      x = df.subarray(shifts[i],shifts[i+1]);
+      dfs.push(x);
+    }
+    return [dfs, sizes, holes, padded];
 }
 
 

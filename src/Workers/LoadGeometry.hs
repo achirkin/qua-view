@@ -42,7 +42,7 @@ loadGeometryConduit = awaitForever $ \msg -> do
               logInfo' @JSString (workerLS loadGeometryDef) "Centres:" centres
               yield (LGWSCStat $ getScenarioStatistics cs, [])
            Error s ->
-              logWarn (workerLS loadGeometryDef) $ "Could not parse centres" <> s
+              logWarn (workerLS loadGeometryDef) $ "Could not parse centres: " <> s
         case fromJSON val of
            Success sc@Scenario {} -> do
               logInfo' @JSString (workerLS loadGeometryDef) "Scenario:" sc
@@ -52,7 +52,7 @@ loadGeometryConduit = awaitForever $ \msg -> do
               logInfo (workerLS loadGeometryDef) $ "scActiveColor: "
                                                 <> show (sc^.defaultActiveColor.colorVecf)
            Error s ->
-              logWarn (workerLS loadGeometryDef) $ "Could not parse scenario" <> s
+              logWarn (workerLS loadGeometryDef) $ "Could not parse scenario: " <> s
     yield (LGWString "Thanks!", [])
 
 

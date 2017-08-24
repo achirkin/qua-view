@@ -73,6 +73,7 @@ executable qua-view
         Model.Camera
         Model.Scenario
         Model.Scenario.Object
+        Model.Scenario.Object.Geometry
         Model.Scenario.Properties
         Model.Scenario.Statistics
         SmallGL
@@ -146,6 +147,7 @@ executable qua-worker-loadgeometry
         Model.GeoJSON.Scenario
         Model.Scenario
         Model.Scenario.Object
+        Model.Scenario.Object.Geometry
         Model.Scenario.Properties
         Model.Scenario.Statistics
         SmallGL.Types
@@ -197,6 +199,7 @@ test-suite geojson-tests
         Model.GeoJSON.Scenario
         Model.Scenario
         Model.Scenario.Object
+        Model.Scenario.Object.Geometry
         Model.Scenario.Properties
         Model.Scenario.Statistics
         SmallGL.Types

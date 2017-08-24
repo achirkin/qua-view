@@ -17,7 +17,7 @@ module Model.Scenario
 import JavaScript.JSON.Types.Internal
 import Commons
 import Model.Scenario.Properties
-import qualified Model.Scenario.Object as Object ()
+import qualified Model.Scenario.Object as Object
 
 data Scenario
   = Scenario
@@ -26,6 +26,8 @@ data Scenario
   , _geoLoc     :: !(Maybe (Double, Double, Double))
     -- ^ Longitude, Latitude, and Altitude of scenario reference point
   , _properties :: !Properties
+    -- ^ key-value of arbitrary JSON properties
+  , _objects    :: ![Object.Object]
   }
 
 
@@ -96,16 +98,19 @@ defaultObjectHeight f = properties $ property "defaultObjectHeight" g
 
 
 
-instance ToJSVal Scenario where
-    toJSVal = pure . pToJSVal
+--instance ToJSVal Scenario where
+--    toJSVal = pure . pToJSVal
 
-instance PToJSVal Scenario where
-    pToJSVal Scenario{..} = coerce . objectValue . object
-       $ "name" =:? _name
-      <> "lon"  =:? (fst3 <$> _geoLoc)
-      <> "lat"  =:? (snd3 <$> _geoLoc)
-      <> "alt"  =:? (thd3 <$> _geoLoc)
-      <> "properties" =:: _properties
+instance ToJSVal Scenario where
+    toJSVal Scenario{..} = do
+      objs <- mapM (toJSVal . Object._geometry) _objects >>= toJSVal
+      return $ coerce . objectValue . object
+           $ "name" =:? _name
+          <> "lon"  =:? (fst3 <$> _geoLoc)
+          <> "lat"  =:? (snd3 <$> _geoLoc)
+          <> "alt"  =:? (thd3 <$> _geoLoc)
+          <> "properties" =:: _properties
+          <> "objects"    =:: objs
 
 (=:?) :: PToJSVal a => JSString -> Maybe a -> [(JSString, Value)]
 (=:?) _ Nothing = []
