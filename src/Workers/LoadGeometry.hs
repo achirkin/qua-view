@@ -1,5 +1,6 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveGeneric #-}
 #ifdef ISWORKER
 {-# LANGUAGE TypeApplications #-}
 #else
@@ -15,19 +16,18 @@ module Workers.LoadGeometry
     ) where
 
 
-import JavaScript.JSON.Types.Internal
-import JavaScript.JSON.Types.Instances
+import GHC.Generics
 import Commons
 import Workers
+import Model.Scenario
 import Model.Scenario.Statistics
 #ifdef ISWORKER
 import Numeric.DataFrame
 import Data.Conduit
-import Model.Scenario
-import Model.Scenario.Properties
 import Model.GeoJSON.Coordinates
 import Model.GeoJSON.Scenario ()
-import Control.Lens
+import JavaScript.JSON.Types.Internal
+import JavaScript.JSON.Types.Instances
 
 loadGeometryConduit :: (MonadIO m, MonadLogger m)
                     => Conduit LoadedTextContent m (LGWMessage, [Transferable])
@@ -45,16 +45,11 @@ loadGeometryConduit = awaitForever $ \msg -> do
               logWarn (workerLS loadGeometryDef) $ "Could not parse centres: " <> s
         case fromJSON val of
            Success sc@Scenario {} -> do
-              logInfo' @JSString (workerLS loadGeometryDef) "Scenario:" sc
-              logInfo (workerLS loadGeometryDef) $ "scActiveColor: " <> toJSString (sc ^. defaultActiveColor)
-              logInfo (workerLS loadGeometryDef) $ "scActiveColor: "
-                                                <> show (sc^.defaultActiveColor.colorVeci)
-              logInfo (workerLS loadGeometryDef) $ "scActiveColor: "
-                                                <> show (sc^.defaultActiveColor.colorVecf)
-           Error s ->
+              trs <- liftIO $ getTransferables sc
+              yield (LGWResult sc, trs)
+           Error s -> do
               logWarn (workerLS loadGeometryDef) $ "Could not parse scenario: " <> s
-    yield (LGWString "Thanks!", [])
-
+              yield (LGWSError . JSError $ toJSString s, [])
 
 
 #else
@@ -82,31 +77,15 @@ loadGeometryDef = WorkerDef
   }
 
 data LGWMessage
-  = LGWString JSString
+  = LGWResult Scenario
+    -- ^ Send parsed Scenario
   | LGWSCStat ScenarioStatistics
-    -- ^ Send general info about scenario objects
+    -- ^ Send general info about scenario object
+  | LGWSError JSError
+    -- ^ Something went wrong!
+  deriving Generic
 
-
-instance ToJSVal LGWMessage where
-  toJSVal (LGWString s) = pure . coerce . objectValue $ object
-    [ ("lgwString", toJSON s)
-    ]
-  toJSVal (LGWSCStat x) = pure . coerce . objectValue $ object
-    [ ("lgwCStat", coerce $ pToJSVal x)
-    ]
-
-instance FromJSVal LGWMessage where
-    fromJSVal jsv = pure $ case fromJSON (SomeValue jsv) of
-      Error _   -> Nothing
-      Success x -> Just x
-
-instance FromJSON LGWMessage where
-    parseJSON v = flip (withObject "LGWMessage object") v $ \obj -> do
-      mmsg  <- obj .:? "lgwString"
-      mstat <- obj .:? "lgwCStat"
-      case (mmsg, mstat) of
-        (Just s, _) -> pure $ LGWString s
-        (_, Just x) -> pure $ LGWSCStat x
-        (_, _) -> fail "Missing key lgwString or lgwCStat."
+instance FromJSVal LGWMessage
+instance ToJSVal   LGWMessage
 
 

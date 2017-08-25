@@ -5,12 +5,12 @@ module Main (tests, main) where
 import Control.Monad (forM_)
 import System.Exit
 import Distribution.TestSuite
-import JavaScript.JSON.Types.Instances
-import JavaScript.JSON.Types.Internal as JSON
-import Numeric.DataFrame
-import Commons
+--import JavaScript.JSON.Types.Instances
+--import JavaScript.JSON.Types.Internal as JSON
+--import Numeric.DataFrame
+--import Commons
 --import Model.GeoJSON.Point
-import Model.GeoJSON.Coordinates
+--import Model.GeoJSON.Coordinates
 
 --fromJSONPoint1 :: IO Progress
 --fromJSONPoint1 = testFromJSON
@@ -84,26 +84,26 @@ main = do
     isGood (_, Finished Pass) = True
     isGood _ = False
 
-
--- | Convert bool tests into Cabal tests
-test :: String -> IO Progress -> Test
-test tName propOp = Test testI
-  where
-    testI = TestInstance
-        { run = propOp
-        , name = tName
-        , tags = []
-        , options = []
-        , setOption = \_ _ -> Right testI
-        }
-
-testFromJSON :: (FromJSON a, Eq a) => JSString -> a -> IO Progress
-testFromJSON j val = do
-    ejsonval <- parseJSONValue j
-    return $ case ejsonval of
-      Left err -> Finished .  Fail $ "JSON.parse: " ++ show err
-      Right v  -> case fromJSON v of
-        JSON.Error er -> Finished .  Fail $ "fromJSON: " ++ er
-        JSON.Success a -> if a == val
-                          then Finished Pass
-                          else Finished . Fail $ "Result mismatch"
+--
+---- | Convert bool tests into Cabal tests
+--test :: String -> IO Progress -> Test
+--test tName propOp = Test testI
+--  where
+--    testI = TestInstance
+--        { run = propOp
+--        , name = tName
+--        , tags = []
+--        , options = []
+--        , setOption = \_ _ -> Right testI
+--        }
+--
+--testFromJSON :: (FromJSON a, Eq a) => JSString -> a -> IO Progress
+--testFromJSON j val = do
+--    ejsonval <- parseJSONValue j
+--    return $ case ejsonval of
+--      Left err -> Finished .  Fail $ "JSON.parse: " ++ show err
+--      Right v  -> case fromJSON v of
+--        JSON.Error er -> Finished .  Fail $ "fromJSON: " ++ er
+--        JSON.Success a -> if a == val
+--                          then Finished Pass
+--                          else Finished . Fail $ "Result mismatch"

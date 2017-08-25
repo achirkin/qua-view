@@ -1,5 +1,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
+--{-# LANGUAGE TypeApplications #-}
+--{-# LANGUAGE DataKinds #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 -- | FromJSON and ToJSON instances for `Model.Scenario`.
 --
@@ -10,16 +12,19 @@ module Model.GeoJSON.Scenario
     ) where
 
 
+import System.IO.Unsafe (unsafePerformIO)
 --import Control.Applicative
 --import qualified Data.Map.Strict as Map
 --import JavaScript.JSON.Types.Internal
 import JavaScript.JSON.Types.Instances
---import Numeric.DataFrame
+import Numeric.DataFrame
+import Numeric.DataFrame.IO
 
 import Commons
 import SmallGL.Types
 import qualified Model.Scenario as Scenario
 import qualified Model.Scenario.Object as Object
+import qualified Model.Scenario.Object.Geometry as Geometry
 import Model.GeoJSON.Coordinates
 
 instance FromJSON Scenario.Scenario where
@@ -44,8 +49,14 @@ instance FromJSON Scenario.Scenario where
 instance FromJSON Object.Object where
     parseJSON v = flip (withObject "Feature") v $ \fObj -> do
         let _renderingId = RenderedObjectId 0
-            _center = 0
         _properties <- fObj .:? "properties" .!= def
-        (_geometry, PaddedZeros padded) <- fObj .: "geometry"
+        (_geometry, PaddedZeros _padded) <- fObj .: "geometry"
+        let _center = unsafePerformIO $ do
+               SomeIODataFrame mdf <- Geometry.allData _geometry
+               df <- unsafeFreezeDataFrame mdf
+               return $ let t = ewfoldl (\a x -> a + fromScalar (4 !. x) * x )
+                                        (vec4 0 0 0 0) df
+                        in t / fromScalar (4 !. t)
+
 
         pure Object.Object {..}

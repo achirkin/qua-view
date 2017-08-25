@@ -7,6 +7,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE JavaScriptFFI #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module SmallGL.Types where
 
 
@@ -16,13 +17,15 @@ import Numeric.Dimensions
 import Numeric.TypeLits
 import JavaScript.WebGL
 import GHCJS.Types (JSVal)
+import GHCJS.Marshal (FromJSVal, ToJSVal)
+import GHCJS.Marshal.Pure (PFromJSVal, PToJSVal)
 import Unsafe.Coerce (unsafeCoerce)
 
 
 -- | Id of an object within rendering system
 --    (should be kept by other components, but not exposed outside viewer).
 newtype RenderedObjectId = RenderedObjectId Int
-    deriving (Eq, Ord)
+    deriving (PToJSVal, ToJSVal, PFromJSVal, FromJSVal, Eq, Ord)
 
 -- | Project camera space coordinates to screen normalized coordinates
 newtype ProjMatrix = ProjM { getProjM :: Mat44f }

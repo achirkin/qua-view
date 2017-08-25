@@ -1,5 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveGeneric #-}
 -- | All sorts of objects in the scene.
 --   Meant to be imported qualified
 --
@@ -7,16 +8,19 @@
 --
 module Model.Scenario.Object
     ( Object (..), ObjectId (..), ObjectBehavior (..)
+    , getTransferable
     , renderingId, center, geometry, properties
     , height, viewColor, objectBehavior
     ) where
 
 import JavaScript.JSON.Types.Instances
+import GHC.Generics
 import Numeric.DataFrame
 import Commons
 import SmallGL.Types
 import Model.Scenario.Properties
-import Model.Scenario.Object.Geometry
+import Model.Scenario.Object.Geometry (Geometry)
+import qualified Model.Scenario.Object.Geometry as Geometry
 
 -- | Refernce to object in a scenario.
 --
@@ -31,10 +35,19 @@ data Object
   , _center      :: !Vec4f
   , _geometry    :: !Geometry
   , _properties  :: !Properties
-  }
+  } deriving Generic
+
+instance FromJSVal Object
+instance ToJSVal   Object
 
 -- | Whether one could interact with an object or not
 data ObjectBehavior = Static | Dynamic deriving (Eq,Show)
+
+
+-- | One object has one geometry,
+--   and one geometry must have only one Transferable
+getTransferable :: Object -> IO Transferable
+getTransferable = Geometry.getTransferable . _geometry
 
 
 renderingId :: Functor f

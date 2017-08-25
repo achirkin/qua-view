@@ -100,8 +100,14 @@ instance PFromJSVal Properties where
     pFromJSVal v = case fromJSON $ SomeValue v of
       Error   _ -> mempty
       Success m -> m
+instance FromJSVal Properties where
+    fromJSVal = pure . Just . pFromJSVal
+    fromJSValUnchecked = pure . pFromJSVal
 instance PToJSVal Properties where
     pToJSVal = coerce . objectValue . object . fmap (_unPropName *** coerce) . Map.assocs
+instance ToJSVal Properties where
+    toJSVal = pure . pToJSVal
+
 
 instance FromJSON Properties where
     parseJSON = withObject "Properties object"
