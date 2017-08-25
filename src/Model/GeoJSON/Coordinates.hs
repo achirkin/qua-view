@@ -26,12 +26,17 @@ module Model.GeoJSON.Coordinates
     , varX, meanX
     , ObjectCentres (..)
     , getScenarioStatistics
+    , setNormalsAndComputeIndices
     ) where
 
-import Control.Monad (zipWithM)
+
+import Control.Monad (zipWithM, foldM)
+import Data.Word
+--import Data.List (fromListN)
 import Numeric.DataFrame
 import Numeric.DataFrame.IO
 import Numeric.Dimensions
+import Numeric.Dimensions.Traverse.IO
 import Numeric.TypeLits
 import Commons
 import JavaScript.JSON.Types.Internal
@@ -48,16 +53,92 @@ newtype PaddedZeros = PaddedZeros Bool
   deriving (Eq, Show)
 
 ----------------------------------------------------------------------------------------------------
--- * Some math
+-- * Getting normals and indices
 ----------------------------------------------------------------------------------------------------
 
 
+setNormalsAndComputeIndices :: Geometry
+                            -> IO (Maybe (SomeIODataFrame Word16 '[XN 0]))
+setNormalsAndComputeIndices (Points _) = pure Nothing
+setNormalsAndComputeIndices (Lines xs) = pure $ case fromList $ map scalar iss of
+      SomeDataFrame (df :: DataFrame Word16 ns) ->
+        case unsafeCoerce (Evidence :: Evidence ()) of
+          (Evidence :: Evidence ('[n] ~ ns)) ->
+            Just $ SomeIODataFrame
+              (unsafeCoerce df :: IODataFrame Word16 '[n])
+    where
+      (_, iss) = foldl f (0,[]) xs
+      f :: (Word16, [Word16]) -> SomeIODataFrame Float '[N 4,XN 2] -> (Word16, [Word16])
+      f (n0,is) (SomeIODataFrame (sdf :: IODataFrame Float ns))
+        | (Evidence :: Evidence ('[4,n] ~ ns, 2 <= n)) <- unsafeCoerce (Evidence :: Evidence ())
+        , n <- fromIntegral $ dimVal' @n
+        = (n + n0, is ++ ([0..n-2] >>= \i -> [n0+i,n0+i+1]) )
+setNormalsAndComputeIndices (Polygons ns) = do
+    l0 <- js_emptyList
+    l1 <- foldM (\l p -> triangulateAndSetNormal p >>= js_concat l) l0 ns
+    (n, df) <- js_wratIds l1
+    return $ case someIntNatVal n of
+      Nothing -> Nothing
+      Just (SomeIntNat (_::Proxy n)) -> Just $ SomeIODataFrame
+              (unsafeCoerce df :: IODataFrame Word16 '[n])
+
+
+triangulateAndSetNormal :: (SomeIODataFrame Float '[N 4, N 2, XN 3], [Int])
+                        -> IO JSVal
+triangulateAndSetNormal (SomeIODataFrame (sdf :: IODataFrame Float ns), holes)
+    = case unsafeCoerce (Evidence :: Evidence ()) of
+        (Evidence :: Evidence ('[4,2,n] ~ ns, 2 <= n)) -> do
+          df <- unsafeFreezeDataFrame sdf
+          let onlyPoints = ewmap @_ @'[4] @'[n] (1!.) df
+              n = bestFittingPlaneN onlyPoints
+              n' = n <+:> 0
+              projected = project2D onlyPoints n
+          jprojected <- toJSVal projected
+          jholes <- toJSVal holes
+          overDimIdx_ (dim @'[n]) $ \i -> copyDataFrame n' (1:!2:!i) sdf
+          js_earcut (unsafeCoerce sdf) jprojected jholes >>= fromJSValUnchecked
+
+foreign import javascript unsafe
+    "var off = Math.floor($1.byteOffset / 32); $r = (earcut($2, $3)).map(function(e){return off + e;});"
+    js_earcut :: JSVal -> JSVal -> JSVal -> IO JSVal
+
+foreign import javascript unsafe
+    "$1.concat($2)"
+    js_concat :: JSVal -> JSVal -> IO JSVal
+
+foreign import javascript unsafe
+    "$r = [];"
+    js_emptyList :: IO JSVal
+
+foreign import javascript unsafe
+    "$r1 = $1.length; $r2 = new Uint16Array($1);"
+    js_wratIds :: JSVal -> IO (Int, JSVal)
+
+
+project2D :: forall n . (KnownDim n, 2 <= n)
+          => DataFrame Float '[4, n]
+          -> Vec3f
+          -> DataFrame Float '[2, n]
+project2D df' norm = ewmap proj df
+    where
+      m  = meanX df'
+      proj x = vec2 (unScalar $ dot x nx) (unScalar $ dot x ny) / fromScalar (4 !. x)
+      nx' = let x' = norm `cross` vec3 1 0 0
+                x'' = if dot x' x' < 0.01
+                      then norm `cross` vec3 0 1 0
+                      else x'
+            in x'' / (fromScalar (normL2 x'') <+:> 0)
+      nx = nx' <+:> 0
+      ny = let y' = norm `cross` nx'
+           in y' / fromScalar (normL2 y') <+:> 0
+      df = ewmap (flip (-) m) df'
+
+
 -- https://math.stackexchange.com/q/2306029
-bestFittingPlaneN :: DataFrame Float '[N 4, XN 3] -> Vec3f
-bestFittingPlaneN (SomeDataFrame (df' :: DataFrame Float ns))
-    | (Evidence :: Evidence ([4,n] ~ ns, 2 <= n)) <- unsafeCoerce (Evidence :: Evidence ())
-      -- take mean
-    , m  <- meanX df'
+bestFittingPlaneN :: forall n . (KnownDim n, 2 <= n) => DataFrame Float '[4, n] -> Vec3f
+bestFittingPlaneN df'
+    | -- take mean
+      m  <- meanX df'
       -- normalized frame
     , df <- ewmap   @_ @'[4] (flip (-) m) df'
       -- solve Ax = B

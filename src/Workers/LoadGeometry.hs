@@ -29,6 +29,9 @@ import Model.GeoJSON.Scenario ()
 import JavaScript.JSON.Types.Internal
 import JavaScript.JSON.Types.Instances
 
+import Control.Lens
+import Model.Scenario.Object as Object
+
 loadGeometryConduit :: (MonadIO m, MonadLogger m)
                     => Conduit LoadedTextContent m (LGWMessage, [Transferable])
 loadGeometryConduit = awaitForever $ \msg -> do
@@ -45,6 +48,11 @@ loadGeometryConduit = awaitForever $ \msg -> do
               logWarn (workerLS loadGeometryDef) $ "Could not parse centres: " <> s
         case fromJSON val of
            Success sc@Scenario {} -> do
+              liftIO $ mapM_
+                        (\o -> setNormalsAndComputeIndices (o^.Object.geometry)
+                          >>= undefined
+                        )
+                       (sc^.objects)
               trs <- liftIO $ getTransferables sc
               yield (LGWResult sc, trs)
            Error s -> do

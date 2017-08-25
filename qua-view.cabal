@@ -135,6 +135,7 @@ executable qua-worker-loadgeometry
     cpp-options: -DGHCJS_BROWSER -DISWORKER -DLOGLEVEL=0
     js-sources:
         src/Model/GeoJSON/Coordinates.js
+        src/Model/GeoJSON/earcut.min.js
     default-language: Haskell2010
     hs-source-dirs: src
     other-modules:

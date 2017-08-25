@@ -41,6 +41,9 @@ newtype ViewMatrix = ViewM { getViewM :: Mat44f }
 --    * Normals (4th coordinate is 0, norm == 1)
 newtype CoordsNormals (n :: Nat) = CoordsNormals (IODataFrame Float '[4, 2, n])
 
+-- | Coordinate array
+newtype Coords (n :: Nat) = Coords (IODataFrame Float '[4, n])
+
 -- | Specifying colors as 4D unsigned bytes
 newtype Colors (n :: Nat) = Colors (IODataFrame GLubyte '[4, n])
 
@@ -49,6 +52,13 @@ newtype TexCoords (n :: Nat) = TexCoords (IODataFrame GLushort '[2, n])
 
 -- | Draw elements by these indices (note, maxBound == 65535 for GLushort)
 newtype Indices (m :: Nat) = Indices (IODataFrame GLushort '[m])
+
+
+data ColoredPointData = forall n . KnownDim n
+  => ColoredPointData (Coords n)
+
+data ColoredLineData = forall n m . (KnownDim n, KnownDim m)
+  => ColoredLineData (Coords n) (Colors n) (Indices m)
 
 -- | All data for a solid-colored object in one existential place
 data ColoredData = forall n m . (KnownDim n, KnownDim m)
@@ -169,3 +179,27 @@ unsafeSubArray df i
 unsafeArrayThaw :: DataFrame t (a :+ as) -> IO (IODataFrame t (a :+ as))
 unsafeArrayThaw df = pure (unsafeCoerce df)
 
+
+
+instance ToJSVal ColoredData where
+    toJSVal cd@(ColoredData (CoordsNormals cns)
+                            (Colors cos)
+                            (Indices is)
+                )
+      | (Evidence :: Evidence ([n,m] ~ ns)) <- unsafeCoerce (Evidence :: Evidence ()) = do
+        o <- create
+        unsafeSetProp "n"  (pToJSVal (dimVal' @m)) o
+        unsafeSetProp "df" (coerce df) o
+        return $ jsval o
+--
+--instance (KnownDim n, ElemTypeInference t)
+--      => FromJSVal (SomeIODataFrame t '[N n, XN k]) where
+--    fromJSVal jsv = do
+--      let o = unsafeCoerce jsv
+--      maybeM <- someIntNatVal . pFromJSVal <$> unsafeGetProp "n" o
+--      case maybeM of
+--        Nothing -> return Nothing
+--        Just (SomeIntNat (_ :: Proxy m)) -> case inferNumericFrame @t @'[n,m] of
+--          Evidence -> do
+--            df <- coerce <$> unsafeGetProp "df" o :: IO (IODataFrame t '[n, m])
+--            return . Just $ SomeIODataFrame df
