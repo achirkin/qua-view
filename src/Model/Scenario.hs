@@ -1,11 +1,11 @@
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveGeneric #-}
 -- | Geometry Scenario
 --
 --   The main structure in qua-view!
 --
 module Model.Scenario
-    ( Scenario (..)
+    ( Scenario (..), getTransferables
     , name, geoLoc, properties
     , defaultActiveColor, defaultStaticColor, defaultBlockColor, defaultLineColor
     , defaultObjectHeight
@@ -14,7 +14,8 @@ module Model.Scenario
 
 --import qualified Data.Map.Strict as Map
 --import Control.Lens
-import JavaScript.JSON.Types.Internal
+import Data.Foldable (toList)
+import GHC.Generics
 import Commons
 import Model.Scenario.Properties
 import qualified Model.Scenario.Object as Object
@@ -28,7 +29,14 @@ data Scenario
   , _properties :: !Properties
     -- ^ key-value of arbitrary JSON properties
   , _objects    :: ![Object.Object]
-  }
+  } deriving Generic
+
+instance FromJSVal Scenario
+instance ToJSVal   Scenario
+
+-- | Get transferable content of each scenario object
+getTransferables :: Scenario -> IO [Transferable]
+getTransferables = mapM Object.getTransferable . toList . _objects
 
 
 -- * Lenses
@@ -94,39 +102,4 @@ defaultObjectHeight f = properties $ property "defaultObjectHeight" g
 
 
 
-
-
-
-
---instance ToJSVal Scenario where
---    toJSVal = pure . pToJSVal
-
-instance ToJSVal Scenario where
-    toJSVal Scenario{..} = do
-      objs <- mapM (toJSVal . Object._geometry) _objects >>= toJSVal
-      return $ coerce . objectValue . object
-           $ "name" =:? _name
-          <> "lon"  =:? (fst3 <$> _geoLoc)
-          <> "lat"  =:? (snd3 <$> _geoLoc)
-          <> "alt"  =:? (thd3 <$> _geoLoc)
-          <> "properties" =:: _properties
-          <> "objects"    =:: objs
-
-(=:?) :: PToJSVal a => JSString -> Maybe a -> [(JSString, Value)]
-(=:?) _ Nothing = []
-(=:?) n (Just v) = [(n, coerce $ pToJSVal v)]
-infixr 7 =:?
-
-(=::) :: PToJSVal a => JSString -> a -> [(JSString, Value)]
-(=::) n v = [(n, coerce $ pToJSVal v)]
-infixr 7 =::
-
-fst3 :: (a,b,c) -> a
-fst3 (a,_,_) = a
-
-snd3 :: (a,b,c) -> b
-snd3 (_,b,_) = b
-
-thd3 :: (a,b,c) -> c
-thd3 (_,_,c) = c
 

@@ -54,14 +54,7 @@ function h$geojson_parseMultiLineString(arr) {
 function h$geojson_parseLinearRing(arr) {
     var x, points = [], size = arr.length - 1, padded = true;
     for(var i = 0; i < size; i++) {
-        points.push(arr[i][0]||0);
-        points.push(arr[i][1]||0);
-        points.push(arr[i][2]||0);
-        points.push(1);
-        points.push(0);
-        points.push(0);
-        points.push(1);
-        points.push(1);
+        points.push(arr[i][0]||0, arr[i][1]||0, arr[i][2]||0, 1, 0, 0, 1, 0);
         padded = padded && arr[i].length < 3;
     }
     return [points, size, padded];
