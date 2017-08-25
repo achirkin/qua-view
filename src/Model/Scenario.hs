@@ -28,7 +28,7 @@ data Scenario
     -- ^ Longitude, Latitude, and Altitude of scenario reference point
   , _properties :: !Properties
     -- ^ key-value of arbitrary JSON properties
-  , _objects    :: ![Object.Object]
+  , _objects    :: !Object.Collection
   } deriving Generic
 
 instance FromJSVal Scenario
