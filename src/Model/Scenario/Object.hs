@@ -1,19 +1,22 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FlexibleInstances #-}
 -- | All sorts of objects in the scene.
 --   Meant to be imported qualified
 --
 --   > import qualified Model.Scenario.Object as Object
 --
 module Model.Scenario.Object
-    ( Object (..), ObjectId (..), ObjectBehavior (..)
+    ( Object (..), ObjectId (..), ObjectBehavior (..), Collection
     , getTransferable
     , renderingId, center, geometry, properties
     , height, viewColor, objectBehavior
     ) where
 
-import JavaScript.JSON.Types.Instances
+
+import qualified Data.Map.Strict as Map
+import JavaScript.JSON.Types.Instances (ToJSON, FromJSON)
 import GHC.Generics
 import Numeric.DataFrame
 import Commons
@@ -39,6 +42,7 @@ data Object
 
 instance FromJSVal Object
 instance ToJSVal   Object
+
 
 -- | Whether one could interact with an object or not
 data ObjectBehavior = Static | Dynamic deriving (Eq,Show)
@@ -93,4 +97,30 @@ objectBehavior f = properties $ propertyWithParsing "static" g
 
 
 
+
+-- | Alias for a map of objects
+type Collection = Map ObjectId Object
+
+instance FromJSVal (Map ObjectId Object) where
+    fromJSVal = fmap (fmap Map.fromAscList) . fromJSVal
+    fromJSValUnchecked = fmap Map.fromAscList . fromJSValUnchecked
+
+
+instance ToJSVal (Map ObjectId Object) where
+    toJSVal m = do
+        j <- js_createMap
+        _ <- Map.traverseWithKey (f j) m
+        return j
+     where
+       f :: JSVal -> ObjectId -> Object -> IO ()
+       f j i o = toJSVal o >>= js_addKeyVal j i
+
+
+foreign import javascript unsafe
+  "$r = [];"
+  js_createMap :: IO JSVal
+
+foreign import javascript unsafe
+  "$1.push([$2,$3]);"
+  js_addKeyVal :: JSVal -> ObjectId -> JSVal -> IO ()
 

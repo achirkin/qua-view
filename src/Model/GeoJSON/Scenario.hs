@@ -12,9 +12,13 @@ module Model.GeoJSON.Scenario
     ) where
 
 
+import Data.Semigroup
+import Data.Maybe (fromMaybe)
+import Data.List (mapAccumL)
+import Control.Lens
 import System.IO.Unsafe (unsafePerformIO)
 --import Control.Applicative
---import qualified Data.Map.Strict as Map
+import qualified Data.Map.Strict as Map
 --import JavaScript.JSON.Types.Internal
 import JavaScript.JSON.Types.Instances
 import Numeric.DataFrame
@@ -25,6 +29,7 @@ import SmallGL.Types
 import qualified Model.Scenario as Scenario
 import qualified Model.Scenario.Object as Object
 import qualified Model.Scenario.Object.Geometry as Geometry
+import           Model.Scenario.Properties
 import Model.GeoJSON.Coordinates
 
 instance FromJSON Scenario.Scenario where
@@ -41,7 +46,21 @@ instance FromJSON Scenario.Scenario where
 
         -- Feature collection maybe this object itself or 'geometry' sub-object
         fc <- scObj .:? "geometry" .!= scObj
-        _objects <- fc .: "features"
+        objList <- fc .: "features"
+
+        -- get maximum presented geomID to set up currentGeomID counter
+        let (Max maxObjId) = foldMap (Max . fromMaybe 0 . view (Object.properties.property "geomID") )
+                                     objList
+
+        -- set up all missing geomIDs and construct a map
+        let _objects = Map.fromList
+                     . snd
+                     $ mapAccumL (\i o -> case o ^. Object.properties.property "geomID" of
+                                            Nothing -> (i+1, (Object.ObjectId i, o))
+                                            Just k  -> (i  , (Object.ObjectId k, o))
+                                 )
+                                 (maxObjId+1)
+                                 objList
 
         pure Scenario.Scenario {..}
 
