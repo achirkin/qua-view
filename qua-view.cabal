@@ -195,7 +195,6 @@ test-suite geojson-tests
         Commons.Local
         Commons.Logger
         Model.GeoJSON.Coordinates
-        Model.GeoJSON.Point
         Model.GeoJSON.Scenario
         Model.Scenario
         Model.Scenario.Object
