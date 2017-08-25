@@ -6,7 +6,7 @@
 --
 module Model.Scenario
     ( Scenario (..), getTransferables
-    , name, geoLoc, properties
+    , name, geoLoc, properties, objects
     , defaultActiveColor, defaultStaticColor, defaultBlockColor, defaultLineColor
     , defaultObjectHeight
     ) where
@@ -56,6 +56,12 @@ properties :: Functor f
            => (Properties -> f Properties)
            -> Scenario -> f Scenario
 properties f s = (\x -> s{_properties = x}) <$> f (_properties s)
+
+objects :: Functor f
+        => (Object.Collection -> f Object.Collection)
+        -> Scenario -> f Scenario
+objects f s = (\x -> s{_objects = x}) <$> f (_objects s)
+
 
 
 

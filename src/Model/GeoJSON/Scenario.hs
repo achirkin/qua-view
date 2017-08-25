@@ -62,6 +62,7 @@ instance FromJSON Scenario.Scenario where
                                  (maxObjId+1)
                                  objList
 
+
         pure Scenario.Scenario {..}
 
 
@@ -73,7 +74,11 @@ instance FromJSON Object.Object where
         let _center = unsafePerformIO $ do
                SomeIODataFrame mdf <- Geometry.allData _geometry
                df <- unsafeFreezeDataFrame mdf
-               return $ let t = ewfoldl (\a x -> a + fromScalar (4 !. x) * x )
+               return $ let t = ewfoldl (\a x -> let (x1,x2,x3,x4) = unpackV4 x
+                                                 in if abs x4 < 0.0001
+                                                    then a
+                                                    else a + vec4 (x1/x4) (x2/x4) (x3/x4) 1
+                                        )
                                         (vec4 0 0 0 0) df
                         in t / fromScalar (4 !. t)
 
