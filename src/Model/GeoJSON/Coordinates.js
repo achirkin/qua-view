@@ -60,7 +60,7 @@ function h$geojson_parseLinearRing(arr) {
         points.push(1);
         points.push(0);
         points.push(0);
-        points.push(0);
+        points.push(1);
         points.push(1);
         padded = padded && arr[i].length < 3;
     }
