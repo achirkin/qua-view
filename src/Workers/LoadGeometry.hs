@@ -1,6 +1,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DataKinds #-}
 #ifdef ISWORKER
 {-# LANGUAGE TypeApplications #-}
 #else
@@ -15,7 +16,7 @@ module Workers.LoadGeometry
 #endif
     ) where
 
-
+import Model.Scenario.Object (ObjectRenderable(..))
 import GHC.Generics
 import Commons
 import Workers
@@ -25,12 +26,12 @@ import Model.Scenario.Statistics
 import Numeric.DataFrame
 import Data.Conduit
 import Model.GeoJSON.Coordinates
-import Model.GeoJSON.Scenario ()
+import Model.GeoJSON.Scenario
 import JavaScript.JSON.Types.Internal
 import JavaScript.JSON.Types.Instances
 
-import Control.Lens
-import Model.Scenario.Object as Object
+--import Control.Lens
+--import Model.Scenario.Object as Object
 
 loadGeometryConduit :: (MonadIO m, MonadLogger m)
                     => Conduit LoadedTextContent m (LGWMessage, [Transferable])
@@ -47,12 +48,8 @@ loadGeometryConduit = awaitForever $ \msg -> do
            Error s ->
               logWarn (workerLS loadGeometryDef) $ "Could not parse centres: " <> s
         case fromJSON val of
-           Success sc@Scenario {} -> do
-              liftIO $ mapM_
-                        (\o -> setNormalsAndComputeIndices (o^.Object.geometry)
-                          >>= undefined
-                        )
-                       (sc^.objects)
+           Success sc' -> do
+              sc <- liftIO $ prepareScenario sc'
               trs <- liftIO $ getTransferables sc
               yield (LGWResult sc, trs)
            Error s -> do
@@ -85,7 +82,7 @@ loadGeometryDef = WorkerDef
   }
 
 data LGWMessage
-  = LGWResult Scenario
+  = LGWResult (Scenario' 'Prepared)
     -- ^ Send parsed Scenario
   | LGWSCStat ScenarioStatistics
     -- ^ Send general info about scenario object

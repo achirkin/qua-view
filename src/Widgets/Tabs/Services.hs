@@ -22,15 +22,15 @@ panelServices :: ( Reflex t
 panelServices = do
       el "div" $ do
         text "Select a remote service to run"
-        void $ makeElementFromHtml def $(do
-            qcss
-              [cassius|
-                .spKey
-                  padding: 2px
-                  text-align: right
-                .spVal
-                  padding: 2px
-              |]
+        void $ makeElementFromHtml def $(-- do
+--            qcss
+--              [cassius|
+--                .spKey
+--                  padding: 2px
+--                  text-align: right
+--                .spVal
+--                  padding: 2px
+--              |]
             qhtml
               [hamlet|
                 <table style="width: 95%">

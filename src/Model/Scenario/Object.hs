@@ -11,9 +11,10 @@
 --   > import qualified Model.Scenario.Object as Object
 --
 module Model.Scenario.Object
-    ( Object (..), ObjectId (..), ObjectBehavior (..), Collection
+    ( Object, Object' (..), ObjectId (..), ObjectBehavior (..), Collection, Collection'
+    , ObjectRenderable (..), ObjectRenderingData (..), PreparedData (..)
     , getTransferable
-    , renderingId, center, geometry, properties
+    , renderingData, renderingId, center, geometry, properties
     , height, viewColor, objectBehavior
     ) where
 
@@ -51,22 +52,32 @@ data ObjectRenderingData (s :: ObjectRenderable) where
 
 data PreparedData
   = PreparedPoints !ColoredPointData
-  | PraparedLines !ColoredLineData
-  | PreparedPolys !ColoredData
+  | PreparedLines  !ColoredLineData
+  | PreparedPolys  !ColoredData
+  deriving Generic
+
+instance FromJSVal PreparedData
+instance ToJSVal   PreparedData
+
+instance FromJSVal (ObjectRenderingData 'Prepared) where
+    fromJSValUnchecked jsv = ORDP <$> fromJSValUnchecked jsv
+    fromJSVal jsv          = fmap ORDP <$> fromJSVal jsv
+
+instance ToJSVal (ObjectRenderingData 'Prepared) where
+    toJSVal (ORDP pd) = toJSVal pd
 
 
---instance FromJSVal (ObjectRenderingData Renderable) where
---
+type Object = Object' 'Renderable
 
-data Object' (s :: ObjectRenderable) = Object'
+data Object' (s :: ObjectRenderable) = Object
   { _renderingData :: !(ObjectRenderingData s)
   , _center        :: !Vec4f
   , _geometry      :: !Geometry
   , _properties    :: !Properties
   } deriving Generic
 
-instance FromJSVal (Object' s)
-instance ToJSVal   (Object' s)
+instance FromJSVal (Object' 'Prepared)
+instance ToJSVal   (Object' 'Prepared)
 
 
 -- | Whether one could interact with an object or not
@@ -78,6 +89,11 @@ data ObjectBehavior = Static | Dynamic deriving (Eq,Show)
 getTransferable :: Object' s -> IO Transferable
 getTransferable = Geometry.getTransferable . _geometry
 
+
+renderingData :: Functor f
+              => (ObjectRenderingData s -> f (ObjectRenderingData t))
+              -> Object' s -> f (Object' t)
+renderingData f s = (\x -> s{_renderingData = x}) <$> f (_renderingData s)
 
 renderingId :: Functor f
             => (RenderedObjectId -> f RenderedObjectId)
@@ -124,20 +140,21 @@ objectBehavior f = properties $ propertyWithParsing "static" g
 
 
 -- | Alias for a map of objects
-type Collection s = Map ObjectId (Object' s)
+type Collection' s = Map ObjectId (Object' s)
+type Collection    = Map ObjectId (Object' 'Renderable)
 
-instance FromJSVal (Map ObjectId (Object' s)) where
+instance FromJSVal (Map ObjectId (Object' 'Prepared)) where
     fromJSVal = fmap (fmap Map.fromAscList) . fromJSVal
     fromJSValUnchecked = fmap Map.fromAscList . fromJSValUnchecked
 
 
-instance ToJSVal (Map ObjectId (Object' s)) where
+instance ToJSVal (Map ObjectId (Object' 'Prepared)) where
     toJSVal m = do
         j <- js_createMap
         _ <- Map.traverseWithKey (f j) m
         return j
      where
-       f :: JSVal -> ObjectId -> Object' s -> IO ()
+       f :: JSVal -> ObjectId -> Object' 'Prepared -> IO ()
        f j i o = toJSVal o >>= js_addKeyVal j i
 
 
