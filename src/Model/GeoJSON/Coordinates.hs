@@ -62,14 +62,14 @@ setNormalsAndComputeIndices :: Geometry
 setNormalsAndComputeIndices (Points _) = pure Nothing
 setNormalsAndComputeIndices (Lines xs) = pure $ case fromList $ map scalar iss of
       SomeDataFrame (df :: DataFrame Word16 ns) ->
-        case unsafeCoerce (Evidence :: Evidence ()) of
+        case unsafeCoerce (Evidence :: Evidence (ns ~ ns)) of
           (Evidence :: Evidence ('[n] ~ ns)) ->
             Just $ SomeIODataFrame
               (unsafeCoerce df :: IODataFrame Word16 '[n])
     where
       (_, iss) = foldl f (0,[]) xs
       f :: (Word16, [Word16]) -> SomeIODataFrame Float '[N 4,XN 2] -> (Word16, [Word16])
-      f (n0,is) (SomeIODataFrame (sdf :: IODataFrame Float ns))
+      f (n0,is) (SomeIODataFrame (_ :: IODataFrame Float ns))
         | (Evidence :: Evidence ('[4,n] ~ ns, 2 <= n)) <- unsafeCoerce (Evidence :: Evidence ())
         , n <- fromIntegral $ dimVal' @n
         = (n + n0, is ++ ([0..n-2] >>= \i -> [n0+i,n0+i+1]) )
@@ -86,7 +86,7 @@ setNormalsAndComputeIndices (Polygons ns) = do
 triangulateAndSetNormal :: (SomeIODataFrame Float '[N 4, N 2, XN 3], [Int])
                         -> IO JSVal
 triangulateAndSetNormal (SomeIODataFrame (sdf :: IODataFrame Float ns), holes)
-    = case unsafeCoerce (Evidence :: Evidence ()) of
+    = case unsafeCoerce (Evidence :: Evidence (ns ~ ns, 2 <= 3)) of
         (Evidence :: Evidence ('[4,2,n] ~ ns, 2 <= n)) -> do
           df <- unsafeFreezeDataFrame sdf
           let onlyPoints = ewmap @_ @'[4] @'[n] (1!.) df
@@ -292,7 +292,7 @@ foreign import javascript unsafe
 
 instance ToJSON Geometry where
     toJSON (Points (SomeIODataFrame (sdf :: IODataFrame Float ns)))
-        | (Evidence :: Evidence ([4,n] ~ ns, 1 <= n)) <- unsafeCoerce (Evidence :: Evidence ())
+        | (Evidence :: Evidence ([4,n] ~ ns, 1 <= n)) <- unsafeCoerce (Evidence :: Evidence (ns ~ ns, 1 <= 1))
         , n <- dimVal' @n
         = if n == 1
           then objectValue $ object

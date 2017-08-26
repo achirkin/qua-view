@@ -6,6 +6,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE JavaScriptFFI #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module SmallGL.Types where
@@ -16,9 +17,11 @@ import Numeric.DataFrame.IO
 import Numeric.Dimensions
 import Numeric.TypeLits
 import JavaScript.WebGL
-import GHCJS.Types (JSVal)
-import GHCJS.Marshal (FromJSVal, ToJSVal)
-import GHCJS.Marshal.Pure (PFromJSVal, PToJSVal)
+import JavaScript.Object.Internal
+import GHCJS.Types (JSVal, jsval)
+import GHCJS.Marshal (FromJSVal(..), ToJSVal(..))
+import GHCJS.Marshal.Pure (PFromJSVal(..), PToJSVal(..))
+import Data.Coerce (coerce)
 import Unsafe.Coerce (unsafeCoerce)
 
 
@@ -55,7 +58,7 @@ newtype Indices (m :: Nat) = Indices (IODataFrame GLushort '[m])
 
 
 data ColoredPointData = forall n . KnownDim n
-  => ColoredPointData (Coords n)
+  => ColoredPointData (Coords n) (Colors n)
 
 data ColoredLineData = forall n m . (KnownDim n, KnownDim m)
   => ColoredLineData (Coords n) (Colors n) (Indices m)
@@ -182,24 +185,142 @@ unsafeArrayThaw df = pure (unsafeCoerce df)
 
 
 instance ToJSVal ColoredData where
-    toJSVal cd@(ColoredData (CoordsNormals cns)
-                            (Colors cos)
-                            (Indices is)
-                )
-      | (Evidence :: Evidence ([n,m] ~ ns)) <- unsafeCoerce (Evidence :: Evidence ()) = do
+    toJSVal (ColoredData (CoordsNormals (cns :: IODataFrame Float '[4,2,n] ))
+                         (Colors colors)
+                         (Indices (is :: IODataFrame GLushort '[m]))
+            ) = do
         o <- create
-        unsafeSetProp "n"  (pToJSVal (dimVal' @m)) o
-        unsafeSetProp "df" (coerce df) o
+        unsafeSetProp "n"  (pToJSVal (dimVal' @n)) o
+        unsafeSetProp "m"  (pToJSVal (dimVal' @m)) o
+        unsafeSetProp "coordsnormals" (coerce cns) o
+        unsafeSetProp "colors"        (coerce colors) o
+        unsafeSetProp "indices"       (coerce is) o
         return $ jsval o
---
---instance (KnownDim n, ElemTypeInference t)
---      => FromJSVal (SomeIODataFrame t '[N n, XN k]) where
---    fromJSVal jsv = do
---      let o = unsafeCoerce jsv
---      maybeM <- someIntNatVal . pFromJSVal <$> unsafeGetProp "n" o
---      case maybeM of
---        Nothing -> return Nothing
---        Just (SomeIntNat (_ :: Proxy m)) -> case inferNumericFrame @t @'[n,m] of
---          Evidence -> do
---            df <- coerce <$> unsafeGetProp "df" o :: IO (IODataFrame t '[n, m])
---            return . Just $ SomeIODataFrame df
+
+instance FromJSVal ColoredData where
+    fromJSValUnchecked jsv = do
+        n <- unsafeGetProp "n" o >>= fromJSValUnchecked
+        m <- unsafeGetProp "m" o >>= fromJSValUnchecked
+        case (,) <$> someIntNatVal n <*> someIntNatVal m of
+          Nothing -> error "Could not get DataFrame dimensions"
+          Just (SomeIntNat (_::Proxy n), SomeIntNat (_::Proxy m)) -> do
+            crdnrms <- coerce <$> unsafeGetProp "coordsnormals" o
+            colors  <- coerce <$> unsafeGetProp "colors" o
+            indices <- coerce <$> unsafeGetProp "indices" o
+            return $ ColoredData
+              (CoordsNormals (crdnrms :: IODataFrame Float '[4,2,n] ))
+              (Colors colors)
+              (Indices (indices :: IODataFrame GLushort '[m]))
+      where
+        o = Object jsv
+    fromJSVal jsv = do
+        n <- unsafeGetProp "n" o >>= fromJSVal
+        m <- unsafeGetProp "m" o >>= fromJSVal
+        case (,) <$> (n >>= someIntNatVal) <*> (m >>= someIntNatVal) of
+          Nothing -> return Nothing
+          Just (SomeIntNat (_::Proxy n), SomeIntNat (_::Proxy m)) -> do
+            crdnrms <- unsafeGetProp "coordsnormals" o >>= fromJSVal :: IO (Maybe JSVal)
+            colors  <- unsafeGetProp "colors"        o >>= fromJSVal :: IO (Maybe JSVal)
+            indices <- unsafeGetProp "indices"       o >>= fromJSVal :: IO (Maybe JSVal)
+            return $ case (,,) <$> fmap coerce crdnrms
+                               <*> fmap coerce colors
+                               <*> fmap coerce indices of
+              Nothing -> Nothing
+              Just (a,b,c) -> Just $ ColoredData
+                 (CoordsNormals (a :: IODataFrame Float '[4,2,n] ))
+                 (Colors b)
+                 (Indices (c :: IODataFrame GLushort '[m]))
+      where
+        o = Object jsv
+
+
+instance ToJSVal ColoredLineData where
+    toJSVal (ColoredLineData (Coords (cns :: IODataFrame Float '[4,n] ))
+                             (Colors colors)
+                             (Indices (is :: IODataFrame GLushort '[m]))
+            ) = do
+        o <- create
+        unsafeSetProp "n"  (pToJSVal (dimVal' @n)) o
+        unsafeSetProp "m"  (pToJSVal (dimVal' @m)) o
+        unsafeSetProp "coords" (coerce cns) o
+        unsafeSetProp "colors"        (coerce colors) o
+        unsafeSetProp "indices"       (coerce is) o
+        return $ jsval o
+
+instance FromJSVal ColoredLineData where
+    fromJSValUnchecked jsv = do
+        n <- unsafeGetProp "n" o >>= fromJSValUnchecked
+        m <- unsafeGetProp "m" o >>= fromJSValUnchecked
+        case (,) <$> someIntNatVal n <*> someIntNatVal m of
+          Nothing -> error "Could not get DataFrame dimensions"
+          Just (SomeIntNat (_::Proxy n), SomeIntNat (_::Proxy m)) -> do
+            crdnrms <- coerce <$> unsafeGetProp "coords" o
+            colors  <- coerce <$> unsafeGetProp "colors" o
+            indices <- coerce <$> unsafeGetProp "indices" o
+            return $ ColoredLineData
+              (Coords (crdnrms :: IODataFrame Float '[4,n] ))
+              (Colors colors)
+              (Indices (indices :: IODataFrame GLushort '[m]))
+      where
+        o = Object jsv
+    fromJSVal jsv = do
+        n <- unsafeGetProp "n" o >>= fromJSVal
+        m <- unsafeGetProp "m" o >>= fromJSVal
+        case (,) <$> (n >>= someIntNatVal) <*> (m >>= someIntNatVal) of
+          Nothing -> return Nothing
+          Just (SomeIntNat (_::Proxy n), SomeIntNat (_::Proxy m)) -> do
+            crdnrms <- unsafeGetProp "coords"  o >>= fromJSVal :: IO (Maybe JSVal)
+            colors  <- unsafeGetProp "colors"  o >>= fromJSVal :: IO (Maybe JSVal)
+            indices <- unsafeGetProp "indices" o >>= fromJSVal :: IO (Maybe JSVal)
+            return $ case (,,) <$> fmap coerce crdnrms
+                               <*> fmap coerce colors
+                               <*> fmap coerce indices of
+              Nothing -> Nothing
+              Just (a,b,c) -> Just $ ColoredLineData
+                 (Coords (a :: IODataFrame Float '[4,n] ))
+                 (Colors b)
+                 (Indices (c :: IODataFrame GLushort '[m]))
+      where
+        o = Object jsv
+
+
+instance ToJSVal ColoredPointData where
+    toJSVal (ColoredPointData (Coords (cns :: IODataFrame Float '[4,n] ))
+                              (Colors colors)
+            ) = do
+        o <- create
+        unsafeSetProp "n"  (pToJSVal (dimVal' @n)) o
+        unsafeSetProp "coords" (coerce cns) o
+        unsafeSetProp "colors"        (coerce colors) o
+        return $ jsval o
+
+instance FromJSVal ColoredPointData where
+    fromJSValUnchecked jsv = do
+        n <- unsafeGetProp "n" o >>= fromJSValUnchecked
+        case someIntNatVal n of
+          Nothing -> error "Could not get DataFrame dimensions"
+          Just (SomeIntNat (_::Proxy n)) -> do
+            crdnrms <- coerce <$> unsafeGetProp "coords" o
+            colors  <- coerce <$> unsafeGetProp "colors" o
+            return $ ColoredPointData
+              (Coords (crdnrms :: IODataFrame Float '[4,n] ))
+              (Colors colors)
+      where
+        o = Object jsv
+    fromJSVal jsv = do
+        n <- unsafeGetProp "n" o >>= fromJSVal
+        case n >>= someIntNatVal of
+          Nothing -> return Nothing
+          Just (SomeIntNat (_::Proxy n)) -> do
+            crdnrms <- unsafeGetProp "coords" o >>= fromJSVal :: IO (Maybe JSVal)
+            colors  <- unsafeGetProp "colors" o >>= fromJSVal :: IO (Maybe JSVal)
+            return $ case (,) <$> fmap coerce crdnrms
+                              <*> fmap coerce colors of
+              Nothing -> Nothing
+              Just (a,b) -> Just $ ColoredPointData
+                 (Coords (a :: IODataFrame Float '[4,n] ))
+                 (Colors b)
+      where
+        o = Object jsv
+
+
