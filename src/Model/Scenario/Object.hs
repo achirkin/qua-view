@@ -13,7 +13,7 @@
 module Model.Scenario.Object
     ( Object, Object' (..), ObjectId (..), ObjectBehavior (..), Collection, Collection'
     , ObjectRenderable (..), ObjectRenderingData (..), PreparedData (..)
-    , getTransferable
+    , getTransferable, registerRender
     , renderingData, renderingId, center, geometry, properties
     , height, viewColor, objectBehavior
     ) where
@@ -89,6 +89,11 @@ data ObjectBehavior = Static | Dynamic deriving (Eq,Show)
 getTransferable :: Object' s -> IO Transferable
 getTransferable = Geometry.getTransferable . _geometry
 
+
+registerRender :: Functor f
+               => (PreparedData -> f RenderedObjectId)
+               -> Object' 'Prepared -> f (Object' 'Renderable)
+registerRender f s = (\x -> s{_renderingData = ORDR x}) <$> f (_preparedData $ _renderingData s)
 
 renderingData :: Functor f
               => (ObjectRenderingData s -> f (ObjectRenderingData t))
