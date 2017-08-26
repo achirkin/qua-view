@@ -13,11 +13,14 @@ import Reflex.Dom
 import Reflex.Dom.Widget.Animation (resizeEvents, viewPortSizeI)
 import Numeric.DataFrame
 import qualified Data.Dependent.Map as DMap
+import Control.Lens
 
 import Commons
 
 
 import qualified Model.Camera           as Model
+import qualified Model.Scenario         as Scenario
+import qualified Model.Scenario.Object  as Object
 
 import           Widgets.Generation
 import qualified Widgets.LoadingSplash  as Widgets
@@ -26,6 +29,7 @@ import qualified Widgets.ControlPanel   as Widgets
 import qualified Widgets.Tabs.Geometry  as Widgets
 
 import qualified SmallGL
+import qualified SmallGL.Types as SmallGL
 import qualified Workers.LoadGeometry as Workers
 
 main :: IO ()
@@ -46,10 +50,6 @@ main = mainWidgetInElementById "qua-view-widgets" $ mdo
     -- initialize web workers
     loadedGeometryE <- Workers.runLoadGeometryWorker $ -- I would need to add other loaded geom events here
         select geomTabEvs Widgets.GeomOutUserLoadsGeomFile
-    performEvent_ $ ( \m -> runReaderT
-                        ( logInfo' @JSString "main" "Got this back:" m
-                        ) loggerFunc
-                    ) <$> loadedGeometryE
 
     -- initialize WebGL rendering context
     let smallGLESel :: forall t a . Reflex t => SmallGL.SmallGLInput a -> Event t a
@@ -73,6 +73,21 @@ main = mainWidgetInElementById "qua-view-widgets" $ mdo
                                                 , Model.viewAngles = (2.745, 0.825)
                                                 , Model.viewDist = 68 }
     cameraD <- Model.dynamicCamera icamera aHandler resetCameraE
+
+    performEvent_ $ ( \m -> runReaderT
+                        (do
+                           logInfo' @JSString "main" "Got this back:" m
+                           case m of
+                             Workers.LGWResult sc -> do
+                                let f (Object.PreparedPolys d) = SmallGL.addRObject renderingApi d
+                                    f _                        = pure $ SmallGL.RenderedObjectId (-1)
+                                _sc' <- liftIO $ sc & Scenario.objects.traverse %%~
+                                                                Object.registerRender f
+
+                                logInfo @JSString "main" "Registered!:"
+                             _ -> return ()
+                        ) loggerFunc
+                    ) <$> loadedGeometryE
 
 
     -- Notify everyone that the program h finished starting up now

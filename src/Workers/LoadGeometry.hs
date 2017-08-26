@@ -8,7 +8,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 #endif
 module Workers.LoadGeometry
-    ( loadGeometryDef
+    ( loadGeometryDef, LGWMessage (..)
 #ifdef ISWORKER
     , loadGeometryConduit
 #else

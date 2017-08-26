@@ -68,9 +68,11 @@ data RenderingEngine = RenderingEngine
   }
 
 
+
 -- | Exposed functionality of
-newtype RenderingApi = RenderingApi
-  { render :: AnimationTime -> IO ()
+data RenderingApi = RenderingApi
+  { render     :: AnimationTime -> IO ()
+  , addRObject :: ColoredData -> IO RenderedObjectId
   }
 
 
@@ -151,7 +153,10 @@ createRenderingEngine canvasElem evS = do
 
     return RenderingApi
         { render = \t -> readIORef rre >>= flip renderFunction t
+        , addRObject = addRObjectFunction rre
         }
+
+
 
 -- | Create a WebGL rendering context for a canvas
 getRenderingContext :: MonadIO m => Element r s t -> m WebGLRenderingContext
@@ -183,6 +188,13 @@ renderFunction RenderingEngine {..} _ = do
     -- draw objects
     renderCell gl rCell
 
+addRObjectFunction :: IORef RenderingEngine
+                   -> ColoredData -> IO RenderedObjectId
+addRObjectFunction rre cd = do
+    re <- readIORef rre
+    (roId, rc') <- addRenderedObject (gl re) cd (rCell re)
+    writeIORef rre $ re { rCell = rc'}
+    return roId
 
 ----------------------------------------------------------------------------------------------------
 
