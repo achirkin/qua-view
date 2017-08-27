@@ -64,7 +64,7 @@ data RenderingEngine = RenderingEngine
   , uViewLoc :: !WebGLUniformLocation
   , uProjM   :: !ProjMatrix
   , uViewM   :: !ViewMatrix
-  , rCell    :: !RenderingCell
+  , rCell    :: !(RenderingCell ModeColored)
   }
 
 
@@ -72,7 +72,7 @@ data RenderingEngine = RenderingEngine
 -- | Exposed functionality of
 data RenderingApi = RenderingApi
   { render     :: AnimationTime -> IO ()
-  , addRObject :: ColoredData -> IO RenderedObjectId
+  , addRObject :: RenderingData ModeColored -> IO RenderedObjectId
   }
 
 
@@ -189,7 +189,7 @@ renderFunction RenderingEngine {..} _ = do
     renderCell gl rCell
 
 addRObjectFunction :: IORef RenderingEngine
-                   -> ColoredData -> IO RenderedObjectId
+                   -> RenderingData ModeColored -> IO RenderedObjectId
 addRObjectFunction rre cd = do
     re <- readIORef rre
     (roId, rc') <- addRenderedObject (gl re) cd (rCell re)
@@ -198,7 +198,7 @@ addRObjectFunction rre cd = do
 
 ----------------------------------------------------------------------------------------------------
 
-rectangle :: IO ColoredData
+rectangle :: IO (RenderingData ModeColored)
 rectangle
   | SomeDataFrame ixs <- fromList [0,1,2,0,2,3::Scalar GLushort]
   , crsnrs <-   (vec4  5 9  0 1 <::> vec4 0 0 1 0)
