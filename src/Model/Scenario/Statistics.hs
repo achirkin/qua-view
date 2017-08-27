@@ -26,7 +26,10 @@ data ScenarioStatistics = ScenarioStatistics
 
 instance FromJSON ScenarioStatistics
 instance ToJSON  ScenarioStatistics
-instance FromJSVal ScenarioStatistics
+instance FromJSVal ScenarioStatistics where
+    fromJSVal v = pure $ case fromJSON (SomeValue v) of
+        Error _ -> Nothing
+        Success r -> Just r
 instance ToJSVal ScenarioStatistics where
     toJSVal  = pure . pToJSVal
 instance PToJSVal ScenarioStatistics where

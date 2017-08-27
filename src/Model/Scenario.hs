@@ -8,7 +8,7 @@
 --
 module Model.Scenario
     ( Scenario, Scenario' (..), getTransferables
-    , name, geoLoc, properties, objects
+    , name, geoLoc, properties, objects, objIdSeq, withoutObjects
     , defaultActiveColor, defaultStaticColor
     , defaultBlockColor, defaultLineColor, defaultPointColor
     , defaultObjectHeight
@@ -16,11 +16,14 @@ module Model.Scenario
 
 
 --import qualified Data.Map.Strict as Map
---import Control.Lens
+import Control.Lens (set)
+import Control.Applicative ((<|>))
 import Data.Foldable (toList)
+import Data.Semigroup (stimesIdempotentMonoid)
 import GHC.Generics
 import Commons
 import Model.Scenario.Properties
+--import Model.Scenario.Statistics
 import qualified Model.Scenario.Object as Object
 
 
@@ -35,6 +38,8 @@ data Scenario' s
   , _properties :: !Properties
     -- ^ key-value of arbitrary JSON properties
   , _objects    :: !(Object.Collection' s)
+    -- ^ Map with scenario content
+  , _objIdSeq   :: !Object.ObjectId
   } deriving Generic
 
 instance FromJSVal (Scenario' 'Object.Prepared)
@@ -43,6 +48,12 @@ instance ToJSVal   (Scenario' 'Object.Prepared)
 -- | Get transferable content of each scenario object
 getTransferables :: Scenario' s -> IO [Transferable]
 getTransferables = mapM Object.getTransferable . toList . _objects
+
+-- | Get scenario with no Objects inside.
+--   Used to send scenario information to a geometry loader,
+--   so that geometry loader has scenario context.
+withoutObjects :: Scenario' s -> Scenario' 'Object.Prepared
+withoutObjects = set objects mempty
 
 
 -- * Lenses
@@ -68,6 +79,10 @@ objects :: Functor f
         -> Scenario' s -> f (Scenario' t)
 objects f s = (\x -> s{_objects = x}) <$> f (_objects s)
 
+objIdSeq :: Functor f
+         => (Object.ObjectId -> f (Object.ObjectId))
+         -> Scenario' s -> f (Scenario' s)
+objIdSeq f s = (\x -> s{_objIdSeq = x}) <$> f (_objIdSeq s)
 
 
 
@@ -121,4 +136,31 @@ defaultObjectHeight f = properties $ property "defaultObjectHeight" g
 
 
 
+instance Semigroup (Scenario' s) where
+  scOld <> scNew =  Scenario
+    {               -- trying to update scenario name if it has changed
+      _name       = _name scNew <|> _name scOld
+                    -- keeping GeoLocation from older version
+    , _geoLoc     = _geoLoc scOld <|> _geoLoc scNew
+                    -- prefer duplicate properties from a new version
+    , _properties = _properties scNew <> _properties scOld
+                    -- replace older objects with newer ones
+    , _objects    = _objects scNew <> _objects scOld
+                    -- get maximum of objId counters to make sure
+                    -- no objects could have the same object Id
+    , _objIdSeq   = max (_objIdSeq scOld) (_objIdSeq scNew)
+    }
+  stimes = stimesIdempotentMonoid
 
+instance Monoid (Scenario' s) where
+  mempty = Scenario
+    { _name       = Nothing
+    , _geoLoc     = Nothing
+    , _properties = mempty
+    , _objects    = mempty
+    , _objIdSeq   = Object.ObjectId 0
+    }
+  mappend = (<>)
+
+instance Default (Scenario' s) where
+  def = mempty

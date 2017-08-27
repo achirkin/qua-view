@@ -18,9 +18,10 @@ import Control.Lens
 import Commons
 
 
-import qualified Model.Camera           as Model
-import qualified Model.Scenario         as Scenario
-import qualified Model.Scenario.Object  as Object
+import qualified Model.Camera               as Model
+import qualified Model.Scenario             as Scenario
+import qualified Model.Scenario.Object      as Object
+import qualified Model.Scenario.Statistics  as Scenario
 
 import           Widgets.Generation
 import qualified Widgets.LoadingSplash  as Widgets
@@ -48,8 +49,10 @@ main = mainWidgetInElementById "qua-view-widgets" $ mdo
         <- flip runReaderT loggerFunc $ Widgets.controlPanel compStateEvs
 
     -- initialize web workers
-    loadedGeometryE <- Workers.runLoadGeometryWorker $ -- I would need to add other loaded geom events here
-        select geomTabEvs Widgets.GeomOutUserLoadsGeomFile
+    loadedGeometryE <- Workers.runLoadGeometryWorker -- I would need to add other loaded geom events here
+         $  (\sc ev -> (ev, Scenario.withoutObjects sc))
+        <$> current scenarioD
+        <@> select geomTabEvs Widgets.GeomOutUserLoadsGeomFile
 
     -- initialize WebGL rendering context
     let smallGLESel :: forall t a . Reflex t => SmallGL.SmallGLInput a -> Event t a
@@ -72,22 +75,33 @@ main = mainWidgetInElementById "qua-view-widgets" $ mdo
                                    Model.CState { Model.viewPoint  = vec3 (-2) 3 0
                                                 , Model.viewAngles = (2.745, 0.825)
                                                 , Model.viewDist = 68 }
-    cameraD <- Model.dynamicCamera icamera aHandler resetCameraE
+    cameraD <- Model.dynamicCamera icamera aHandler resetCameraE $ current scenarioCenterD
+--    performEvent_ $ liftIO . print <$> updated cameraD
 
-    performEvent_ $ ( \m -> runReaderT
+    scenarioD <- holdDyn def scenarioE
+    scenarioE <- performEvent $
+                    ( \oldSc m -> runReaderT
                         (do
                            logInfo' @JSString "main" "Got this back:" m
                            case m of
                              Workers.LGWResult sc -> do
                                 let f (Object.PreparedPolys d) = SmallGL.addRObject renderingApi d
                                     f _                        = pure $ SmallGL.RenderedObjectId (-1)
-                                _sc' <- liftIO $ sc & Scenario.objects.traverse %%~
+                                sc' <- liftIO $ sc & Scenario.objects.traverse %%~
                                                                 Object.registerRender f
 
                                 logInfo @JSString "main" "Registered!:"
-                             _ -> return ()
+                                return $ oldSc <> sc'
+                             _ -> return oldSc
                         ) loggerFunc
-                    ) <$> loadedGeometryE
+                    ) <$> current scenarioD <@> loadedGeometryE
+
+    let scenarioCenterE = fmapMaybe
+                          (\m -> case m of
+                             Workers.LGWSCStat st -> Just $ Scenario.centerPoint st
+                             _ -> Nothing
+                          ) loadedGeometryE
+    scenarioCenterD <- holdDyn (vec2 0 0) scenarioCenterE
 
 
     -- Notify everyone that the program h finished starting up now

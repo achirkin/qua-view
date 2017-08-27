@@ -56,8 +56,8 @@ instance FromJSON (Scenario.Scenario' 'Object.NotReady) where
                                      objList
 
         -- set up all missing geomIDs and construct a map
-        let _objects = Map.fromList
-                     . snd
+        let (_objIdSeq, _objects)
+                     = Object.ObjectId *** Map.fromList
                      $ mapAccumL (\i o -> case o ^. Object.properties.property "geomID" of
                                             Nothing -> (i+1, (Object.ObjectId i, o))
                                             Just k  -> (i  , (Object.ObjectId k, o))
