@@ -85,10 +85,11 @@ main = mainWidgetInElementById "qua-view-widgets" $ mdo
                            logInfo' @JSString "main" "Got this back:" m
                            case m of
                              Workers.LGWResult sc -> do
-                                let f (Object.PreparedPolys d) = SmallGL.addRObject renderingApi d
-                                    f _                        = pure $ SmallGL.RenderedObjectId (-1)
-                                sc' <- liftIO $ sc & Scenario.objects.traverse %%~
-                                                                Object.registerRender f
+                                let f :: forall m . SmallGL.RenderingData m -> IO SmallGL.RenderedObjectId
+                                    f d@SmallGL.ColoredData{} = SmallGL.addRObject renderingApi d
+                                    f _                       = pure $ SmallGL.RenderedObjectId (-1)
+                                    g = Object.registerRender f
+                                sc' <- liftIO $ sc & Scenario.objects.traverse %%~ g
 
                                 logInfo @JSString "main" "Registered!:"
                                 return $ oldSc <> sc'

@@ -103,8 +103,7 @@ prepareObject sc obj = do
       Geometry.Points (SomeIODataFrame pts) -> do
         colors <- unsafeArrayThaw . ewgen $
            obj^.Object.viewColor.non (sc^.Scenario.defaultPointColor).colorVeci
-        return $ obj & Object.renderingData .~ Object.ORDP (Object.PreparedPoints $
-                                                   ColoredPointData (Coords pts) (Colors colors))
+        return $ obj & Object.renderingData .~ Object.ORDP (PointData  (Coords pts) (Colors colors))
 
       lins@(Geometry.Lines _) -> case mindices of
           Nothing -> error "Could not get indices for a line string"
@@ -112,10 +111,9 @@ prepareObject sc obj = do
             SomeIODataFrame coords <- Geometry.allData lins
             colors <- unsafeArrayThaw . ewgen $
                obj^.Object.viewColor.non (sc^.Scenario.defaultLineColor).colorVeci
-            return $ obj & Object.renderingData .~ Object.ORDP (Object.PreparedLines $
-                                                       ColoredLineData (Coords coords)
-                                                                       (Colors colors)
-                                                                       (Indices indices))
+            return $ obj & Object.renderingData .~ Object.ORDP (LineData (Coords coords)
+                                                                         (Colors colors)
+                                                                         (Indices indices))
 
       polys@(Geometry.Polygons _) -> case mindices of
           Nothing -> error "Could not get indices for a polygon"
@@ -127,8 +125,8 @@ prepareObject sc obj = do
                 let crsnrs = unsafeCoerce crsnrs' :: IODataFrame Float '[4,2,n]
                 colors <- unsafeArrayThaw . ewgen $
                   obj^.Object.viewColor.non (sc^.Scenario.defaultLineColor).colorVeci
-                return $ obj & Object.renderingData .~ Object.ORDP (Object.PreparedPolys $
-                                                         ColoredData (CoordsNormals crsnrs)
+                return $ obj & Object.renderingData .~ Object.ORDP (ColoredData
+                                                                     (CoordsNormals crsnrs)
                                                                      (Colors colors)
                                                                      (Indices indices))
 

@@ -5,6 +5,7 @@
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE RankNTypes #-}
 -- | All sorts of objects in the scene.
 --   Meant to be imported qualified
 --
@@ -12,7 +13,7 @@
 --
 module Model.Scenario.Object
     ( Object, Object' (..), ObjectId (..), ObjectBehavior (..), Collection, Collection'
-    , ObjectRenderable (..), ObjectRenderingData (..), PreparedData (..)
+    , ObjectRenderable (..), ObjectRenderingData (..)
     , getTransferable, registerRender
     , renderingData, renderingId, center, geometry, properties
     , height, viewColor, objectBehavior
@@ -46,18 +47,9 @@ data ObjectRenderable
 
 data ObjectRenderingData (s :: ObjectRenderable) where
   ORDR :: {_renderingId :: !RenderedObjectId } -> ObjectRenderingData 'Renderable
-  ORDP :: {_preparedData :: !PreparedData }    -> ObjectRenderingData 'Prepared
+  ORDP :: forall m . !(RenderingData m)   -> ObjectRenderingData 'Prepared
   ORDN :: ObjectRenderingData 'NotReady
 
-
-data PreparedData
-  = PreparedPoints !ColoredPointData
-  | PreparedLines  !ColoredLineData
-  | PreparedPolys  !ColoredData
-  deriving Generic
-
-instance FromJSVal PreparedData
-instance ToJSVal   PreparedData
 
 instance FromJSVal (ObjectRenderingData 'Prepared) where
     fromJSValUnchecked jsv = ORDP <$> fromJSValUnchecked jsv
@@ -91,9 +83,11 @@ getTransferable = Geometry.getTransferable . _geometry
 
 
 registerRender :: Functor f
-               => (PreparedData -> f RenderedObjectId)
+               => (forall m . RenderingData m -> f RenderedObjectId)
                -> Object' 'Prepared -> f (Object' 'Renderable)
-registerRender f s = (\x -> s{_renderingData = ORDR x}) <$> f (_preparedData $ _renderingData s)
+registerRender f s = (\x -> s{_renderingData = ORDR x}) <$> g (_renderingData s)
+    where
+      g (ORDP d) = f d
 
 renderingData :: Functor f
               => (ObjectRenderingData s -> f (ObjectRenderingData t))

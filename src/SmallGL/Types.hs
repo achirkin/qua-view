@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs     #-}
+{-# LANGUAGE TypeFamilies     #-}
 {-# LANGUAGE KindSignatures     #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -8,6 +9,8 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE JavaScriptFFI #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module SmallGL.Types where
 
@@ -18,7 +21,12 @@ import Numeric.Dimensions
 import Numeric.TypeLits
 import JavaScript.WebGL
 import JavaScript.Object.Internal
-import GHCJS.Types (JSVal, jsval)
+import JavaScript.JSON.Types.Generic ()
+import JavaScript.JSON.Types.Instances (FromJSON(..),ToJSON(..),fromJSON)
+import JavaScript.JSON.Types.Internal (Result (..),SomeValue (..))
+import GHC.Generics
+--import GHC.TypeLits
+import GHCJS.Types (JSVal, jsval, JSString)
 import GHCJS.Marshal (FromJSVal(..), ToJSVal(..))
 import GHCJS.Marshal.Pure (PFromJSVal(..), PToJSVal(..))
 import Data.Coerce (coerce)
@@ -36,6 +44,29 @@ newtype ProjMatrix = ProjM { getProjM :: Mat44f }
 newtype ViewMatrix = ViewM { getViewM :: Mat44f }
 
 
+-- | Rendering modes supported by the engine
+data RenderingMode
+  = ModePoints
+  | ModeLines
+  | ModeColored
+  | ModeTextured
+  deriving (Generic, Show, Eq)
+
+instance FromJSON   RenderingMode
+instance ToJSON     RenderingMode
+instance PFromJSVal RenderingMode where
+    pFromJSVal v = case fromJSON (SomeValue v) of
+        Error _ -> ModeColored
+        Success r -> r
+instance PToJSVal   RenderingMode where
+    pToJSVal = coerce . toJSON
+instance FromJSVal  RenderingMode
+instance ToJSVal    RenderingMode
+
+type ModePoints   = 'ModePoints
+type ModeLines    = 'ModeLines
+type ModeColored  = 'ModeColored
+type ModeTextured = 'ModeTextured
 
 
 -- | Coordinate and normal array contains two 4D (homogenious) components:
@@ -57,39 +88,99 @@ newtype TexCoords (n :: Nat) = TexCoords (IODataFrame GLushort '[2, n])
 newtype Indices (m :: Nat) = Indices (IODataFrame GLushort '[m])
 
 
-data ColoredPointData = forall n . KnownDim n
-  => ColoredPointData (Coords n) (Colors n)
-
-data ColoredLineData = forall n m . (KnownDim n, KnownDim m)
-  => ColoredLineData (Coords n) (Colors n) (Indices m)
-
--- | All data for a solid-colored object in one existential place
-data ColoredData = forall n m . (KnownDim n, KnownDim m)
-  => ColoredData (CoordsNormals n) (Colors n) (Indices m)
-
--- | All data for an object with texture in one existential place
-data TexturedData = forall n m . (KnownDim n, KnownDim m)
-  => TexturedData (CoordsNormals n) (TexCoords n) (Indices m)
+data RenderingData (m :: RenderingMode) where
+  PointData    :: forall n . KnownDim n
+               => !(Coords n) -> !(Colors n) -> RenderingData ModePoints
+  LineData     :: forall n k . (KnownDim n, KnownDim k)
+               => !(Coords n) -> !(Colors n) -> !(Indices k) -> RenderingData ModeLines
+  ColoredData  :: forall n k . (KnownDim n, KnownDim k)
+               => !(CoordsNormals n) -> !(Colors n) -> !(Indices k) -> RenderingData ModeColored
+  TexturedData :: forall n k . (KnownDim n, KnownDim k)
+               => !(CoordsNormals n) -> !(TexCoords n) -> !(Indices k) -> RenderingData ModeTextured
 
 -- | Get number of vertices
-cdVertexNum :: ColoredData -> Int
-cdVertexNum (ColoredData _ (Colors (_ :: IODataFrame GLubyte '[4,n])) _) = dimVal' @n
+rdVertexNum :: RenderingData m -> Int
+rdVertexNum (PointData   _ (Colors (_ :: IODataFrame GLubyte '[4,n]))  ) = dimVal' @n
+rdVertexNum (LineData    _ (Colors (_ :: IODataFrame GLubyte '[4,n])) _) = dimVal' @n
+rdVertexNum (ColoredData _ (Colors (_ :: IODataFrame GLubyte '[4,n])) _) = dimVal' @n
+rdVertexNum (TexturedData _ (TexCoords (_ :: IODataFrame GLushort '[2,n])) _) = dimVal' @n
+
 
 -- | Get number of indices
-cdIndexNum :: ColoredData -> Int
-cdIndexNum (ColoredData _ _ (Indices (_ :: IODataFrame GLushort '[m]))) = dimVal' @m
+rdIndexNum :: RenderingData m -> Int
+rdIndexNum (PointData    _ (Colors (_ :: IODataFrame GLubyte '[4,n]))  ) = dimVal' @n
+rdIndexNum (LineData     _ _ (Indices (_ :: IODataFrame GLushort '[k]))) = dimVal' @k
+rdIndexNum (ColoredData  _ _ (Indices (_ :: IODataFrame GLushort '[k]))) = dimVal' @k
+rdIndexNum (TexturedData _ _ (Indices (_ :: IODataFrame GLushort '[k]))) = dimVal' @k
+
+-- | Get rendering mode at term level
+renderingMode :: RenderingData m -> RenderingMode
+renderingMode PointData {}    = ModePoints
+renderingMode LineData {}     = ModeLines
+renderingMode ColoredData {}  = ModeColored
+renderingMode TexturedData {} = ModeTextured
 
 
--- | All WebGL information to render a geometry with colors (but no textures)
-data ColoredGeometryWebGLData
-  = ColoredGeometryWebGLData
-  { cgIdxLen           :: GLsizei
-  , cgCoordsNormalsBuf :: WebGLBuffer
-  , cgColorsBuf        :: WebGLBuffer
-  , cgIndicesBuf       :: WebGLBuffer
-  }
+-- | All WebGL information to render a geometry
+data WebGLRenderingData (m :: RenderingMode) where
+  WebGLPointData    :: !GLsizei -> WebGLBuffer -> WebGLBuffer
+                    -> WebGLRenderingData ModePoints
+  WebGLLineData     :: !GLsizei -> WebGLBuffer -> WebGLBuffer -> WebGLBuffer
+                    -> WebGLRenderingData ModeLines
+  WebGLColoredData  :: !GLsizei -> WebGLBuffer -> WebGLBuffer -> WebGLBuffer
+                    -> WebGLRenderingData ModeColored
+  WebGLTexturedData :: !GLsizei -> WebGLBuffer -> WebGLBuffer -> WebGLBuffer
+                    -> WebGLRenderingData ModeTextured
+
+wglSeqLen :: WebGLRenderingData m -> GLsizei
+wglSeqLen (WebGLPointData    n _ _  ) = n
+wglSeqLen (WebGLLineData     n _ _ _) = n
+wglSeqLen (WebGLColoredData  n _ _ _) = n
+wglSeqLen (WebGLTexturedData n _ _ _) = n
+
+type family IsSolid (m :: RenderingMode) :: Bool where
+    IsSolid 'ModePoints   = 'False
+    IsSolid 'ModeLines    = 'False
+    IsSolid 'ModeColored  = 'True
+    IsSolid 'ModeTextured = 'True
+
+type family HasTexture (m :: RenderingMode) :: Bool where
+    HasTexture 'ModeTextured = 'True
+    HasTexture _             = 'False
+
+type family IsIndexedDraw (m :: RenderingMode) :: Bool where
+    IsIndexedDraw 'ModePoints   = 'False
+    IsIndexedDraw 'ModeLines    = 'True
+    IsIndexedDraw 'ModeColored  = 'True
+    IsIndexedDraw 'ModeTextured = 'True
 
 
+wglCoordsBuf :: IsSolid m ~ 'False
+             => WebGLRenderingData m -> WebGLBuffer
+wglCoordsBuf (WebGLPointData _ b _  ) = b
+wglCoordsBuf (WebGLLineData  _ b _ _) = b
+
+wglCoordsNormalsBuf :: IsSolid m ~ 'True
+                    => WebGLRenderingData m -> WebGLBuffer
+wglCoordsNormalsBuf (WebGLColoredData  _ b _ _) = b
+wglCoordsNormalsBuf (WebGLTexturedData _ b _ _) = b
+
+wglColorsBuf :: HasTexture m ~ 'False
+             => WebGLRenderingData m -> WebGLBuffer
+wglColorsBuf (WebGLPointData    _ _ b  ) = b
+wglColorsBuf (WebGLLineData     _ _ b _) = b
+wglColorsBuf (WebGLColoredData  _ _ b _) = b
+
+wglTexCoordsBuf :: HasTexture m ~ 'True
+                => WebGLRenderingData m -> WebGLBuffer
+wglTexCoordsBuf (WebGLTexturedData _ _ b _) = b
+
+
+wglIndicesBuf :: IsIndexedDraw m ~ 'True
+                => WebGLRenderingData m -> WebGLBuffer
+wglIndicesBuf (WebGLLineData     _ _ _ b) = b
+wglIndicesBuf (WebGLColoredData  _ _ _ b) = b
+wglIndicesBuf (WebGLTexturedData _ _ _ b) = b
 
 
 -- * Shader attribute locations
@@ -109,6 +200,9 @@ setCoordsNormalsBuf gl = do
     vertexAttribPointer gl attrLocCoords  4 gl_FLOAT False 32 0
     vertexAttribPointer gl attrLocNormals 4 gl_FLOAT False 32 16
 
+setCoordsBuf :: WebGLRenderingContext -> IO ()
+setCoordsBuf gl = vertexAttribPointer gl attrLocCoords  4 gl_FLOAT False 16 0
+
 setColorsBuf :: WebGLRenderingContext -> IO ()
 setColorsBuf gl = vertexAttribPointer gl attrLocColors 4 gl_UNSIGNED_BYTE True 4 0
 
@@ -124,6 +218,12 @@ disableCoordsNormalsBuf :: WebGLRenderingContext -> IO ()
 disableCoordsNormalsBuf gl = do
   disableVertexAttribArray gl attrLocCoords
   disableVertexAttribArray gl attrLocNormals
+
+enableCoordsBuf :: WebGLRenderingContext -> IO ()
+enableCoordsBuf gl = enableVertexAttribArray gl attrLocCoords
+
+disableCoordsBuf :: WebGLRenderingContext -> IO ()
+disableCoordsBuf gl = disableVertexAttribArray gl attrLocCoords
 
 enableColorsBuf :: WebGLRenderingContext -> IO ()
 enableColorsBuf gl = enableVertexAttribArray gl attrLocColors
@@ -184,143 +284,92 @@ unsafeArrayThaw df = pure (unsafeCoerce df)
 
 
 
-instance ToJSVal ColoredData where
-    toJSVal (ColoredData (CoordsNormals (cns :: IODataFrame Float '[4,2,n] ))
-                         (Colors colors)
-                         (Indices (is :: IODataFrame GLushort '[m]))
-            ) = do
-        o <- create
-        unsafeSetProp "n"  (pToJSVal (dimVal' @n)) o
-        unsafeSetProp "m"  (pToJSVal (dimVal' @m)) o
-        unsafeSetProp "coordsnormals" (coerce cns) o
-        unsafeSetProp "colors"        (coerce colors) o
-        unsafeSetProp "indices"       (coerce is) o
-        return $ jsval o
+instance ToJSVal (RenderingData m) where
+    toJSVal d = do
+      o <- create
+      unsafeSetProp "n"    (pToJSVal $ rdVertexNum d) o
+      unsafeSetProp "mode" (pToJSVal $ renderingMode d) o
+      () <- case d of
+        (PointData coords colors) -> do
+          unsafeSetProp "coords" (coerce coords) o
+          unsafeSetProp "colors" (coerce colors) o
+        (LineData coords colors indices) -> do
+          unsafeSetProp "k"       (pToJSVal $ rdIndexNum d) o
+          unsafeSetProp "coords"  (coerce coords) o
+          unsafeSetProp "colors"  (coerce colors) o
+          unsafeSetProp "indices" (coerce indices) o
+        (ColoredData coordsnormals colors indices) -> do
+          unsafeSetProp "k"              (pToJSVal $ rdIndexNum d) o
+          unsafeSetProp "coordsnormals"  (coerce coordsnormals) o
+          unsafeSetProp "colors"         (coerce colors) o
+          unsafeSetProp "indices"        (coerce indices) o
+        (TexturedData coordsnormals texcoords indices) -> do
+          unsafeSetProp "k"              (pToJSVal $ rdIndexNum d) o
+          unsafeSetProp "coordsnormals"  (coerce coordsnormals) o
+          unsafeSetProp "texcoords"      (coerce texcoords) o
+          unsafeSetProp "indices"        (coerce indices) o
+      return $ jsval o
 
-instance FromJSVal ColoredData where
-    fromJSValUnchecked jsv = do
-        n <- unsafeGetProp "n" o >>= fromJSValUnchecked
-        m <- unsafeGetProp "m" o >>= fromJSValUnchecked
-        case (,) <$> someIntNatVal n <*> someIntNatVal m of
-          Nothing -> error "Could not get DataFrame dimensions"
-          Just (SomeIntNat (_::Proxy n), SomeIntNat (_::Proxy m)) -> do
-            crdnrms <- coerce <$> unsafeGetProp "coordsnormals" o
-            colors  <- coerce <$> unsafeGetProp "colors" o
-            indices <- coerce <$> unsafeGetProp "indices" o
-            return $ ColoredData
-              (CoordsNormals (crdnrms :: IODataFrame Float '[4,2,n] ))
-              (Colors colors)
-              (Indices (indices :: IODataFrame GLushort '[m]))
-      where
-        o = Object jsv
+instance FromJSVal (RenderingData m) where
     fromJSVal jsv = do
-        n <- unsafeGetProp "n" o >>= fromJSVal
-        m <- unsafeGetProp "m" o >>= fromJSVal
-        case (,) <$> (n >>= someIntNatVal) <*> (m >>= someIntNatVal) of
-          Nothing -> return Nothing
-          Just (SomeIntNat (_::Proxy n), SomeIntNat (_::Proxy m)) -> do
-            crdnrms <- unsafeGetProp "coordsnormals" o >>= fromJSVal :: IO (Maybe JSVal)
-            colors  <- unsafeGetProp "colors"        o >>= fromJSVal :: IO (Maybe JSVal)
-            indices <- unsafeGetProp "indices"       o >>= fromJSVal :: IO (Maybe JSVal)
-            return $ case (,,) <$> fmap coerce crdnrms
-                               <*> fmap coerce colors
-                               <*> fmap coerce indices of
-              Nothing -> Nothing
-              Just (a,b,c) -> Just $ ColoredData
-                 (CoordsNormals (a :: IODataFrame Float '[4,2,n] ))
-                 (Colors b)
-                 (Indices (c :: IODataFrame GLushort '[m]))
+      mn    <- unsafeGetProp "n" o >>= fromJSVal
+      mmode <- unsafeGetProp "mode" o >>= fromJSVal
+      case (,) <$> (mn >>= someIntNatVal) <*> mmode of
+
+        Nothing -> return Nothing
+
+        Just (SomeIntNat (_::Proxy n), ModePoints) ->
+          case unsafeCoerce (Evidence :: Evidence (m ~ m)) of
+            (Evidence :: Evidence (m ~ ModePoints)) -> do
+              mcoords <- getDF "coords" o :: IO (Maybe (IODataFrame Float '[4,n]))
+              mcolors <- getDF "colors" o
+              return $ PointData <$> (Coords <$> mcoords) <*> (Colors <$> mcolors)
+
+        Just (SomeIntNat (_::Proxy n), ModeLines) -> do
+          mk    <- unsafeGetProp "k" o >>= fromJSVal
+          case (unsafeCoerce (Evidence :: Evidence (m ~ m)), mk >>= someIntNatVal) of
+            (_, Nothing) -> return Nothing
+            (  Evidence :: Evidence (m ~ ModeLines)
+             , Just (SomeIntNat (_::Proxy k))) -> do
+              mcoords  <- getDF "coords" o :: IO (Maybe (IODataFrame Float '[4,n]))
+              mcolors  <- getDF "colors" o
+              mindices <- getDF "indices" o :: IO (Maybe (IODataFrame GLushort '[k]))
+              return $ LineData <$> (Coords  <$> mcoords)
+                                <*> (Colors  <$> mcolors)
+                                <*> (Indices <$> mindices)
+
+        Just (SomeIntNat (_::Proxy n), ModeColored) -> do
+          mk    <- unsafeGetProp "k" o >>= fromJSVal
+          case (unsafeCoerce (Evidence :: Evidence (m ~ m)), mk >>= someIntNatVal) of
+            (_, Nothing) -> return Nothing
+            (  Evidence :: Evidence (m ~ ModeColored)
+             , Just (SomeIntNat (_::Proxy k))) -> do
+              mcoords  <- getDF "coordsnormals" o :: IO (Maybe (IODataFrame Float '[4,2,n]))
+              mcolors  <- getDF "colors" o
+              mindices <- getDF "indices" o :: IO (Maybe (IODataFrame GLushort '[k]))
+              return $ ColoredData <$> (CoordsNormals <$> mcoords)
+                                   <*> (Colors  <$> mcolors)
+                                   <*> (Indices <$> mindices)
+
+        Just (SomeIntNat (_::Proxy n), ModeTextured) -> do
+          mk    <- unsafeGetProp "k" o >>= fromJSVal
+          case (unsafeCoerce (Evidence :: Evidence (m ~ m)), mk >>= someIntNatVal) of
+            (_, Nothing) -> return Nothing
+            (  Evidence :: Evidence (m ~ ModeTextured)
+             , Just (SomeIntNat (_::Proxy k))) -> do
+              mcoords  <- getDF "coordsnormals" o :: IO (Maybe (IODataFrame Float '[4,2,n]))
+              mtexcoords  <- getDF "texcoords" o
+              mindices <- getDF "indices" o :: IO (Maybe (IODataFrame GLushort '[k]))
+              return $ TexturedData <$> (CoordsNormals <$> mcoords)
+                                    <*> (TexCoords  <$> mtexcoords)
+                                    <*> (Indices <$> mindices)
+
       where
         o = Object jsv
+        getDF :: forall t ds . JSString -> Object -> IO (Maybe (IODataFrame t ds))
+        getDF n obj = do
+          mjdf <- unsafeGetProp n obj >>= fromJSVal :: IO (Maybe JSVal)
+          return $ coerce <$> mjdf
 
-
-instance ToJSVal ColoredLineData where
-    toJSVal (ColoredLineData (Coords (cns :: IODataFrame Float '[4,n] ))
-                             (Colors colors)
-                             (Indices (is :: IODataFrame GLushort '[m]))
-            ) = do
-        o <- create
-        unsafeSetProp "n"  (pToJSVal (dimVal' @n)) o
-        unsafeSetProp "m"  (pToJSVal (dimVal' @m)) o
-        unsafeSetProp "coords" (coerce cns) o
-        unsafeSetProp "colors"        (coerce colors) o
-        unsafeSetProp "indices"       (coerce is) o
-        return $ jsval o
-
-instance FromJSVal ColoredLineData where
-    fromJSValUnchecked jsv = do
-        n <- unsafeGetProp "n" o >>= fromJSValUnchecked
-        m <- unsafeGetProp "m" o >>= fromJSValUnchecked
-        case (,) <$> someIntNatVal n <*> someIntNatVal m of
-          Nothing -> error "Could not get DataFrame dimensions"
-          Just (SomeIntNat (_::Proxy n), SomeIntNat (_::Proxy m)) -> do
-            crdnrms <- coerce <$> unsafeGetProp "coords" o
-            colors  <- coerce <$> unsafeGetProp "colors" o
-            indices <- coerce <$> unsafeGetProp "indices" o
-            return $ ColoredLineData
-              (Coords (crdnrms :: IODataFrame Float '[4,n] ))
-              (Colors colors)
-              (Indices (indices :: IODataFrame GLushort '[m]))
-      where
-        o = Object jsv
-    fromJSVal jsv = do
-        n <- unsafeGetProp "n" o >>= fromJSVal
-        m <- unsafeGetProp "m" o >>= fromJSVal
-        case (,) <$> (n >>= someIntNatVal) <*> (m >>= someIntNatVal) of
-          Nothing -> return Nothing
-          Just (SomeIntNat (_::Proxy n), SomeIntNat (_::Proxy m)) -> do
-            crdnrms <- unsafeGetProp "coords"  o >>= fromJSVal :: IO (Maybe JSVal)
-            colors  <- unsafeGetProp "colors"  o >>= fromJSVal :: IO (Maybe JSVal)
-            indices <- unsafeGetProp "indices" o >>= fromJSVal :: IO (Maybe JSVal)
-            return $ case (,,) <$> fmap coerce crdnrms
-                               <*> fmap coerce colors
-                               <*> fmap coerce indices of
-              Nothing -> Nothing
-              Just (a,b,c) -> Just $ ColoredLineData
-                 (Coords (a :: IODataFrame Float '[4,n] ))
-                 (Colors b)
-                 (Indices (c :: IODataFrame GLushort '[m]))
-      where
-        o = Object jsv
-
-
-instance ToJSVal ColoredPointData where
-    toJSVal (ColoredPointData (Coords (cns :: IODataFrame Float '[4,n] ))
-                              (Colors colors)
-            ) = do
-        o <- create
-        unsafeSetProp "n"  (pToJSVal (dimVal' @n)) o
-        unsafeSetProp "coords" (coerce cns) o
-        unsafeSetProp "colors"        (coerce colors) o
-        return $ jsval o
-
-instance FromJSVal ColoredPointData where
-    fromJSValUnchecked jsv = do
-        n <- unsafeGetProp "n" o >>= fromJSValUnchecked
-        case someIntNatVal n of
-          Nothing -> error "Could not get DataFrame dimensions"
-          Just (SomeIntNat (_::Proxy n)) -> do
-            crdnrms <- coerce <$> unsafeGetProp "coords" o
-            colors  <- coerce <$> unsafeGetProp "colors" o
-            return $ ColoredPointData
-              (Coords (crdnrms :: IODataFrame Float '[4,n] ))
-              (Colors colors)
-      where
-        o = Object jsv
-    fromJSVal jsv = do
-        n <- unsafeGetProp "n" o >>= fromJSVal
-        case n >>= someIntNatVal of
-          Nothing -> return Nothing
-          Just (SomeIntNat (_::Proxy n)) -> do
-            crdnrms <- unsafeGetProp "coords" o >>= fromJSVal :: IO (Maybe JSVal)
-            colors  <- unsafeGetProp "colors" o >>= fromJSVal :: IO (Maybe JSVal)
-            return $ case (,) <$> fmap coerce crdnrms
-                              <*> fmap coerce colors of
-              Nothing -> Nothing
-              Just (a,b) -> Just $ ColoredPointData
-                 (Coords (a :: IODataFrame Float '[4,n] ))
-                 (Colors b)
-      where
-        o = Object jsv
 
 
