@@ -39,8 +39,9 @@ dynamicCamera :: ( Reflex t, MonadHold t m, MonadFix m )
               => Camera
               -> AnimationHandler t
               -> Event t (ElementClick "Reset Camera")
+              -> Behavior t Vec2f
               -> m (Dynamic t Camera)
-dynamicCamera icam aHandler resetCameraE = mdo
+dynamicCamera icam aHandler resetCameraE defCenterPointB = mdo
     -- all changes of the viewport size come from AResizeEvent (or resetCameraE)
     viewportSizeD <- holdDyn (viewportSize icam) $ leftmost [resizeE, viewportSize icam <$ resetCameraE]
     -- projection matrix also changes only at AResizeEvents (or resetCameraE)
@@ -56,7 +57,7 @@ dynamicCamera icam aHandler resetCameraE = mdo
           -- should not be needed, but also should not harm?
         , newState <$> camB <@ select (A.animationEvents aHandler) (APointerEvent PDownEvent)
           -- reset camera
-        , oldState icam <$ resetCameraE
+        , (\cp -> (oldState icam){ viewPoint = cp <+:> 0 } ) <$> defCenterPointB <@ resetCameraE
         ]
     -- updates on every action
     newStateD <- holdDyn (newState icam) $ leftmost
@@ -114,56 +115,7 @@ dynamicCamera icam aHandler resetCameraE = mdo
           <*> A.curPointersB aHandler
           <@ select (A.animationEvents aHandler) (APointerEvent PMoveEvent)
 
---
---data (SpaceTransform s 3 Float, Space3DTransform s Float QFloat) =>
---  ObjectTransform s x
---  = ObjectTransform   (s x -> s x)
---  | TransformProgress (s x -> s x)
---  | TransformCancel
---
---
---objectTransformEvents :: ( SpaceTransform s 3 Float
---                         , Space3DTransform s Float QFloat)
---                      => Event PointerEvent -- ^ pointer actions
---                      -> Behavior Int -- ^ buttons
---                      -> Behavior [(Vec2f, Vec2f)] -- ^ [(old, new)] coordinates
---                      -> Behavior Camera
---                      -> Event (ObjectTransform s x)
---objectTransformEvents pointerE buttonsB coordsB cameraB =
---    filterJust $ f <$> cameraB <*> buttonsB <*> coordsB <@> pointerE
---  where
---    f _ _ [] _ = Nothing -- early stop if no pointers found
---    f _ 0 _  _ = Nothing -- early stop if no button pressed
---    f _ _ _ (PointerClick  _) = Just TransformCancel
---    f _ _ _ (PointerDown   _) = Just TransformCancel
-----    f _ _ _ (PointerCancel _) = Just TransformCancel
---    -- move & rotate with two fingers pressed
---    f cam _ ((o1,n1):(o2,n2):_) p  = Just . g p $ twoFingerObject (o1,o2) (n1,n2) cam
---    -- rotate object with secondary button
---    f cam 2 ((opos,npos):_) p = Just . g p $ rotateObject opos npos cam
---    -- drag object with any other button
---    f cam _ [(opos,npos)] p = Just . g p $ dragObject opos npos cam
---    g (PointerClick  _) _ = TransformCancel
---    g (PointerDown  _) _ = TransformCancel
---    g (PointerCancel  _) v = ObjectTransform v
---    g (PointerMove  _) v = TransformProgress v
---    g (PointerUp  _) v = ObjectTransform v
---
-----    react _ (PMove _            _ []             )   = id
-----    react _ (PMove LeftButton   _ ((npos,opos):_))   = transformCity (dragObject opos npos)
-----    react _ (PMove RightButton  _ ((npos,opos):_))   = transformCity (rotateObject opos npos)
-----    react _ (PMove Touches      _ [(npos,opos)]  )   = transformCity (dragObject opos npos)
-----    react _ (PMove Touches      _ [(n1,o1),(n2,o2)]) = transformCity (twoFingerObject (o1,o2) (n1,n2))
-----    react _ (PMove Touches      _ (_:_:_:_))         = id
-----    react _ (PMove MiddleButton _ _)                 = id
-----    response _ _ (PMove _            _ []             )       _ = geometryChanged False
-----    response _ _ (PMove LeftButton   _ ((_npos,_opos):_))     _ = geometryChanged True
-----    response _ _ (PMove RightButton  _ ((_npos,_opos):_))     _ = geometryChanged True
-----    response _ _ (PMove Touches      _ [(_npos,_opos)]  )     _ = geometryChanged True
-----    response _ _ (PMove Touches      _ [(_n1,_o1),(_n2,_o2)]) _ = geometryChanged True
-----    response _ _ (PMove Touches      _ (_:_:_:_))             _ = geometryChanged False
-----    response _ _ (PMove MiddleButton _ _)                     _ = geometryChanged False
---
+
 
 ----------------------------------------------------------------------------------------------
 -- Definitions -------------------------------------------------------------------------------
@@ -213,6 +165,12 @@ makeProjM (width, height) = Matrix.perspective 0.1 1000 fovy ratio
     fovy = (1*) . atan2 height . sqrt $ height*height + width*width
 
 
+relativeToOldPoint :: Camera -> Camera
+relativeToOldPoint cam@Camera{oldState = os, newState = ns} = cam
+    { oldState = os {viewPoint = 0}
+    , newState = ns {viewPoint = viewPoint ns - viewPoint os}
+    }
+
 ----------------------------------------------------------------------------------------------
 -- Camera convertions ------------------------------------------------------------------------
 ----------------------------------------------------------------------------------------------
@@ -242,10 +200,11 @@ dragHorizontal oldPoint newPoint camera@Camera {
             viewPoint = vp
         }
     } = ostate {
-            viewPoint = vp + proj oldPoint - proj newPoint
+            viewPoint = vp + proj newPoint - proj oldPoint
         }
   where
-    proj = screenToWorld camera (vp ! 2)
+    proj = screenToWorld cam' (vp ! 3)
+    cam' = relativeToOldPoint camera
 
 -- | Dragging - pan world on xy plane
 dragVertical :: Vec2f -- ^ Old screen coordinates
@@ -368,7 +327,8 @@ dragObject :: Vec2f -- ^ Old screen coordinates
 dragObject oldScreenPos newScreenPos camera
     = Matrix.translate3 $ proj newScreenPos - proj oldScreenPos
   where
-    proj = screenToWorld camera 0
+    proj = screenToWorld cam' 0
+    cam' = relativeToOldPoint camera
 
 -- | Rotating - rotate object on w.r.t. y axis (e.g. using right mouse button)
 rotateObject :: Vec2f -- ^ Old screen coordinates
@@ -414,7 +374,7 @@ twoFingerObject (oScreenPos1, oScreenPos2)
 ----------------------------------------------------------------------------------------------
 
 -- | Transform a point in screen coordinates into a point on a ground in world coordinates.
---   z coordinate of the result is zero.
+--   z coordinate of the result is given as an argument to the function.
 --
 --   Use this function partially applied if you need a projection several times.
 screenToWorld :: Camera -> Scf -> Vec2f -> Vec3f
@@ -427,7 +387,7 @@ screenToWorld camera z = imat `seq` campos `seq` width `seq` height `seq` f
         where
           p = fromHom $ imat %* vec4
                 (2 * px / width - 1)
-                (1 - 2 * py / height) 1 1
+                (1 - 2 * py / height) (-1) 1
 
 
 

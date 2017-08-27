@@ -99,7 +99,7 @@ triangulateAndSetNormal (SomeIODataFrame (sdf :: IODataFrame Float ns), holes)
           js_earcut (unsafeCoerce sdf) jprojected jholes >>= fromJSValUnchecked
 
 foreign import javascript unsafe
-    "var off = Math.floor($1.byteOffset / 32); $r = (earcut($2, $3)).map(function(e){return off + e;});"
+    "var off = Math.floor($1.byteOffset / 32); $r = (self.earcut($2, $3)).map(function(e){return off + e;});"
     js_earcut :: JSVal -> JSVal -> JSVal -> IO JSVal
 
 foreign import javascript unsafe

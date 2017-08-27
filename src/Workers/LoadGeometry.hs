@@ -34,8 +34,8 @@ import JavaScript.JSON.Types.Instances
 --import Model.Scenario.Object as Object
 
 loadGeometryConduit :: (MonadIO m, MonadLogger m)
-                    => Conduit LoadedTextContent m (LGWMessage, [Transferable])
-loadGeometryConduit = awaitForever $ \msg -> do
+                    => Conduit (LoadedTextContent, Scenario' 'Prepared) m (LGWMessage, [Transferable])
+loadGeometryConduit = awaitForever $ \(msg, curSc) -> do
     errOrVal <- parseJSONValue $ getTextContent msg
     case errOrVal of
       Left err -> logError (workerLS loadGeometryDef) err
@@ -66,7 +66,7 @@ runLoadGeometryWorker :: ( MonadIO m, Reflex t
                          , PerformEvent t m
                          , MonadIO (Performable m)
                          )
-                      => Event t LoadedTextContent
+                      => Event t (LoadedTextContent, Scenario' 'Prepared)
                       -> m (Event t LGWMessage)
 runLoadGeometryWorker inEvs = runWorker loadGeometryDef $ flip (,) [] <$> inEvs
 
