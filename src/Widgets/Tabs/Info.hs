@@ -32,4 +32,5 @@ writeReview = elClass "div" "card-comment form-group form-group-label" $ do
   let thumbToHideState None = Inactive
       thumbToHideState _    = Active
   clickE <- buttonFlatHideDyn (fmap thumbToHideState stateD) "Send" mempty
+  httpPost "/mooc/proposals/review/#ScenarioId" clickE
   return ()

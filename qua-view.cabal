@@ -67,6 +67,7 @@ executable qua-view
     other-modules:
         Commons
         Commons.EasyTensorJSFFI
+        Commons.Http
         Commons.Import
         Commons.Local
         Commons.Logger
