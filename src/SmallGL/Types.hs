@@ -60,8 +60,14 @@ instance PFromJSVal RenderingMode where
         Success r -> r
 instance PToJSVal   RenderingMode where
     pToJSVal = coerce . toJSON
-instance FromJSVal  RenderingMode
-instance ToJSVal    RenderingMode
+instance FromJSVal  RenderingMode where
+    fromJSVal v = pure $ case fromJSON (SomeValue v) of
+        Error _ -> Nothing
+        Success r -> Just r
+    fromJSValUnchecked = pure . pFromJSVal
+instance ToJSVal    RenderingMode where
+    toJSVal = pure . coerce . toJSON
+
 
 type ModePoints   = 'ModePoints
 type ModeLines    = 'ModeLines
