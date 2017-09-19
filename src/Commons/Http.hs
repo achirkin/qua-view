@@ -5,22 +5,17 @@ module Commons.Http
     ( httpPost
     ) where
 
--- import qualified Data.Map.Strict as Map
--- import Data.Text
+import Foreign.JavaScript.TH
 import GHCJS.DOM.Types hiding (Event, Text)
 import JavaScript.JSON.Types.Internal
 import JavaScript.JSON.Types.Instances
--- import Reflex.Dom
 import Reflex.Dom.Xhr
 import Reflex.PerformEvent.Class
 import Reflex.TriggerEvent.Class
-import Foreign.JavaScript.TH
 
 import Commons.Import
 import Commons.Local
 import Data.JSString.Text (textFromJSString)
-
--- import Language.Javascript.JSaddle.String (textToJSString)
 
 
 -- | HTTP POST `ToJSON a` upon `Event a`

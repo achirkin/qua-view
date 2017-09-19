@@ -66,7 +66,7 @@ type LoggerFunc = LogOutput -> LogLevel -> LogSource -> JSString -> Maybe JSVal 
 
 #ifndef ISWORKER
 -- | A widget wrapped into reader transformer that can log stuff.
-type WidgetWithLogs x a = ReaderT LoggerFunc (Widget x) a
+type WidgetWithLogs x = ReaderT LoggerFunc (Widget x)
 #endif
 
 class MonadIO m => MonadLogger m where
