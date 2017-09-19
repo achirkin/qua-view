@@ -41,12 +41,18 @@ main = mainWidgetInElementById "qua-view-widgets" $ mdo
     -- register loading splash so that we can change its visibility
     Widgets.loadingSplashD isProgramBusy
 
+    (eventNow, trigger) <- newTriggerEvent
+    liftIO $ trigger ()
+    settingsD <- httpGet "/qua-view-settings" eventNow >>= holdDyn mempty . fmapMaybe id
+
     -- register canvas element
     canvas <- Widgets.getWebGLCanvas
 
     -- add the control panel to the page
     (resetCameraE, _panelStateD, geomTabEvs, loggerFunc)
-        <- flip runReaderT loggerFunc $ Widgets.controlPanel compStateEvs
+        <- flip runReaderT loggerFunc $
+           flip runReaderT settingsD $
+           Widgets.controlPanel compStateEvs
 
     -- initialize web workers
     loadedGeometryE <- Workers.runLoadGeometryWorker -- I would need to add other loaded geom events here

@@ -78,7 +78,7 @@ runLoadGeometryWorker inEvs = runWorker loadGeometryDef $ flip (,) [] <$> inEvs
 loadGeometryDef :: WorkerDef
 loadGeometryDef = WorkerDef
   { workerName = "LoadGeometry"
-  , workerUrl  = "qua-worker-loadgeometry.js"
+  , workerUrl  = "static/js/qua-worker-loadgeometry.js"
   }
 
 data LGWMessage
@@ -92,5 +92,3 @@ data LGWMessage
 
 instance FromJSVal LGWMessage
 instance ToJSVal   LGWMessage
-
-
