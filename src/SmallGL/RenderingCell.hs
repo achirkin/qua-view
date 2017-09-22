@@ -159,6 +159,7 @@ instance RenderingCells 'ModeColored where
         , Evidence <- inferTimesKnownDim @2 @n
         = do
         -- cleanup existing webgl buffers
+        unbindBuffer gl gl_ARRAY_BUFFER
         deleteBuffer gl cgCoordsNormalsBuf
         deleteBuffer gl cgColorsBuf
         -- create new data buffers
@@ -195,6 +196,7 @@ instance RenderingCells 'ModeColored where
         , Evidence <- inferTimesKnownDim @2 @m
         = do
         -- cleanup existing webgl buffers
+        unbindBuffer gl gl_ELEMENT_ARRAY_BUFFER
         deleteBuffer gl cgIndicesBuf
         -- create new data buffers
         ixs' <- newDataFrame @_ @'[2*m]
@@ -261,6 +263,7 @@ instance RenderingCells 'ModeColored where
         bufferSubData' gl gl_ELEMENT_ARRAY_BUFFER (2 * rcContentIndexLength rc) objIndeces''
 
         return (RenderedObjectId $ rcNextObjId rc, rc')
+    addRenderedObject _ _ _ = error "add rendering object: impossible case!"
 
 
     transformRenderedObject gl RenderingCell{..} (RenderedObjectId i) m
@@ -359,11 +362,26 @@ instance RenderingCells 'ModeColored where
 -- | Bind drawing buffers, set up shader attributes, and draw geometry.
 --   This does not include enabling vertex buffers.
 renderCell :: WebGLRenderingContext -> RenderingCell m -> IO ()
-renderCell gl RenderingCell { rcGPUData = d@WebGLColoredData {} }
-        | wglSeqLen d == 0 = return ()
-        | otherwise = do
-    bindBuffer gl gl_ARRAY_BUFFER (wglCoordsNormalsBuf d)  >> setCoordsNormalsBuf gl
+renderCell _  rc | wglSeqLen (rcGPUData rc) == 0 = return ()
+renderCell gl RenderingCell { rcGPUData = d@WebGLPointData {} } = do
+    bindBuffer gl gl_ARRAY_BUFFER (wglCoordsBuf d) >> setCoordsBuf gl
     bindBuffer gl gl_ARRAY_BUFFER (wglColorsBuf d) >> setColorsBuf gl
+    drawArrays gl gl_POINTS 0 (wglSeqLen d)
+renderCell gl RenderingCell { rcGPUData = d@WebGLLineData {} } = do
+    bindBuffer gl gl_ARRAY_BUFFER (wglCoordsBuf d) >> setCoordsBuf gl
+    bindBuffer gl gl_ARRAY_BUFFER (wglColorsBuf d) >> setColorsBuf gl
+    bindBuffer gl gl_ELEMENT_ARRAY_BUFFER (wglIndicesBuf d)
+    drawElements gl gl_LINES (wglSeqLen d) gl_UNSIGNED_SHORT 0
+renderCell gl RenderingCell { rcGPUData = d@WebGLColoredData {} } = do
+    bindBuffer gl gl_ARRAY_BUFFER (wglCoordsNormalsBuf d) >> setCoordsNormalsBuf gl
+    bindBuffer gl gl_ARRAY_BUFFER (wglColorsBuf d) >> setColorsBuf gl
+    bindBuffer gl gl_ELEMENT_ARRAY_BUFFER (wglIndicesBuf d)
+    drawElements gl gl_TRIANGLES (wglSeqLen d) gl_UNSIGNED_SHORT 0
+renderCell gl RenderingCell { rcGPUData = d@WebGLTexturedData {} } = do
+    -- TODO need a texture!
+    -- bindTexture gl gl_TEXTURE_2D gmcMapTexture
+    bindBuffer gl gl_ARRAY_BUFFER (wglCoordsNormalsBuf d) >> setCoordsNormalsBuf gl
+    bindBuffer gl gl_ARRAY_BUFFER (wglTexCoordsBuf d)     >> setTexCoordsBuf gl
     bindBuffer gl gl_ELEMENT_ARRAY_BUFFER (wglIndicesBuf d)
     drawElements gl gl_TRIANGLES (wglSeqLen d) gl_UNSIGNED_SHORT 0
 

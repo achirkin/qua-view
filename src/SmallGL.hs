@@ -29,6 +29,7 @@ module SmallGL
     ) where
 
 import Control.Monad.Trans.State.Strict
+import Control.Concurrent.MVar
 import Unsafe.Coerce (unsafeCoerce)
 import qualified GHCJS.DOM.JSFFI.Generated.Element as JSFFI
 
@@ -37,7 +38,6 @@ import Reflex.Dom
 import Reflex.Dom.Widget.Animation as Animation
 import JavaScript.WebGL
 
-import Data.IORef
 import Data.Bits
 
 import Prelude hiding (unlines)
@@ -62,6 +62,7 @@ data RenderingEngine = RenderingEngine
     -- ^ size of the viewport
   , uProjLoc :: !WebGLUniformLocation
   , uViewLoc :: !WebGLUniformLocation
+  , uSunDirLoc :: !WebGLUniformLocation
   , uProjM   :: !ProjMatrix
   , uViewM   :: !ViewMatrix
   , rCell    :: !(RenderingCell ModeColored)
@@ -129,6 +130,7 @@ createRenderingEngine canvasElem evS = do
 
     let uProjLoc = unifLoc program "uProjM"
         uViewLoc = unifLoc program "uViewM"
+        uSunDirLoc = unifLoc program "uSunDir"
         uProjM = ProjM eye
         uViewM = ViewM eye
         re = RenderingEngine {..}
@@ -138,22 +140,23 @@ createRenderingEngine canvasElem evS = do
         enableCoordsNormalsBuf gl
         enableColorsBuf gl
         setupViewPort re
-    rre <- liftIO $ newIORef re
+    rre <- liftIO $ newMVar re
 
     -- update camera matrices
     performEvent_ . ffor (select evS ProjTransformChange) $ \m -> liftIO $
-        atomicModifyIORef' rre (\r -> (r{uProjM = m}, ()))
+        modifyMVar_ rre (\r -> return r{uProjM = m})
     performEvent_ . ffor (select evS ViewTransformChange) $ \m -> liftIO $
-        atomicModifyIORef' rre (\r -> (r{uViewM = m}, ()))
+        modifyMVar_ rre (\r -> return r{uViewM = m})
 
 
-    performEvent_ . ffor (select evS ViewPortResize) $ \(ResizeEvent newVPSize) -> liftIO $ do
-        r' <- atomicModifyIORef' rre (\r -> let r' = r{vpSize = (floor *** floor) newVPSize } in (r', r'))
-        setupViewPort r'
+    performEvent_ . ffor (select evS ViewPortResize) $ \(ResizeEvent newVPSize) ->
+        liftIO . modifyMVar_ rre $ \r ->
+           let r' = r{vpSize = (floor *** floor) newVPSize } in r' <$ setupViewPort r'
+
 
     return RenderingApi
-        { render = \t -> readIORef rre >>= flip renderFunction t
-        , addRObject = addRObjectFunction rre
+        { render = \t -> modifyMVar_ rre $ \r -> r <$ renderFunction r t
+        , addRObject = modifyMVar rre . addRObjectFunction
         }
 
 
@@ -185,16 +188,18 @@ renderFunction RenderingEngine {..} _ = do
     -- supply shader with uniform matrix
     uniformMatrix4fv gl uProjLoc False (getProjM uProjM)
     uniformMatrix4fv gl uViewLoc False (getViewM uViewM)
+    -- TODO provide a proper sun direction vector
+    -- let (sx,sy,sz,_) = unpackV4 $ getViewM uViewM %* vec4 (-0.5) (-0.6) (-1) 0
+    uniform4f gl uSunDirLoc (-0.5) (-0.6) (-1) 0 -- sx sy sz
     -- draw objects
     renderCell gl rCell
 
-addRObjectFunction :: IORef RenderingEngine
-                   -> RenderingData ModeColored -> IO RenderedObjectId
-addRObjectFunction rre cd = do
-    re <- readIORef rre
+addRObjectFunction :: RenderingData ModeColored
+                   -> RenderingEngine
+                   -> IO (RenderingEngine, RenderedObjectId)
+addRObjectFunction cd re = do
     (roId, rc') <- addRenderedObject (gl re) cd (rCell re)
-    writeIORef rre $ re { rCell = rc'}
-    return roId
+    return (re { rCell = rc'}, roId)
 
 ----------------------------------------------------------------------------------------------------
 
@@ -220,27 +225,56 @@ rectangle
 
 fragmentShaderText :: JSString
 fragmentShaderText =
+--  [jsstring|
+--     precision mediump float;
+--     varying vec4 vColor;
+--     void main(void) {
+--       gl_FragColor = vColor;
+--     }
+--  |]
   [jsstring|
-     precision mediump float;
-     varying vec4 vColor;
-     void main(void) {
-       gl_FragColor = vColor;
-     }
+    precision mediump float;
+    varying vec4 vColor;
+    varying vec3 vDist;
+    void main(void) {
+      mediump float fade = clamp(3.0 - dot(vDist,vDist), 0.0, 1.0);
+      gl_FragColor = vColor * fade;
+    }
   |]
 
 vertexShaderText :: JSString
 vertexShaderText =
+--  [jsstring|
+--    attribute vec4 aVertexPosition;
+--    attribute vec4 aVertexNormal;
+--    attribute vec4 aVertexColor;
+--    uniform mat4 uViewM;
+--    uniform mat4 uProjM;
+--    uniform mat4 uPMV;
+--    varying vec4 vColor;
+--    void main(void) {
+--      gl_Position = uProjM * uViewM * aVertexPosition;
+--      vColor = aVertexColor + 0.001*aVertexNormal;
+--    }
+--  |]
   [jsstring|
+    precision mediump float;
     attribute vec4 aVertexPosition;
     attribute vec4 aVertexNormal;
     attribute vec4 aVertexColor;
     uniform mat4 uViewM;
     uniform mat4 uProjM;
-    uniform mat4 uPMV;
+    uniform vec4 uSunDir;
     varying vec4 vColor;
+    varying vec3 vDist;
     void main(void) {
-      gl_Position = uProjM * uViewM * aVertexPosition;
-      vColor = aVertexColor + 0.001*aVertexNormal;
+      vec4 globalPos = uViewM * aVertexPosition;
+      gl_Position = uProjM * globalPos;
+      vDist = globalPos.xyz/(globalPos.w*200.0);
+      vec4 tNormal = normalize(uViewM * aVertexNormal);
+      mediump float brightness = 0.7 + 0.3 * abs(dot(aVertexNormal,uSunDir)); // * sign(dot(tNormal,globalPos));
+      mediump float a = aVertexColor.w;
+      vColor = vec4(clamp(aVertexColor.xyz * brightness, vec3(0,0,0), vec3(a,a,a)), a);
     }
   |]
 

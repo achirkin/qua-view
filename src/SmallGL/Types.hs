@@ -243,6 +243,11 @@ enableTexCoordsBuf gl = enableVertexAttribArray gl attrLocTexCoords
 disableTexCoordsBuf :: WebGLRenderingContext -> IO ()
 disableTexCoordsBuf gl = disableVertexAttribArray gl attrLocTexCoords
 
+unbindBuffer :: WebGLRenderingContext -> GLenum -> IO ()
+unbindBuffer gl t = bindBuffer gl t js_nullBuffer
+foreign import javascript unsafe "$r = null;" js_nullBuffer :: WebGLBuffer
+
+
 -- | void bufferData(GLenum target, BufferDataSource? data, GLenum usage) (OpenGL ES 2.0 §2.9, man page)
 --   Set the size of the currently bound WebGLBuffer object for the passed target to the size of the passed data,
 --   then write the contents of data to the buffer object.
