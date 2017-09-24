@@ -24,6 +24,7 @@ executable qua-view
         fastvec -any,
         ghcjs-hs-interop -any,
         ghcjs-webgl -any,
+        ghcjs-base -any,
         reactive-banana -any,
         reactive-banana-ghcjs -any,
         transformers -any,

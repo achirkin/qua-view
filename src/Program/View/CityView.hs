@@ -100,7 +100,10 @@ instance Drawable City where
             Nothing -> return Nothing
             Just lonlatalt -> let scprop = csettings city
                               in if useMapLayer scprop
-                                 then Just <$> createGroundMapView gl (mapZoomLevel scprop) (cityTransform city) lonlatalt
+                                 then Just <$> createGroundMapView gl
+                                               (mapUrl scprop)
+                                               (mapZoomLevel scprop)
+                                               (cityTransform city) lonlatalt
                                  else return Nothing
         return CityView
             { viewShaderTex   = buProgramTex
@@ -186,7 +189,11 @@ instance Drawable City where
             (Just gmc, _)       -> return $ Just gmc
             (Nothing, Just lla) -> let scprop = csettings city
                                    in if useMapLayer scprop
-                                      then Just <$> createGroundMapView gl (mapZoomLevel scprop) (cityTransform city) lla
+                                      then Just <$> createGroundMapView gl
+                                               (mapUrl scprop)
+                                               (mapZoomLevel scprop)
+                                               (cityTransform city)
+                                               lla
                                       else return Nothing
             (Nothing, Nothing)  -> return Nothing
         return cv
