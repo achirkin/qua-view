@@ -120,6 +120,7 @@ data CitySettings = CitySettings
     , defaultLineColor   :: !HexColor
     , mapZoomLevel       :: !Int
     , useMapLayer        :: !Bool
+    , mapUrl             :: !JSString
     , forcedArea         :: !(Maybe (LinearRing 2 Float))
     , hiddenProperties   :: ![JSString]
     }
@@ -134,6 +135,7 @@ instance LikeJS "Object" CitySettings where
                   $ setProp      "defaultLineColor"   (defaultLineColor csets)
                   $ setProp      "useMapLayer"        (if useMapLayer csets then Just True else Nothing)
                   $ setProp      "mapZoomLevel"       (if useMapLayer csets then Just (mapZoomLevel csets) else Nothing)
+                  $ setProp      "mapUrl"             (if useMapLayer csets then Just (mapUrl csets) else Nothing)
                   $ setProp      "forcedArea"         (forcedArea csets) newObj
   asLikeJS val = defaultCitySettings
                       { defHeight = fromMaybe (defHeight defaultCitySettings) $ getDefHeight val
@@ -145,6 +147,7 @@ instance LikeJS "Object" CitySettings where
                       , defaultLineColor = fromMaybe (defaultLineColor defaultCitySettings) $ getLineColor val
                       , mapZoomLevel = fromMaybe (mapZoomLevel defaultCitySettings) $ getMapZoomLevel val
                       , useMapLayer = fromMaybe (useMapLayer defaultCitySettings) $ getUseMapLayer val
+                      , mapUrl = fromMaybe (mapUrl defaultCitySettings) $ getMapUrl val
                       , forcedArea = getForcedArea val -- untransformed
                       , hiddenProperties = fromMaybe (hiddenProperties defaultCitySettings) $ getHiddenProperties val
                       }
@@ -167,6 +170,8 @@ getMapZoomLevel :: JSVal -> Maybe Int
 getMapZoomLevel = getProp "mapZoomLevel"
 getUseMapLayer :: JSVal -> Maybe Bool
 getUseMapLayer = getProp "useMapLayer"
+getMapUrl :: JSVal -> Maybe JSString
+getMapUrl = getProp "mapUrl"
 getForcedArea :: JSVal -> Maybe (LinearRing 2 Float)
 getForcedArea = getProp "forcedArea"
 getHiddenProperties :: JSVal -> Maybe [JSString]
@@ -189,6 +194,7 @@ defaultCitySettings = CitySettings
     , defaultLineColor    = HexColor (vector4 0.8 0.4 0.4 1)
     , mapZoomLevel        = 15
     , useMapLayer         = True
+    , mapUrl              = "https://a.tile.openstreetmap.org/${z}/${x}/${y}.png"
     , forcedArea          = Nothing
     , hiddenProperties    = ["static", "geomID", "viewColor"]
     }

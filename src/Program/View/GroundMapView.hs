@@ -2,6 +2,7 @@
 {-# LANGUAGE JavaScriptFFI #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 -----------------------------------------------------------------------------
 -- |
@@ -26,7 +27,9 @@ import JsHs.WebGL
 import JsHs.JSString
 import Data.IORef
 import Data.List (sortOn)
+import qualified Data.JSString as JSString
 import Control.Concurrent (forkIO)
+import Data.Function ((&))
 import Control.Monad ((<=<))
 import Data.Geometry
 import           Data.Map.Strict (Map)
@@ -50,22 +53,24 @@ data GroundMapCell = GroundMapCell
 data GroundMapView = GroundMapView
     { gmvLonLatCenter :: !(Vector 2 GLfloat)
     , gmvLocalCenter  :: !(Vector 3 GLfloat)
-    , gmvTileCenter  ::  !(Int,Int)
+    , gmvTileCenter   ::  !(Int,Int)
     , gmvCellWidth    :: !GLfloat
     , gmvZoomLevel    :: !Int
     , gmvTiles        :: !(Map (Int,Int) (IORef (Maybe GroundMapCell)))
+    , gmvMapUrl       :: !JSString
     }
 
 createGroundMapView :: WebGLRenderingContext
+                    -> JSString
                     -> Int -- ^ zoom level
                     -> (GLfloat, Vector2 GLfloat) -- ^ view scale and shift
                     -> Vector 3 GLfloat -- ^ longitude, latitude, altitude of origin
                     -> IO GroundMapView
-createGroundMapView gl zoomlvl (vscale, vshift) lonlatalt = do
+createGroundMapView gl mapUrl zoomlvl (vscale, vshift) lonlatalt = do
     buf <- createBuffer gl
     bindBuffer gl gl_ARRAY_BUFFER buf
     bufferData gl gl_ARRAY_BUFFER arrayBuffer gl_STATIC_DRAW
-    let gmv = GroundMapView (vector2 lon0 lat0) pos0 (xtile0,ytile0) tileWidth zoomlvl Map.empty
+    let gmv = GroundMapView (vector2 lon0 lat0) pos0 (xtile0,ytile0) tileWidth zoomlvl Map.empty mapUrl
     tiles <- Map.fromList <$> mapM (\p -> (,) p <$> createGroundMapCell gl gmv p)
                 ( sortOn (\(i,j) -> (i - xtile0)*(i - xtile0) + (j - ytile0)*(j - ytile0))
                          [(xtile0+i,ytile0+j) | i <- [- nTiles .. nTiles -1], j <- [- nTiles .. nTiles -1]]
@@ -80,7 +85,8 @@ createGroundMapView gl zoomlvl (vscale, vshift) lonlatalt = do
     (lon1, lat1) = zoomXY2LonLat zoomlvl (xtile0+1,ytile0+1)
 
     -- a transform from WGS'84 to our local coordinates
-    wgs2metric x =  broadcastVector vscale * (js_useWGS84toUTMTransform (js_createWGS84toUTMTransform lon lat) x - resizeVector vshift)
+    wgs2metric x =  broadcastVector vscale *
+         (js_useWGS84toUTMTransform (js_createWGS84toUTMTransform lon lat) x - resizeVector vshift)
 
     -- get center positions in local metric system
     pos0 = wgs2metric (vector3 lon0 lat0 0)
@@ -100,8 +106,10 @@ createGroundMapCell gl GroundMapView{..} tilexy@(x,y) = do
     bindBuffer gl gl_ARRAY_BUFFER buf
     bufferData gl gl_ARRAY_BUFFER arrayBuffer gl_STATIC_DRAW
     gmc <- newIORef Nothing
-    _ <- forkIO $ createTex gmvZoomLevel tilexy >>= initTexture gl . Left >>= writeIORef gmc . Just . GroundMapCell buf
-    return $ gmc
+    _ <- forkIO $ createTex gmvMapUrl gmvZoomLevel tilexy
+                >>= initTexture gl . Left
+                >>= writeIORef gmc . Just . GroundMapCell buf
+    return gmc
   where
     arrayBuffer = packPoints (groundPoints (gmvLocalCenter + vector3 xx yy 0) gmvCellWidth)
                               groundNormals
@@ -163,12 +171,18 @@ drawGroundMapCell gl (ploc,_,tloc) (Just GroundMapCell {..}) = do
 
 
 
-foreign import javascript interruptible "var osmImg = new Image(); osmImg.addEventListener('load', function(){$c(osmImg)}); osmImg.crossOrigin = 'anonymous'; osmImg.src = $1;"
+foreign import javascript interruptible
+    "var osmImg = new Image(); osmImg.addEventListener('load', function(){$c(osmImg)}); osmImg.crossOrigin = 'anonymous'; osmImg.src = $1;"
     js_createTex :: JSString -> IO TexImageSource
 
 
-createTex :: Int -> (Int,Int) -> IO TexImageSource
-createTex zoom (xtile,ytile) = js_createTex . pack $ Prelude.concat ["https://a.tile.openstreetmap.org/", show zoom, "/", show xtile, "/", show ytile, ".png" ]
+createTex :: JSString -> Int -> (Int,Int) -> IO TexImageSource
+createTex urlPat zoom (xtile,ytile)
+   = js_createTex
+   $ urlPat
+   & JSString.replace "${z}" (pack $ show zoom)
+   & JSString.replace "${x}" (pack $ show xtile)
+   & JSString.replace "${y}" (pack $ show ytile)
 
 
 zoomLonLat2xy :: Int -> (Float, Float) -> (Int, Int)
