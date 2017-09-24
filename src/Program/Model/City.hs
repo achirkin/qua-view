@@ -21,7 +21,7 @@
 -----------------------------------------------------------------------------
 module Program.Model.City
     ( City (..), buildCity, updateCity, isEmptyCity, emptyCity, clearCity
-    , CitySettings (..), defaultCitySettings
+    , CitySettings (..), defaultCitySettings, shownProps
     , CityObjectCollection ()
     , ClearingGeometry (..)
     , getObject, setObject
@@ -121,6 +121,7 @@ data CitySettings = CitySettings
     , mapZoomLevel       :: !Int
     , useMapLayer        :: !Bool
     , forcedArea         :: !(Maybe (LinearRing 2 Float))
+    , hiddenProperties   :: ![JSString]
     }
 
 instance LikeJS "Object" CitySettings where
@@ -134,7 +135,7 @@ instance LikeJS "Object" CitySettings where
                   $ setProp      "useMapLayer"        (if useMapLayer csets then Just True else Nothing)
                   $ setProp      "mapZoomLevel"       (if useMapLayer csets then Just (mapZoomLevel csets) else Nothing)
                   $ setProp      "forcedArea"         (forcedArea csets) newObj
-  asLikeJS val = defaultCitySettings 
+  asLikeJS val = defaultCitySettings
                       { defHeight = fromMaybe (defHeight defaultCitySettings) $ getDefHeight val
                       , evalCellSize = fromMaybe (evalCellSize defaultCitySettings) $ getEvalCellSize val
                       , defScale = getDefScale val
@@ -145,6 +146,7 @@ instance LikeJS "Object" CitySettings where
                       , mapZoomLevel = fromMaybe (mapZoomLevel defaultCitySettings) $ getMapZoomLevel val
                       , useMapLayer = fromMaybe (useMapLayer defaultCitySettings) $ getUseMapLayer val
                       , forcedArea = getForcedArea val -- untransformed
+                      , hiddenProperties = fromMaybe (hiddenProperties defaultCitySettings) $ getHiddenProperties val
                       }
 
 getDefHeight :: JSVal -> Maybe GLfloat
@@ -167,25 +169,28 @@ getUseMapLayer :: JSVal -> Maybe Bool
 getUseMapLayer = getProp "useMapLayer"
 getForcedArea :: JSVal -> Maybe (LinearRing 2 Float)
 getForcedArea = getProp "forcedArea"
+getHiddenProperties :: JSVal -> Maybe [JSString]
+getHiddenProperties = getProp "hiddenProperties"
 
 -- | This indicates removal of all geometry from the city
 data ClearingGeometry = ClearingGeometry
 
 defaultCitySettings :: CitySettings
 defaultCitySettings = CitySettings
-    { defHeight          = 1.5
-    , diagFunction       = (*5) . sqrt . fromIntegral
-    , groundDilate       = 1
-    , evalCellSize       = 0.5
-    , defElevation       = 0.01
-    , defScale           = Nothing
-    , defaultBlockColor  = HexColor (vector4 0.75 0.75 0.7 1)
-    , defaultActiveColor = HexColor (vector4 1 0.6 0.6 1)
-    , defaultStaticColor = HexColor (vector4 0.5 0.5 0.55 1)
-    , defaultLineColor   = HexColor (vector4 0.8 0.4 0.4 1)
-    , mapZoomLevel       = 15
-    , useMapLayer        = True
-    , forcedArea         = Nothing
+    { defHeight           = 1.5
+    , diagFunction        = (*5) . sqrt . fromIntegral
+    , groundDilate        = 1
+    , evalCellSize        = 0.5
+    , defElevation        = 0.01
+    , defScale            = Nothing
+    , defaultBlockColor   = HexColor (vector4 0.75 0.75 0.7 1)
+    , defaultActiveColor  = HexColor (vector4 1 0.6 0.6 1)
+    , defaultStaticColor  = HexColor (vector4 0.5 0.5 0.55 1)
+    , defaultLineColor    = HexColor (vector4 0.8 0.4 0.4 1)
+    , mapZoomLevel        = 15
+    , useMapLayer         = True
+    , forcedArea          = Nothing
+    , hiddenProperties    = ["static", "geomID", "viewColor"]
     }
 
 
@@ -373,9 +378,9 @@ updateCity scenario
                         else buildGround (groundDilate $ csettings city) Nothing allobjects
              , clutter = appendLineSet liness (clutter city)
              }
-    where errorSRID = ["Warning: scenario update has different SRID. Position of new objects may be wrong." 
+    where errorSRID = ["Warning: scenario update has different SRID. Position of new objects may be wrong."
                         | ((==) <$> srid city <*> pfcSRID parsedCollection) == Just False]
-          errorOrig = ["Warning: scenario update has different origin location. Position of new objects may be wrong." 
+          errorOrig = ["Warning: scenario update has different origin location. Position of new objects may be wrong."
                         | ((\x y -> abs (x-y) < 0.000001) <$> originLonLatAlt city <*> pfcLonLatAlt parsedCollection) == Just False]
           errors = errorSRID ++ errorOrig ++ fcErrors
           (fcErrors,objects, liness) = processScenario (defHeight $ csettings city)  (defElevation $ csettings city) cscale cshift parsedCollection
@@ -417,6 +422,19 @@ foreign import javascript unsafe "$r = $3.slice(); $r[$1] = $2;"
 
 isEmptyCity :: City -> Bool
 isEmptyCity c = collectionLength (objectsIn c) == 0
+
+
+hideProps :: [JSString] -> [(JSString, JSVal)] -> [(JSString, JSVal)]
+hideProps hids = Prelude.filter (\(name,_) -> notElem name hids)
+
+fromPropsListToJSVal :: [(JSString, JSVal)] -> JSVal
+fromPropsListToJSVal = Prelude.foldr (uncurry setProp) newObj
+
+
+-- | Filter CityObject properties according to hiddenProperties settings
+shownProps :: City -> CityObject -> JSVal
+shownProps ci obj = fromPropsListToJSVal $ hideProps  (hiddenProperties $ csettings ci) (propsList obj)
+
 
 -- | Remove all geometry from city
 clearCity :: City -> City

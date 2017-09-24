@@ -19,7 +19,7 @@
 -----------------------------------------------------------------------------
 
 module Program.Model.CityObject
-    ( CityObject (), LocatedCityObject, behavior, objPolygons, objPoints, geomId, allProps, getCityObjectColor
+    ( CityObject (), LocatedCityObject, behavior, objPolygons, objPoints, geomId, allProps, propsList, getCityObjectColor
     , GeoJsonGeometry (..)
     , PointData (), vertexArray, indexArray, vertexArrayLength, indexArrayLength
     , processPolygonFeature
@@ -96,7 +96,7 @@ processPolygonFeature :: GLfloat -- ^ default height in camera space
                       -> Vector2 GLfloat -- ^ shift objects before processing
                       -> Feature -> Either JSString LocatedCityObject
 processPolygonFeature defHeight scale shift sObj = if isSlave sObj then Left "Skipping a slave scenario object." else
-    getSizedGeoJSONGeometry (vector3 0 0 (getHeight (defHeight) sObj )) sObj
+    getSizedGeoJSONGeometry (vector3 0 0 (getHeight defHeight sObj )) sObj
     >>= \geom -> toBuildingMultiPolygon geom
     >>= \mpoly ->
     let qt@(T.QFTransform trotScale tshift locMPoly) = locateMultiPolygon scale shift mpoly
@@ -124,7 +124,7 @@ locateMultiPolygon :: GLfloat
                    -> T.QFTransform (MultiPolygon 3 GLfloat)
 locateMultiPolygon scale shift mpoly = T.QFTransform (
         -- getRotScale (vector3 1 0 0) (unit xdir)
-        axisRotation (vector3 0 0 1) (a)
+        axisRotation (vector3 0 0 1) a
         ) center newmpoly
     where points = shrinkVectors $ toPointArray mpoly :: PointArray 2 GLfloat
           (center', vx, vy) = boundingRectangle2D points
@@ -185,6 +185,22 @@ foreign import javascript unsafe "$1['properties']['isSlave']"
 foreign import javascript unsafe "$1['properties']"
     allProps :: CityObject -> JSVal
 
+foreign import javascript unsafe "Object.keys($1['properties'])"
+    js_getKeys :: CityObject -> JSVal
+
+foreign import javascript unsafe "Object.values($1['properties'])"
+    js_getValues :: CityObject -> JSVal
+
+getKeys :: CityObject -> [JSString]
+getKeys = asLikeJS . js_getKeys
+
+getValues :: CityObject -> [JSVal]
+getValues = asLikeJS . js_getValues
+
+propsList :: CityObject -> [(JSString, JSVal)]
+propsList = zip <$> getKeys <*> getValues
+
+
 type LocatedCityObject = T.QFTransform CityObject
 
 instance LikeJS "Object" LocatedCityObject where
@@ -241,7 +257,7 @@ foreign import javascript unsafe "$r = {}; $r['properties'] = $1['properties']; 
 
 
 
-toBuildingMultiPolygon :: GeoJsonGeometry 3 GLfloat -> (Either JSString (MultiPolygon 3 GLfloat))
+toBuildingMultiPolygon :: GeoJsonGeometry 3 GLfloat -> Either JSString (MultiPolygon 3 GLfloat)
 toBuildingMultiPolygon (GeoPoint _) = Left "toBuildingMultiPolygon: GeoJSON Point is not convertible to MultiPolygon"
 toBuildingMultiPolygon (GeoMultiPoint _) = Left "toBuildingMultiPolygon: GeoJSON MultiPoint is not convertible to MultiPolygon"
 toBuildingMultiPolygon (GeoLineString _) = Left "toBuildingMultiPolygon: GeoJSON LineString is not convertible to MultiPolygon"
@@ -263,7 +279,7 @@ completeBuilding [roof] = JSArray.fromList $ roof : map buildWall wallLines
 
 
 newtype PointData = PointData JSVal
-instance IsJSVal (PointData)
+instance IsJSVal PointData
 
 {-# INLINE vertexArray #-}
 foreign import javascript unsafe "$1.vertexArray"
