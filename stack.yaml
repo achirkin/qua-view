@@ -14,7 +14,7 @@ packages:
   # Matrices, vectors, and geometry
   - location:
       git: https://github.com/achirkin/easytensor.git
-      commit: 170a151d76fa7d1f72889d26b4b39971e96b1460
+      commit: 25b2f0a91e8b70e2469bc320b02cc9f1f8bb9225
     subdirs:
       - dimensions
       - easytensor
