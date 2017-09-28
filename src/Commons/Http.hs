@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ExistentialQuantification #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Commons.Http
     ( httpGet
@@ -19,16 +20,20 @@ import Commons.Local
 import Control.Monad (join)
 import Data.JSString (pack)
 import Data.JSString.Text (textFromJSString)
+import GHCJS.DOM.JSFFI.XMLHttpRequest (sendString)
 
+
+instance IsXhrPayload JSString where
+  sendXhrPayload = sendString
 
 -- | HTTP GET upon `Event a`
 httpGet :: forall t a b m
          . ( FromJSON b, TriggerEvent t (Performable m), PerformEvent t m
            , MonadIO (Performable m), HasJSContext (Performable m)
            , MonadHold t m, Reflex t )
-        => Text -> (Event t a) -> m (Event t (Either JSError b))
+        => JSString -> (Event t a) -> m (Event t (Either JSError b))
 httpGet url event = do
-  nestedE <- performEvent $ (const $ doHttp $ XhrRequest "GET" url def) <$> event
+  nestedE <- performEvent $ (const $ doHttp $ getReqConfig url) <$> event
   switchPromptly never nestedE
 
 -- | HTTP POST `ToJSON a` upon `Event a`
@@ -36,7 +41,7 @@ httpPost :: forall t a b m
         . ( ToJSON a, FromJSON b, TriggerEvent t (Performable m), PerformEvent t m
           , MonadIO (Performable m), HasJSContext (Performable m)
           , MonadHold t m, Reflex t )
-         => Text -> (Event t a) -> m (Event t (Either JSError b))
+         => JSString -> (Event t a) -> m (Event t (Either JSError b))
 httpPost url event = do
   nestedE <- performEvent $ doHttp . postJsonReqConfig url <$> event
   switchPromptly never nestedE
@@ -45,9 +50,8 @@ httpPost url event = do
 httpGetNow :: forall t b m
             . ( FromJSON b, TriggerEvent t m
               , Reflex t, HasJSContext m, MonadIO m )
-           => Text -> m (Event t (Either JSError b))
-httpGetNow url = do
-  doHttp $ XhrRequest "GET" url def
+           => JSString -> m (Event t (Either JSError b))
+httpGetNow = doHttp . getReqConfig
 
 -- | make HTTP request immediately
 doHttp :: forall t a b m
@@ -72,12 +76,16 @@ doHttp reqConfig = do
   _ <- newXMLHttpRequestWithError reqConfig cb'
   return resE
 
+getReqConfig :: JSString -> XhrRequest ()
+getReqConfig url = XhrRequest "GET" (textFromJSString url) def
+
 -- | Create a "POST" request from an URL and thing with a JSON representation
 --   based on Reflex.Dom.Xhr (postJson)
-postJsonReqConfig :: (ToJSON a) => Text -> a -> XhrRequest Text
+postJsonReqConfig :: (ToJSON a) => JSString -> a -> XhrRequest JSString
 postJsonReqConfig url payload =
-  XhrRequest "POST" url $ def { _xhrRequestConfig_headers = headerUrlEnc
-                              , _xhrRequestConfig_sendData = body
-                              }
+  XhrRequest "POST" (textFromJSString url) $ def {
+                        _xhrRequestConfig_headers  = headerUrlEnc
+                      , _xhrRequestConfig_sendData = body
+                      }
   where headerUrlEnc = "Content-type" =: "application/json"
-        body = textFromJSString $ encode $ toJSON payload
+        body = encode $ toJSON payload
