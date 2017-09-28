@@ -41,9 +41,9 @@ main = mainWidgetInElementById "qua-view-widgets" $ mdo
     -- register loading splash so that we can change its visibility
     Widgets.loadingSplashD isProgramBusy
 
-    (eventNow, trigger) <- newTriggerEvent
-    liftIO $ trigger ()
-    settingsD <- httpGet "/qua-view-settings" eventNow >>= holdDyn mempty . fmapMaybe id
+    let rightToMaybe = either (const Nothing) Just
+    settingsD <- httpGetNow "/qua-view-settings"
+                   >>= holdDyn mempty . fmapMaybe id . fmap rightToMaybe
 
     -- register canvas element
     canvas <- Widgets.getWebGLCanvas
