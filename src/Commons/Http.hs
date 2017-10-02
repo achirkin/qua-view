@@ -27,40 +27,45 @@ instance IsXhrPayload JSString where
   sendXhrPayload = sendString
 
 -- | HTTP GET upon `Event a`
-httpGet :: forall t a b m
-         . ( FromJSON b, TriggerEvent t (Performable m), PerformEvent t m
-           , MonadIO (Performable m), HasJSContext (Performable m)
-           , MonadHold t m, Reflex t )
-        => JSString -> (Event t a) -> m (Event t (Either JSError b))
-httpGet url event = do
-  nestedE <- performEvent $ (const $ doHttp $ getReqConfig url) <$> event
-  switchPromptly never nestedE
+httpGet :: forall t b m
+         . ( FromJSON b, TriggerEvent t m, PerformEvent t m
+           , HasJSContext (Performable m), MonadIO (Performable m)
+           , Reflex t )
+        => Event t JSString -> m (Event t (Either JSError b))
+httpGet event = do
+  (resultE, resultTrigger) <- newTriggerEvent
+  performEvent_ $ flip doHttp resultTrigger . getReqConfig <$> event
+  return resultE
 
 -- | HTTP POST `ToJSON a` upon `Event a`
 httpPost :: forall t a b m
-        . ( ToJSON a, FromJSON b, TriggerEvent t (Performable m), PerformEvent t m
-          , MonadIO (Performable m), HasJSContext (Performable m)
-          , MonadHold t m, Reflex t )
-         => JSString -> (Event t a) -> m (Event t (Either JSError b))
-httpPost url event = do
-  nestedE <- performEvent $ doHttp . postJsonReqConfig url <$> event
-  switchPromptly never nestedE
+        . ( ToJSON a, FromJSON b, TriggerEvent t m, PerformEvent t m
+          , HasJSContext (Performable m), MonadIO (Performable m)
+          , Reflex t )
+         => Event t (JSString, a) -> m (Event t (Either JSError b))
+httpPost event = do
+  (resultE, resultTrigger) <- newTriggerEvent
+  performEvent_ $ flip doHttp resultTrigger . uncurry postJsonReqConfig <$> event
+  return resultE
 
 -- | HTTP GET immediately
 httpGetNow :: forall t b m
             . ( FromJSON b, TriggerEvent t m
-              , Reflex t, HasJSContext m, MonadIO m )
+              , Reflex t, HasJSContext m, MonadJSM m )
            => JSString -> m (Event t (Either JSError b))
-httpGetNow = doHttp . getReqConfig
+httpGetNow s = do
+  (e, t) <- newTriggerEvent
+  doHttp (getReqConfig s) t
+  return e
 
 -- | make HTTP request immediately
 doHttp :: forall t a b m
-        . ( FromJSON b, IsXhrPayload a, TriggerEvent t m
-          , Reflex t, HasJSContext m, MonadIO m )
-       => XhrRequest a -> m (Event t (Either JSError b))
-doHttp reqConfig = do
-  (resE, cb) <- newTriggerEvent
-  let parseResp (Just t) = parseJSONValue $ toJSString t
+        . ( FromJSON b, IsXhrPayload a
+          , Reflex t, HasJSContext m, MonadJSM m )
+       => XhrRequest a -> (Either JSError b -> IO ()) -> m ()
+doHttp reqConfig cb = void $ newXMLHttpRequestWithError reqConfig cb'
+   where
+      parseResp (Just t) = parseJSONValue $ toJSString t
       parseResp Nothing  = return $ Left mempty
       go val = case fromJSON val of
                  JSON.Success v -> Right v
@@ -73,8 +78,6 @@ doHttp reqConfig = do
           . sequence
           . fmap (parseResp . _xhrResponse_responseText)
           . either (Left . xhrEtoJSString) Right
-  _ <- newXMLHttpRequestWithError reqConfig cb'
-  return resE
 
 getReqConfig :: JSString -> XhrRequest ()
 getReqConfig url = XhrRequest "GET" (textFromJSString url) def
