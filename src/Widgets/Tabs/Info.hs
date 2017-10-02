@@ -4,6 +4,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE RecursiveDo #-}
 
 module Widgets.Tabs.Info
     ( panelInfo
@@ -11,9 +12,11 @@ module Widgets.Tabs.Info
 
 import Commons
 import Control.Monad.Trans.Reader
+import Data.Maybe
 import Data.JSString.Text (textFromJSString, textToJSString)
 import Reflex.Dom
 import Widgets.Commons
+import Widgets.Generation
 
 
 panelInfo :: Reflex t
@@ -31,36 +34,71 @@ panelInfo = do
 
 writeReview :: Reflex t
             => Maybe ReviewSettings -> WidgetWithLogs x ()
-writeReview Nothing = blank
-writeReview (Just reviewSettings) =
+writeReview Nothing = text "Loading..."
+writeReview (Just reviewSettings) = elClass "div" "card" $
   elClass "div" "card-comment form-group form-group-label" $ do
+
     let wrIdent = "writeReview"
     elAttr "label" ("class" =: "floating-label" <> "for" =: wrIdent)
       $ text "Write a review"
     let attrs = constDyn ("class" =: "form-control")
     t <- textArea $ def & textAreaConfig_attributes .~ attrs
     let textD = textToJSString <$> _textArea_value t
-    (upEl,   ()) <- elClass' "span" "icon" $ text "thumb_up"
-    (downEl, ()) <- elClass' "span" "icon" $ text "thumb_down"
-    thumbD <- holdDyn None $ leftmost [
-        ThumbUp   <$ domEvent Click upEl
-      , ThumbDown <$ domEvent Click downEl ]
-    let thumbToHideState None = Inactive
-        thumbToHideState _    = Active
-    clickE <- buttonFlatHideDyn (fmap thumbToHideState thumbD) "Send" mempty
-    let dataOnClickE = (\textVal thumbVal -> ReviewPost thumbVal textVal)
-                         <$> current textD
-                         <*> current thumbD
-                         <@ clickE
-    responseE <- httpPost $ (,) (postReviewUrl reviewSettings) <$> dataOnClickE
-    let rightToMaybe = either (const Nothing) Just
-    responseD <- holdDyn Nothing $ rightToMaybe <$> responseE
-    renderReview responseD
-    return ()
+
+    let inactiveStyle = "style" =: "opacity: 0.3"
+        activeStyle   = "style" =: "opacity: 1"
+
+    rec
+      let critE = leftmost critEs
+      critEs <- for (criterions reviewSettings) $ \c -> do
+        let critId        = tCriterionId c
+            chooseStyle mi _
+              | Just i <- mi, i == critId = activeStyle
+              | otherwise                 = inactiveStyle
+        critAttrD <- foldDyn chooseStyle inactiveStyle critE
+        (spanEl, ()) <- elDynAttr' "span" critAttrD $ return ()
+        setInnerHTML spanEl $ tCriterionIcon c
+        return $ (Just critId) <$ domEvent Click spanEl
+    critD <- holdDyn Nothing critE
+
+    rec
+      let thumbE = leftmost [
+              ThumbUp   <$ domEvent Click upEl
+            , ThumbDown <$ domEvent Click dnEl
+            ]
+      let showThumb ThumbUp   = "thumb_up" :: Text
+          showThumb ThumbDown = "thumb_down"
+          showThumb None      = "none"
+          makeThumb upOrDown = do
+            let chooseStyle th _
+                  | th == upOrDown = activeStyle
+                  | otherwise      = inactiveStyle
+            thumbAttrD <- foldDyn chooseStyle inactiveStyle thumbE
+            fst <$> elDynAttr' "span" (fmap (<> "class" =: "icon") thumbAttrD)
+                      (text $ showThumb upOrDown)
+      upEl <- makeThumb ThumbUp
+      dnEl <- makeThumb ThumbDown
+    thumbD <- holdDyn None thumbE
+
+    let toHideState (Just _) ThumbUp   = Active
+        toHideState (Just _) ThumbDown = Active
+        toHideState _        _         = Inactive
+    let hideStateD = toHideState <$> critD <*> thumbD
+    clickE <- buttonFlatHideDyn hideStateD "Send" mempty
+
+    let postDataOnClickE = ReviewPost <$> fromJust <$> current critD
+                                      <*> current thumbD
+                                      <*> current textD
+                                      <@ clickE
+    responseE <- httpPost $ (,) (reviewsUrl reviewSettings) <$> postDataOnClickE
+    let doAccum revs (Right newRev)     = newRev:revs
+        doAccum revs (Left (JSError _)) = revs --TODO
+    reviewsD <- accum doAccum (reviews reviewSettings) responseE
+
+    void . dyn $ mapM_ renderReview <$> reviewsD
 
 renderReview :: Reflex t
-             => Dynamic t (Maybe ReviewPost) -> WidgetWithLogs x ()
-renderReview mreviewD = elClass "div" "" $ do
-  let dispReview (Just r) = reviewPostComment r
-      dispReview Nothing  = ""
-  dynText $ textFromJSString <$> dispReview <$> mreviewD
+             => TReview -> WidgetWithLogs x ()
+renderReview r = elClass "div" "card" $ do
+  text $ textFromJSString $ tReviewUserName r
+  text $ textFromJSString $ tReviewComment r
