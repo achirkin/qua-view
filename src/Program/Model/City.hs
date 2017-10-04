@@ -267,10 +267,12 @@ cityBehavior psets selIdB colorizeE heldIdE otransform cityChange grounUpdateReq
     osnapshotF city (Just i) (Just j) | i /= j = Nothing
                                       | otherwise = (,) i <$> getObject i city
     objectMoveF Nothing   _                  city = city
+    objectMoveF (Just (_,o)) _ city | behavior (T.unwrap o) == Static = city
     objectMoveF (Just (i,o)) TransformCancel       city = setObject i o city
     objectMoveF (Just (i,o)) (TransformProgress t) city = setObject i (t o) city
     objectMoveF (Just (i,o)) (ObjectTransform   t) city = setObject i (t o) city
-    objectMotionRecord (Just (_,o)) (ObjectTransform t) = Just (geomId $ T.unwrap o,m)
+    objectMotionRecord (Just (_,o)) (ObjectTransform t) | behavior (T.unwrap o) /= Static
+                                                        = Just (geomId $ T.unwrap o,m)
         where T.MTransform m _ = T.mergeSecond (pure id) $ t (pure $ T.unwrap o)
     objectMotionRecord _ _ = Nothing
 
