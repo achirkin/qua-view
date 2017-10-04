@@ -185,10 +185,10 @@ foreign import javascript unsafe "$1['properties']['isSlave']"
 foreign import javascript unsafe "$1['properties']"
     allProps :: CityObject -> JSVal
 
-foreign import javascript unsafe "Object.keys($1['properties'])"
+foreign import javascript unsafe "Object['keys']($1['properties'])"
     js_getKeys :: CityObject -> JSVal
 
-foreign import javascript unsafe "Object.values($1['properties'])"
+foreign import javascript unsafe "Object['values']($1['properties'])"
     js_getValues :: CityObject -> JSVal
 
 getKeys :: CityObject -> [JSString]
