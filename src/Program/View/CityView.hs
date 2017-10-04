@@ -25,7 +25,6 @@ import JsHs.Types
 import JsHs.WebGL
 import SmallGL.Shader
 import Data.Geometry
-import Data.Maybe (fromMaybe)
 import Data.Geometry.Transform
 --import Geometry.Space
 --import Geometry.Space.Transform
@@ -156,11 +155,12 @@ instance Drawable City where
               alocs@(ploc,Just (nloc,tloc)) = ( 0, Just ( 1, 2))
               setColor Nothing i obj = uniform4f gl colLocNoTex (r*a) (g*a) (b*a) a
                 where
-                  (r, g, b, a) = unpackV4 $ case (behavior obj, i+1 == ai) of
-                                              (Static, _)      -> staticColor
-                                              (Dynamic, True)  -> activeColor
-                                              (Dynamic, False) -> itemColor
-                  (HexColor itemColor) = fromMaybe (HexColor blockColor) $ getCityObjectColor obj
+                  (r, g, b, a) = unpackV4 $ case (behavior obj, i+1 == ai, getCityObjectColor obj) of
+                                              (Dynamic, True, _)   -> activeColor
+                                              (Static, _, Nothing) -> staticColor
+                                              (Static, _, Just (HexColor itemColor)) -> itemColor
+                                              (Dynamic, False, Just (HexColor itemColor)) -> itemColor
+                                              (Dynamic, False, Nothing) -> blockColor
               setColor (Just arr) i obj = case unpackV4 $ PS.index i arr of
                     (r, g, b, a)  -> if behavior obj == Dynamic && i+1 == ai
                                      then uniform4f gl colLocNoTex (r*a*0.5) (g*a*0.2) (b*a*0.2) a
@@ -228,8 +228,9 @@ instance Selectable City where
         uniformMatrix4fv gl (unifLoc prog "uProjM") False (projectArr vc)
         JS.zipiIO_ drawObject (objectsIn city) (viewsIn cview)
         disableVertexAttribArray gl ploc
-        where drawObject i tobj oview | behavior (unwrap tobj) == Static = return ()
-                                      | otherwise = applyTransform vc tobj >>= \obj -> do
+        where drawObject i tobj oview -- | behavior (unwrap tobj) == Static = return ()
+                                      -- | otherwise -- make statics selectable, but no movable!
+                                      = applyTransform vc tobj >>= \obj -> do
                 uniformMatrix4fv gl (unifLoc prog "uModelViewM") False (modelViewArr vc)
                 uniform4f gl selValLoc
                             (fromIntegral ((i+1) .&. 0x000000FF) / 255)
