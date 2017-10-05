@@ -96,32 +96,34 @@ foreign import javascript unsafe "JSON.parse($1)"
     jsonParse :: JSString -> JSVal
 
 foreign import javascript unsafe "$r = {};"
-    newObj :: JSVal
+    newObj :: IO JSVal
 
 
 {-# INLINE getProp #-}
 getProp :: LikeJS s a => JSString -> JSVal -> Maybe a
-getProp name = asLikeJS . js_getProp name
+getProp name o = name `seq` o `seq` (asLikeJS $! js_getProp name o)
 
 foreign import javascript unsafe "$2[$1]"
     js_getProp :: JSString -> JSVal -> JSVal
 
 -- To get a prop from "properties"
+{-# NOINLINE getProperty #-}
 getProperty :: LikeJS s a => JSString -> JSVal -> Maybe a
-getProperty name = asLikeJS . js_getProperty name
+getProperty name v = name `seq` v `seq` (asLikeJS $! js_getProperty name v)
 
 foreign import javascript unsafe "($2.hasOwnProperty('properties') && $2['properties'] &&\
                                  \ $2['properties'].hasOwnProperty($1)) ? $2['properties'][$1] : null"
     js_getProperty :: JSString -> JSVal -> JSVal
 
-{-# INLINE setProp #-}
+{-# NOINLINE setProp #-}
 setProp :: LikeJS s a => JSString -> a -> JSVal -> JSVal
-setProp name = js_setProp name . asJSVal
+setProp name prop o = name `seq` o `seq` prop `seq` js_setProp name (asJSVal prop) o
 
+{-# NOINLINE setPropMaybe #-}
 setPropMaybe :: LikeJS s a => JSString -> Maybe a -> JSVal -> JSVal
-setPropMaybe name val = case val of
-                          Just v -> js_setProp name (asJSVal v)
-                          Nothing -> id
+setPropMaybe name val o = name `seq` o `seq` val `seq` case val of
+                          Just v -> js_setProp name (asJSVal v) o
+                          Nothing -> o
 
 foreign import javascript unsafe "$3[$1] = $2; $r = $3;"
     js_setProp :: JSString -> JSVal -> JSVal -> JSVal
