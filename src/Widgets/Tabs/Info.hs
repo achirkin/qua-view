@@ -91,14 +91,21 @@ writeReview (Just reviewSettings) = elClass "div" "card" $
                                       <*> current textD
                                       <@ clickE
     responseE <- httpPost $ (,) (reviewsUrl reviewSettings) <$> postDataOnClickE
-    let doAccum revs (Right newRev)     = newRev:revs
-        doAccum revs (Left (JSError _)) = revs --TODO
+    let doAccum revs (Right newRev) = newRev:revs
+        doAccum revs (Left _)       = revs
     reviewsD <- accum doAccum (reviews reviewSettings) responseE
+
+    let renderErr (Just err) = text $ textFromJSString err
+        renderErr Nothing    = blank
+        filterNonErr (Left (JSError err)) = Just err
+        filterNonErr _ = Nothing
+    errD <- holdDyn Nothing $ filterNonErr <$> responseE
+    _ <- dyn $ renderErr <$> errD
 
     void . dyn $ mapM_ renderReview <$> reviewsD
 
 renderReview :: Reflex t
              => TReview -> WidgetWithLogs x ()
 renderReview r = elClass "div" "card" $ do
-  text $ textFromJSString $ tReviewUserName r
+  text $ textFromJSString $ tReviewUserName r <> ": "
   text $ textFromJSString $ tReviewComment r

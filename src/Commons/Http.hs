@@ -19,7 +19,7 @@ import Commons.Import
 import Commons.Local
 import Control.Monad (join)
 import Data.JSString (pack)
-import Data.JSString.Text (textFromJSString)
+import Data.JSString.Text (textFromJSString, textToJSString)
 import GHCJS.DOM.JSFFI.XMLHttpRequest (sendString)
 
 
@@ -65,19 +65,25 @@ doHttp :: forall t a b m
        => XhrRequest a -> (Either JSError b -> IO ()) -> m ()
 doHttp reqConfig cb = void $ newXMLHttpRequestWithError reqConfig cb'
    where
-      parseResp (Just t) = parseJSONValue $ toJSString t
-      parseResp Nothing  = return $ Left mempty
-      go val = case fromJSON val of
-                 JSON.Success v -> Right v
-                 JSON.Error str -> Left $ JSError $ pack str
-      xhrEtoJSString XhrException_Error   = "XHR Error"
-      xhrEtoJSString XhrException_Aborted = "XHR Aborted"
       cb' :: Either XhrException XhrResponse -> IO ()
-      cb' = (>>= cb)
-          . fmap ((>>= go) . join)
-          . sequence
-          . fmap (parseResp . _xhrResponse_responseText)
-          . either (Left . xhrEtoJSString) Right
+      cb' = (>>= cb) . parseResp . handleErr
+      parseResp =
+        let parseJson (Just t) = parseJSONValue $ toJSString t
+            parseJson Nothing  = return $ Left mempty
+            go val = case fromJSON val of
+                       JSON.Success v -> Right v
+                       JSON.Error str -> Left $ JSError $ pack str
+        in fmap ((>>= go) . join) . sequence
+         . fmap (parseJson . _xhrResponse_responseText)
+      handleErr (Right res) =
+        let status = fromIntegral $ _xhrResponse_status res
+            fromMay (Just err) = textToJSString err
+            fromMay Nothing    = toJSString $ show status
+        in  if status >= 200 && status < (300::Int)
+            then Right res
+            else Left $ JSError $ fromMay $ _xhrResponse_responseText res
+      handleErr (Left XhrException_Error)   = Left "XHR Error"
+      handleErr (Left XhrException_Aborted) = Left "XHR Aborted"
 
 getReqConfig :: JSString -> XhrRequest ()
 getReqConfig url = XhrRequest "GET" (textFromJSString url) def
