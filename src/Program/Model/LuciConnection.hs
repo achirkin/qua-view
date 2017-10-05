@@ -36,6 +36,7 @@ import qualified JsHs.Array as JS
 import qualified JsHs.TypedArray as JSTA
 --import JsHs.WebGL.Types (GLfloat)
 import qualified Data.Geometry.Transform as T
+import System.IO.Unsafe
 
 import Data.Geometry.Structure.Feature
 import qualified Data.Geometry.Structure.PointSet as PS
@@ -312,7 +313,7 @@ luciBehavior lsettings geoJSONImportFire cityB groundUpdatedE
 --  asLikeJS b = case getProp "fibonacci_sequence" b of
 --                 Just x  -> TestFibonacci $ JS.asLikeJS x
 --                 Nothing -> TestFibonacci []
---  asJSVal (TestFibonacci xs) = setProp "fibonacci_sequence" xs newObj
+--  asJSVal (TestFibonacci xs) = setProp "fibonacci_sequence" xs (unsafePerformIO newObj)
 
 
 
@@ -323,11 +324,11 @@ data LuciScenario = LuciResultScenario ScenarioId ScenarioJSON UTCTime
 instance JS.LikeJS "Object" LuciScenario where
   asLikeJS jsv = LuciResultScenario
                   (fromMaybe 0 $ getProp "ScID" jsv)
-                  (fromMaybe (asLikeJS newObj) $ getProp "geometry_output" jsv)
+                  (fromMaybe (asLikeJS (unsafePerformIO newObj)) $ getProp "geometry_output" jsv)
                   (posixSecondsToUTCTime . realToFrac . secondsToDiffTime . fromMaybe 0 $ getProp "lastmodified" jsv)
   asJSVal (LuciResultScenario scId gi _)
       = setProp "ScID"  (JS.asJSVal scId)
-      $ setProp "geometry_output" gi newObj
+      $ setProp "geometry_output" gi (unsafePerformIO newObj)
 
 
 -- | Luci scenario
@@ -337,7 +338,7 @@ instance JS.LikeJS "Object" LuciScenarioCreated where
                                      (posixSecondsToUTCTime . realToFrac . secondsToDiffTime . fromMaybe 0 $ getProp "lastmodified" jsv)
   asJSVal (LuciResultScenarioCreated scId lm) =
             setProp "ScID"  (JS.asJSVal scId)
-          $ setProp "lastmodified" (round $ utcTimeToPOSIXSeconds lm :: Int) newObj
+          $ setProp "lastmodified" (round $ utcTimeToPOSIXSeconds lm :: Int) (unsafePerformIO newObj)
 
 -- | Pass the name of the scenario and a feature collection with geometry
 runScenarioCreate :: Behavior LuciClient
@@ -366,11 +367,11 @@ runScenarioCreate lcB e = runService lcB $ (\v -> ("scenario.geojson.Create", f 
                 (lon, lat, alt) = unpackV3 lonLatAlt
             Nothing -> object2
         object2 = case srid city of
-            (Just 4326) -> newObj -- srid is 4326 => we have already transformed it into metric
-            (Just s) -> setProp "srid" s newObj
-            Nothing -> newObj
+            (Just 4326) -> unsafePerformIO newObj -- srid is 4326 => we have already transformed it into metric
+            (Just s) -> setProp "srid" s (unsafePerformIO newObj)
+            Nothing -> unsafePerformIO newObj
         prop =  asJSVal $ csettings city
-               
+
 -- returns: "{"created":1470932237,"lastmodified":1470932237,"name":"dgdsfg","ScID":4}"
 
 runScenarioUpdate :: Behavior LuciClient
@@ -385,7 +386,7 @@ runScenarioUpdate lcB e = runService lcB $ (\v -> ("scenario.geojson.Update", f 
       [ ("ScID", JS.asJSVal scId)
       , ("geometry_input"
         ,   setProp "format"  ("GeoJSON" :: JSString)
-          $ setProp "geometry" collection newObj
+          $ setProp "geometry" collection (unsafePerformIO newObj)
         )
       ]
 
@@ -422,7 +423,7 @@ instance JS.LikeJS "Object" LuciResultScenarioList where
   asLikeJS b = case getProp "scenarios" b of
                  Just x  -> ScenarioList x
                  Nothing -> ScenarioList []
-  asJSVal (ScenarioList v) = setProp "scenarios" v newObj
+  asJSVal (ScenarioList v) = setProp "scenarios" v (unsafePerformIO newObj)
 
 
 data ScenarioDescription = ScenarioDescription
@@ -443,7 +444,7 @@ instance JS.LikeJS "Object" ScenarioDescription where
         f = posixSecondsToUTCTime . realToFrac . secondsToDiffTime . fromMaybe 0
   asJSVal scd =
           setProp "ScID" (sscId scd) . setProp "name" (scName scd)
-        . setProp "lastmodified" (f $ scModified scd :: Int) $ setProp "created" (f $ scCreated scd :: Int) newObj
+        . setProp "lastmodified" (f $ scModified scd :: Int) $ setProp "created" (f $ scCreated scd :: Int) (unsafePerformIO newObj)
       where
         f = round . utcTimeToPOSIXSeconds
 

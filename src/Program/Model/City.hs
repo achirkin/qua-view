@@ -56,6 +56,7 @@ import qualified Data.Geometry.Transform as T
 import qualified Data.Geometry.Structure.LineString as LS
 import qualified Data.Geometry.Structure.PointSet as PS
 import Data.Geometry.Structure.LinearRing (LinearRing ())
+import System.IO.Unsafe
 --import Data.Geometry.Transform
 --import Geometry.Structure
 
@@ -136,7 +137,7 @@ instance LikeJS "Object" CitySettings where
                   $ setProp      "useMapLayer"        (if useMapLayer csets then Just True else Nothing)
                   $ setProp      "mapZoomLevel"       (if useMapLayer csets then Just (mapZoomLevel csets) else Nothing)
                   $ setProp      "mapUrl"             (if useMapLayer csets then Just (mapUrl csets) else Nothing)
-                  $ setProp      "forcedArea"         (forcedArea csets) newObj
+                  $ setProp      "forcedArea"         (forcedArea csets) (unsafePerformIO newObj)
   asLikeJS val = defaultCitySettings
                       { defHeight = fromMaybe (defHeight defaultCitySettings) $ getDefHeight val
                       , evalCellSize = fromMaybe (evalCellSize defaultCitySettings) $ getEvalCellSize val
@@ -436,12 +437,23 @@ hideProps :: [JSString] -> [(JSString, JSVal)] -> [(JSString, JSVal)]
 hideProps hids = Prelude.filter (\(name,_) -> notElem name hids)
 
 fromPropsListToJSVal :: [(JSString, JSVal)] -> JSVal
-fromPropsListToJSVal = Prelude.foldr (uncurry setProp) newObj
+fromPropsListToJSVal ps = unsafePerformIO $ do
+    o <- newObj''
+    mapM_ (\(n, p) -> n `seq` p `seq` setProp'' o n p) ps
+    return o
 
+foreign import javascript unsafe "$r = {};"
+    newObj'' :: IO JSVal
+
+foreign import javascript unsafe "$1[$2] = $3;"
+    setProp'' :: JSVal -> JSString -> JSVal -> IO ()
 
 -- | Filter CityObject properties according to hiddenProperties settings
 shownProps :: City -> CityObject -> JSVal
-shownProps ci obj = fromPropsListToJSVal $ hideProps  (hiddenProperties $ csettings ci) (propsList obj)
+shownProps ci obj = fromPropsListToJSVal ps2
+    where
+      ps = propsList obj
+      ps2 = hideProps (hiddenProperties $ csettings ci) ps
 
 
 -- | Remove all geometry from city

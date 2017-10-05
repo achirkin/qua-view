@@ -64,6 +64,7 @@ import Data.Maybe (fromMaybe)
 import Data.IORef
 import Data.Monoid ((<>))
 import Data.Default.Class
+import System.IO.Unsafe
 
 
 import qualified Data.Map.Strict as Map
@@ -341,19 +342,19 @@ instance LikeJS "Object" MessageHeader where
       maybeUnknown j Nothing  = MsgUnknown j
       maybeUnknown _ (Just v) = v
   asJSVal (MsgRun i r props) = fromProps $ ("callID", JS.asJSVal i):("run", JS.asJSVal r):props
-  asJSVal (MsgCancel callID) = setProp "callID" callID newObj
+  asJSVal (MsgCancel callID) = setProp "callID" callID (unsafePerformIO newObj)
   asJSVal (MsgResult callID result) =
-          setProp "callID" callID $ setProp "result" result newObj
+          setProp "callID" callID $ setProp "result" result (unsafePerformIO newObj)
   asJSVal (MsgProgress callID  percentage result) =
           setProp "callID" callID
         . setProp "progress" percentage
-        $ setProp "intermediateResult" result newObj
-  asJSVal (MsgError _ err) = setProp "error" err newObj
-  asJSVal (MsgPanic panic) = setProp "panic" panic newObj
+        $ setProp "intermediateResult" result (unsafePerformIO newObj)
+  asJSVal (MsgError _ err) = setProp "error" err (unsafePerformIO newObj)
+  asJSVal (MsgPanic panic) = setProp "panic" panic (unsafePerformIO newObj)
   asJSVal (MsgUnknown j) = j
-  asJSVal (MsgWebSocketState (WsSuccess s))   = setProp "wsSuccess" s newObj
-  asJSVal (MsgWebSocketState (WsError s))     = setProp "wsError" s newObj
-  asJSVal (MsgWebSocketState (WsTerminate s)) = setProp "wsTerminate" s newObj
+  asJSVal (MsgWebSocketState (WsSuccess s))   = setProp "wsSuccess" s (unsafePerformIO newObj)
+  asJSVal (MsgWebSocketState (WsError s))     = setProp "wsError" s (unsafePerformIO newObj)
+  asJSVal (MsgWebSocketState (WsTerminate s)) = setProp "wsTerminate" s (unsafePerformIO newObj)
 
 
 data MessageAttachment = MessageAttachment
@@ -635,7 +636,7 @@ instance LikeJS "Object" LuciResultServiceList where
   asLikeJS b = case getProp "serviceNames" b of
                  Just x  -> ServiceList x
                  Nothing -> ServiceList JS.emptyArray
-  asJSVal (ServiceList v) = setProp "serviceNames" v newObj
+  asJSVal (ServiceList v) = setProp "serviceNames" v (unsafePerformIO newObj)
 
 
 

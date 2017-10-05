@@ -11,6 +11,7 @@ import Control.Monad (when)
 import Data.Geometry
 import Data.Coerce
 import qualified Data.Geometry.Transform as T
+import System.IO.Unsafe
 
 
 -- functional reactive programming
@@ -167,8 +168,8 @@ main = do
         reactimate $ groundUpdateRequestFire GroundClearRequest <$ motionRecordsE
 
       -- show building info on selection
-      let showInfoA _  Nothing  = GUI.showInfo newObj
-          showInfoA ci (Just i) = GUI.showInfo . maybe newObj (shownProps ci . T.unwrap) $ getObject i ci
+      let showInfoA _  Nothing  = GUI.showInfo (unsafePerformIO newObj)
+          showInfoA ci (Just i) = GUI.showInfo . maybe (unsafePerformIO newObj) (shownProps ci . T.unwrap) $ getObject i ci
       reactimate $ showInfoA <$> cityB <@> selObjIdE
 
       -- a little bit of logging
