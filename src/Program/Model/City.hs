@@ -31,7 +31,7 @@ module Program.Model.City
     -- | Load geometry
     , processScenario, scenarioViewScaling
     -- | Store geometry
-    , storeCityAsIs, storeObjectsAsIs
+    , storeCityAsIs, storeObjectsAsIs, storeCityWithProps
     -- | reactive-banana
     , cityBehavior
     , CityUpdate (..)
@@ -127,17 +127,21 @@ data CitySettings = CitySettings
     }
 
 instance LikeJS "Object" CitySettings where
-  asJSVal csets =   setProp      "defaultHeight"      (defHeight csets)
-                  $ setProp      "evaluationCellSize" (evalCellSize csets)
-                  $ setPropMaybe "defaultScale"       (defScale csets)
-                  $ setProp      "defaultBlockColor"  (defaultBlockColor csets)
-                  $ setProp      "defaultActiveColor" (defaultActiveColor csets)
-                  $ setProp      "defaultStaticColor" (defaultStaticColor csets)
-                  $ setProp      "defaultLineColor"   (defaultLineColor csets)
-                  $ setProp      "useMapLayer"        (if useMapLayer csets then Just True else Nothing)
-                  $ setProp      "mapZoomLevel"       (if useMapLayer csets then Just (mapZoomLevel csets) else Nothing)
-                  $ setProp      "mapUrl"             (if useMapLayer csets then Just (mapUrl csets) else Nothing)
-                  $ setProp      "forcedArea"         (forcedArea csets) (unsafePerformIO newObj)
+  {-# NOINLINE asJSVal #-}
+  asJSVal csets = unsafePerformIO $ do
+    o <- newObj
+    setProp o      "defaultHeight"      (defHeight csets)
+    setProp o      "evaluationCellSize" (evalCellSize csets)
+    setPropMaybe o "defaultScale"       (defScale csets)
+    setProp o      "defaultBlockColor"  (defaultBlockColor csets)
+    setProp o      "defaultActiveColor" (defaultActiveColor csets)
+    setProp o      "defaultStaticColor" (defaultStaticColor csets)
+    setProp o      "defaultLineColor"   (defaultLineColor csets)
+    setProp o      "useMapLayer"        (if useMapLayer csets then Just True else Nothing)
+    setProp o      "mapZoomLevel"       (if useMapLayer csets then Just (mapZoomLevel csets) else Nothing)
+    setProp o      "mapUrl"             (if useMapLayer csets then Just (mapUrl csets) else Nothing)
+    setProp o      "forcedArea"         (forcedArea csets)
+    return o
   asLikeJS val = defaultCitySettings
                       { defHeight = fromMaybe (defHeight defaultCitySettings) $ getDefHeight val
                       , evalCellSize = fromMaybe (evalCellSize defaultCitySettings) $ getEvalCellSize val
@@ -438,15 +442,10 @@ hideProps hids = Prelude.filter (\(name,_) -> notElem name hids)
 
 fromPropsListToJSVal :: [(JSString, JSVal)] -> JSVal
 fromPropsListToJSVal ps = unsafePerformIO $ do
-    o <- newObj''
-    mapM_ (\(n, p) -> n `seq` p `seq` setProp'' o n p) ps
+    o <- newObj
+    mapM_ (\(n, p) -> n `seq` p `seq` setProp o n p) ps
     return o
 
-foreign import javascript unsafe "$r = {};"
-    newObj'' :: IO JSVal
-
-foreign import javascript unsafe "$1[$2] = $3;"
-    setProp'' :: JSVal -> JSString -> JSVal -> IO ()
 
 -- | Filter CityObject properties according to hiddenProperties settings
 shownProps :: City -> CityObject -> JSVal
@@ -548,7 +547,24 @@ storeObjectsAsIs xs City
     , cityTransform = (scale, shift)
     } = JS.fromJSArray . JS.map (storeCityObject scale shift PlainFeature) $ JS.filter (\o -> geomId (T.unwrap o) `elem` xs) buildings
 
-
+storeCityWithProps :: City -> ScenarioJSON
+storeCityWithProps city = unsafePerformIO $ do
+  o <- newObj
+  case unpackV3 <$> originLonLatAlt city of
+    Nothing -> return ()
+    Just (lon, lat, alt) -> do
+      setProp o "lat" lat
+      setProp o "lon" lon
+      setProp o "alt" alt
+  case srid city of
+    Just 4326 -> return ()
+    Nothing -> return ()
+    Just s  -> setProp o "srid" s
+  setProp o "properties" (csettings city)
+  setProp o "format" ("GeoJSON" :: JSString)
+  setProp o "geometry" (storeCityAsIs city)
+  return $ ScenarioJSON o
+{-# NOINLINE storeCityWithProps #-}
 
 ----------------------------------------------------------------------------------------------------
 -- City Ground behavior Store

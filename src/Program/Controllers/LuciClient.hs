@@ -342,19 +342,30 @@ instance LikeJS "Object" MessageHeader where
       maybeUnknown j Nothing  = MsgUnknown j
       maybeUnknown _ (Just v) = v
   asJSVal (MsgRun i r props) = fromProps $ ("callID", JS.asJSVal i):("run", JS.asJSVal r):props
-  asJSVal (MsgCancel callID) = setProp "callID" callID (unsafePerformIO newObj)
-  asJSVal (MsgResult callID result) =
-          setProp "callID" callID $ setProp "result" result (unsafePerformIO newObj)
-  asJSVal (MsgProgress callID  percentage result) =
-          setProp "callID" callID
-        . setProp "progress" percentage
-        $ setProp "intermediateResult" result (unsafePerformIO newObj)
-  asJSVal (MsgError _ err) = setProp "error" err (unsafePerformIO newObj)
-  asJSVal (MsgPanic panic) = setProp "panic" panic (unsafePerformIO newObj)
+  asJSVal (MsgCancel callID) = unsafePerformIO $ newObj >>= \o -> o <$ setProp o "callID" callID
+  asJSVal (MsgResult callID result) = unsafePerformIO $ do
+    o <- newObj
+    setProp o "callID" callID
+    setProp o "result" result
+    return o
+  asJSVal (MsgProgress callID  percentage result) = unsafePerformIO $ do
+    o <- newObj
+    setProp o "callID" callID
+    setProp o "progress" percentage
+    setProp o "intermediateResult" result
+    return o
+  asJSVal (MsgError _ err)
+    = unsafePerformIO $ newObj >>= \o -> o <$ setProp o "error" err
+  asJSVal (MsgPanic panic)
+    = unsafePerformIO $ newObj >>= \o -> o <$ setProp o "panic" panic
   asJSVal (MsgUnknown j) = j
-  asJSVal (MsgWebSocketState (WsSuccess s))   = setProp "wsSuccess" s (unsafePerformIO newObj)
-  asJSVal (MsgWebSocketState (WsError s))     = setProp "wsError" s (unsafePerformIO newObj)
-  asJSVal (MsgWebSocketState (WsTerminate s)) = setProp "wsTerminate" s (unsafePerformIO newObj)
+  asJSVal (MsgWebSocketState (WsSuccess s))
+    = unsafePerformIO $ newObj >>= \o -> o <$ setProp o "wsSuccess" s
+  asJSVal (MsgWebSocketState (WsError s))
+    = unsafePerformIO $ newObj >>= \o -> o <$ setProp o "wsError" s
+  asJSVal (MsgWebSocketState (WsTerminate s))
+    = unsafePerformIO $ newObj >>= \o -> o <$ setProp o "wsTerminate" s
+  {-# NOINLINE asJSVal #-}
 
 
 data MessageAttachment = MessageAttachment
@@ -636,7 +647,9 @@ instance LikeJS "Object" LuciResultServiceList where
   asLikeJS b = case getProp "serviceNames" b of
                  Just x  -> ServiceList x
                  Nothing -> ServiceList JS.emptyArray
-  asJSVal (ServiceList v) = setProp "serviceNames" v (unsafePerformIO newObj)
+  asJSVal (ServiceList v)
+    = unsafePerformIO $ newObj >>= \o -> o <$ setProp o "serviceNames" v
+  {-# NOINLINE asJSVal #-}
 
 
 
