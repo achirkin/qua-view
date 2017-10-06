@@ -107,7 +107,7 @@ foreign import javascript unsafe "$2[$1]"
     js_getProp :: JSString -> JSVal -> JSVal
 
 -- To get a prop from "properties"
-{-# NOINLINE getProperty #-}
+{-# INLINE getProperty #-}
 getProperty :: LikeJS s a => JSString -> JSVal -> Maybe a
 getProperty name v = name `seq` v `seq` (asLikeJS $! js_getProperty name v)
 
@@ -115,18 +115,18 @@ foreign import javascript unsafe "($2.hasOwnProperty('properties') && $2['proper
                                  \ $2['properties'].hasOwnProperty($1)) ? $2['properties'][$1] : null"
     js_getProperty :: JSString -> JSVal -> JSVal
 
-{-# NOINLINE setProp #-}
-setProp :: LikeJS s a => JSString -> a -> JSVal -> JSVal
-setProp name prop o = name `seq` o `seq` prop `seq` js_setProp name (asJSVal prop) o
+{-# INLINE setProp #-}
+setProp :: LikeJS s a => JSVal -> JSString -> a -> IO ()
+setProp o name = js_setProp o name . asJSVal
 
-{-# NOINLINE setPropMaybe #-}
-setPropMaybe :: LikeJS s a => JSString -> Maybe a -> JSVal -> JSVal
-setPropMaybe name val o = name `seq` o `seq` val `seq` case val of
-                          Just v -> js_setProp name (asJSVal v) o
-                          Nothing -> o
+{-# INLINE setPropMaybe #-}
+setPropMaybe :: LikeJS s a => JSVal -> JSString -> Maybe a -> IO ()
+setPropMaybe o name val = case val of
+                          Just v -> js_setProp o name (asJSVal v)
+                          Nothing -> return ()
 
-foreign import javascript unsafe "$3[$1] = $2; $r = $3;"
-    js_setProp :: JSString -> JSVal -> JSVal -> JSVal
+foreign import javascript unsafe "$1[$2] = $3;"
+    js_setProp :: JSVal -> JSString -> JSVal -> IO ()
 
 fromProps :: [(JSString, JSVal)] -> JSVal
 fromProps xs = js_fromProps (JS.fromList keys) (JS.fromList vals)
@@ -137,7 +137,7 @@ foreign import javascript unsafe "var r = {}; $1.forEach(function(e,i){ r[e] = $
   js_fromProps :: JS.Array JSString -> JS.Array JSVal -> JSVal
 
 
-foreign import javascript unsafe "Object.keys($1)"
+foreign import javascript unsafe "Object['keys']($1)"
   js_getKeys :: JSVal -> JS.Array JSString
 
 

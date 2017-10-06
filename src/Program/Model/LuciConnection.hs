@@ -23,7 +23,6 @@ module Program.Model.LuciConnection
 --import Data.Geometry
 --import JsHs
 
-import Data.Geometry
 import JsHs.JSString (pack, unpack') -- JSString, append
 --import Control.Monad (void, when)
 import JsHs.Useful
@@ -326,9 +325,12 @@ instance JS.LikeJS "Object" LuciScenario where
                   (fromMaybe 0 $ getProp "ScID" jsv)
                   (fromMaybe (asLikeJS (unsafePerformIO newObj)) $ getProp "geometry_output" jsv)
                   (posixSecondsToUTCTime . realToFrac . secondsToDiffTime . fromMaybe 0 $ getProp "lastmodified" jsv)
-  asJSVal (LuciResultScenario scId gi _)
-      = setProp "ScID"  (JS.asJSVal scId)
-      $ setProp "geometry_output" gi (unsafePerformIO newObj)
+  asJSVal (LuciResultScenario scId gi _) = unsafePerformIO $ do
+    o <- newObj
+    setProp o "ScID" scId
+    setProp o "geometry_output" gi
+    return o
+  {-# NOINLINE asJSVal #-}
 
 
 -- | Luci scenario
@@ -336,9 +338,12 @@ data LuciScenarioCreated = LuciResultScenarioCreated ScenarioId UTCTime
 instance JS.LikeJS "Object" LuciScenarioCreated where
   asLikeJS jsv = LuciResultScenarioCreated (fromMaybe 0 $ getProp "ScID" jsv)
                                      (posixSecondsToUTCTime . realToFrac . secondsToDiffTime . fromMaybe 0 $ getProp "lastmodified" jsv)
-  asJSVal (LuciResultScenarioCreated scId lm) =
-            setProp "ScID"  (JS.asJSVal scId)
-          $ setProp "lastmodified" (round $ utcTimeToPOSIXSeconds lm :: Int) (unsafePerformIO newObj)
+  asJSVal (LuciResultScenarioCreated scId lm) = unsafePerformIO $ do
+    o <- newObj
+    setProp o "ScID"  scId
+    setProp o "lastmodified" (round $ utcTimeToPOSIXSeconds lm :: Int)
+    return o
+  {-# NOINLINE asJSVal #-}
 
 -- | Pass the name of the scenario and a feature collection with geometry
 runScenarioCreate :: Behavior LuciClient
@@ -349,28 +354,15 @@ runScenarioCreate :: Behavior LuciClient
                   -> MomentIO (Event (ServiceResponse LuciScenarioCreated))
 runScenarioCreate lcB e = runService lcB $ (\v -> ("scenario.geojson.Create", f v, [])) <$> e
   where
-    f (name, city) =
-      [ ("name", JS.asJSVal name)
-      , ("geometry_input"
-        ,   setProp "format"  ("GeoJSON" :: JSString)
-          $ setProp "geometry" (storeCityAsIs city)
-          $ setProp "properties" prop object1
-        )
-      ]
-      where
-        object1 = case originLonLatAlt city of
-            (Just lonLatAlt) ->
-                  setProp "lat" lat
-                $ setProp "lon" lon
-                $ setProp "alt" alt object2
-              where
-                (lon, lat, alt) = unpackV3 lonLatAlt
-            Nothing -> object2
-        object2 = case srid city of
-            (Just 4326) -> unsafePerformIO newObj -- srid is 4326 => we have already transformed it into metric
-            (Just s) -> setProp "srid" s (unsafePerformIO newObj)
-            Nothing -> unsafePerformIO newObj
-        prop =  asJSVal $ csettings city
+    {-# NOINLINE f #-}
+    f (name, city) = unsafePerformIO $ do
+      let ScenarioJSON o = storeCityWithProps city
+      setProp o "name" name
+      return
+          [ ("name", JS.asJSVal name)
+          , ("geometry_input", o)
+          ]
+
 
 -- returns: "{"created":1470932237,"lastmodified":1470932237,"name":"dgdsfg","ScID":4}"
 
@@ -385,8 +377,11 @@ runScenarioUpdate lcB e = runService lcB $ (\v -> ("scenario.geojson.Update", f 
     f (scId, collection) =
       [ ("ScID", JS.asJSVal scId)
       , ("geometry_input"
-        ,   setProp "format"  ("GeoJSON" :: JSString)
-          $ setProp "geometry" collection (unsafePerformIO newObj)
+        , unsafePerformIO $ do
+            o <- newObj
+            setProp o "format" ("GeoJSON" :: JSString)
+            setProp o "geometry" collection
+            return o
         )
       ]
 
@@ -423,7 +418,8 @@ instance JS.LikeJS "Object" LuciResultScenarioList where
   asLikeJS b = case getProp "scenarios" b of
                  Just x  -> ScenarioList x
                  Nothing -> ScenarioList []
-  asJSVal (ScenarioList v) = setProp "scenarios" v (unsafePerformIO newObj)
+  asJSVal (ScenarioList v) = unsafePerformIO $ newObj >>= \o -> o <$ setProp o "scenarios" v
+  {-# NOINLINE asJSVal #-}
 
 
 data ScenarioDescription = ScenarioDescription
@@ -442,11 +438,16 @@ instance JS.LikeJS "Object" ScenarioDescription where
     }
       where
         f = posixSecondsToUTCTime . realToFrac . secondsToDiffTime . fromMaybe 0
-  asJSVal scd =
-          setProp "ScID" (sscId scd) . setProp "name" (scName scd)
-        . setProp "lastmodified" (f $ scModified scd :: Int) $ setProp "created" (f $ scCreated scd :: Int) (unsafePerformIO newObj)
+  asJSVal scd = unsafePerformIO $ do
+    o <- newObj
+    setProp o "ScID" (sscId scd)
+    setProp o "name" (scName scd)
+    setProp o "lastmodified" (f $ scModified scd :: Int)
+    setProp o "created" (f $ scCreated scd :: Int)
+    return o
       where
         f = round . utcTimeToPOSIXSeconds
+  {-# NOINLINE asJSVal #-}
 
 
 

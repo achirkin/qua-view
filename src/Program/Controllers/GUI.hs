@@ -172,13 +172,13 @@ foreign import javascript safe "showInfo($1)" showInfo :: JSVal -> IO ()
 
 
 -- | Registers one callback; comes from Handler.Home.UIButtons.
---   onClick ::  (submitUrl -> FeatureCollection -> Image -> IO ()) -> IO ()
+--   onClick ::  (submitUrl -> ScenarioJSON -> Image -> IO ()) -> IO ()
 --   return :: IO ()
-registerSubmit :: (((JSString, FeatureCollection, JSVal) -> IO ()) -> IO ()) -> IO ()
+registerSubmit :: (((JSString, ScenarioJSON, JSVal) -> IO ()) -> IO ()) -> IO ()
 registerSubmit c =  asyncCallback1  (c . (\f (u,d,i) -> f u d i) . js_uncallback3) >>= js_registerSubmit
 foreign import javascript safe "registerSubmit($1)" js_registerSubmit :: Callback (JSVal -> IO ()) -> IO ()
 foreign import javascript safe "$1($2,$3,$4)"
-  js_uncallback3 :: JSVal -> JSString -> FeatureCollection -> JSVal -> IO ()
+  js_uncallback3 :: JSVal -> JSString -> ScenarioJSON -> JSVal -> IO ()
 
 
 -- | Registers one callback; comes from Handler.Home.UIButtons.

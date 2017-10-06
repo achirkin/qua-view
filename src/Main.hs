@@ -212,7 +212,7 @@ main = do
           waitForPictureE <- mapEventIO (\f -> wantPictureFire WantPicture >> return f) submissionE
           waitForPictureB <- stepper (return (return ())) waitForPictureE
           reactimate $ (\s c f p -> let construct Nothing = return ()
-                                        construct (Just url) = f (url, storeCityAsIs c, asJSVal p)
+                                        construct (Just url) = f (url, storeCityWithProps c, asJSVal p)
                                     in construct $ submitUrl s
                        ) <$> settingsB <*> cityB <*> waitForPictureB <@> pictureE
 
