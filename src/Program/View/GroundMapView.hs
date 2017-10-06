@@ -67,9 +67,6 @@ createGroundMapView :: WebGLRenderingContext
                     -> Vector 3 GLfloat -- ^ longitude, latitude, altitude of origin
                     -> IO GroundMapView
 createGroundMapView gl mapUrl zoomlvl (vscale, vshift) lonlatalt = do
-    buf <- createBuffer gl
-    bindBuffer gl gl_ARRAY_BUFFER buf
-    bufferData gl gl_ARRAY_BUFFER arrayBuffer gl_STATIC_DRAW
     let gmv = GroundMapView (vector2 lon0 lat0) pos0 (xtile0,ytile0) tileWidth zoomlvl Map.empty mapUrl
     tiles <- Map.fromList <$> mapM (\p -> (,) p <$> createGroundMapCell gl gmv p)
                 ( sortOn (\(i,j) -> (i - xtile0)*(i - xtile0) + (j - ytile0)*(j - ytile0))
@@ -78,7 +75,6 @@ createGroundMapView gl mapUrl zoomlvl (vscale, vshift) lonlatalt = do
     return $ gmv {gmvTiles = tiles}
   where
     (lon, lat, _) = unpackV3 lonlatalt
-    arrayBuffer = packPoints (groundPoints pos0 tileWidth) groundNormals groundTexCoords
     -- set up the center point to real center of the tile
     (xtile0,ytile0) = zoomLonLat2xy zoomlvl (lon,lat)
     (lon0, lat0) = zoomXY2LonLat zoomlvl (xtile0,ytile0)
