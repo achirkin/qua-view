@@ -25,18 +25,20 @@ module Program.View.GroundMapView
 import JsHs.Types
 import JsHs.WebGL
 import JsHs.JSString
-import Data.IORef
+import Control.Concurrent.Chan
 import Data.List (sortOn)
+import Data.IORef
 import qualified Data.JSString as JSString
 import Control.Concurrent (forkIO)
 import Data.Function ((&))
-import Control.Monad ((<=<))
+import Control.Monad ((<=<), forever, join)
 import Data.Geometry
 import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 
 import Program.View
 
+import GHCJS.Concurrent
 import SmallGL.WritableVectors
 import JsHs.Array
 import qualified Data.Geometry.Structure.PointSet as PS
@@ -68,10 +70,12 @@ createGroundMapView :: WebGLRenderingContext
                     -> IO GroundMapView
 createGroundMapView gl mapUrl zoomlvl (vscale, vshift) lonlatalt = do
     let gmv = GroundMapView (vector2 lon0 lat0) pos0 (xtile0,ytile0) tileWidth zoomlvl Map.empty mapUrl
-    tiles <- Map.fromList <$> mapM (\p -> (,) p <$> createGroundMapCell gl gmv p)
+    loadingchannel <- newChan
+    tiles <- Map.fromList <$> mapM (\p -> (,) p <$> createGroundMapCell loadingchannel gl gmv p)
                 ( sortOn (\(i,j) -> (i - xtile0)*(i - xtile0) + (j - ytile0)*(j - ytile0))
                          [(xtile0+i,ytile0+j) | i <- [- nTiles .. nTiles -1], j <- [- nTiles .. nTiles -1]]
                 )
+    _ <- forkIO . forever . Control.Monad.join $ readChan loadingchannel
     return $ gmv {gmvTiles = tiles}
   where
     (lon, lat, _) = unpackV3 lonlatalt
@@ -93,18 +97,21 @@ createGroundMapView gl mapUrl zoomlvl (vscale, vshift) lonlatalt = do
 
 
 
-createGroundMapCell :: WebGLRenderingContext
+createGroundMapCell :: Chan (IO ())
+                    -> WebGLRenderingContext
                     -> GroundMapView
                     -> (Int, Int) -- ^ tile x and y
                     -> IO (IORef (Maybe GroundMapCell))
-createGroundMapCell gl GroundMapView{..} tilexy@(x,y) = do
+createGroundMapCell loadingchannel gl GroundMapView{..} tilexy@(x,y) = do
     buf <- createBuffer gl
     bindBuffer gl gl_ARRAY_BUFFER buf
     bufferData gl gl_ARRAY_BUFFER arrayBuffer gl_STATIC_DRAW
     gmc <- newIORef Nothing
-    _ <- forkIO $ createTex gmvMapUrl gmvZoomLevel tilexy
-                >>= initTexture gl . Left
-                >>= writeIORef gmc . Just . GroundMapCell buf
+    _ <- forkIO $ do
+       img <- createTex gmvMapUrl gmvZoomLevel tilexy
+       writeChan loadingchannel . withoutPreemption $ do
+         tex <- initTexture gl (Left img)
+         writeIORef gmc . Just $ GroundMapCell buf tex
     return gmc
   where
     arrayBuffer = packPoints (groundPoints (gmvLocalCenter + vector3 xx yy 0) gmvCellWidth)
@@ -112,8 +119,6 @@ createGroundMapCell gl GroundMapView{..} tilexy@(x,y) = do
                               groundTexCoords
     xx = (gmvCellWidth *) . fromIntegral $ x - fst gmvTileCenter
     yy = (gmvCellWidth *) . fromIntegral $ snd gmvTileCenter - y
-
-
 
 
 

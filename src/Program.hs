@@ -21,6 +21,7 @@ module Program where
 --import Controllers.GUIEvents
 
 --import JavaScript.Web.Canvas (Canvas)
+import GHCJS.Concurrent
 import JsHs.WebGL
 --import JsHs.Types
 import qualified JsHs.Array as JS
@@ -89,7 +90,7 @@ data PView = PView
 
 
 renderScene :: IO (Maybe PictureVal) -> Program -> PView -> Time -> IO (PView, Maybe PictureVal)
-renderScene getPicture program view ctime = do
+renderScene getPicture program view ctime = withoutPreemption $ do
     -- selector rendering
     ctx' <- applySelector (context view) (camera program) (city program) (cityView view)
     -- prepare rendering
@@ -126,10 +127,10 @@ viewBehavior canvas wantPicE resEvents cityUpdates renderings vsResultsE program
                                          (vector3 (-0.5) (-0.6) (-1)) resEvents
     ictx <- valueB ctxB
     -- init object views
-    dgview <- liftIO $ createView gl (decGrid iprog)
-    cview <- liftIO $ createView gl (city iprog)
+    dgview <- liftIO . withoutPreemption $ createView gl (decGrid iprog)
+    cview <- liftIO . withoutPreemption$ createView gl (city iprog)
     cUpdatesDelayed <- mapEventIO (\x -> return x) cityUpdates -- threadDelay 1000000 >>
-    cviewE <- mapEventIO (\(pv, RequireViewUpdate c) -> updateView gl c (cityView pv)
+    cviewE <- mapEventIO (\(pv, RequireViewUpdate c) -> withoutPreemption $ updateView gl c (cityView pv)
                          ) $ (,) <$> pviewB <@> cUpdatesDelayed
 
     -- done!
