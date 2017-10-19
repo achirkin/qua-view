@@ -214,7 +214,7 @@ boundingRectangle s = (unproj center, unproj x, unproj y)
     where set = toPointArray s
           v@(px:py:_) = pcaVectors set
           projset = projectND' (Prelude.map unit v) set
-          (_,_,center, x, y) = js_minRectAngle projset
+          (_, center, x, y) = js_minRectAngle projset
           unproj p2d = case unpackV2 p2d of (i,j) -> broadcastVector i * px + broadcastVector j * py
 
 
@@ -222,12 +222,11 @@ boundingRectangle s = (unproj center, unproj x, unproj y)
 boundingRectangle2D :: (PointSet s 2 x, Fractional x, JSNum x)
                     => s -> (Vector 2 x, Vector 2 x, Vector 2 x)
 boundingRectangle2D s = (center, x, y)
-    where (_,_,center, x, y) = js_minRectAngle $ toPointArray s
+    where (_, center, x, y) = js_minRectAngle $ toPointArray s
 
 {-# INLINE js_minRectAngle #-}
--- TODO: gm$minRectAngle sometimes returns [0,0] for Y direction!
-foreign import javascript unsafe "var rez = gm$minRectAngle(gm$GrahamScan($1)); $r1 = rez[0]; $r2 = rez[1]; $r3 = rez[2]; $r4 = rez[3]; $r5 = rez[4];"
-    js_minRectAngle :: PointArray 2 x -> (Double,Double, Vector2 x, Vector2 x, Vector2 x)
+foreign import javascript unsafe "var rez = getMinAreaBoundRect(gm$GrahamScan($1)); $r1 = rez[0]; $r2 = rez[1]; $r3 = rez[2]; $r4 = rez[3];"
+    js_minRectAngle :: PointArray 2 x -> (Double, Vector2 x, Vector2 x, Vector2 x)
 
 {-# INLINE js_mapPointArray #-}
 foreign import javascript unsafe "$2.map($1)"
