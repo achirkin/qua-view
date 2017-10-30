@@ -27,8 +27,7 @@ panelInfo :: Reflex t
           => ReaderT (Dynamic t Settings) (WidgetWithLogs x) ()
 panelInfo = do
   settingsD <- ask
-  reviewSettingsE <- httpGet $ fmapMaybe id $
-                       reviewSettingsUrl <$> updated settingsD
+  reviewSettingsE <- httpGetNowOrOnUpdate $ reviewSettingsUrl <$> settingsD
   reviewSettingsD <- holdDyn (Left $ JSError "Loading...") reviewSettingsE
   void $ lift $ dyn $ renderPanelInfo <$> reviewSettingsD
 

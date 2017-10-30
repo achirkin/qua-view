@@ -6,6 +6,7 @@
 module Commons.Http
     ( httpGet
     , httpGetNow
+    , httpGetNowOrOnUpdate
     , httpPost
     ) where
 
@@ -53,10 +54,23 @@ httpGetNow :: forall t b m
             . ( FromJSON b, TriggerEvent t m
               , Reflex t, HasJSContext m, MonadJSM m )
            => JSString -> m (Event t (Either JSError b))
-httpGetNow s = do
+httpGetNow url = do
   (e, t) <- newTriggerEvent
-  doHttp (getReqConfig s) t
+  doHttp (getReqConfig url) t
   return e
+
+-- | execute HTTP GET immediately if called with a Dynamic that currently
+--   holds `Just url`, execute upon Dynamic change otherwise
+httpGetNowOrOnUpdate :: forall t b m
+                     . ( FromJSON b, TriggerEvent t m, PerformEvent t m, MonadSample t m
+                       , HasJSContext (Performable m), MonadIO (Performable m)
+                       , Reflex t, HasJSContext m, MonadJSM m )
+                     => Dynamic t (Maybe JSString) -> m (Event t (Either JSError b))
+httpGetNowOrOnUpdate mUrlD = do
+  mUrl <- sample $ current mUrlD
+  case mUrl of
+    Just url -> httpGetNow url
+    Nothing  -> httpGet $ fmapMaybe id $ updated mUrlD
 
 -- | make HTTP request immediately
 doHttp :: forall t a b m
