@@ -31,7 +31,7 @@ custom-setup
 executable qua-view
 
     if flag(dev)
-        cpp-options: -DDEVELOPMENT
+        cpp-options: -DDEVELOPMENT -DLOGLEVEL=0
         ghc-options: -O0
     else
         ghc-options: -O2 -dedupe
