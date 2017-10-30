@@ -27,14 +27,16 @@ panelInfo :: Reflex t
           => ReaderT (Dynamic t Settings) (WidgetWithLogs x) ()
 panelInfo = do
   settingsD <- ask
-  reviewSettingsE <- httpGetNowOrOnUpdate $ reviewSettingsUrl <$> settingsD
-  reviewSettingsD <- holdDyn (Left $ JSError "Loading...") reviewSettingsE
+  eitherReviewSettingsE <- httpGetNowOrOnUpdate $ reviewSettingsUrl
+                                               <$> settingsD
+  reviewSettingsE <- lift $ renderError eitherReviewSettingsE
+  reviewSettingsD <- holdDyn Nothing $ Just <$> reviewSettingsE
   void $ lift $ dyn $ renderPanelInfo <$> reviewSettingsD
 
 renderPanelInfo :: Reflex t
-                => Either JSError ReviewSettings -> WidgetWithLogs x ()
-renderPanelInfo (Left (JSError err)) = text $ textFromJSString err
-renderPanelInfo (Right reviewSettings) = do
+                => Maybe ReviewSettings -> WidgetWithLogs x ()
+renderPanelInfo Nothing = blank
+renderPanelInfo (Just reviewSettings) = do
     responseE <- renderWriteReview reviewSettings
     reviewsD  <- accum accumRevs (reviews reviewSettings) responseE
     let crits = criterions reviewSettings
@@ -43,14 +45,16 @@ renderPanelInfo (Right reviewSettings) = do
     accumRevs revs (Right newRev) = newRev:revs
     accumRevs revs (Left _)       = revs
 
+-- draws the write-review-text-entry component if ReviewSettings contains `Just reviewsUrl`.
+-- Returns event of posted review, or error on unsuccessful post.
 renderWriteReview :: Reflex t
                   => ReviewSettings
                   -> WidgetWithLogs x (Event t (Either JSError TReview))
-renderWriteReview reviewSettings =
+renderWriteReview (ReviewSettings crits _ (Just revsUrl)) =
   elClass "div" ("card " <> writeReviewClass) $
     elClass "div" "form-group form-group-label" $ mdo
       textD  <- renderTextArea resetTextE "Write a review"
-      critD  <- renderCriterions $ criterions reviewSettings
+      critD  <- renderCriterions crits
       thumbD <- renderThumbs
 
       let hideStateD = hideState <$> critD <*> thumbD
@@ -60,12 +64,12 @@ renderWriteReview reviewSettings =
                                         <*> current thumbD
                                         <*> current textD
                                         <@ clickE
-      responseE <- httpPost $ (,) (reviewsUrl reviewSettings) <$> postDataOnClickE
+      responseE <- httpPost $ (,) revsUrl <$> postDataOnClickE
       let reset (Right _) = Just ""
           reset _         = Nothing
       let resetTextE = fmapMaybe reset responseE
 
-      renderError responseE
+      _ <- renderError responseE
       return responseE
   where
     writeReviewClass = $(do
@@ -86,6 +90,7 @@ renderWriteReview reviewSettings =
           |]
         returnVars [reviewCls]
       )
+renderWriteReview _ = return never
 
 renderReview :: Reflex t
              => [TCriterion] -> TReview -> WidgetWithLogs x ()
@@ -117,16 +122,17 @@ renderReview crits r = elClass "div" ("card " <> reviewClass) $
         returnVars [reviewCls, critCls]
       )
 
+-- either renders the `JSError` or fires the returned event which contains `a`
 renderError :: Reflex t
-            => Event t (Either JSError a) -> WidgetWithLogs x ()
-renderError event =
-  (holdDyn Nothing $ filterNonErr <$> event)
-    >>= void . dyn . fmap renderErr
+            => Event t (Either JSError a)
+            -> WidgetWithLogs x (Event t a)
+renderError event = do
+  let (errE, resultE) = fanEither event
+  holdDyn Nothing (Just <$> errE) >>= void . dyn . fmap renderErr
+  return resultE
   where
-    renderErr (Just err) = el "div" $ text $ textFromJSString err
+    renderErr (Just err) = el "div" $ text $ textFromJSString $ getJSError err
     renderErr Nothing    = blank
-    filterNonErr (Left (JSError err)) = Just err
-    filterNonErr _ = Nothing
 
 -- render bootstrapified textarea and return dynamic of text it contains
 renderTextArea :: Reflex t
