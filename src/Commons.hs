@@ -9,7 +9,6 @@ module Commons
     , module Commons.Import
 #ifndef ISWORKER
     , module Commons.Http
-    , module Types
 #endif
       -- * Logging facilities
     , module Commons.Logger
@@ -20,7 +19,6 @@ module Commons
 
 #ifndef ISWORKER
 import Commons.Http
-import Types
 #endif
 import Commons.Import
 import Commons.Local

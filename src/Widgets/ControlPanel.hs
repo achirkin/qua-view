@@ -14,6 +14,7 @@ import qualified Reflex.Dom as Dom
 
 import Commons
 import Control.Monad.Trans.Reader
+import qualified QuaTypes
 import Widgets.Generation
 import Widgets.ControlButtons
 import Widgets.Logger
@@ -26,7 +27,7 @@ import Widgets.Tabs.Services
 -- | Control panel widget is a place for all controls in qua-view!
 controlPanel :: Reflex t
              => EventSelector t CompState
-             -> ReaderT (Dynamic t Settings) (WidgetWithLogs x)
+             -> ReaderT (Dynamic t QuaTypes.Settings) (WidgetWithLogs x)
                           ( Event t (ElementClick "Reset Camera")
                           , Dynamic t (ComponentState "ControlPanel")
                           , EventSelector t GeometryTabOutE
