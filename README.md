@@ -56,6 +56,21 @@ Also have a look at the following file for `GHCJS` and `JavaScript` module docs
 and this [Reflex tutorial](https://github.com/reflex-frp/reflex-platform#tutorial)
 and [function reference](https://github.com/reflex-frp/reflex/blob/develop/Quickref.md).
 
+#### Hoogle for both qua-server and qua-view
+
+```
+cd [root qua-kit folder]
+stack install hoogle
+pushd apps/hs/qua-server
+stack haddock
+popd
+pushd apps/hs/qua-view
+stack haddock
+popd
+stack exec hoogle -- generate --local=apps/hs/qua-server/.stack-work/install/x86_64-linux/lts-8.21/8.0.2/doc --local=apps/hs/qua-view/.stack-work/install/x86_64-linux/lts-8.21/ghcjs-0.2.1.9008021_ghc-8.0.2/doc
+stack exec hoogle -- server --port=8080 --local
+```
+
 ### Build the project
 
 Finally, you can generate the website into the `/web` directory:
