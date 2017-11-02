@@ -18,6 +18,8 @@ import Data.Maybe
 import Data.JSString.Text (textFromJSString, textToJSString)
 import Data.Text
 import Data.Time.Format
+import QuaTypes
+import QuaTypes.Review
 import Reflex.Dom
 import Widgets.Commons
 import Widgets.Generation
@@ -49,7 +51,7 @@ renderPanelInfo (Just reviewSettings) = do
 -- Returns event of posted review, or error on unsuccessful post.
 renderWriteReview :: Reflex t
                   => ReviewSettings
-                  -> WidgetWithLogs x (Event t (Either JSError TReview))
+                  -> WidgetWithLogs x (Event t (Either JSError Review))
 renderWriteReview (ReviewSettings crits _ (Just revsUrl)) =
   elClass "div" ("card " <> writeReviewClass) $
     elClass "div" "form-group form-group-label" $ mdo
@@ -93,19 +95,19 @@ renderWriteReview (ReviewSettings crits _ (Just revsUrl)) =
 renderWriteReview _ = return never
 
 renderReview :: Reflex t
-             => [TCriterion] -> TReview -> WidgetWithLogs x ()
+             => [Criterion] -> Review -> WidgetWithLogs x ()
 renderReview crits r = elClass "div" ("card " <> reviewClass) $
   el "div" $ do
-    renderCrit $ tReviewCriterionId r
-    elClass "span" "icon" $ text $ showThumb $ tReviewThumb r
-    text $ pack $ ' ' : (formatTime defaultTimeLocale "%F, %R - " $ tReviewTimestamp r)
-    text $ textFromJSString $ tReviewUserName r <> ": "
-    el "p" $ text $ textFromJSString $ tReviewComment r
+    renderCrit $ reviewCriterionId r
+    elClass "span" "icon" $ text $ showThumb $ reviewThumb r
+    text $ pack $ ' ' : (formatTime defaultTimeLocale "%F, %R - " $ reviewTimestamp r)
+    text $ textFromJSString $ reviewUserName r <> ": "
+    el "p" $ text $ textFromJSString $ reviewComment r
   where
     renderCrit critId =
-      void $ for [ c | c <- crits, critId == tCriterionId c] $ \c -> do
+      void $ for [ c | c <- crits, critId == criterionId c] $ \c -> do
         (spanEl, ()) <- elClass' "span" critClass $ return ()
-        setInnerHTML spanEl $ tCriterionIcon c
+        setInnerHTML spanEl $ criterionIcon c
     (reviewClass, critClass) = $(do
         reviewCls <- newVar
         critCls   <- newVar
@@ -147,17 +149,17 @@ renderTextArea setValE label = do
 
 -- render supplied criterios and return dynamic with criterionId of selected one
 renderCriterions :: Reflex t
-                 => [TCriterion] -> WidgetWithLogs x (Dynamic t (Maybe Int))
+                 => [Criterion] -> WidgetWithLogs x (Dynamic t (Maybe Int))
 renderCriterions crits = elClass "span" critsClass $ mdo
     let critE = leftmost critEs
     critEs <- for crits $ \c -> do
-      let critId        = tCriterionId c
+      let critId        = criterionId c
           chooseStyle mi _
             | Just i <- mi, i == critId = activeStyle
             | otherwise                 = inactiveStyle
       critAttrD <- foldDyn chooseStyle inactiveStyle critE
       (spanEl, ()) <- elDynAttr' "span" critAttrD $ return ()
-      setInnerHTML spanEl $ tCriterionIcon c
+      setInnerHTML spanEl $ criterionIcon c
       return $ (Just critId) <$ domEvent Click spanEl
     holdDyn Nothing critE
   where
