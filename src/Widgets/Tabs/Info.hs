@@ -14,7 +14,6 @@ module Widgets.Tabs.Info
 
 import Commons
 import Control.Monad.Trans.Reader
-import Data.Maybe
 import Data.JSString.Text (textFromJSString, textToJSString)
 import Data.Text
 import Data.Time.Format
@@ -60,12 +59,12 @@ renderWriteReview (ReviewSettings crits _ (Just revsUrl)) =
       thumbD <- renderThumbs
 
       let hideStateD = hideState <$> critD <*> thumbD
-      clickE <- buttonFlatHideDyn hideStateD "Send" mempty
+      clickE <- buttonFlatDyn hideStateD "Send" mempty
 
-      let postDataOnClickE = ReviewPost <$> fromJust <$> current critD
-                                        <*> current thumbD
-                                        <*> current textD
-                                        <@ clickE
+      let postDataOnClickE = (\th te c -> ReviewPost c th te)
+                                         <$> current thumbD
+                                         <*> current textD
+                                         <@> fmapMaybe id (current critD <@ clickE)
       responseE <- httpPost $ (,) revsUrl <$> postDataOnClickE
       let reset (Right _) = Just ""
           reset _         = Nothing
@@ -100,7 +99,7 @@ renderReview crits r = elClass "div" ("card " <> reviewClass) $
   el "div" $ do
     renderCrit $ reviewCriterionId r
     elClass "span" "icon" $ text $ showThumb $ reviewThumb r
-    text $ pack $ ' ' : (formatTime defaultTimeLocale "%F, %R - " $ reviewTimestamp r)
+    text $ pack $ ' ' : formatTime defaultTimeLocale "%F, %R - " (reviewTimestamp r)
     text $ textFromJSString $ reviewUserName r <> ": "
     el "p" $ text $ textFromJSString $ reviewComment r
   where
@@ -147,7 +146,7 @@ renderTextArea setValE label = do
   t <- textArea config
   return $ textToJSString <$> _textArea_value t
 
--- render supplied criterios and return dynamic with criterionId of selected one
+-- | Render supplied criterios and return dynamic with criterionId of selected one
 renderCriterions :: Reflex t
                  => [Criterion] -> WidgetWithLogs x (Dynamic t (Maybe Int))
 renderCriterions crits = elClass "span" critsClass $ mdo
@@ -160,7 +159,7 @@ renderCriterions crits = elClass "span" critsClass $ mdo
       critAttrD <- foldDyn chooseStyle inactiveStyle critE
       (spanEl, ()) <- elDynAttr' "span" critAttrD $ return ()
       setInnerHTML spanEl $ criterionIcon c
-      return $ (Just critId) <$ domEvent Click spanEl
+      return $ Just critId <$ domEvent Click spanEl
     holdDyn Nothing critE
   where
     critsClass = $(do

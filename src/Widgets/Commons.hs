@@ -6,9 +6,8 @@
 
 module Widgets.Commons
     ( -- * Buttons
-      buttonFlat
+      buttonFlat, buttonFlatDyn
     , buttonRed
-    , buttonFlatHideDyn
       -- * Common classes to use
     , smallMarginClass
     ) where
@@ -31,15 +30,16 @@ buttonFlat name moreAttrs = do
     attrs = "class" =: ("btn btn-flat btn-brand-accent waves-attach waves-effect " <> smallMarginClass) <> moreAttrs
 
 -- | Render a button with a click event attached.
---   Hide the button if supplied Dynamic ComponentState is Inactive
+--   Hide the button if supplied Dynamic ComponentState is Inactive,
+--   show button if the supplied state is Active.
 --   Click event is labeled with a component name.
-buttonFlatHideDyn :: forall s t m
+buttonFlatDyn :: forall s t m
                    . (Reflex t, DomBuilder t m, PostBuild t m)
                   => Dynamic t (ComponentState s) -- ^ Active or Inactive
                   -> Text          -- ^ name of the button
                   -> Map Text Text -- ^ additional attributes
                   -> m (Event t (ElementClick s))
-buttonFlatHideDyn stateDyn name moreAttrs = do
+buttonFlatDyn stateDyn name moreAttrs = do
     (e, _) <- elDynAttr' "a" (fmap stateToAttr stateDyn) $ text name
     return $ ElementClick <$ domEvent Click e
   where
