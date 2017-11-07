@@ -4,6 +4,8 @@
 {-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE FlexibleContexts #-}
 module Widgets.ControlPanel
     ( controlPanel
     ) where
@@ -11,6 +13,8 @@ module Widgets.ControlPanel
 import qualified Reflex.Dom as Dom
 
 import Commons
+import Control.Monad.Trans.Reader
+import qualified QuaTypes
 import Widgets.Generation
 import Widgets.ControlButtons
 import Widgets.Logger
@@ -23,14 +27,15 @@ import Widgets.Tabs.Services
 -- | Control panel widget is a place for all controls in qua-view!
 controlPanel :: Reflex t
              => EventSelector t CompState
-             -> WidgetWithLogs x
+             -> ReaderT (Dynamic t QuaTypes.Settings) (WidgetWithLogs x)
                           ( Event t (ElementClick "Reset Camera")
                           , Dynamic t (ComponentState "ControlPanel")
                           , EventSelector t GeometryTabOutE
                           , LoggerFunc
                           )
 controlPanel compStates = mdo
-    r@(_, stateD, _, _) <- Dom.elDynClass "div" (toClass <$> stateD) $ mdo
+    settingsD <- ask
+    r@(_, stateD, _, _) <- lift $ Dom.elDynClass "div" (toClass <$> stateD) $ mdo
 
       -- tab pane
       outputEvs <-
@@ -38,7 +43,7 @@ controlPanel compStates = mdo
           Dom.elAttr "div" ("style" =: "margin: 0; padding: 0; height: 56px;") Dom.blank
           runTabWidget $ do
             gr <- addTab "Geometry" (panelGeometry compStates)
-            addTab "Info" panelInfo
+            addTab "Info" (runReaderT panelInfo settingsD)
             addTab "Services" panelServices
             return gr
 
@@ -98,5 +103,3 @@ controlPanel compStates = mdo
         -- Combine two classes: {.base .base-open} and {.base .base-closed}
         returnVars $ fmap ((baseclass <> " ") <>) [ostate, cstate]
       )
-
-
