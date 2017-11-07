@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 -- | This module should not depend on anything in qua-view.
 --   It can be imported by any other modules to use certain handy functions or types.
 module Commons
@@ -5,6 +7,9 @@ module Commons
       module Commons.Local
       -- * Foreign modules
     , module Commons.Import
+#ifndef ISWORKER
+    , module Commons.Http
+#endif
       -- * Logging facilities
     , module Commons.Logger
       -- * EasyTensor helpers and instances
@@ -12,6 +17,9 @@ module Commons
     ) where
 
 
+#ifndef ISWORKER
+import Commons.Http
+#endif
 import Commons.Import
 import Commons.Local
 import Commons.Logger

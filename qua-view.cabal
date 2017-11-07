@@ -31,7 +31,7 @@ custom-setup
 executable qua-view
 
     if flag(dev)
-        cpp-options: -DDEVELOPMENT
+        cpp-options: -DDEVELOPMENT -DLOGLEVEL=0
         ghc-options: -O0
     else
         ghc-options: -O2 -dedupe
@@ -60,13 +60,15 @@ executable qua-view
         filepath >=1.4,
         data-default >=0.7,
         dependent-map >=0.2.4,
-        dependent-sum >=0.4
+        dependent-sum >=0.4,
+        qua-types >= 0.1
     cpp-options: -DGHCJS_BROWSER -DLOGLEVEL=0
     default-language: Haskell2010
     hs-source-dirs: src
     other-modules:
         Commons
         Commons.EasyTensorJSFFI
+        Commons.Http
         Commons.Import
         Commons.Local
         Commons.Logger

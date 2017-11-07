@@ -14,9 +14,14 @@ import Reflex.Dom.Widget.Animation (resizeEvents, viewPortSizeI)
 import Numeric.DataFrame
 import qualified Data.Dependent.Map as DMap
 import Control.Lens
+import Data.Maybe (fromMaybe)
 
 import Commons
 
+
+import           GHCJS.DOM.JSFFI.Generated.ParentNode (querySelector)
+import           GHCJS.DOM.JSFFI.Generated.Element    (getAttribute)
+import           GHCJS.DOM (currentDocumentUnchecked)
 
 import qualified Model.Camera               as Model
 import qualified Model.Scenario             as Scenario
@@ -41,12 +46,24 @@ main = mainWidgetInElementById "qua-view-widgets" $ mdo
     -- register loading splash so that we can change its visibility
     Widgets.loadingSplashD isProgramBusy
 
+    let rightToMaybe = either (const Nothing) Just
+    doc <- currentDocumentUnchecked
+    mSettingsEl  <- querySelector doc ("meta[property='qua-view:settingsUrl']"::JSString)
+    mSettingsUrl <- case mSettingsEl of
+                      Just elm -> getAttribute elm ("content"::JSString)
+                      Nothing  -> return Nothing
+    --TODO: error handling if httpGetNow fails
+    settingsD <- httpGetNow (fromMaybe "/submissions/settings" mSettingsUrl)
+                   >>= holdDyn mempty . fmapMaybe id . fmap rightToMaybe
+
     -- register canvas element
     canvas <- Widgets.getWebGLCanvas
 
     -- add the control panel to the page
     (resetCameraE, _panelStateD, geomTabEvs, loggerFunc)
-        <- flip runReaderT loggerFunc $ Widgets.controlPanel compStateEvs
+        <- flip runReaderT loggerFunc $
+           flip runReaderT settingsD $
+           Widgets.controlPanel compStateEvs
 
     -- initialize web workers
     loadedGeometryE <- Workers.runLoadGeometryWorker -- I would need to add other loaded geom events here

@@ -139,7 +139,7 @@ jsstring = QuasiQuoter
 
 -- | Error messages coming from various widgets, etc.
 newtype JSError = JSError { getJSError :: JSString }
-  deriving (PFromJSVal, PToJSVal, ToJSVal, FromJSVal, ToJSString, IsString, Show, Eq)
+  deriving (PFromJSVal, PToJSVal, ToJSVal, FromJSVal, ToJSString, IsString, Show, Eq, Semigroup, Monoid)
 
 
 -- | Try to cast JavaScript object to a string.
@@ -201,4 +201,3 @@ instance PToJSVal Value where
     pToJSVal = coerce
 instance PFromJSVal Value where
     pFromJSVal = coerce
-
