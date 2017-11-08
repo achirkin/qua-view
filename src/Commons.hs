@@ -9,6 +9,7 @@ module Commons
     , module Commons.Import
 #ifndef ISWORKER
     , module Commons.Http
+    , module Commons.QuaViewMonad
 #endif
       -- * Logging facilities
     , module Commons.Logger
@@ -19,6 +20,7 @@ module Commons
 
 #ifndef ISWORKER
 import Commons.Http
+import Commons.QuaViewMonad
 #endif
 import Commons.Import
 import Commons.Local

@@ -13,7 +13,6 @@ module Widgets.Tabs.Info
     ) where
 
 import Commons
-import Control.Monad.Trans.Reader
 import Data.JSString.Text (textFromJSString, textToJSString)
 import Data.Text
 import Data.Time.Format
@@ -24,18 +23,17 @@ import Widgets.Commons
 import Widgets.Generation
 
 
-panelInfo :: Reflex t
-          => ReaderT (Dynamic t Settings) (WidgetWithLogs x) ()
+panelInfo :: Reflex t => QuaWidget t x ()
 panelInfo = do
-  settingsD <- ask
+  settingsD <- quaSettings
   eitherReviewSettingsE <- httpGetNowOrOnUpdate $ reviewSettingsUrl
                                                <$> settingsD
-  reviewSettingsE <- lift $ renderError eitherReviewSettingsE
+  reviewSettingsE <- renderError eitherReviewSettingsE
   reviewSettingsD <- holdDyn Nothing $ Just <$> reviewSettingsE
-  void $ lift $ dyn $ renderPanelInfo <$> reviewSettingsD
+  void $ dyn $ renderPanelInfo <$> reviewSettingsD
 
 renderPanelInfo :: Reflex t
-                => Maybe ReviewSettings -> WidgetWithLogs x ()
+                => Maybe ReviewSettings -> QuaWidget t x ()
 renderPanelInfo Nothing = blank
 renderPanelInfo (Just reviewSettings) = do
     responseE <- renderWriteReview reviewSettings
@@ -50,7 +48,7 @@ renderPanelInfo (Just reviewSettings) = do
 -- Returns event of posted review, or error on unsuccessful post.
 renderWriteReview :: Reflex t
                   => ReviewSettings
-                  -> WidgetWithLogs x (Event t (Either JSError Review))
+                  -> QuaWidget t x (Event t (Either JSError Review))
 renderWriteReview (ReviewSettings crits _ (Just revsUrl)) =
   elClass "div" ("card " <> writeReviewClass) $
     elClass "div" "form-group form-group-label" $ mdo
@@ -94,7 +92,7 @@ renderWriteReview (ReviewSettings crits _ (Just revsUrl)) =
 renderWriteReview _ = return never
 
 renderReview :: Reflex t
-             => [Criterion] -> Review -> WidgetWithLogs x ()
+             => [Criterion] -> Review -> QuaWidget t x ()
 renderReview crits r = elClass "div" ("card " <> reviewClass) $
   el "div" $ do
     renderCrit $ reviewCriterionId r
@@ -126,7 +124,7 @@ renderReview crits r = elClass "div" ("card " <> reviewClass) $
 -- either renders the `JSError` or fires the returned event which contains `a`
 renderError :: Reflex t
             => Event t (Either JSError a)
-            -> WidgetWithLogs x (Event t a)
+            -> QuaWidget t x (Event t a)
 renderError event = do
   let (errE, resultE) = fanEither event
   holdDyn Nothing (Just <$> errE) >>= void . dyn . fmap renderErr
@@ -139,7 +137,7 @@ renderError event = do
 renderTextArea :: Reflex t
                => Event t Text
                -> Text
-               -> WidgetWithLogs x (Dynamic t JSString)
+               -> QuaWidget t x (Dynamic t JSString)
 renderTextArea setValE label = do
   elAttr "label" ("class" =: "floating-label") $ text label
   let config = TextAreaConfig "" setValE $ constDyn ("class" =: "form-control")
@@ -148,7 +146,7 @@ renderTextArea setValE label = do
 
 -- | Render supplied criterios and return dynamic with criterionId of selected one
 renderCriterions :: Reflex t
-                 => [Criterion] -> WidgetWithLogs x (Dynamic t (Maybe Int))
+                 => [Criterion] -> QuaWidget t x (Dynamic t (Maybe Int))
 renderCriterions crits = elClass "span" critsClass $ mdo
     let critE = leftmost critEs
     critEs <- for crits $ \c -> do
@@ -179,8 +177,7 @@ renderCriterions crits = elClass "span" critsClass $ mdo
       )
 
 -- render thumb-up and -down buttons and return dynamic of their state
-renderThumbs :: Reflex t
-             => WidgetWithLogs x (Dynamic t ThumbState)
+renderThumbs :: Reflex t => QuaWidget t x (Dynamic t ThumbState)
 renderThumbs = elClass "span" thumbsClass $ mdo
     let thumbE = leftmost [
             ThumbUp   <$ domEvent Click upEl

@@ -21,7 +21,7 @@ import Widgets.Generation
 --   the javascript code is loaded.
 --   Also note, that our static css is placed in a separate file (not in place of generated JS code),
 --   so we can safely write required css code below in a splice.
-loadingSplashD :: Reflex t => Event t (IsBusy "program") -> Widget x ()
+loadingSplashD :: Reflex t => Event t (IsBusy "program") -> QuaWidget t x ()
 loadingSplashD isBusyE = do
     let cfg = def & Dom.modifyAttributes .~ fmap setClass isBusyE
     void $ getElementById cfg "qua-view-loading-div"
@@ -30,7 +30,7 @@ loadingSplashD isBusyE = do
     setClass Idle = "class" =: Just "qua-view-loading-idle"
 
 -- | Show the loading splash, no events processed.
-loadingSplash :: Widget x ()
+loadingSplash :: Reflex t => QuaWidget t x ()
 loadingSplash = void $ getElementById def "qua-view-loading-div"
 
 -- | This function is fully evaluated at compile time.

@@ -24,8 +24,6 @@ module Commons.Local
     ) where
 
 
-
-
 import Data.String (IsString (..))
 import Data.Type.Equality
 import qualified Data.GADT.Compare as GADT
@@ -139,7 +137,9 @@ jsstring = QuasiQuoter
 
 -- | Error messages coming from various widgets, etc.
 newtype JSError = JSError { getJSError :: JSString }
-  deriving (PFromJSVal, PToJSVal, ToJSVal, FromJSVal, ToJSString, IsString, Show, Eq, Semigroup, Monoid)
+  deriving ( PFromJSVal, PToJSVal, ToJSVal, FromJSVal
+           , ToJSString, IsString, Show, Eq, Semigroup, Monoid
+           )
 
 
 -- | Try to cast JavaScript object to a string.

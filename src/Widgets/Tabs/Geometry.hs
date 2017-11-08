@@ -41,10 +41,9 @@ data GeometryTabOutE e where
 
 -- TODO do the same trick for input events if necessary
 
-
 panelGeometry :: forall t x . Reflex t
               => EventSelector t CompState
-              -> WidgetWithLogs x (EventSelector t GeometryTabOutE)
+              -> QuaWidget t x (EventSelector t GeometryTabOutE)
 panelGeometry _compStateEvs = do
 
     el "div" $ text "Read GeoJSON from file"
@@ -80,7 +79,7 @@ panelGeometry _compStateEvs = do
 --   Returns two events: file loading errors and content events.
 fileUpload :: Reflex t
            => Event t (ElementClick "ClearGeometry")
-           -> WidgetWithLogs x (Event t LoadedTextContent)
+           -> QuaWidget t x (Event t LoadedTextContent)
 fileUpload clearGeomEv = mdo
     _ <- elAttr "label" ("for" =: finputId) $ buttonRed "Files" def
     elAttr "div" ("style" =: "display:inline; font-size: 0.9em;"
@@ -110,7 +109,8 @@ fileUpload clearGeomEv = mdo
                 -- get file content
             >> JSFFI.getResult freader)
             <$ onLoadEndE
-    logUserEvents $ leftmost [ getJSError <$> errE
+    logErrorEvents "fileUpload" $ leftmost
+                             [ getJSError <$> errE
                              , "Error happened when executing FileReader.readAsText." <$ onErrorE
                              ]
     return rezE

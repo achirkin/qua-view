@@ -17,10 +17,13 @@ import Widgets.Generation
 -- | Create WebGL canvas
 --   Note, this is one of our special element that exist even before JS is loaded.
 --   We need this to make sure the canvas has correctly evaluated dimensions.
-getWebGLCanvas :: Reflex t => Widget x (Element Dom.EventResult Dom.GhcjsDomSpace t)
-getWebGLCanvas = getElementById def "qua-view-webgl-canvas" >>= \me -> pure $ case me of
-    Nothing -> error "Could not find 'qua-view-webgl-canvas' Dom element. Are you sure it is in the qua-view.html?"
-    Just e  -> e
+getWebGLCanvas :: Reflex t => QuaWidget t x (Element Dom.EventResult Dom.GhcjsDomSpace t)
+getWebGLCanvas
+  = getElementById def "qua-view-webgl-canvas"
+  >>= maybe (fmap undefined .
+             showUserPanic $ "Could not find 'qua-view-webgl-canvas' Dom element. "
+                          <> "Are you sure it is in the qua-view.html?")
+      pure
 
 -- | generate a chunk of css in qua-view.css
 $(do
@@ -41,6 +44,11 @@ $(do
  )
 
 -- | Listen to all events produced by a canvas
-registerAnimationHandler :: (MonadIO m, MonadIO (Dom.Performable m), Reflex t, Dom.MonadHold t m, Dom.TriggerEvent t m, Dom.PerformEvent t m)
-                         => Element Dom.EventResult Dom.GhcjsDomSpace t -> (AnimationTime -> IO ()) -> m (AnimationHandler t)
+registerAnimationHandler :: ( MonadIO m, MonadIO (Dom.Performable m)
+                            , Reflex t, Dom.MonadHold t m
+                            , Dom.TriggerEvent t m
+                            , Dom.PerformEvent t m
+                            )
+                         => Element Dom.EventResult Dom.GhcjsDomSpace t
+                         -> (AnimationTime -> IO ()) -> m (AnimationHandler t)
 registerAnimationHandler e = Animation.registerHandler (Dom._element_raw e) . Just

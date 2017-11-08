@@ -13,11 +13,9 @@ module Widgets.ControlPanel
 import qualified Reflex.Dom as Dom
 
 import Commons
-import Control.Monad.Trans.Reader
-import qualified QuaTypes
 import Widgets.Generation
 import Widgets.ControlButtons
-import Widgets.Logger
+import Widgets.UserMessages
 import Widgets.Tabs
 import Widgets.Tabs.Geometry
 import Widgets.Tabs.Info
@@ -27,15 +25,13 @@ import Widgets.Tabs.Services
 -- | Control panel widget is a place for all controls in qua-view!
 controlPanel :: Reflex t
              => EventSelector t CompState
-             -> ReaderT (Dynamic t QuaTypes.Settings) (WidgetWithLogs x)
-                          ( Event t (ElementClick "Reset Camera")
-                          , Dynamic t (ComponentState "ControlPanel")
-                          , EventSelector t GeometryTabOutE
-                          , LoggerFunc
-                          )
+             -> QuaWidget t x
+                  ( Event t (ElementClick "Reset Camera")
+                  , Dynamic t (ComponentState "ControlPanel")
+                  , EventSelector t GeometryTabOutE
+                  )
 controlPanel compStates = mdo
-    settingsD <- ask
-    r@(_, stateD, _, _) <- lift $ Dom.elDynClass "div" (toClass <$> stateD) $ mdo
+    r@(_, stateD, _) <- Dom.elDynClass "div" (toClass <$> stateD) $ mdo
 
       -- tab pane
       outputEvs <-
@@ -43,15 +39,16 @@ controlPanel compStates = mdo
           Dom.elAttr "div" ("style" =: "margin: 0; padding: 0; height: 56px;") Dom.blank
           runTabWidget $ do
             gr <- addTab "Geometry" (panelGeometry compStates)
-            addTab "Info" (runReaderT panelInfo settingsD)
+            addTab "Info" panelInfo
             addTab "Services" panelServices
             return gr
 
-      loggerFunc <- lift loggerWidget
+      -- view user message widget and register its handlers in qua-view monad
+      userMessageWidget >>= replaceUserMessageCallback
 
       -- GUI control buttons
       (resetCameraE', stateD') <- lift controlButtonGroup
-      return (resetCameraE', stateD', snd outputEvs, loggerFunc)
+      return (resetCameraE', stateD', snd outputEvs)
 
     return r
   where
