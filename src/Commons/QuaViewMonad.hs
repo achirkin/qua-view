@@ -12,10 +12,11 @@ module Commons.QuaViewMonad
     , runQuaWidget, quaSettings
     , showUserMessage, showUserPanic
     , replaceUserMessageCallback, replaceUserPanicCallback
-        , hoistQuaView
+    , hoistQuaView
     ) where
 
 
+import           Control.Concurrent.MVar
 import           Control.Monad ((>=>))
 import           Control.Monad.Trans.Reader
 import           Control.Monad.Trans.Maybe
@@ -25,9 +26,11 @@ import           Data.Maybe (fromMaybe)
 import           GHCJS.DOM.JSFFI.Generated.ParentNode (querySelector)
 import           GHCJS.DOM.JSFFI.Generated.Element    (getAttribute)
 import           GHCJS.DOM (currentDocument)
+import           JavaScript.JSON.Types.Instances (toJSON)
 import qualified QuaTypes
 import           Reflex
 import           Reflex.Dom
+import           System.IO.Unsafe (unsafeInterleaveIO)
 
 import           Commons.Import
 import           Commons.Local
@@ -76,30 +79,49 @@ hoistQuaView h q = QuaViewT . ReaderT $ h . runReaderT (unQuaViewT q)
 initQuaViewContext :: ( MonadIO m, MonadFix m, HasJSContext m
                       , MonadHold (SpiderTimeline Global) m
                       , TriggerEvent (SpiderTimeline Global) m
+                      , PerformEvent (SpiderTimeline Global) m
+                      , MonadIO (Performable m)
                       , Reflex t
                       ) => m (QuaViewContext t)
 initQuaViewContext = do
+    -- This is when qua-view starts, so we don't have any loggers and etc. set up.
+    -- Following functions are used to log things happening at this initialization step.
+    let initLogErr m  = stdOutLogger LevelWarn "initQuaViewContext" m Nothing
+        initLogInfo m = stdOutLogger LevelInfo "initQuaViewContext" m
+                        . Just . pToJSVal . toJSON
+        quaViewLoggerFunc = stdOutLogger
+
+    guessedSettings <- liftIO $ unsafeInterleaveIO guessQuaSettings
     -- try to get settings url from meta tag in an html page
     --   <meta property="qua-view:settingsUrl" content="{settingsUrl}">
-    settingsUrl <- fromMaybeT "/settings" $ do
+    mRequestedSettingsE <- runMaybeT $ do
         doc <- MaybeT currentDocument
         settingsEl  <- MaybeT $ querySelector doc ("meta[property='qua-view:settingsUrl']" :: JSString)
-        MaybeT $ getAttribute settingsEl ("content" :: JSString)
+        url <- MaybeT $ getAttribute settingsEl ("content" :: JSString)
+        setsE <- liftIO newEmptyMVar
+        lift . httpGetNow' url $ putMVar setsE
+        MaybeT . liftIO . unsafeInterleaveIO $ takeMVar setsE >>= \e -> case e of
+            Left (JSError err) -> Nothing <$ initLogErr ("Error in httpGet: " <> err)
+            Right sets -> pure $ Just sets
 
+    -- initial settings: either use the one from settingsUrl, or try to guess some.
+    resolvedSettings <- liftIO $ case mRequestedSettingsE of
+        Nothing -> guessedSettings <$ initLogInfo "Using guessed settings: " guessedSettings
+        Just sets -> sets <$ initLogInfo "Using requested settings: " sets
 
-    let quaViewLoggerFunc = stdOutLogger
-
-        settingAccumulator oldSettings (Right newSettings)
+    let settingAccumulator oldSettings (Right newSettings)
           = pure $ newSettings <> oldSettings
         settingAccumulator oldSettings (Left (JSError errMsg))
-          = (oldSettings <$)
-          . liftIO
-          $ quaViewLoggerFunc LevelWarn
-                              "initQuaViewContext"
-                              ("Error in httpGet: " <> errMsg)
-                              Nothing
-    quaViewSettingsE <- httpGetNow settingsUrl
-    quaViewSettings <- accumM settingAccumulator mempty quaViewSettingsE
+          = (oldSettings <$) . liftIO $ initLogErr ("Error in httpGet: " <> errMsg)
+    -- for now, we never fire the event of getting new settings,
+    --  but I keep quaViewSettings being a dynamic in case we want to change it in future,
+    --  because reloadable settings are cool!
+    let quaViewSettingsE = never
+    quaViewSettings <- accumM settingAccumulator resolvedSettings quaViewSettingsE
+
+    -- log settings updates
+    performEvent_ . ffor (updated quaViewSettings)
+      $ liftIO . initLogInfo "Updated settings"
 
     quaViewUserMessageHandlers <- liftIO . newIORef $ UserMessageCallback defaultMsgFun
     quaViewPanicMsgHandler     <- liftIO . newIORef $ defaultMsgFun . SingleMsg
@@ -193,3 +215,35 @@ instance PerformEvent t m => PerformEvent t (QuaViewT t m) where
 instance HasJSContext m => HasJSContext (QuaViewT t m) where
   type JSContextPhantom (QuaViewT t m) = JSContextPhantom m
   askJSContext = QuaViewT askJSContext
+
+
+-- | Try our best to guess default settings for qua-view operation.
+--
+--   * Get window.location.href as the viewUrl
+--   * Get all optionals to be Nothing
+--   * Try to get js root as a folder containing qua-view.js
+--
+guessQuaSettings :: IO QuaTypes.Settings
+guessQuaSettings = do
+    viewUrl <- js_getViewUrl
+    jsRootUrl <- fromMaybeT viewUrl $ do
+        doc <- MaybeT currentDocument
+        settingsEl  <- MaybeT $ querySelector doc ("script[src*='qua-view.js']" :: JSString)
+        qvSrc <- MaybeT $ getAttribute settingsEl ("src" :: JSString)
+        return $ js_splitFst qvSrc "qua-view.js"
+    return QuaTypes.Settings {..}
+  where
+    loggingUrl = Nothing
+    luciUrl = Nothing
+    getSubmissionGeometryUrl = Nothing
+    postSubmissionUrl = Nothing
+    reviewSettingsUrl = Nothing
+
+foreign import javascript unsafe
+    "window['location']['href']['split']('?')[0]['split']('#')[0]"
+    js_getViewUrl :: IO JSString
+
+foreign import javascript unsafe
+    "$1['split']($2)[0]"
+    js_splitFst :: JSString -> JSString -> JSString
+

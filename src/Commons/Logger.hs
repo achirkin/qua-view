@@ -13,7 +13,8 @@ module Commons.Logger
       --   Show some messages to a client.
       UserProgressCallback (..), UserMessage (..), UserMessageCallback (..)
       -- * Application-level logging
-    , LogLevel(..), LogSource (..), LoggerFunc
+    , LogLevel(LevelError,LevelWarn,LevelInfo,LevelDebug)
+    , LogSource (..), LoggerFunc
     , MonadLogger (..), logMsg', logMsg
     , logDebug  , logInfo  , logWarn  , logError --, logUser
     , logDebug' , logInfo' , logWarn' , logError' --, logUser'
@@ -128,7 +129,7 @@ instance MonadLogger m => MonadLogger (ConduitM i o m) where
 
 logDebug' :: (ToJSString msg,  ToJSVal attachment, MonadLogger m)
           => LogSource -> msg -> attachment -> m ()
-#if LOGLEVEL < 4
+#if LOGLEVEL <= 3
 logDebug' _ _ _ = pure ()
 #else
 logDebug' = logMsg' LevelDebug
@@ -137,7 +138,7 @@ logDebug' = logMsg' LevelDebug
 
 logDebug :: (ToJSString msg, MonadLogger m)
           => LogSource -> msg  -> m ()
-#if LOGLEVEL < 4
+#if LOGLEVEL <= 3
 logDebug _ _ = pure ()
 #else
 logDebug = logMsg LevelDebug
@@ -146,7 +147,7 @@ logDebug = logMsg LevelDebug
 
 logInfo' :: (ToJSString msg,  ToJSVal attachment, MonadLogger m)
           => LogSource -> msg -> attachment -> m ()
-#if LOGLEVEL < 3
+#if LOGLEVEL <= 2
 logInfo' _ _ _ = pure ()
 #else
 logInfo' = logMsg' LevelInfo
@@ -155,7 +156,7 @@ logInfo' = logMsg' LevelInfo
 
 logInfo :: (ToJSString msg, MonadLogger m)
           => LogSource -> msg  -> m ()
-#if LOGLEVEL < 3
+#if LOGLEVEL <= 2
 logInfo _ _ = pure ()
 #else
 logInfo = logMsg LevelInfo
@@ -164,7 +165,7 @@ logInfo = logMsg LevelInfo
 
 logWarn' :: (ToJSString msg,  ToJSVal attachment, MonadLogger m)
           => LogSource -> msg -> attachment -> m ()
-#if LOGLEVEL < 2
+#if LOGLEVEL <= 1
 logWarn' _ _ _ = pure ()
 #else
 logWarn' = logMsg' LevelWarn
@@ -173,7 +174,7 @@ logWarn' = logMsg' LevelWarn
 
 logWarn :: (ToJSString msg, MonadLogger m)
           => LogSource -> msg  -> m ()
-#if LOGLEVEL < 2
+#if LOGLEVEL <= 1
 logWarn _ _ = pure ()
 #else
 logWarn = logMsg LevelWarn
@@ -182,7 +183,7 @@ logWarn = logMsg LevelWarn
 
 logError' :: (ToJSString msg,  ToJSVal attachment, MonadLogger m)
           => LogSource -> msg -> attachment -> m ()
-#if LOGLEVEL < 1
+#if LOGLEVEL <= 0
 logError' _ _ _ = pure ()
 #else
 logError' = logMsg' LevelError
@@ -191,7 +192,7 @@ logError' = logMsg' LevelError
 
 logError :: (ToJSString msg, MonadLogger m)
           => LogSource -> msg  -> m ()
-#if LOGLEVEL < 1
+#if LOGLEVEL <= 0
 logError _ _ = pure ()
 #else
 logError = logMsg LevelError
@@ -227,7 +228,7 @@ logMsgEvents ll ls ea = do
 
 logDebugEvents' :: (ToJSString msg, ToJSVal attachment, MonadLogger m, PerformEvent t m, MonadIO (Performable m))
                 => LogSource -> Event t (msg, Maybe attachment) -> m ()
-#if LOGLEVEL < 4
+#if LOGLEVEL <= 3
 logDebugEvents' _ _ = pure ()
 #else
 logDebugEvents' = logMsgEvents' LevelDebug
@@ -236,7 +237,7 @@ logDebugEvents' = logMsgEvents' LevelDebug
 
 logDebugEvents :: (ToJSString msg, MonadLogger m, PerformEvent t m, MonadIO (Performable m))
                => LogSource -> Event t msg -> m ()
-#if LOGLEVEL < 4
+#if LOGLEVEL <= 3
 logDebugEvents _ _ = pure ()
 #else
 logDebugEvents = logMsgEvents LevelDebug
@@ -245,7 +246,7 @@ logDebugEvents = logMsgEvents LevelDebug
 
 logInfoEvents' :: (ToJSString msg, ToJSVal attachment, MonadLogger m, PerformEvent t m, MonadIO (Performable m))
                => LogSource -> Event t (msg, Maybe attachment) -> m ()
-#if LOGLEVEL < 3
+#if LOGLEVEL <= 2
 logInfoEvents' _ _ = pure ()
 #else
 logInfoEvents' = logMsgEvents' LevelInfo
@@ -254,7 +255,7 @@ logInfoEvents' = logMsgEvents' LevelInfo
 
 logInfoEvents :: (ToJSString msg, MonadLogger m, PerformEvent t m, MonadIO (Performable m))
               => LogSource -> Event t msg -> m ()
-#if LOGLEVEL < 3
+#if LOGLEVEL <= 2
 logInfoEvents _ _ = pure ()
 #else
 logInfoEvents = logMsgEvents LevelInfo
@@ -263,7 +264,7 @@ logInfoEvents = logMsgEvents LevelInfo
 
 logWarnEvents' :: (ToJSString msg, ToJSVal attachment, MonadLogger m, PerformEvent t m, MonadIO (Performable m))
                => LogSource -> Event t (msg, Maybe attachment) -> m ()
-#if LOGLEVEL < 2
+#if LOGLEVEL <= 1
 logWarnEvents' _ _ = pure ()
 #else
 logWarnEvents' = logMsgEvents' LevelWarn
@@ -272,7 +273,7 @@ logWarnEvents' = logMsgEvents' LevelWarn
 
 logWarnEvents :: (ToJSString msg, MonadLogger m, PerformEvent t m, MonadIO (Performable m))
               => LogSource -> Event t msg -> m ()
-#if LOGLEVEL < 2
+#if LOGLEVEL <= 1
 logWarnEvents _ _ = pure ()
 #else
 logWarnEvents = logMsgEvents LevelWarn
@@ -281,7 +282,7 @@ logWarnEvents = logMsgEvents LevelWarn
 
 logErrorEvents' :: (ToJSString msg, ToJSVal attachment, MonadLogger m, PerformEvent t m, MonadIO (Performable m))
                 => LogSource -> Event t (msg, Maybe attachment) -> m ()
-#if LOGLEVEL < 1
+#if LOGLEVEL <= 0
 logErrorEvents' _ _ = pure ()
 #else
 logErrorEvents' = logMsgEvents' LevelError
@@ -290,7 +291,7 @@ logErrorEvents' = logMsgEvents' LevelError
 
 logErrorEvents :: (ToJSString msg, MonadLogger m, PerformEvent t m, MonadIO (Performable m))
                => LogSource -> Event t msg -> m ()
-#if LOGLEVEL < 1
+#if LOGLEVEL <= 0
 logErrorEvents _ _ = pure ()
 #else
 logErrorEvents = logMsgEvents LevelError
@@ -313,13 +314,13 @@ logErrorEvents = logMsgEvents LevelError
 stdOutLogger :: LoggerFunc
 #if LOGLEVEL >= 1
 stdOutLogger loglevel (LogSource source) msg Nothing
-    | fromEnum loglevel >= LOGLEVEL
+    | fromEnum loglevel <= LOGLEVEL
     = js_logToConsole (logLevelToJSString loglevel) source msg
 stdOutLogger loglevel (LogSource source) msg (Just val)
-    | fromEnum loglevel >= LOGLEVEL
+    | fromEnum loglevel <= LOGLEVEL
     = js_logToConsoleJSVal (logLevelToJSString loglevel) source msg val
 #endif
-stdOutLogger _ _ _ _ = pure ()
+stdOutLogger _ _ _ _ = return ()
 
 #if LOGLEVEL >= 1
 logLevelToJSString :: LogLevel -> JSString
@@ -329,13 +330,15 @@ logLevelToJSString LevelWarn  = "Warn"
 logLevelToJSString LevelError = "Error"
 logLevelToJSString LevelNone  = "None"
 
-foreign import javascript unsafe "console.log((new Date()).toTimeString().substr(0,8) + ' [' + $1 + '](' + $2 + '): ' + $3);"
+foreign import javascript unsafe
+    "console.log((new Date()).toTimeString().substr(0,8) + ' [' + $1 + '](' + $2 + '): ' + $3);"
     js_logToConsole :: JSString -- ^ log level
                     -> JSString -- ^ component name
                     -> JSString -- ^ message
                     -> IO ()
 
-foreign import javascript unsafe "console.log((new Date()).toTimeString().substr(0,8) + ' [' + $1 + '](' + $2 + '): ' + $3, $4);"
+foreign import javascript unsafe
+    "console.log((new Date()).toTimeString().substr(0,8) + ' [' + $1 + '](' + $2 + '): ' + $3, $4);"
     js_logToConsoleJSVal :: JSString -- ^ log level
                          -> JSString -- ^ component name
                          -> JSString -- ^ message
