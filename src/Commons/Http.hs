@@ -5,7 +5,7 @@
 
 module Commons.Http
     ( httpGet
-    , httpGetNow
+    , httpGetNow, httpGetNow'
     , httpGetNowOrOnUpdate
     , httpPost
     ) where
@@ -59,6 +59,11 @@ httpGetNow url = do
   doHttp (getReqConfig url) t
   return e
 
+httpGetNow' :: forall b m
+             . ( FromJSON b, HasJSContext m, MonadJSM m )
+            => JSString -> (Either JSError b -> IO ()) -> m ()
+httpGetNow' url = doHttp (getReqConfig url)
+
 -- | execute HTTP GET immediately if called with a Dynamic that currently
 --   holds `Just url`, execute upon Dynamic change otherwise
 httpGetNowOrOnUpdate :: forall t b m
@@ -73,9 +78,9 @@ httpGetNowOrOnUpdate mUrlD = do
     Nothing  -> httpGet $ fmapMaybe id $ updated mUrlD
 
 -- | make HTTP request immediately
-doHttp :: forall t a b m
+doHttp :: forall a b m
         . ( FromJSON b, IsXhrPayload a
-          , Reflex t, HasJSContext m, MonadJSM m )
+          , HasJSContext m, MonadJSM m )
        => XhrRequest a -> (Either JSError b -> IO ()) -> m ()
 doHttp reqConfig cb = void $ newXMLHttpRequestWithError reqConfig cb'
    where

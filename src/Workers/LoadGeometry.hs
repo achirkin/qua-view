@@ -58,18 +58,40 @@ loadGeometryConduit = awaitForever $ \(msg, _curSc) -> do
 
 
 #else
-import Reflex.PerformEvent.Class
-import Reflex.TriggerEvent.Class
+import Reflex
+import qualified Data.JSString as JSString
+import qualified QuaTypes
+import System.FilePath ((</>))
 
 runLoadGeometryWorker :: ( MonadIO m, Reflex t
                          , TriggerEvent t m
                          , PerformEvent t m
+                         , MonadHold t m
                          , MonadIO (Performable m)
+                         , MonadFix m
                          )
                       => Event t (LoadedTextContent, Scenario' 'Prepared)
-                      -> m (Event t LGWMessage)
-runLoadGeometryWorker inEvs = runWorker loadGeometryDef $ flip (,) [] <$> inEvs
-
+                      -> QuaViewT t m (Event t LGWMessage)
+runLoadGeometryWorker inEvs = do
+    loadGeometryDefD
+         <- fmap (( \u -> loadGeometryDef
+                      { workerUrl = JSString.pack
+                                    $ JSString.unpack u
+                                   </> JSString.unpack (workerUrl loadGeometryDef)
+                      }
+                  ) . QuaTypes.jsRootUrl
+                 ) <$> quaSettings
+    -- remove an event if the link did not change
+    let newLoadGeometryDefE = attachWithMaybe (\wc wu -> if workerUrl wc == workerUrl wu
+                                                         then Nothing
+                                                         else Just wu
+                                              )
+                                              (current loadGeometryDefD)
+                                              (updated loadGeometryDefD)
+    newLoadGeometryDefD <- sample (current loadGeometryDefD)
+                        >>= \s -> holdDyn s newLoadGeometryDefE
+    -- run worker every time its link changes
+    runWorkerDyn newLoadGeometryDefD $ flip (,) [] <$> inEvs
 
 #endif
 
@@ -78,7 +100,7 @@ runLoadGeometryWorker inEvs = runWorker loadGeometryDef $ flip (,) [] <$> inEvs
 loadGeometryDef :: WorkerDef
 loadGeometryDef = WorkerDef
   { workerName = "LoadGeometry"
-  , workerUrl  = "static/js/qua-worker-loadgeometry.js"
+  , workerUrl  = "qua-worker-loadgeometry.js"
   }
 
 data LGWMessage

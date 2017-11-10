@@ -14,7 +14,7 @@ packages:
   # Matrices, vectors, and geometry
   - location:
       git: https://github.com/achirkin/easytensor.git
-      commit: 8925038bc9f2347a64c34035ca3657b0bdcb482c
+      commit: b1a2d8851daac29a92d67c244788ac7b5e81b349
     subdirs:
       - dimensions
       - easytensor
@@ -49,7 +49,7 @@ packages:
   #  extra-dep: true
   - location:
        git: https://github.com/achirkin/qua-kit.git
-       commit: 425e6fd2dff54073faf7ec36f97054a38edbfbac
+       commit: 3aa203cebeac0e4b4f44f6df2b7c6d5dd7324178
     subdirs:
        - libs/hs/qua-types
     extra-dep: true
