@@ -71,7 +71,7 @@ runLoadGeometryWorker :: ( MonadIO m, Reflex t
                          , MonadFix m
                          )
                       => Event t (LoadedTextContent, Scenario' 'Prepared)
-                      -> QuaViewT t m (Event t LGWMessage)
+                      -> QuaViewT Writing t m (Event t LGWMessage)
 runLoadGeometryWorker inEvs = do
     loadGeometryDefD
          <- fmap (( \u -> loadGeometryDef

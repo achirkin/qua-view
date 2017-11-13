@@ -2,8 +2,7 @@
 {-# LANGUAGE DataKinds #-}
 
 module Widgets.Modal.SubmitProposal
-    ( popupSubmitProposal,
-      UserAsksSubmitProposal (..)
+    ( popupSubmitProposal
     ) where
 
 import Reflex.Dom
@@ -12,17 +11,22 @@ import Commons
 import Widgets.Commons
 import Widgets.Modal
 
-newtype UserAsksSubmitProposal = UserAsksSubmitProposal JSString -- Should add image and geometry?
-  deriving (Eq, Show)
 
-popupSubmitProposal :: Reflex t => Event t (ElementClick submitProposalButton) -> Widget x (Event t UserAsksSubmitProposal)
-popupSubmitProposal savePopupE = snd <$> createSmallModalWithClicks savePopupE Inactive saveScenarioContent
 
-saveScenarioContent :: Reflex t => Widget x (Event t (ElementClick "cancel submit proposal"), Event t UserAsksSubmitProposal)
+popupSubmitProposal :: Reflex t
+                    => Event t (ElementClick submitProposalButton)
+                    -> QuaWidget t x ()
+popupSubmitProposal savePopupE
+  = void $ createSmallModalWithClicks' savePopupE Inactive saveScenarioContent
+
+
+saveScenarioContent :: Reflex t
+                    => QuaWidget t x (Event t (ElementClick "cancel submit proposal"))
 saveScenarioContent = do
   elClass "div" "modal-heading" $
     elClass "p" "modal-title" $ text "Submit your design"
-  _proposalNameE <- elClass "div" "modal-inner" $  do -- TODO: transform this into behavior and then apply on submit event
+  propDescrEl <- elClass "div" "modal-inner" $  do
+         -- TODO: transform this into behavior and then apply on submit event
     el "div" blank -- TODO: Image preview
     elClass "div" "form-group form-group-label" $ do
       -- TODO: Add more things here
@@ -32,4 +36,5 @@ saveScenarioContent = do
     elClass "p" "text-right" $ do
       ce <- buttonFlat "Cancel" def
       se <- buttonFlat "Save" def -- TODO: Save scenario
-      return (ce, UserAsksSubmitProposal undefined <$ se)
+      registerEvent (UserRequest AskSubmitProposal) $ current (_textArea_value propDescrEl) <@ se
+      return ce

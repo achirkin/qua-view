@@ -31,7 +31,7 @@ import Widgets.Modal.SaveScenario
 
 panelGeometry :: forall t x . Reflex t
               => EventSelector t CompState
-              -> QuaWidget t x (EventSelector t QEventType)
+              -> QuaWidget t x ()
 panelGeometry _compStateEvs = do
 
     el "div" $ text "Read GeoJSON from file"
@@ -46,15 +46,12 @@ panelGeometry _compStateEvs = do
 
     (asksSaveScenarioE, asksSelectScenarioE) <- lift luciScenarioPane
 
-    -- combine all outgoing events together
-    let outEvsSel :: forall a . QEventType a -> Event t a
-        outEvsSel (UserRequest AskClearGeometry)  = clearGeometryClickedE
-        outEvsSel (UserRequest AskSaveScenario)   = asksSaveScenarioE
-        outEvsSel (UserRequest AskSelectScenario) = asksSelectScenarioE
-        outEvsSel GeometryLoaded                  = geometryLoadedE
-        outEvsSel _                               = never
+    -- register all outgoing events
+    registerEvent (UserRequest AskClearGeometry) clearGeometryClickedE
+    registerEvent (UserRequest AskSaveScenario) asksSaveScenarioE
+    registerEvent (UserRequest AskSelectScenario) asksSelectScenarioE
+    registerEvent GeometryLoaded geometryLoadedE
 
-    return $ EventSelector outEvsSel
 
 
 

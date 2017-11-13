@@ -3,6 +3,8 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE JavaScriptFFI #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 
 module Widgets.Modal
@@ -23,12 +25,17 @@ import Commons
 import Widgets.Generation
 
 -- | Create a modal window ("popup") with arbitrary content inside.
-createModal :: Reflex t
+createModal :: ( Reflex t
+               , DomBuilder t m, PostBuild t m, MonadFix m
+               , MonadIO m, MonadIO (Performable m)
+               , MonadHold t m, PerformEvent t m
+               , DomBuilderSpace m ~ GhcjsDomSpace
+               )
             => Event t (ComponentState modalName) -- ^ get open or close command from outside
             -> ComponentState modalName -- ^ initial state (open or closed)
-            -> Widget x a -- ^ content of the widget
+            -> m a -- ^ content of the widget
             -> Text -- ^ Modal size
-            -> Widget x (Dynamic t (ComponentState modalName), a)
+            -> m (Dynamic t (ComponentState modalName), a)
 createModal outsideStateE defaultState contentWidget size = fmap resultOrError . appendElementToAnotherById "qua-view-modals" $ mdo
     let stateEvs = leftmost [Inactive <$ domEvent Click backpane, outsideStateE]
         changeState Active = liftIO $ js_showModal (_element_raw backpane)
@@ -56,16 +63,21 @@ createModal outsideStateE defaultState contentWidget size = fmap resultOrError .
     resultOrError (Just (_,a)) = a
     modalSize "small" = " modal-xs"
     modalSize _       = mempty
-    
+
 
 -- | Create a modal window ("popup") with arbitrary content inside.
 --   Provides a typical use case: outside button opens the modal,
 --   modal close button closed the modal.
-createModalWithClicks :: Reflex t
+createModalWithClicks :: ( Reflex t
+                         , DomBuilder t m, PostBuild t m, MonadFix m
+                         , MonadIO m, MonadIO (Performable m)
+                         , MonadHold t m, PerformEvent t m
+                         , DomBuilderSpace m ~ GhcjsDomSpace
+                         )
                       => Event t (ElementClick linkToActivate) -- ^ event from a link opening the modal
                       -> ComponentState modalName              -- ^ initial state
-                      -> Widget x (Event t (ElementClick linkToDeactivate), a) -- ^ Content with an event to close the modal.
-                      -> Widget x (Dynamic t (ComponentState modalName), a)
+                      -> m (Event t (ElementClick linkToDeactivate), a) -- ^ Content with an event to close the modal.
+                      -> m (Dynamic t (ComponentState modalName), a)
 createModalWithClicks openClickE defaultState contentWidget = mdo
     (stateD, (closeClickE, r)) <- createModal (leftmost [Inactive <$ closeClickE, Active <$ openClickE])
                                               defaultState
@@ -76,11 +88,16 @@ createModalWithClicks openClickE defaultState contentWidget = mdo
 -- | Create a modal window ("popup") with arbitrary content inside.
 --   Provides a typical use case: outside button opens the modal,
 --   modal close button closed the modal.
-createModalWithClicks' :: Reflex t
+createModalWithClicks' :: ( Reflex t
+                          , DomBuilder t m, PostBuild t m, MonadFix m
+                          , MonadIO m, MonadIO (Performable m)
+                          , MonadHold t m, PerformEvent t m
+                          , DomBuilderSpace m ~ GhcjsDomSpace
+                          )
                        => Event t (ElementClick linkToActivate) -- ^ event from a link opening the modal
                        -> ComponentState modalName              -- ^ initial state
-                       -> Widget x (Event t (ElementClick linkToDeactivate)) -- ^ Content with an event to close the modal.
-                       -> Widget x (Dynamic t (ComponentState modalName))
+                       -> m (Event t (ElementClick linkToDeactivate)) -- ^ Content with an event to close the modal.
+                       -> m (Dynamic t (ComponentState modalName))
 createModalWithClicks' openClickE defaultState contentWidget = mdo
     (stateD, closeClickE) <- createModal (leftmost [Inactive <$ closeClickE, Active <$ openClickE])
                                               defaultState
@@ -91,11 +108,16 @@ createModalWithClicks' openClickE defaultState contentWidget = mdo
 -- | Create a modal window ("popup") with arbitrary content inside.
 --   Provides a typical use case: outside button opens the modal,
 --   modal close button closed the modal.
-createSmallModalWithClicks :: Reflex t
+createSmallModalWithClicks :: ( Reflex t
+                              , DomBuilder t m, PostBuild t m, MonadFix m
+                              , MonadIO m, MonadIO (Performable m)
+                              , MonadHold t m, PerformEvent t m
+                              , DomBuilderSpace m ~ GhcjsDomSpace
+                              )
                            => Event t (ElementClick linkToActivate) -- ^ event from a link opening the modal
                            -> ComponentState modalName              -- ^ initial state
-                           -> Widget x (Event t (ElementClick linkToDeactivate), a) -- ^ Content with an event to close the modal.
-                           -> Widget x (Dynamic t (ComponentState modalName), a)
+                           -> m(Event t (ElementClick linkToDeactivate), a) -- ^ Content with an event to close the modal.
+                           -> m (Dynamic t (ComponentState modalName), a)
 createSmallModalWithClicks openClickE defaultState contentWidget = mdo
     (stateD, (closeClickE, r)) <- createModal (leftmost [Inactive <$ closeClickE, Active <$ openClickE])
                                               defaultState
@@ -106,11 +128,16 @@ createSmallModalWithClicks openClickE defaultState contentWidget = mdo
 -- | Create a modal window ("popup") with arbitrary content inside.
 --   Provides a typical use case: outside button opens the modal,
 --   modal close button closed the modal.
-createSmallModalWithClicks' :: Reflex t
+createSmallModalWithClicks' :: ( Reflex t
+                               , DomBuilder t m, PostBuild t m, MonadFix m
+                               , MonadIO m, MonadIO (Performable m)
+                               , MonadHold t m, PerformEvent t m
+                               , DomBuilderSpace m ~ GhcjsDomSpace
+                               )
                             => Event t (ElementClick linkToActivate) -- ^ event from a link opening the modal
                             -> ComponentState modalName              -- ^ initial state
-                            -> Widget x (Event t (ElementClick linkToDeactivate)) -- ^ Content with an event to close the modal.
-                            -> Widget x (Dynamic t (ComponentState modalName))
+                            -> m (Event t (ElementClick linkToDeactivate)) -- ^ Content with an event to close the modal.
+                            -> m (Dynamic t (ComponentState modalName))
 createSmallModalWithClicks' openClickE defaultState contentWidget = mdo
     (stateD, closeClickE) <- createModal (leftmost [Inactive <$ closeClickE, Active <$ openClickE])
                                               defaultState

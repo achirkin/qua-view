@@ -16,11 +16,11 @@ import Widgets.Modal
 
 -- | Nobody interested in the state of help popup modal,
 --   so we can safely discard its value.
-popupHelp :: Reflex t => Event t (ElementClick helpButton) -> Widget x ()
+popupHelp :: Reflex t => Event t (ElementClick helpButton) -> QuaWidget t x ()
 popupHelp helpPopupE = void $ createModalWithClicks' helpPopupE Inactive popupHelpContent
 
 
-popupHelpContent :: Reflex t => Widget x (Event t (ElementClick "close help popup"))
+popupHelpContent :: Reflex t => QuaWidget t x (Event t (ElementClick "close help popup"))
 popupHelpContent = do
     elClass "div" "modal-heading" $
       elClass "p" "modal-title" $ text "Welcome to Quick Urban Analysis kit - the web geometry viewer"
