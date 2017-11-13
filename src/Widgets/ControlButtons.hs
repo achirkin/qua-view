@@ -27,25 +27,26 @@ import Widgets.Modal.SubmitProposal
 
 -- | Control button group is a column of colourfull buttons in the bottom-right corner of the screen.
 --   It defines the most useful functions of qua-kit.
-controlButtonGroup :: Reflex t =>  Widget x (Event t (ElementClick "Reset Camera"), Dynamic t (ComponentState "ControlPanel"))
+controlButtonGroup :: Reflex t
+                   => QuaWidget t x ( Dynamic t (ComponentState "ControlPanel"))
 controlButtonGroup = mdo
-    (toggleGroupD, resetCameraE, cpStateD) <-
+    (toggleGroupD, cpStateD) <-
         Dom.elDynClass "div" (toPanelClass <$> cpStateD) $
           Dom.elDynClass "div" toggleGroupD $ do
             -- toggle visibility of buttons
             toggleGroupD'  <- expandCtrlGroupButton
             -- show all buttons
-            (resetCameraE', groupContents) <- Dom.elClass "div" "fbtn-dropup" $ do
+            groupContents <- Dom.elClass "div" "fbtn-dropup" $ do
                 shareButton "placeholder link"
-                resetCamE <- resetCameraButton
+                resetCameraButton
                 helpButton
                 toggleFullScreenButton
                 groupContents' <- controlPanelButton
                 _serviceStateD <- serviceButtons -- TODO: For running service
                 _ <- submitProposalButton -- TODO: Submit proposal
-                return (resetCamE, groupContents')
-            return (toggleGroupD', resetCameraE', groupContents)
-    return (resetCameraE, cpStateD)
+                return groupContents'
+            return (toggleGroupD', groupContents)
+    return cpStateD
   where
     toPanelClass Active   = openPanelState
     toPanelClass Inactive = closedPanelState
@@ -85,7 +86,7 @@ controlButtonGroup = mdo
 
 -- | Main control group button that toggles the control group on or off.
 --   Returns the state of css class that controls the state.
-expandCtrlGroupButton :: Reflex t => Widget x (Dynamic t Text)
+expandCtrlGroupButton :: Reflex t => QuaWidget t x (Dynamic t Text)
 expandCtrlGroupButton = do
     e <- makeElementFromHtml def $(qhtml
         [hamlet|
@@ -102,7 +103,7 @@ expandCtrlGroupButton = do
 
 
 -- | Open or close control panel
-controlPanelButton :: Reflex t => Widget x (Dynamic t (ComponentState "ControlPanel"))
+controlPanelButton :: Reflex t => QuaWidget t x (Dynamic t (ComponentState "ControlPanel"))
 controlPanelButton = do
     e <- makeElementFromHtml def $(qhtml
         [hamlet|
@@ -122,7 +123,7 @@ controlPanelButton = do
 --   Note: never do such weird JS scripting anymore!
 --         I had to put this script into hamlet splice; otherwise borwser's security does not allow
 --         enabling fullscreen!
-toggleFullScreenButton :: Widget x ()
+toggleFullScreenButton :: Reflex t => QuaWidget t x ()
 toggleFullScreenButton = do
     runCode
     void $ makeElementFromHtml def $(qhtml
@@ -169,7 +170,7 @@ toggleFullScreenButton = do
 
 
 -- | Show help popup on click event
-helpButton :: Reflex t => Widget x ()
+helpButton :: Reflex t => QuaWidget t x ()
 helpButton = do
     e <- makeElementFromHtml def $(qhtml
         [hamlet|
@@ -181,7 +182,9 @@ helpButton = do
         |])
     popupHelp (ElementClick <$ Dom.domEvent Dom.Click e)
 
-resetCameraButton :: Reflex t => Widget x (Event t (ElementClick s))
+
+-- | Registers an event `AskResetCamera`.
+resetCameraButton :: Reflex t => QuaWidget t x ()
 resetCameraButton = do
     e <- makeElementFromHtml def $(qhtml
         [hamlet|
@@ -193,17 +196,19 @@ resetCameraButton = do
             <span .icon style="margin-left: -24px;font-size: 1em;line-height: 1em;">
               videocam
         |])
-    return (ElementClick <$ Dom.domEvent Dom.Click e)
+    registerEvent (UserRequest AskResetCamera) (() <$ Dom.domEvent Dom.Click e)
 
-serviceButtons :: Reflex t => Widget x (Dynamic t (ComponentState "Service"))
+serviceButtons :: Reflex t => QuaWidget t x (Dynamic t (ComponentState "Service"))
 serviceButtons = mdo
     serviceStateD <- holdDyn Inactive $ Reflex.leftmost [Active <$ serviceRunE, Inactive <$ serviceClearE]
     serviceRunE   <- serviceRunButton serviceStateD
     serviceClearE <- serviceClearButton serviceStateD
     return serviceStateD
-    
 
-serviceClearButton :: Reflex t => Dynamic t (ComponentState "Service") -> Widget x (Event t (ElementClick s))
+
+serviceClearButton :: Reflex t
+                   => Dynamic t (ComponentState "Service")
+                   -> QuaWidget t x (Event t (ElementClick s))
 serviceClearButton stateD = do
     (e, _) <- Dom.elDynAttr' "a" (attrs <$> stateD) $ do
                 Dom.elClass "span" "fbtn-text fbtn-text-left" $ Dom.text "Clear service results"
@@ -215,7 +220,9 @@ serviceClearButton stateD = do
     displayButton Inactive = "style" =: "display: none"
     displayButton Active   = mempty
 
-serviceRunButton :: Reflex t => Dynamic t (ComponentState "Service") -> Widget x (Event t (ElementClick s))
+serviceRunButton :: Reflex t
+                 => Dynamic t (ComponentState "Service")
+                 -> QuaWidget t x (Event t (ElementClick s))
 serviceRunButton stateD = do
     (e, _) <- Dom.elDynAttr' "a" (attrs <$> stateD) $ do
                 Dom.elClass "span" "fbtn-text fbtn-text-left" $ Dom.text "Run evaluation service"
@@ -227,9 +234,9 @@ serviceRunButton stateD = do
     displayButton Active   = "style" =: "display: none"
     displayButton Inactive = mempty
 
-shareButton :: Reflex t 
+shareButton :: Reflex t
             => Text -- ^ share link
-            -> Widget x ()
+            -> QuaWidget t x ()
 shareButton link = do
     e <- makeElementFromHtml def $(qhtml
           [hamlet|
@@ -241,7 +248,7 @@ shareButton link = do
           |])
     popupShare (ElementClick <$ Dom.domEvent Dom.Click e) link
 
-submitProposalButton :: Reflex t => Widget x (Event t UserAsksSubmitProposal)
+submitProposalButton :: Reflex t => QuaWidget t x ()
 submitProposalButton = do
     e <- makeElementFromHtml def $(qhtml
           [hamlet|
@@ -252,6 +259,7 @@ submitProposalButton = do
                 save
           |])
     popupSubmitProposal (ElementClick <$ Dom.domEvent Dom.Click e)
+
 
 ----------------------------------------------------------------------------------------------------
 -- below are drafts: buttons that not implemented yet

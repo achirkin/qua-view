@@ -62,6 +62,7 @@ executable qua-view
         data-default >=0.7,
         dependent-map >=0.2.4,
         dependent-sum >=0.4,
+        dependent-sum-template >=0.0.0.6,
         monad-control >=1.0,
         qua-types >=0.1
     cpp-options: -DGHCJS_BROWSER

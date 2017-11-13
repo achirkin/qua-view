@@ -17,13 +17,14 @@ import Widgets.Modal
 popupShare :: Reflex t
            => Event t (ElementClick shareButton)
            -> Text -- ^ share link
-           -> Widget x ()
-popupShare sharePopupE shareLink = void $ createSmallModalWithClicks' sharePopupE Inactive $ popupShareContent shareLink
+           -> QuaWidget t x ()
+popupShare sharePopupE shareLink
+  = void $ createSmallModalWithClicks' sharePopupE Inactive $ popupShareContent shareLink
 
 
 popupShareContent :: Reflex t
                   => Text -- ^ share link
-                  -> Widget x (Event t (ElementClick "close share popup"))
+                  -> QuaWidget t x (Event t (ElementClick "close share popup"))
 popupShareContent shareLink = do
     elClass "div" "modal-heading" $
       elClass "p" "modal-title" $ text "Share this design with others"

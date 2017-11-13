@@ -44,14 +44,16 @@ main = mainWidgetInElementById "qua-view-widgets" $ runQuaWidget $ mdo
     canvas <- Widgets.getWebGLCanvas
 
     -- add the control panel to the page
-    (resetCameraE, _panelStateD, geomTabEvs)
+    _panelStateD
         <- Widgets.controlPanel compStateEvs
 
     -- initialize web workers
-    loadedGeometryE <- Workers.runLoadGeometryWorker -- I would need to add other loaded geom events here
+    loadedGeometryE <- do
+      geomLoadedE <- askEvent GeometryLoaded
+      Workers.runLoadGeometryWorker -- I would need to add other loaded geom events here
          $  (\sc ev -> (ev, Scenario.withoutObjects sc))
         <$> current scenarioD
-        <@> select geomTabEvs GeometryLoaded
+        <@> geomLoadedE
 
     -- initialize WebGL rendering context
     let smallGLESel :: forall t a . Reflex t => SmallGL.SmallGLInput a -> Event t a
@@ -74,7 +76,8 @@ main = mainWidgetInElementById "qua-view-widgets" $ runQuaWidget $ mdo
                                    Model.CState { Model.viewPoint  = vec3 (-2) 3 0
                                                 , Model.viewAngles = (2.745, 0.825)
                                                 , Model.viewDist = 68 }
-    cameraD <- Model.dynamicCamera icamera aHandler resetCameraE $ current scenarioCenterD
+    plsResetCameraE <- askEvent (UserRequest AskResetCamera)
+    cameraD <- Model.dynamicCamera icamera aHandler plsResetCameraE $ current scenarioCenterD
 --    performEvent_ $ liftIO . print <$> updated cameraD
 
     scenarioD <- holdDyn def scenarioE

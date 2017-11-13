@@ -146,17 +146,19 @@ execWorkerConduit wd pipe = do
 -- | Run worker in a dedicated WebWorker thread
 runWorker :: ( ToJSVal inMsg, FromJSVal outMsg
              , Reflex t
-             , TriggerEvent t m
-             , PerformEvent t m
-             , MonadSample t m
-             , MonadHold t m
-             , MonadIO m
+             , TriggerEvent t (QuaViewT isWriting t m)
+             , PerformEvent t (QuaViewT isWriting t m)
+             , MonadSample t (QuaViewT isWriting t m)
+             , MonadHold t (QuaViewT isWriting t m)
+             , MonadIO (QuaViewT isWriting t m)
              , MonadIO (Performable m)
-             , MonadFix m
+             , MonadFix (QuaViewT isWriting t m)
+             , MonadLogger  (QuaViewT isWriting t m)
+             , MonadLogger  (Performable (QuaViewT isWriting t m))
              )
           => WorkerDef
           -> Event t (inMsg, [Transferable])
-          -> QuaViewT t m (Event t outMsg)
+          -> QuaViewT isWriting t m (Event t outMsg)
 runWorker wd = runWorkerDyn (constDyn wd)
 
 
@@ -164,17 +166,19 @@ runWorker wd = runWorkerDyn (constDyn wd)
 runWorkerDyn ::
              ( ToJSVal inMsg, FromJSVal outMsg
              , Reflex t
-             , TriggerEvent t m
-             , PerformEvent t m
-             , MonadSample t m
-             , MonadHold t m
-             , MonadIO m
+             , TriggerEvent t (QuaViewT isWriting t m)
+             , PerformEvent t (QuaViewT isWriting t m)
+             , MonadSample t (QuaViewT isWriting t m)
+             , MonadHold t (QuaViewT isWriting t m)
+             , MonadIO (QuaViewT isWriting t m)
              , MonadIO (Performable m)
-             , MonadFix m
+             , MonadFix (QuaViewT isWriting t m)
+             , MonadLogger  (QuaViewT isWriting t m)
+             , MonadLogger  (Performable (QuaViewT isWriting t m))
              )
           => Dynamic t WorkerDef
           -> Event t (inMsg, [Transferable])
-          -> QuaViewT t m (Event t outMsg)
+          -> QuaViewT isWriting t m (Event t outMsg)
 runWorkerDyn wdDyn inEvs = do
     -- receive messages here
     (outMsgE, outMsgCallback) <- newTriggerEvent

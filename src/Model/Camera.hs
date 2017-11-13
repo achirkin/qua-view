@@ -38,7 +38,7 @@ import           Commons
 dynamicCamera :: ( Reflex t, MonadHold t m, MonadFix m )
               => Camera
               -> AnimationHandler t
-              -> Event t (ElementClick "Reset Camera")
+              -> Event t () -- ^ reset camera event
               -> Behavior t Vec2f
               -> m (Dynamic t Camera)
 dynamicCamera icam aHandler resetCameraE defCenterPointB = mdo

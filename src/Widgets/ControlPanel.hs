@@ -26,31 +26,26 @@ import Widgets.Tabs.Services
 controlPanel :: Reflex t
              => EventSelector t CompState
              -> QuaWidget t x
-                  ( Event t (ElementClick "Reset Camera")
-                  , Dynamic t (ComponentState "ControlPanel")
-                  , EventSelector t QEventType
-                  )
+                  ( Dynamic t (ComponentState "ControlPanel") )
 controlPanel compStates = mdo
-    r@(_, stateD, _) <- Dom.elDynClass "div" (toClass <$> stateD) $ mdo
+    stateD <- Dom.elDynClass "div" (toClass <$> stateD) $ mdo
 
       -- tab pane
-      outputEvs <-
-        Dom.elAttr "div" ("style" =: "overflow-y: auto; overflow-x: hidden; height: 100%;") $ do
+      (_selTabD, ())
+        <- Dom.elAttr "div" ("style" =: "overflow-y: auto; overflow-x: hidden; height: 100%;") $ do
           Dom.elAttr "div" ("style" =: "margin: 0; padding: 0; height: 56px;") Dom.blank
           runTabWidget $ do
-            gr <- addTab "Geometry" (panelGeometry compStates)
+            addTab "Geometry" (panelGeometry compStates)
             addTab "Info" panelInfo
             addTab "Services" panelServices
-            return gr
 
       -- view user message widget and register its handlers in qua-view monad
       userMessageWidget >>= replaceUserMessageCallback
 
       -- GUI control buttons
-      (resetCameraE', stateD') <- lift controlButtonGroup
-      return (resetCameraE', stateD', snd outputEvs)
+      controlButtonGroup
 
-    return r
+    return stateD
   where
     toClass Active   = openState
     toClass Inactive = closedState
