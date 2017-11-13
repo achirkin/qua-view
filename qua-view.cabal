@@ -62,7 +62,7 @@ executable qua-view
         data-default >=0.7,
         dependent-map >=0.2.4,
         dependent-sum >=0.4,
-        monad-control >= 1.0,
+        monad-control >=1.0,
         qua-types >=0.1
     cpp-options: -DGHCJS_BROWSER
     default-language: Haskell2010
@@ -70,6 +70,7 @@ executable qua-view
     other-modules:
         Commons
         Commons.EasyTensorJSFFI
+        Commons.Events
         Commons.Http
         Commons.Import
         Commons.Local

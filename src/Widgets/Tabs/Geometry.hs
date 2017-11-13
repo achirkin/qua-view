@@ -10,9 +10,6 @@
 
 module Widgets.Tabs.Geometry
     ( panelGeometry
-    , GeometryTabOutE (..)
-    , UserSelectedScenario (..)
-    , UserAsksSaveScenario (..)
     ) where
 
 import Reflex.Dom
@@ -30,20 +27,11 @@ import Widgets.Modal.BrowseScenarios
 import Widgets.Modal.SaveScenario
 
 
--- | GADT that helps to group all outgoing events from geometry tab GUI.
-data GeometryTabOutE e where
-  GeomOutUserSelectedScenario  :: GeometryTabOutE UserSelectedScenario
-  GeomOutUserAsksSaveScenario  :: GeometryTabOutE UserAsksSaveScenario
-  GeomOutUserAsksClearGeometry :: GeometryTabOutE (ElementClick "ClearGeometry")
-  GeomOutUserLoadsGeomFile     :: GeometryTabOutE LoadedTextContent
-  -- add here more output events
 
-
--- TODO do the same trick for input events if necessary
 
 panelGeometry :: forall t x . Reflex t
               => EventSelector t CompState
-              -> QuaWidget t x (EventSelector t GeometryTabOutE)
+              -> QuaWidget t x (EventSelector t QEventType)
 panelGeometry _compStateEvs = do
 
     el "div" $ text "Read GeoJSON from file"
@@ -54,16 +42,17 @@ panelGeometry _compStateEvs = do
         -- File upload button and its dynamic label
         rezE <- fileUpload cgClicked
 
-        return (cgClicked, rezE)
+        return ( () <$ cgClicked, rezE)
 
     (asksSaveScenarioE, asksSelectScenarioE) <- lift luciScenarioPane
 
     -- combine all outgoing events together
-    let outEvsSel :: forall a . GeometryTabOutE a -> Event t a
-        outEvsSel GeomOutUserAsksClearGeometry = clearGeometryClickedE
-        outEvsSel GeomOutUserAsksSaveScenario  = asksSaveScenarioE
-        outEvsSel GeomOutUserSelectedScenario  = asksSelectScenarioE
-        outEvsSel GeomOutUserLoadsGeomFile     = geometryLoadedE
+    let outEvsSel :: forall a . QEventType a -> Event t a
+        outEvsSel (UserRequest AskClearGeometry)  = clearGeometryClickedE
+        outEvsSel (UserRequest AskSaveScenario)   = asksSaveScenarioE
+        outEvsSel (UserRequest AskSelectScenario) = asksSelectScenarioE
+        outEvsSel GeometryLoaded                  = geometryLoadedE
+        outEvsSel _                               = never
 
     return $ EventSelector outEvsSel
 
@@ -128,23 +117,23 @@ fileUpload clearGeomEv = mdo
 
 
 -- | User indicates that they want to save scanerio with a specified name (via pop-up)
-buttonSaveScenario :: Reflex t => Widget x (Event t UserAsksSaveScenario)
+buttonSaveScenario :: Reflex t => Widget x (Event t Text)
 buttonSaveScenario = buttonRed "Save" def >>= popupSaveScenario
 
 -- | User selects
-buttonBrowseScenarios :: Reflex t => Widget x (Event t UserSelectedScenario)
+buttonBrowseScenarios :: Reflex t => Widget x (Event t ScId)
 buttonBrowseScenarios = buttonRed "Scenarios" def >>= popupBrowseScenarios
 
 
 luciScenarioPane :: Reflex t
-                 => Widget x ( Event t UserAsksSaveScenario
-                             , Event t UserSelectedScenario )
+                 => Widget x ( Event t Text
+                             , Event t ScId )
 luciScenarioPane = do
   el "div" $ text "Remote (Luci scenarios)"
   el "div" $ do
     userSelectedScenarioE    <- buttonBrowseScenarios
     userWantsToSaveScenarioE <- buttonSaveScenario
-    performEvent_ $ (\(UserAsksSaveScenario r) -> liftIO $ print r) <$> userWantsToSaveScenarioE
+    performEvent_ $ (liftIO . print) <$> userWantsToSaveScenarioE
     -- TODO: fileNameIndicator $ constDyn "placeholder" -- current scenario name
     return (userWantsToSaveScenarioE, userSelectedScenarioE)
 

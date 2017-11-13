@@ -3,7 +3,6 @@
 
 module Widgets.Modal.SaveScenario
     ( popupSaveScenario
-    , UserAsksSaveScenario (..)
     ) where
 
 import Reflex.Dom
@@ -13,15 +12,15 @@ import Widgets.Commons
 import Widgets.Modal
 
 
--- | Event happening when user clicks on save scenario button.
-newtype UserAsksSaveScenario = UserAsksSaveScenario Text
-  deriving (Eq, Show)
-
-popupSaveScenario :: Reflex t => Event t (ElementClick saveScenarioButton) -> Widget x (Event t UserAsksSaveScenario)
+popupSaveScenario :: Reflex t
+                  => Event t (ElementClick saveScenarioButton)
+                  -> Widget x (Event t Text)
 popupSaveScenario savePopupE = snd <$> createModalWithClicks savePopupE Inactive saveScenarioContent
 
 -- TODO: set input value to Nothing on save to reset the field.
-saveScenarioContent :: Reflex t => Widget x (Event t (ElementClick "cancel save scenario"), Event t UserAsksSaveScenario)
+saveScenarioContent :: Reflex t
+                    => Widget x ( Event t (ElementClick "cancel save scenario")
+                                , Event t Text)
 saveScenarioContent = do
   elClass "div" "modal-heading" $
     elClass "p" "modal-title" $ text "Enter a name for a new scenario to save it on a server"
@@ -33,4 +32,4 @@ saveScenarioContent = do
     elClass "p" "text-right" $ do
       ce <- buttonFlat "Cancel" def
       se <- buttonFlat "Save" def
-      return (leftmost [ce, se], UserAsksSaveScenario <$> current (_textInput_value scNameI) <@ se)
+      return (leftmost [ce, se], current (_textInput_value scNameI) <@ se)

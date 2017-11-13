@@ -28,7 +28,7 @@ controlPanel :: Reflex t
              -> QuaWidget t x
                   ( Event t (ElementClick "Reset Camera")
                   , Dynamic t (ComponentState "ControlPanel")
-                  , EventSelector t GeometryTabOutE
+                  , EventSelector t QEventType
                   )
 controlPanel compStates = mdo
     r@(_, stateD, _) <- Dom.elDynClass "div" (toClass <$> stateD) $ mdo
