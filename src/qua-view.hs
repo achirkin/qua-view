@@ -27,7 +27,6 @@ import           Widgets.Generation
 import qualified Widgets.LoadingSplash  as Widgets
 import qualified Widgets.Canvas         as Widgets
 import qualified Widgets.ControlPanel   as Widgets
-import qualified Widgets.Tabs.Geometry  as Widgets
 
 import qualified SmallGL
 import qualified SmallGL.Types as SmallGL
@@ -52,7 +51,7 @@ main = mainWidgetInElementById "qua-view-widgets" $ runQuaWidget $ mdo
     loadedGeometryE <- Workers.runLoadGeometryWorker -- I would need to add other loaded geom events here
          $  (\sc ev -> (ev, Scenario.withoutObjects sc))
         <$> current scenarioD
-        <@> select geomTabEvs Widgets.GeomOutUserLoadsGeomFile
+        <@> select geomTabEvs GeometryLoaded
 
     -- initialize WebGL rendering context
     let smallGLESel :: forall t a . Reflex t => SmallGL.SmallGLInput a -> Event t a
