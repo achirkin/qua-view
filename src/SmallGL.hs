@@ -22,9 +22,13 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module SmallGL
     ( ProjMatrix (..), ViewMatrix (..)
-    , RenderingApi (..), SmallGLInput (..)
+    , RenderingApi (..), QEventTag (..)
     , createRenderingEngine
     ) where
 
@@ -77,19 +81,20 @@ data RenderingApi = RenderingApi
   }
 
 
-data SmallGLInput a where
-    ViewPortResize      :: SmallGLInput Animation.ResizeEvent
+data instance QEventTag SmallGLInput a where
+    ViewPortResize      :: QEventTag SmallGLInput Animation.ResizeEvent
     -- ^ Every time windows is resized
-    ProjTransformChange :: SmallGLInput ProjMatrix
+    ProjTransformChange :: QEventTag SmallGLInput ProjMatrix
     -- ^ Camera updates of viewport projection
-    ViewTransformChange :: SmallGLInput ViewMatrix
+    ViewTransformChange :: QEventTag SmallGLInput ViewMatrix
     -- ^ Camera motions
 
-
+deriveEvent ''SmallGLInput
 
 createRenderingEngine :: (MonadIO m, Reflex t, MonadIO (Performable m), PerformEvent t m)
-                      => Element EventResult GhcjsDomSpace t -> EventSelector t SmallGLInput -> m RenderingApi
-createRenderingEngine canvasElem evS = do
+                      => Element EventResult GhcjsDomSpace t
+                      -> QuaViewT Writing t m RenderingApi
+createRenderingEngine canvasElem = do
     gl <- getRenderingContext canvasElem
     curW <- floor <$> JSFFI.getClientWidth (_element_raw canvasElem)
     curH <- floor <$> JSFFI.getClientHeight (_element_raw canvasElem)
@@ -143,13 +148,16 @@ createRenderingEngine canvasElem evS = do
     rre <- liftIO $ newMVar re
 
     -- update camera matrices
-    performEvent_ . ffor (select evS ProjTransformChange) $ \m -> liftIO $
+    projTransformChangeE <- askEvent $ SmallGLInput ProjTransformChange
+    performEvent_ . ffor projTransformChangeE $ \m -> liftIO $
         modifyMVar_ rre (\r -> return r{uProjM = m})
-    performEvent_ . ffor (select evS ViewTransformChange) $ \m -> liftIO $
+    viewTransformChangeE <- askEvent $ SmallGLInput ViewTransformChange
+    performEvent_ . ffor viewTransformChangeE $ \m -> liftIO $
         modifyMVar_ rre (\r -> return r{uViewM = m})
 
 
-    performEvent_ . ffor (select evS ViewPortResize) $ \(ResizeEvent newVPSize) ->
+    viewPortResizeE <- askEvent $ SmallGLInput ViewPortResize
+    performEvent_ . ffor viewPortResizeE $ \(ResizeEvent newVPSize) ->
         liftIO . modifyMVar_ rre $ \r ->
            let r' = r{vpSize = (floor *** floor) newVPSize } in r' <$ setupViewPort r'
 

@@ -24,10 +24,8 @@ import Widgets.Tabs.Services
 
 -- | Control panel widget is a place for all controls in qua-view!
 controlPanel :: Reflex t
-             => EventSelector t CompState
-             -> QuaWidget t x
-                  ( Dynamic t (ComponentState "ControlPanel") )
-controlPanel compStates = mdo
+             => QuaWidget t x (Dynamic t (ComponentState "ControlPanel"))
+controlPanel = mdo
     stateD <- Dom.elDynClass "div" (toClass <$> stateD) $ mdo
 
       -- tab pane
@@ -35,7 +33,7 @@ controlPanel compStates = mdo
         <- Dom.elAttr "div" ("style" =: "overflow-y: auto; overflow-x: hidden; height: 100%;") $ do
           Dom.elAttr "div" ("style" =: "margin: 0; padding: 0; height: 56px;") Dom.blank
           runTabWidget $ do
-            addTab "Geometry" (panelGeometry compStates)
+            addTab "Geometry" panelGeometry
             addTab "Info" panelInfo
             addTab "Services" panelServices
 

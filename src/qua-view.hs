@@ -12,7 +12,6 @@ module Main ( main ) where
 import Reflex.Dom
 import Reflex.Dom.Widget.Animation (resizeEvents, viewPortSizeI)
 import Numeric.DataFrame
-import qualified Data.Dependent.Map as DMap
 import Control.Lens
 
 import Commons
@@ -44,30 +43,20 @@ main = mainWidgetInElementById "qua-view-widgets" $ runQuaWidget $ mdo
     canvas <- Widgets.getWebGLCanvas
 
     -- add the control panel to the page
-    _panelStateD
-        <- Widgets.controlPanel compStateEvs
+    _panelStateD <- Widgets.controlPanel
 
     -- initialize web workers
-    loadedGeometryE <- do
+    do
       geomLoadedE <- askEvent GeometryLoaded
       Workers.runLoadGeometryWorker -- I would need to add other loaded geom events here
          $  (\sc ev -> (ev, Scenario.withoutObjects sc))
         <$> current scenarioD
         <@> geomLoadedE
+    loadedGeometryE <- askEvent $ WorkerMessage Workers.LGWMessage
 
-    -- initialize WebGL rendering context
-    let smallGLESel :: forall t a . Reflex t => SmallGL.SmallGLInput a -> Event t a
-        smallGLESel SmallGL.ViewPortResize = resizeEvents aHandler
-        smallGLESel SmallGL.ProjTransformChange = SmallGL.ProjM . Model.projMatrix <$> updated cameraD
-        smallGLESel SmallGL.ViewTransformChange = SmallGL.ViewM . Model.viewMatrix <$> updated cameraD
 
-        -- here we can put various events that enable/disable various components
-        compStateEvs = fan . merge $ DMap.fromList
-           [ byCompName @"Hello" :=> never
-           , byCompName @"Wold"  :=> never
-           ]
 
-    renderingApi <- SmallGL.createRenderingEngine canvas (EventSelector smallGLESel)
+    renderingApi <- SmallGL.createRenderingEngine canvas
     -- initialize animation handler (and all pointer events).
     aHandler <- Widgets.registerAnimationHandler canvas (SmallGL.render renderingApi)
     -- supply animation events to camera
@@ -79,6 +68,13 @@ main = mainWidgetInElementById "qua-view-widgets" $ runQuaWidget $ mdo
     plsResetCameraE <- askEvent (UserRequest AskResetCamera)
     cameraD <- Model.dynamicCamera icamera aHandler plsResetCameraE $ current scenarioCenterD
 --    performEvent_ $ liftIO . print <$> updated cameraD
+    -- initialize WebGL rendering context
+    registerEvent (SmallGLInput SmallGL.ViewPortResize)
+        $ resizeEvents aHandler
+    registerEvent (SmallGLInput SmallGL.ProjTransformChange)
+        $ SmallGL.ProjM . Model.projMatrix <$> updated cameraD
+    registerEvent (SmallGLInput SmallGL.ViewTransformChange)
+        $ SmallGL.ViewM . Model.viewMatrix <$> updated cameraD
 
     scenarioD <- holdDyn def scenarioE
     scenarioE <- performEvent $

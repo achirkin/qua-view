@@ -108,6 +108,7 @@ executable qua-view
         Widgets.UserMessages
         Workers
         Workers.LoadGeometry
+        Workers.Types
     ghc-options: -Wall -fwarn-tabs
 
 executable qua-worker-loadgeometry
@@ -162,6 +163,7 @@ executable qua-worker-loadgeometry
         SmallGL.Types
         Workers
         Workers.LoadGeometry
+        Workers.Types
     ghc-options: -Wall -fwarn-tabs
 
 test-suite geojson-tests
