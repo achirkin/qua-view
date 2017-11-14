@@ -29,10 +29,8 @@ import Widgets.Modal.SaveScenario
 
 
 
-panelGeometry :: forall t x . Reflex t
-              => EventSelector t CompState
-              -> QuaWidget t x ()
-panelGeometry _compStateEvs = do
+panelGeometry :: Reflex t => QuaWidget t x ()
+panelGeometry = do
 
     el "div" $ text "Read GeoJSON from file"
     (clearGeometryClickedE, geometryLoadedE) <-

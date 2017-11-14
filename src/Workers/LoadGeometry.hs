@@ -1,27 +1,26 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DataKinds #-}
 #ifdef ISWORKER
 {-# LANGUAGE TypeApplications #-}
 #else
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE GADTs #-}
 #endif
 module Workers.LoadGeometry
     ( loadGeometryDef, LGWMessage (..)
 #ifdef ISWORKER
     , loadGeometryConduit
 #else
-    , runLoadGeometryWorker
+    , runLoadGeometryWorker, QEventTag (..)
 #endif
     ) where
 
 import Model.Scenario.Object (ObjectRenderable(..))
-import GHC.Generics
 import Commons
 import Workers
+import Workers.Types
 import Model.Scenario
-import Model.Scenario.Statistics
 #ifdef ISWORKER
 import Numeric.DataFrame
 import Data.Conduit
@@ -71,7 +70,7 @@ runLoadGeometryWorker :: ( MonadIO m, Reflex t
                          , MonadFix m
                          )
                       => Event t (LoadedTextContent, Scenario' 'Prepared)
-                      -> QuaViewT Writing t m (Event t LGWMessage)
+                      -> QuaViewT Writing t m ()
 runLoadGeometryWorker inEvs = do
     loadGeometryDefD
          <- fmap (( \u -> loadGeometryDef
@@ -91,7 +90,8 @@ runLoadGeometryWorker inEvs = do
     newLoadGeometryDefD <- sample (current loadGeometryDefD)
                         >>= \s -> holdDyn s newLoadGeometryDefE
     -- run worker every time its link changes
-    runWorkerDyn newLoadGeometryDefD $ flip (,) [] <$> inEvs
+    evs <- runWorkerDyn newLoadGeometryDefD $ flip (,) [] <$> inEvs
+    registerEvent (WorkerMessage LGWMessage) evs
 
 #endif
 
@@ -102,15 +102,3 @@ loadGeometryDef = WorkerDef
   { workerName = "LoadGeometry"
   , workerUrl  = "qua-worker-loadgeometry.js"
   }
-
-data LGWMessage
-  = LGWResult (Scenario' 'Prepared)
-    -- ^ Send parsed Scenario
-  | LGWSCStat ScenarioStatistics
-    -- ^ Send general info about scenario object
-  | LGWSError JSError
-    -- ^ Something went wrong!
-  deriving Generic
-
-instance FromJSVal LGWMessage
-instance ToJSVal   LGWMessage
