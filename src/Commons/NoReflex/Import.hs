@@ -3,7 +3,8 @@ module Commons.NoReflex.Import
       first, second, (***), (&&&)
     , when, unless, void, for
     , Proxy (..)
-    , Semigroup (..), Monoid (..), NonEmpty (..)
+    , Semigroup (..), Monoid (..), NonEmpty (..), foldMap'
+    , Dim (), Idx (), DataFrame ()
     , Coercible, coerce
       -- * Re-exported from GHC.TypeLits
     , Symbol, Nat, KnownNat, KnownSymbol, natVal, symbolVal
@@ -30,7 +31,9 @@ import Data.Coerce
 import Data.Default
 import Data.List.NonEmpty
 import Data.Proxy
-import Data.Semigroup
+import Numeric.Semigroup
+import Numeric.Dimensions
+import Numeric.DataFrame
 import Data.Map.Lazy (Map)
 import Data.Dependent.Map (DMap, DSum (..))
 import Data.JSString (JSString)

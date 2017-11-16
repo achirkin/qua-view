@@ -10,7 +10,7 @@ module Widgets.Modal.EdxGuide
 import Reflex.Dom
 
 import Commons
-import Widgets.CommonWidget
+import Widgets.Commons
 import Widgets.Generation
 import Widgets.Modal
 
@@ -107,7 +107,7 @@ popupEdxGuideContent = do
         )
     elClass "div" "modal-footer" $
       elClass "p" "text-right" $
-        flatButton "Ok, let's go"
+        buttonFlat "Ok, let's go" def
   where
     addCss = $(do
         qcss

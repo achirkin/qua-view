@@ -19,12 +19,6 @@ module Workers
    ) where
 
 
-#ifdef ISWORKER
-import Commons.NoReflex
-#else
-import Commons
-#endif
-
 #ifdef DEVELOPMENT
 import Data.Time.Clock.POSIX
 import qualified Data.JSString as JSString
@@ -39,9 +33,11 @@ import qualified GHCJS.DOM.EventM as JSFFI (on)
 import qualified GHCJS.DOM.JSFFI.Generated.DedicatedWorkerGlobalScope as JSFFI
 import qualified GHCJS.DOM.JSFFI.Generated.MessageEvent as JSFFI
 #ifdef ISWORKER
+import Commons.NoReflex
 import Control.Concurrent.Chan
 import Data.Conduit
 #else
+import Commons
 import qualified GHCJS.DOM.JSFFI.Generated.ErrorEvent as JSFFI
 import Reflex
 #endif
@@ -121,10 +117,7 @@ getSelf :: MonadIO m => m WebWorker
 getSelf = (\h -> WebWorker h (pure ())) <$> liftIO js_getSelf
 
 foreign import javascript unsafe "$r = self;" js_getSelf :: IO JSFFI.DedicatedWorkerGlobalScope
-#endif
 
-
-#ifdef ISWORKER
 -- | Execute worker process in current WebWorker thread
 execWorkerConduit :: (FromJSVal inMsg, ToJSVal outMsg, MonadIO m, MonadLogger m)
                   => WorkerDef

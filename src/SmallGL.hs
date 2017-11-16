@@ -81,13 +81,14 @@ data RenderingApi = RenderingApi
   }
 
 
+-- | Some changes that affect WebGL rendering.
 data instance QEventTag SmallGLInput a where
+    -- | Every time windows is resized
     ViewPortResize      :: QEventTag SmallGLInput Animation.ResizeEvent
-    -- ^ Every time windows is resized
+    -- | Camera updates of viewport projection
     ProjTransformChange :: QEventTag SmallGLInput ProjMatrix
-    -- ^ Camera updates of viewport projection
+    -- | Camera motions
     ViewTransformChange :: QEventTag SmallGLInput ViewMatrix
-    -- ^ Camera motions
 
 deriveEvent ''SmallGLInput
 

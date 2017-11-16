@@ -42,8 +42,8 @@ instance ToJSVal   LGWMessage
 #ifndef ISWORKER
 -- | Here we need to aggregate all possible message types from all workers.
 data instance QEventTag WorkerMessage evArg where
+  -- | Messages that come from LoadGeometryWorker
   LGWMessage :: QEventTag WorkerMessage LGWMessage
-  -- ^ Messages that come from LoadGeometryWorker
 
 deriveEvent ''WorkerMessage
 #endif
