@@ -21,7 +21,7 @@ import Control.Applicative ((<|>))
 import Data.Foldable (toList)
 import Data.Semigroup (stimesIdempotentMonoid)
 import GHC.Generics
-import Commons
+import Commons.NoReflex
 import Model.Scenario.Properties
 --import Model.Scenario.Statistics
 import qualified Model.Scenario.Object as Object

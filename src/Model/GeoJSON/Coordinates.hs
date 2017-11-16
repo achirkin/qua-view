@@ -38,7 +38,7 @@ import Numeric.DataFrame.IO
 import Numeric.Dimensions
 import Numeric.Dimensions.Traverse.IO
 import Numeric.TypeLits
-import Commons
+import Commons.NoReflex
 import JavaScript.JSON.Types.Internal
 import JavaScript.JSON.Types.Instances
 import JavaScript.Array (JSArray)

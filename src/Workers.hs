@@ -19,8 +19,11 @@ module Workers
    ) where
 
 
-
+#ifdef ISWORKER
+import Commons.NoReflex
+#else
 import Commons
+#endif
 
 #ifdef DEVELOPMENT
 import Data.Time.Clock.POSIX

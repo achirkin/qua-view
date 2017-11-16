@@ -16,7 +16,11 @@ module Workers.Types
     ) where
 
 import GHC.Generics
+#ifdef ISWORKER
+import Commons.NoReflex
+#else
 import Commons
+#endif
 import Model.Scenario
 import Model.Scenario.Object (ObjectRenderable(..))
 import Model.Scenario.Statistics

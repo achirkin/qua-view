@@ -2,13 +2,10 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE GADTs #-}
 
-module Commons.Logger
+module Commons.NoReflex.Logger
     ( -- * User-level logging
       --   Show some messages to a client.
       UserProgressCallback (..), UserMessage (..), UserMessageCallback (..)
@@ -16,13 +13,8 @@ module Commons.Logger
     , LogLevel(LevelError,LevelWarn,LevelInfo,LevelDebug)
     , LogSource (..), LoggerFunc
     , MonadLogger (..), logMsg', logMsg
-    , logDebug  , logInfo  , logWarn  , logError --, logUser
-    , logDebug' , logInfo' , logWarn' , logError' --, logUser'
-#ifndef ISWORKER
-    , logMsgEvents', logMsgEvents
-    , logDebugEvents  , logInfoEvents  , logWarnEvents  , logErrorEvents
-    , logDebugEvents' , logInfoEvents' , logWarnEvents' , logErrorEvents'
-#endif
+    , logDebug  , logInfo  , logWarn  , logError
+    , logDebug' , logInfo' , logWarn' , logError'
     , stdOutLogger
     ) where
 
@@ -31,11 +23,8 @@ import Control.Monad.Trans.Reader
 import Data.String (IsString (..))
 #ifdef ISWORKER
 import Data.Conduit
-#else
-import Reflex.PerformEvent.Class
 #endif
-
-import Commons.Import
+import Commons.NoReflex.Import
 
 newtype UserMessageCallback
   = UserMessageCallback { getUMsgCallback :: forall t . UserMessage t -> IO t }
@@ -94,6 +83,7 @@ data LogLevel
 #define LOGLEVEL 2
 #endif
 
+-- | Custom name of the place where the log message comes from.
 newtype LogSource = LogSource JSString
   deriving (PToJSVal, ToJSVal, ToJSString, IsString, Show, Eq)
 
@@ -198,111 +188,6 @@ logError _ _ = pure ()
 logError = logMsg LevelError
 #endif
 {-# INLINE logError #-}
-
-
-#ifndef ISWORKER
--- | Log a message and show an attached JS value
-logMsgEvents' :: ( ToJSString msg
-                 , ToJSVal attachment
-                 , MonadLogger m
-                 , PerformEvent t m
-                 , MonadIO (Performable m)
-                 )
-              => LogLevel -> LogSource -> Event t (msg, Maybe attachment) -> m ()
-logMsgEvents' ll ls ea = do
-    f <- askLogger
-    performEvent_ $ (\(msg,ma) -> liftIO $ mapM toJSVal ma >>= f ll ls (toJSString msg)) <$> ea
-
-
--- | Log a message
-logMsgEvents :: ( ToJSString msg
-                , MonadLogger m
-                , PerformEvent t m
-                , MonadIO (Performable m)
-                )
-             =>  LogLevel -> LogSource -> Event t msg -> m ()
-logMsgEvents ll ls ea = do
-    f <- askLogger
-    performEvent_ $ (\msg -> liftIO $ f ll ls (toJSString msg) Nothing) <$> ea
-
-
-logDebugEvents' :: (ToJSString msg, ToJSVal attachment, MonadLogger m, PerformEvent t m, MonadIO (Performable m))
-                => LogSource -> Event t (msg, Maybe attachment) -> m ()
-#if LOGLEVEL <= 3
-logDebugEvents' _ _ = pure ()
-#else
-logDebugEvents' = logMsgEvents' LevelDebug
-#endif
-{-# INLINE logDebugEvents' #-}
-
-logDebugEvents :: (ToJSString msg, MonadLogger m, PerformEvent t m, MonadIO (Performable m))
-               => LogSource -> Event t msg -> m ()
-#if LOGLEVEL <= 3
-logDebugEvents _ _ = pure ()
-#else
-logDebugEvents = logMsgEvents LevelDebug
-#endif
-{-# INLINE logDebugEvents #-}
-
-logInfoEvents' :: (ToJSString msg, ToJSVal attachment, MonadLogger m, PerformEvent t m, MonadIO (Performable m))
-               => LogSource -> Event t (msg, Maybe attachment) -> m ()
-#if LOGLEVEL <= 2
-logInfoEvents' _ _ = pure ()
-#else
-logInfoEvents' = logMsgEvents' LevelInfo
-#endif
-{-# INLINE logInfoEvents' #-}
-
-logInfoEvents :: (ToJSString msg, MonadLogger m, PerformEvent t m, MonadIO (Performable m))
-              => LogSource -> Event t msg -> m ()
-#if LOGLEVEL <= 2
-logInfoEvents _ _ = pure ()
-#else
-logInfoEvents = logMsgEvents LevelInfo
-#endif
-{-# INLINE logInfoEvents #-}
-
-logWarnEvents' :: (ToJSString msg, ToJSVal attachment, MonadLogger m, PerformEvent t m, MonadIO (Performable m))
-               => LogSource -> Event t (msg, Maybe attachment) -> m ()
-#if LOGLEVEL <= 1
-logWarnEvents' _ _ = pure ()
-#else
-logWarnEvents' = logMsgEvents' LevelWarn
-#endif
-{-# INLINE logWarnEvents' #-}
-
-logWarnEvents :: (ToJSString msg, MonadLogger m, PerformEvent t m, MonadIO (Performable m))
-              => LogSource -> Event t msg -> m ()
-#if LOGLEVEL <= 1
-logWarnEvents _ _ = pure ()
-#else
-logWarnEvents = logMsgEvents LevelWarn
-#endif
-{-# INLINE logWarnEvents #-}
-
-logErrorEvents' :: (ToJSString msg, ToJSVal attachment, MonadLogger m, PerformEvent t m, MonadIO (Performable m))
-                => LogSource -> Event t (msg, Maybe attachment) -> m ()
-#if LOGLEVEL <= 0
-logErrorEvents' _ _ = pure ()
-#else
-logErrorEvents' = logMsgEvents' LevelError
-#endif
-{-# INLINE logErrorEvents' #-}
-
-logErrorEvents :: (ToJSString msg, MonadLogger m, PerformEvent t m, MonadIO (Performable m))
-               => LogSource -> Event t msg -> m ()
-#if LOGLEVEL <= 0
-logErrorEvents _ _ = pure ()
-#else
-logErrorEvents = logMsgEvents LevelError
-#endif
-{-# INLINE logErrorEvents #-}
-
-#endif
-
-
-
-
 
 
 

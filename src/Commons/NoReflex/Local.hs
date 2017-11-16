@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DataKinds #-}
@@ -10,16 +9,14 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans       #-}
-module Commons.Local
+module Commons.NoReflex.Local
     ( -- * Local types
       IsBusy (..), ComponentState (..), ElementClick (..)
     , CompState (..), byCompName
     , JSError (..)
     , LoadedTextContent (..)
       -- * Local functions
-#ifndef ISWORKER
     , jsstring
-#endif
     , castToJSString, parseJSONValue
     ) where
 
@@ -30,14 +27,12 @@ import qualified Data.GADT.Compare as GADT
 import qualified Data.Map.Strict as Map
 import qualified Data.JSString as JSString
 import GHC.TypeLits
-#ifndef ISWORKER
 import Language.Haskell.TH
 import Language.Haskell.TH.Syntax (qAddTopDecls)
 import Language.Haskell.TH.Quote (QuasiQuoter(..))
-#endif
 import Unsafe.Coerce (unsafeCoerce)
 
-import Commons.Import
+import Commons.NoReflex.Import
 import JavaScript.JSON.Types.Internal
 import JavaScript.JSON.Types.Instances
 
@@ -83,7 +78,6 @@ instance GADT.GCompare CompState where
 toCSProxy :: forall (s :: Symbol) . CompState (ComponentState s) -> Proxy s
 toCSProxy _ = Proxy
 
-#ifndef ISWORKER
 -- | Create a multiline JavaScript string using a splice.
 --   Presumably, it performs faster than any other way of creating JSString, because it avoids
 --   conversion between HS string and JSString.
@@ -133,7 +127,6 @@ jsstring = QuasiQuoter
     mkFunAndArgs' _ [c] = (show c ++ "].join('');", ConT ''JSString)
     mkFunAndArgs' i (c:chunks) = let (e, a) = mkFunAndArgs' (i+1) chunks
                                  in (show c ++ ",$" ++ show i ++ ',':e, AppT ArrowT (ConT ''JSString) `AppT` a)
-#endif
 
 -- | Error messages coming from various widgets, etc.
 newtype JSError = JSError { getJSError :: JSString }

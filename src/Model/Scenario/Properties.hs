@@ -20,7 +20,7 @@ import JavaScript.JSON.Types.Internal
 import Numeric.DataFrame
 import Unsafe.Coerce
 
-import Commons
+import Commons.NoReflex
 
 -- | Properties is a map JSString -> JSON-like Value
 type Properties = Map PropName PropValue

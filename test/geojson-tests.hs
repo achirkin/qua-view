@@ -8,15 +8,15 @@ import Distribution.TestSuite
 --import JavaScript.JSON.Types.Instances
 --import JavaScript.JSON.Types.Internal as JSON
 --import Numeric.DataFrame
---import Commons
---import Model.GeoJSON.Point
+--import Commons.NoReflex
 --import Model.GeoJSON.Coordinates
+--import Model.Scenario.Object.Geometry
 
 --fromJSONPoint1 :: IO Progress
 --fromJSONPoint1 = testFromJSON
 --    "{ \"type\": \"Point\", \"coordinates\": [15,12,1,6]}"
---    (Point (vec3 15 12 1), PaddedZeros False)
---
+--    (Points (_ $ vec3 15 12 1), PaddedZeros False)
+
 --fromJSONPoint2 :: IO Progress
 --fromJSONPoint2 = testFromJSON
 --    "{ \"type\": \"Point\", \"coordinates\": [6, 3]}"

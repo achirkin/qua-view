@@ -1,7 +1,7 @@
 module Main ( main ) where
 
 
-import Commons
+import Commons.NoReflex
 
 import Workers
 import Workers.LoadGeometry

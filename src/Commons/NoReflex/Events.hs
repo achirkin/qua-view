@@ -8,11 +8,9 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE Rank2Types #-}
 -- | Keep all global events to be registered in qua-view
-module Commons.Events
-    ( -- * Global event map
-      QuaViewEvents (..), noEvents
-      -- * Tagging events
-    , QEventType (..), QEventTag
+module Commons.NoReflex.Events
+    ( -- * Tagging events
+      QEventType (..), QEventTag
       -- * Event types
     , UserRequest (..), ScId
     , WorkerMessage
@@ -22,35 +20,12 @@ module Commons.Events
     ) where
 
 
-import Data.Dependent.Map (unionWithKey, empty)
-import Data.GADT.Compare
-import Data.GADT.Compare.TH
+import Data.GADT.Compare (GEq, GCompare)
+import Data.GADT.Compare.TH (deriveGEq, deriveGCompare)
 import Language.Haskell.TH.Syntax ( Type (ConT), Name, Q, Dec, reifyInstances )
-import Reflex.Class (leftmost)
 
-import Commons.Import
-import Commons.Local
-
--- | A map of qua-view events with suitable monoid instances.
---   When two maps merge and have same event name (key), the events are merged using
---   `lefmost`.
---   Since there is not symantic way to represent which event occurrence is preferred when
---   an event you declare coincide with another one, you must be very careful to avoid such situations.
-newtype QuaViewEvents t = QuaViewEvents
-  { unQuaViewEvents :: DMap QEventType (Event t)}
-
-noEvents :: QuaViewEvents t
-noEvents = QuaViewEvents empty
-
-instance Reflex t => Semigroup (QuaViewEvents t) where
-  a <> b = QuaViewEvents
-         $ unionWithKey (\_ x y -> leftmost [x,y])
-                        (unQuaViewEvents a)
-                        (unQuaViewEvents b)
-
-instance Reflex t => Monoid (QuaViewEvents t) where
-  mempty = noEvents
-  mappend = (<>)
+import Commons.NoReflex.Local (LoadedTextContent)
+import Commons.NoReflex.Import (Text)
 
 
 -- | All possible global events in qua-view

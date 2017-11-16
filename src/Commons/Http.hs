@@ -17,7 +17,7 @@ import JavaScript.JSON.Types.Instances
 import Reflex.Dom
 
 import Commons.Import
-import Commons.Local
+import Commons.NoReflexDom
 import Control.Monad (join)
 import Data.JSString (pack)
 import Data.JSString.Text (textFromJSString, textToJSString)

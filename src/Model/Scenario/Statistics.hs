@@ -14,7 +14,7 @@ import JavaScript.JSON.Types.Instances
 import JavaScript.JSON.Types.Generic ()
 import GHC.Generics
 import Numeric.DataFrame
-import Commons
+import Commons.NoReflex
 
 -- | This information is used to derive strategies of building WebGL scene
 data ScenarioStatistics = ScenarioStatistics

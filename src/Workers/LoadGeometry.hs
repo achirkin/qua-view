@@ -17,7 +17,11 @@ module Workers.LoadGeometry
     ) where
 
 import Model.Scenario.Object (ObjectRenderable(..))
+#ifdef ISWORKER
+import Commons.NoReflex
+#else
 import Commons
+#endif
 import Workers
 import Workers.Types
 import Model.Scenario
