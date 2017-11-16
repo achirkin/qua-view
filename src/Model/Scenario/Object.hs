@@ -24,7 +24,7 @@ import qualified Data.Map.Strict as Map
 import JavaScript.JSON.Types.Instances (ToJSON, FromJSON)
 import GHC.Generics
 import Numeric.DataFrame
-import Commons
+import Commons.NoReflex
 import SmallGL.Types
 import Model.Scenario.Properties
 import Model.Scenario.Object.Geometry (Geometry)

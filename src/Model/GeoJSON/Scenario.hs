@@ -27,7 +27,7 @@ import Numeric.Dimensions
 import Numeric.TypeLits
 import Unsafe.Coerce
 
-import Commons
+import Commons.NoReflex
 import SmallGL.Types
 import qualified Model.Scenario as Scenario
 import qualified Model.Scenario.Object as Object

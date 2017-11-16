@@ -8,19 +8,19 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-orphans       #-}
-module Commons.EasyTensorJSFFI
+module Commons.NoReflex.EasyTensorJSFFI
     ( dataFrameToTransferable
     , transferableToDataFrame
     , Transferable
     ) where
 
 
-import Commons.Import
+import Commons.NoReflex.Import
 import Numeric.DataFrame
 import Numeric.DataFrame.IO
 import Numeric.Dimensions
 import Numeric.TypeLits
-import GHCJS.DOM.Types
+import GHCJS.DOM.Types (GObject (..), IsGObject)
 import GHCJS.Types (jsval)
 import Unsafe.Coerce (unsafeCoerce)
 import JavaScript.Array (JSArray)

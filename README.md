@@ -16,7 +16,7 @@ First, we need to install GHCJS. We install GHCJS via stack, but before that som
 Refer to [GHCJS documentation](https://github.com/ghcjs/ghcjs/tree/ghc-8.0) to check, which are needed.
 In particular, the following command installs everything needed on Ubuntu:
 
-    sudo apt-get install libtinfo-dev nodejs nodejs-legacy npm 
+    sudo apt-get install libtinfo-dev nodejs nodejs-legacy npm
 
 (`nodejs-legacy is only needed for the alias from `node` to `nodejs`.)
 
@@ -67,7 +67,11 @@ popd
 pushd apps/hs/qua-view
 stack haddock
 popd
-stack exec hoogle -- generate --local=apps/hs/qua-server/.stack-work/install/x86_64-linux/lts-8.21/8.0.2/doc --local=apps/hs/qua-view/.stack-work/install/x86_64-linux/lts-8.21/ghcjs-0.2.1.9008021_ghc-8.0.2/doc
+stack exec hoogle -- generate \
+                  --local=apps/hs/qua-server/.stack-work/install/x86_64-linux-nopie/lts-8.21/8.0.2/doc \
+                  --local=apps/hs/qua-view/.stack-work/install/x86_64-linux/lts-8.21/ghcjs-0.2.1.9008021_ghc-8.0.2/doc \
+                  --local=/home/achirkin/.stack/snapshots/x86_64-linux-nopie/lts-8.21/8.0.2/doc \
+                  --local=/home/achirkin/.stack/snapshots/x86_64-linux/lts-8.21/ghcjs-0.2.1.9008021_ghc-8.0.2/doc
 stack exec hoogle -- server --port=8080 --local
 ```
 

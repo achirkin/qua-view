@@ -13,7 +13,7 @@ import Numeric.DataFrame
 import Numeric.DataFrame.IO
 import Numeric.Dimensions
 import Numeric.TypeLits
-import Commons
+import Commons.NoReflex
 
 
 

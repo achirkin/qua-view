@@ -70,12 +70,19 @@ executable qua-view
     hs-source-dirs: src
     other-modules:
         Commons
-        Commons.EasyTensorJSFFI
-        Commons.Events
         Commons.Http
         Commons.Import
-        Commons.Local
-        Commons.Logger
+        Commons.NoReflex
+        Commons.NoReflex.EasyTensorJSFFI
+        Commons.NoReflex.Events
+        Commons.NoReflex.Logger
+        Commons.NoReflex.Import
+        Commons.NoReflex.Local
+        Commons.NoReflexDom
+        Commons.NoReflexDom.EventMap
+        Commons.NoReflexDom.Import
+        Commons.NoReflexDom.Logger
+        Commons.NoReflexDom.QuaViewMonad
         Commons.QuaViewMonad
         Model.Camera
         Model.Scenario
@@ -125,11 +132,11 @@ executable qua-worker-loadgeometry
         ghcjs-base >=0.2.0.0,
         ghcjs-prim >=0.1.0.0,
         ghcjs-webgl -any,
-        reflex >=0.5,
         text >=1.2.0.0,
         containers >=0.5,
         ghcjs-dom-jsffi >=0.9.0.0,
         transformers -any,
+        template-haskell -any,
         time -any,
         mtl -any,
         lens -any,
@@ -140,6 +147,7 @@ executable qua-worker-loadgeometry
         data-default >=0.7,
         dependent-map >=0.2.4,
         dependent-sum >=0.4,
+        dependent-sum-template >=0.0.0.6,
         conduit >=1.2.0
     cpp-options: -DGHCJS_BROWSER -DISWORKER
     js-sources:
@@ -148,11 +156,12 @@ executable qua-worker-loadgeometry
     default-language: Haskell2010
     hs-source-dirs: src
     other-modules:
-        Commons
-        Commons.EasyTensorJSFFI
-        Commons.Import
-        Commons.Local
-        Commons.Logger
+        Commons.NoReflex
+        Commons.NoReflex.EasyTensorJSFFI
+        Commons.NoReflex.Events
+        Commons.NoReflex.Import
+        Commons.NoReflex.Local
+        Commons.NoReflex.Logger
         Model.GeoJSON.Coordinates
         Model.GeoJSON.Scenario
         Model.Scenario
@@ -178,11 +187,11 @@ test-suite geojson-tests
         ghcjs-base >=0.2.0.0,
         ghcjs-prim >=0.1.0.0,
         ghcjs-webgl -any,
-        reflex >=0.5,
         text >=1.2.0.0,
         containers >=0.5,
         ghcjs-dom-jsffi >=0.9.0.0,
         transformers -any,
+        template-haskell -any,
         time -any,
         mtl -any,
         lens -any,
@@ -193,18 +202,20 @@ test-suite geojson-tests
         data-default >=0.7,
         dependent-map >=0.2.4,
         dependent-sum >=0.4,
+        dependent-sum-template >=0.0.0.6,
         conduit >=1.2.0
-    cpp-options: -DISWORKER -DLOGLEVEL=0 -DDEVELOPMENT
+    cpp-options: -DISWORKER -DLOGLEVEL=4 -DDEVELOPMENT
     js-sources:
         src/Model/GeoJSON/Coordinates.js
     default-language: Haskell2010
     hs-source-dirs: test src
     other-modules:
-        Commons
-        Commons.EasyTensorJSFFI
-        Commons.Import
-        Commons.Local
-        Commons.Logger
+        Commons.NoReflex
+        Commons.NoReflex.EasyTensorJSFFI
+        Commons.NoReflex.Events
+        Commons.NoReflex.Import
+        Commons.NoReflex.Local
+        Commons.NoReflex.Logger
         Model.GeoJSON.Coordinates
         Model.GeoJSON.Scenario
         Model.Scenario
