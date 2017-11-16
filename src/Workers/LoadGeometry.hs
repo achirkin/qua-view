@@ -17,15 +17,11 @@ module Workers.LoadGeometry
     ) where
 
 import Model.Scenario.Object (ObjectRenderable(..))
-#ifdef ISWORKER
-import Commons.NoReflex
-#else
-import Commons
-#endif
 import Workers
 import Workers.Types
 import Model.Scenario
 #ifdef ISWORKER
+import Commons.NoReflex
 import Numeric.DataFrame
 import Data.Conduit
 import Model.GeoJSON.Coordinates
@@ -61,6 +57,7 @@ loadGeometryConduit = awaitForever $ \(msg, _curSc) -> do
 
 
 #else
+import Commons
 import Reflex
 import qualified Data.JSString as JSString
 import qualified QuaTypes

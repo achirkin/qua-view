@@ -213,7 +213,7 @@ mUniqSource = unsafePerformIO (newIORef Map.empty)
 -- | This function gets a unique order number for haskell module.
 --   It does so by keeping module names in a file separated by a special character.
 foreign import javascript interruptible
-  "var fs = require('fs');fs.readFile($1, {encoding: 'utf-8'}, function(err,str){var l = str.split('|'), i = l.indexOf($2);if(i >= 0){$c(i);} else {fs.appendFile($1,$2.concat('|'),function(err){$c(l.length - 1);});}});"
+  "var fs = require('fs');fs.readFile($1, {encoding: 'utf-8'}, function(err,str){var l = ((str!==undefined)?str.split('|'):[]), i = l.indexOf($2);if(i >= 0){$c(i);} else {fs.appendFile($1,$2.concat('|'),function(err){$c(l.length - 1);});}});"
   js_module_unique :: JSString -> JSString -> IO Int
 
 
@@ -226,7 +226,7 @@ modulesUniqPath :: FilePath
 modulesUniqPath = MODULES_UNIQUE_PATH
 #else
 modulesUniqPath = "modules.unique"
-{-# WARNING cssGenPath "CPP definition MODULES_UNIQUE_PATH is not found! This means I don't know where to look for unique modules identifiers." #-}
+{-# WARNING modulesUniqPath "CPP definition MODULES_UNIQUE_PATH is not found! This means I don't know where to look for unique modules identifiers." #-}
 #endif
 
 

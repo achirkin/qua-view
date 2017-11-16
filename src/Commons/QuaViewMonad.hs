@@ -1,14 +1,10 @@
-{-# LANGUAGE Rank2Types #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE RecursiveDo #-}
-{-# LANGUAGE GADTs #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Commons.QuaViewMonad
     ( QuaViewTrans (..), QuaWidget, QuaViewM
@@ -45,11 +41,11 @@ type QuaWidget t x = QuaViewT Writing t (Widget x)
 
 
 -- | Try to fetch settings, initialize context and run qua-view inside
-runQuaWidget :: QuaWidget (SpiderTimeline Global) x () -> Widget x ()
+runQuaWidget :: QuaWidget (SpiderTimeline Global) x a -> Widget x a
 runQuaWidget m = mdo
   ctx <- initQuaViewContext qEvs
-  ((), qEvs) <- runWithCtx m ctx
-  return ()
+  (r, qEvs) <- runWithCtx m ctx
+  return r
 
 
 -- | Try to fetch settings and initialize context

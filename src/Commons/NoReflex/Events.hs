@@ -1,12 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE GADTs #-}
-
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE Rank2Types #-}
 -- | Keep all global events to be registered in qua-view
 module Commons.NoReflex.Events
     ( -- * Tagging events
@@ -31,24 +26,23 @@ import Commons.NoReflex.Import (Text)
 -- | All possible global events in qua-view
 --    (those, which are passed between components only).
 data QEventType evArg where
+    -- | Some type of user action - interaction with UI.
     UserRequest    :: UserRequest evArg -> QEventType evArg
-    -- ^ Some type of user action - interaction with UI
+    -- | When we got geometetry from file.
     GeometryLoaded :: QEventType LoadedTextContent
-    -- ^ When we got geometetry from file
+    -- | Various messages coming from web-workers.
     WorkerMessage  :: (GEq (QEventTag WorkerMessage), GCompare (QEventTag WorkerMessage))
                    => QEventTag WorkerMessage evArg -> QEventType evArg
-    -- ^ Various messages coming from web-workers.
+    -- | Changes caused by SmallGL inputs.
     SmallGLInput   :: (GEq (QEventTag SmallGLInput), GCompare (QEventTag SmallGLInput))
                    => QEventTag SmallGLInput evArg -> QEventType evArg
-    -- ^ Changes caused by SmallGL inputs
+
 
 
 -- | By using this data family we can postpone instantiation of event tags to other module,
 --   and thus avoid mutual module dependencies and still have events defined not in a single file.
 --   Here we only define abstract uninhabited tag types and use them to index this data family.
 data family QEventTag tag :: (* -> *)
-
-
 
 ----------------------------------------------------------------------------------------------------
 -- * Event subtypes
@@ -70,16 +64,16 @@ newtype ScId = ScId Int
 
 -- | Event types fired by user actions
 data UserRequest evArg where
+    -- | User wants to save scenario with this name.
     AskSaveScenario   :: UserRequest Text
-    -- ^ User wants to save scenario with this name
+    -- | User selects a scenario in the scenario list.
     AskSelectScenario :: UserRequest ScId
-    -- ^ User selects a scenario in the scenario list.
+    -- | User wants to clear all geometry.
     AskClearGeometry  :: UserRequest ()
-    -- ^ User wants to clear all geometry
+    -- | User wants to reset camera to its default position.
     AskResetCamera    :: UserRequest ()
-    -- ^ User wants to reset camera to its default position
+    -- | User wants to submit exercise. TODO: Need to add image and geometry?
     AskSubmitProposal :: UserRequest Text
-    -- ^ User wants to submit exercise. TODO: Need to add image and geometry?
 
 ----------------------------------------------------------------------------------------------------
 -- * Template Haskell

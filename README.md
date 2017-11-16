@@ -56,6 +56,27 @@ Also have a look at the following file for `GHCJS` and `JavaScript` module docs
 and this [Reflex tutorial](https://github.com/reflex-frp/reflex-platform#tutorial)
 and [function reference](https://github.com/reflex-frp/reflex/blob/develop/Quickref.md).
 
+#### Build documentation for executables
+
+Unfortunately, at this moment, `stack haddock` does not allow building documentation for executables.
+However, we still can use `cabal haddock --executables` with `stack` environment to build documentation.
+```
+# make sure cabal is compiled with host compiler for the same snapshot
+stack build cabal-install --compiler=ghc-8.0.2
+# configure cabal
+env PATH=$(stack path --bin-path):$(stack path --bin-path --compiler=ghc-8.0.2):$PATH \
+  cabal configure --ghcjs \
+  --package-db=clear \
+  --package-db=global \
+  --package-db=$(stack path --global-pkg-db) \
+  --package-db=$(stack path --snapshot-pkg-db) \
+  --package-db=$(stack path --local-pkg-db)
+# build documentation
+env PATH=$(stack path --bin-path):$(stack path --bin-path --compiler=ghc-8.0.2):$PATH \
+  cabal haddock --executables
+```
+
+
 #### Hoogle for both qua-server and qua-view
 
 ```

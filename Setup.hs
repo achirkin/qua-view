@@ -27,6 +27,8 @@ postBuildHooks "exe:qua-view" lbi = do
     copyOutputHook "qua-view" "qua-view" "js" lbi
 postBuildHooks "exe:qua-worker-loadgeometry" lbi =
     copyOutputHook "qua-worker-loadgeometry" "all" "js" lbi
+postBuildHooks "lib:qua-view" _ = return () -- ignore library component
+postBuildHooks "test:geojson-tests" _ = return () -- ignore test component
 postBuildHooks as _ =
     putStrLn $  "Warning: ignoring postbuild argument: " ++ show as
 
