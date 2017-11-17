@@ -70,7 +70,8 @@ setNormalsAndComputeIndices (Lines xs) = pure $ case fromList $ map scalar iss o
       (_, iss) = foldl f (0,[]) xs
       f :: (Word16, [Word16]) -> SomeIODataFrame Float '[N 4,XN 2] -> (Word16, [Word16])
       f (n0,is) (SomeIODataFrame (_ :: IODataFrame Float ns))
-        | (Evidence :: Evidence ('[4,n] ~ ns, 2 <= n)) <- unsafeCoerce (Evidence :: Evidence ())
+        | (Evidence :: Evidence ('[4,n] ~ ns, 2 <= n))
+          <- unsafeCoerce (Evidence :: Evidence (ns~ns, n <= n))
         , n <- fromIntegral $ dimVal' @n
         = (n + n0, is ++ ([0..n-2] >>= \i -> [n0+i,n0+i+1]) )
 setNormalsAndComputeIndices (Polygons ns) = do
@@ -147,12 +148,14 @@ bestFittingPlaneN df'
                   @Float @'[4]       @'[4,n]
                   (\v -> vec3 (unScalar $ 1:!Z !. v) (unScalar $ 2:!Z !. v) 1 ) df
     , aT <- transpose a :: DataFrame Float '[n, 3]
-    , aX <- inverse $ a %* aT :: DataFrame Float '[3, 3]
+    , aaT <- a %* aT
+    , aX <- inverse aaT
     , r3 <- aX %* a %* b
     , df2d <- ewmap (\v -> vec2 (unScalar $ 1:!Z !. v) (unScalar $ 2:!Z !. v) ) df
-    = if abs (det aX) > 0.001
+    = if abs (det aaT) > 0.001 && abs (det aX) > 0.001
       then let v = vec3 (unScalar $ 1 !. r3) (unScalar $ 2 !. r3) 1 in v / fromScalar (normL2 v)
       else bestFittingLineN df2d <+:> 0
+
 
 -- Here we assume it is already normalized
 bestFittingLineN :: forall n . (KnownDim n, 2 <= n) => DataFrame Float '[2, n] -> Vec2f
@@ -163,10 +166,11 @@ bestFittingLineN df
                   @Float @'[2]       @'[2,n]
                   (\v -> vec2 (unScalar $ 1:!Z !. v) 1 ) df
     , aT <- transpose a :: DataFrame Float '[n, 2]
-    , aX <- inverse $ a %* aT :: DataFrame Float '[2, 2]
+    , aaT <- a %* aT
+    , aX <- inverse aaT
     , r2  <- aX %* a %* b
     , (vx, vy) <- unpackV2 $ varX df
-    = if vx < 0.001 || vx / vy < 0.00001
+    = if abs (det aaT) < 0.001 || vx < 0.001 || vx / vy < 0.00001
       then vec2 0 1
       else if vy < 0.001 || vy / vx < 0.00001
            then vec2 1 0
@@ -248,9 +252,9 @@ converDF :: forall ns k
 converDF jsv n = case someIntNatVal n of
   Nothing -> fail "Could not read dataframe length"
   Just (SomeIntNat (_::Proxy n)) ->
-    case  ( unsafeCoerce (Evidence :: Evidence ()) :: Evidence
+    case  ( unsafeCoerce (Evidence :: Evidence (ns ~ ns)) :: Evidence
                (FixedDim (AsXDims ns +: XN k) (ns +: n) ~ (ns +: n)) )
-      +!+ ( unsafeCoerce (Evidence :: Evidence ()) :: Evidence
+      +!+ ( unsafeCoerce (Evidence :: Evidence (ns ~ ns)) :: Evidence
                (FixedXDim (AsXDims ns +: XN k) (ns +: n) ~ (AsXDims ns +: XN k)) )
       +!+ inferSnocDimensions @ns @n
       +!+ inferSnocArrayInstance (undefined :: IODataFrame Float ns) (Proxy @n)
@@ -292,7 +296,8 @@ foreign import javascript unsafe
 
 instance ToJSON Geometry where
     toJSON (Points (SomeIODataFrame (sdf :: IODataFrame Float ns)))
-        | (Evidence :: Evidence ([4,n] ~ ns, 1 <= n)) <- unsafeCoerce (Evidence :: Evidence (ns ~ ns, 1 <= 1))
+        | (Evidence :: Evidence ([4,n] ~ ns, 1 <= n))
+              <- unsafeCoerce (Evidence :: Evidence (ns ~ ns, 1 <= 1))
         , n <- dimVal' @n
         = if n == 1
           then objectValue $ object
