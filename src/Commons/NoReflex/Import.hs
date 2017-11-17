@@ -1,7 +1,7 @@
 module Commons.NoReflex.Import
     ( -- * Commonly used standard types
       first, second, (***), (&&&)
-    , when, unless, void, for
+    , when, unless, void, for, forM, forM_, (>=>)
     , Proxy (..)
     , Semigroup (..), Monoid (..), NonEmpty (..), foldMap'
     , Dim (), Idx (), DataFrame ()
@@ -22,7 +22,7 @@ module Commons.NoReflex.Import
 
 
 import Control.Arrow (first, second, (***), (&&&))
-import Control.Monad (when, unless, void)
+import Control.Monad (when, unless, void, forM, forM_, (>=>))
 import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.Fix
 import Control.Monad.Trans.Reader (ReaderT (..))

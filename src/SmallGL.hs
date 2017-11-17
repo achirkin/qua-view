@@ -279,7 +279,7 @@ vertexShaderText =
     void main(void) {
       vec4 globalPos = uViewM * aVertexPosition;
       gl_Position = uProjM * globalPos;
-      vDist = globalPos.xyz/(globalPos.w*200.0);
+      vDist = globalPos.xyz/(globalPos.w*1000.0);
       vec4 tNormal = normalize(uViewM * aVertexNormal);
       mediump float brightness = 0.7 + 0.3 * abs(dot(aVertexNormal,uSunDir)); // * sign(dot(tNormal,globalPos));
       mediump float a = aVertexColor.w;

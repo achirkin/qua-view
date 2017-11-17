@@ -163,6 +163,7 @@ executable qua-worker-loadgeometry
         Commons.NoReflex.Local
         Commons.NoReflex.Logger
         Model.GeoJSON.Coordinates
+        Model.GeoJSON.Coordinates.Wgs84
         Model.GeoJSON.Scenario
         Model.Scenario
         Model.Scenario.Object

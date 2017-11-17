@@ -1,10 +1,10 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
 #ifdef ISWORKER
 {-# LANGUAGE TypeApplications #-}
 #else
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 #endif
 module Workers.LoadGeometry
@@ -26,13 +26,15 @@ import Numeric.DataFrame
 import Data.Conduit
 import Model.GeoJSON.Coordinates
 import Model.GeoJSON.Scenario
+import Model.Scenario.Statistics
+import Control.Monad.State.Strict
 import JavaScript.JSON.Types.Internal
 import JavaScript.JSON.Types.Instances
 
 --import Control.Lens
 --import Model.Scenario.Object as Object
 
-loadGeometryConduit :: (MonadIO m, MonadLogger m)
+loadGeometryConduit :: (MonadIO m, MonadLogger m, MonadState ScenarioStatistics m)
                     => Conduit (LoadedTextContent, Scenario' 'Prepared) m (LGWMessage, [Transferable])
 loadGeometryConduit = awaitForever $ \(msg, _curSc) -> do
     errOrVal <- parseJSONValue $ getTextContent msg
@@ -43,12 +45,15 @@ loadGeometryConduit = awaitForever $ \(msg, _curSc) -> do
         case fromJSON val of
            Success cs@(ObjectCentres (SomeDataFrame centres)) -> do
               logInfo' @JSString (workerLS loadGeometryDef) "Centres:" centres
-              yield (LGWSCStat $ getScenarioStatistics cs, [])
+              let stat = getScenarioStatistics cs
+              put stat
+              yield (LGWSCStat stat, [])
            Error s ->
               logWarn (workerLS loadGeometryDef) $ "Could not parse centres: " <> s
         case fromJSON val of
            Success sc' -> do
-              sc <- liftIO $ prepareScenario sc'
+              stat <- get
+              sc <- liftIO $ prepareScenario stat sc'
               trs <- liftIO $ getTransferables sc
               yield (LGWResult sc, trs)
            Error s -> do

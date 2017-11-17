@@ -159,7 +159,7 @@ initCamera width height state = Camera
 
 
 makeProjM :: (Float, Float) -> Mat44f
-makeProjM (width, height) = Matrix.perspective 0.1 1000 fovy ratio
+makeProjM (width, height) = Matrix.perspective 0.1 2000 fovy ratio
   where
     ratio = width / height
     fovy = (1*) . atan2 height . sqrt $ height*height + width*width
