@@ -115,7 +115,7 @@ foreign import javascript unsafe
     "$r1 = $1.length; $r2 = new Uint16Array($1);"
     js_wratIds :: JSVal -> IO (Int, JSVal)
 
-
+-- TODO: currently, we assume the fourth component of df' be always equal to 1!
 project2D :: forall n . (KnownDim n, 2 <= n)
           => DataFrame Float '[4, n]
           -> Vec3f
@@ -123,12 +123,12 @@ project2D :: forall n . (KnownDim n, 2 <= n)
 project2D df' norm = ewmap proj df
     where
       m  = meanX df'
-      proj x = vec2 (unScalar $ dot x nx) (unScalar $ dot x ny) / fromScalar (4 !. x)
-      nx' = let x' = norm `cross` vec3 1 0 0
+      proj x = vec2 (unScalar $ dot x nx) (unScalar $ dot x ny)
+      nx' = let x' = vec3 0 1 0 `cross` norm
                 x'' = if dot x' x' < 0.01
-                      then norm `cross` vec3 0 1 0
+                      then norm `cross` vec3 0 0 1
                       else x'
-            in x'' / (fromScalar (normL2 x'') <+:> 0)
+            in x'' / fromScalar (normL2 x'')
       nx = nx' <+:> 0
       ny = let y' = norm `cross` nx'
            in y' / fromScalar (normL2 y') <+:> 0
@@ -152,9 +152,12 @@ bestFittingPlaneN df'
     , aX <- inverse aaT
     , r3 <- aX %* a %* b
     , df2d <- ewmap (\v -> vec2 (unScalar $ 1:!Z !. v) (unScalar $ 2:!Z !. v) ) df
-    = if abs (det aaT) > 0.001 && abs (det aX) > 0.001
-      then let v = vec3 (unScalar $ 1 !. r3) (unScalar $ 2 !. r3) 1 in v / fromScalar (normL2 v)
-      else bestFittingLineN df2d <+:> 0
+    = if var1 b < 0.01
+      then vec3 0 0 1
+      else  if abs (det aaT) > 0.001 && abs (det aX) > 0.001
+            then let v = vec3 (unScalar $ 1 !. r3) (unScalar $ 2 !. r3) 1
+                 in v / fromScalar (normL2 v)
+            else bestFittingLineN df2d <+:> 0
 
 
 -- Here we assume it is already normalized
@@ -184,6 +187,10 @@ varX x = ewfoldl (\a v -> let v' = (v - m) in a + v' * v' ) 0 x / fromIntegral (
   where
     m = meanX x
 
+var1 :: forall n . KnownDim n => Vector Float n -> Scf
+var1 x = ewfoldl (\a v -> let v' = (v - m) in a + v' * v' ) 0 x / fromIntegral (dimVal' @n - 1)
+  where
+    m = ewfoldl (+) 0 x / fromIntegral (dimVal' @n)
 
 ----------------------------------------------------------------------------------------------------
 -- * Converting from JSON
