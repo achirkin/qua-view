@@ -14,12 +14,12 @@ module SmallGL.RenderingCell where
 
 import JavaScript.WebGL
 
-
 import Numeric.DataFrame
 import Numeric.DataFrame.IO
 import Numeric.Dimensions
 import Numeric.Dimensions.Traverse.IO
 import Numeric.TypeLits
+import Commons.NoReflex.EasyTensorJSFFI
 
 import           Data.IntMap.Strict (IntMap)
 import qualified Data.IntMap.Strict as IntMap

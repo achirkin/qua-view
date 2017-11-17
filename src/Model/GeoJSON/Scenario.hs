@@ -33,7 +33,9 @@ import qualified Model.Scenario as Scenario
 import qualified Model.Scenario.Object as Object
 import qualified Model.Scenario.Object.Geometry as Geometry
 import           Model.Scenario.Properties
+import           Model.Scenario.Statistics
 import Model.GeoJSON.Coordinates
+import Model.GeoJSON.Coordinates.Wgs84
 
 instance FromJSON (Scenario.Scenario' 'Object.NotReady) where
     parseJSON v = flip (withObject "Scenario object") v $ \scObj -> do
@@ -89,9 +91,18 @@ instance FromJSON (Object.Object' 'Object.NotReady) where
         pure Object.Object {..}
 
 
-prepareScenario :: Scenario.Scenario' 'Object.NotReady
+prepareScenario :: ScenarioStatistics
+                -> Scenario.Scenario' 'Object.NotReady
                 -> IO (Scenario.Scenario' 'Object.Prepared)
-prepareScenario sc = Scenario.objects (traverse $ prepareObject sc) sc
+prepareScenario st sc = Scenario.objects (traverse $ performGTransform >=> prepareObject sc) sc
+  where
+    performGTransform :: Object.Object' 'Object.NotReady -> IO (Object.Object' 'Object.NotReady)
+    performGTransform =
+      if guessIsWgs84 st
+      then \obj -> do
+        Geometry.applyGeomCoords (obj^.Object.geometry) (wgs84ToMetric (centerPoint st))
+        return obj
+      else return
 
 prepareObject :: Scenario.Scenario' s
               -> Object.Object' 'Object.NotReady

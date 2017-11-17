@@ -1,8 +1,12 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE TypeFamilies #-}
 module Model.Scenario.Object.Geometry
-    ( Geometry (..), getTransferable, allData, applyTransform
+    ( Geometry (..), getTransferable, allData
+    , applyTransform, applyGeomCoords
     ) where
 
 
@@ -12,6 +16,7 @@ import Unsafe.Coerce (unsafeCoerce)
 import Numeric.DataFrame
 import Numeric.DataFrame.IO
 import Numeric.Dimensions
+import Numeric.Dimensions.Traverse.IO
 import Numeric.TypeLits
 import Commons.NoReflex
 
@@ -41,6 +46,30 @@ getTransferable :: Geometry -> IO Transferable
 getTransferable (Points    (SomeIODataFrame sd))          = dataFrameToTransferable sd
 getTransferable (Lines     (SomeIODataFrame sd :| _))     = dataFrameToTransferable sd
 getTransferable (Polygons ((SomeIODataFrame sd, _) :| _)) = dataFrameToTransferable sd
+
+-- | apply some transformation function on all points
+applyGeomCoords :: (KnownDim k, k <= 4)
+                => Geometry
+                -> (Vector Float k -> Vector Float k) -> IO ()
+applyGeomCoords (Points (SomeIODataFrame (iodf :: IODataFrame Float ns))) f
+    | (Evidence :: Evidence ('[4,n] ~ ns)) <- unsafeCoerce (Evidence @(ns ~ ns))
+    = overDimIdx_ dim $ \i -> let j = 1 :! i in do
+        x <- unsafeSubArrayFreeze iodf j
+        copyDataFrame (f x) j iodf
+applyGeomCoords (Lines lns) f = forM_ @_ @_ @_ @() lns $
+    \(SomeIODataFrame (iodf :: IODataFrame Float ns)) ->
+      case unsafeCoerce (Evidence @(ns ~ ns)) of
+        (Evidence :: Evidence ('[4,n] ~ ns)) ->
+          overDimIdx_ dim $ \i -> let j = 1 :! i in do
+            x <- unsafeSubArrayFreeze iodf j
+            copyDataFrame (f x) j iodf
+applyGeomCoords (Polygons pls) f = forM_ @_ @_ @_ @() pls $
+    \(SomeIODataFrame (iodf :: IODataFrame Float ns), _) ->
+      case unsafeCoerce (Evidence @(ns ~ ns)) of
+        (Evidence :: Evidence ('[4,2,n] ~ ns)) ->
+          overDimIdx_ dim $ \i -> let j = 1 :! 1 :! i in do
+            x <- unsafeSubArrayFreeze iodf j
+            copyDataFrame (f x) j iodf
 
 
 instance ToJSVal Geometry where

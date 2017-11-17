@@ -3,6 +3,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -12,6 +13,7 @@ module Commons.NoReflex.EasyTensorJSFFI
     ( dataFrameToTransferable
     , transferableToDataFrame
     , Transferable
+    , unsafeSubArrayFreeze, unsafeSubArray, unsafeArrayThaw
     ) where
 
 
@@ -124,5 +126,38 @@ transferableToDataFrame = pure . unsafeCoerce
 newtype Transferable = Transferable GObject
     deriving (PFromJSVal, PToJSVal, FromJSVal, ToJSVal, IsGObject)
 
+
+
+foreign import javascript unsafe "$1.subarray($2,$3)"
+    js_unsafeSubArrayFreeze :: IODataFrame t asbs -> Int -> Int -> IO JSVal
+
+-- | Index subarray allowing to take only a part of the first indexing dimension.
+unsafeSubArrayFreeze :: forall t (as :: [Nat]) (b' :: Nat) (b :: Nat) (bs :: [Nat]) (asbs :: [Nat])
+                   . ( ConcatList as (b :+ bs) asbs
+                     , Dimensions (b :+ bs)
+                     , Dimensions (as +: b')
+                     , Dimensions as
+                     )
+                   => IODataFrame t asbs -> Idx (b :+ bs) -> IO (DataFrame t (as +: b'))
+unsafeSubArrayFreeze df i
+  | off <- fromEnum i * dimVal (dim @as)
+  = unsafeCoerce <$> js_unsafeSubArrayFreeze df off (off + totalDim (Proxy @(as +: b')))
+
+-- | Index subarray allowing to take only a part of the first indexing dimension.
+unsafeSubArray :: forall t (as :: [Nat]) (b' :: Nat) (b :: Nat) (bs :: [Nat]) (asbs :: [Nat])
+                . ( ConcatList as (b :+ bs) asbs
+                  , Dimensions (b :+ bs)
+                  , Dimensions (as +: b')
+                  , Dimensions as
+                  )
+               => IODataFrame t asbs -> Idx (b :+ bs) -> IO (IODataFrame t (as +: b'))
+unsafeSubArray df i
+  | off <- fromEnum i * dimVal (dim @as)
+  = unsafeCoerce <$> js_unsafeSubArrayFreeze df off (off + totalDim (Proxy @(as +: b')))
+
+
+
+unsafeArrayThaw :: DataFrame t (a :+ as) -> IO (IODataFrame t (a :+ as))
+unsafeArrayThaw df = pure (unsafeCoerce df)
 
 

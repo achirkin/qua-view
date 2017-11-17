@@ -14,7 +14,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module SmallGL.Types where
 
-
 import Numeric.DataFrame
 import Numeric.DataFrame.IO
 import Numeric.Dimensions
@@ -260,39 +259,6 @@ foreign import javascript unsafe "$1.bufferData($2, $3, $4)"
 --   If data is null then an INVALID_VALUE error is generated.
 foreign import javascript unsafe "$1.bufferSubData($2, $3, $4)"
     bufferSubData' :: WebGLRenderingContext -> GLenum -> Int -> IODataFrame t ds -> IO ()
-
-
-foreign import javascript unsafe "$1.subarray($2,$3)"
-    js_unsafeSubArrayFreeze :: IODataFrame t asbs -> Int -> Int -> IO JSVal
-
-unsafeSubArrayFreeze :: forall t (as :: [Nat]) (b' :: Nat) (b :: Nat) (bs :: [Nat]) (asbs :: [Nat])
-                   . ( ConcatList as (b :+ bs) asbs
-                     , Dimensions (b :+ bs)
-                     , Dimensions (as +: b')
-                     , Dimensions as
-                     )
-                   => IODataFrame t asbs -> Idx (b :+ bs) -> IO (DataFrame t (as +: b'))
-unsafeSubArrayFreeze df i
-  | off <- fromEnum i * dimVal (dim @as)
-  = unsafeCoerce <$> js_unsafeSubArrayFreeze df off (off + totalDim (Proxy @(as +: b')))
-
-
-unsafeSubArray :: forall t (as :: [Nat]) (b' :: Nat) (b :: Nat) (bs :: [Nat]) (asbs :: [Nat])
-                . ( ConcatList as (b :+ bs) asbs
-                  , Dimensions (b :+ bs)
-                  , Dimensions (as +: b')
-                  , Dimensions as
-                  )
-               => IODataFrame t asbs -> Idx (b :+ bs) -> IO (IODataFrame t (as +: b'))
-unsafeSubArray df i
-  | off <- fromEnum i * dimVal (dim @as)
-  = unsafeCoerce <$> js_unsafeSubArrayFreeze df off (off + totalDim (Proxy @(as +: b')))
-
-
-
-unsafeArrayThaw :: DataFrame t (a :+ as) -> IO (IODataFrame t (a :+ as))
-unsafeArrayThaw df = pure (unsafeCoerce df)
-
 
 
 instance ToJSVal (RenderingData m) where
