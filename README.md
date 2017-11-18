@@ -81,18 +81,8 @@ env PATH=$(stack path --bin-path):$(stack path --bin-path --compiler=ghc-8.0.2):
 
 ```
 cd [root qua-kit folder]
-stack install hoogle
-pushd apps/hs/qua-server
-stack haddock
-popd
-pushd apps/hs/qua-view
-stack haddock
-popd
-stack exec hoogle -- generate \
-                  --local=apps/hs/qua-server/.stack-work/install/x86_64-linux-nopie/lts-8.21/8.0.2/doc \
-                  --local=apps/hs/qua-view/.stack-work/install/x86_64-linux/lts-8.21/ghcjs-0.2.1.9008021_ghc-8.0.2/doc \
-                  --local=/home/achirkin/.stack/snapshots/x86_64-linux-nopie/lts-8.21/8.0.2/doc \
-                  --local=/home/achirkin/.stack/snapshots/x86_64-linux/lts-8.21/ghcjs-0.2.1.9008021_ghc-8.0.2/doc
+stack install hoogle haddock-2.17.4 haddock-api-2.17.4
+./config/haddock-hoogle-all.sh
 stack exec hoogle -- server --port=8080 --local
 ```
 
