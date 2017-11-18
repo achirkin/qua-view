@@ -8,7 +8,7 @@
 {-# LANGUAGE GADTs #-}
 #endif
 module Workers.LoadGeometry
-    ( loadGeometryDef, LGWMessage (..)
+    ( loadGeometryDef, LGWMessage (..), LGWRequest (..)
 #ifdef ISWORKER
     , loadGeometryConduit
 #else
@@ -16,28 +16,28 @@ module Workers.LoadGeometry
 #endif
     ) where
 
-import Model.Scenario.Object (ObjectRenderable(..))
+
 import Workers
 import Workers.Types
-import Model.Scenario
 #ifdef ISWORKER
 import Commons.NoReflex
 import Numeric.DataFrame
-import Data.Conduit
 import Model.GeoJSON.Coordinates
 import Model.GeoJSON.Scenario
+import Model.Scenario
 import Model.Scenario.Statistics
 import Control.Monad.State.Strict
+import Control.Monad.Trans.Except
 import JavaScript.JSON.Types.Internal
 import JavaScript.JSON.Types.Instances
 
---import Control.Lens
---import Model.Scenario.Object as Object
 
 loadGeometryConduit :: (MonadIO m, MonadLogger m, MonadState ScenarioStatistics m)
-                    => Conduit (LoadedTextContent, Scenario' 'Prepared) m (LGWMessage, [Transferable])
-loadGeometryConduit = awaitForever $ \(msg, _curSc) -> do
-    errOrVal <- parseJSONValue $ getTextContent msg
+                    => Conduit LGWRequest m (LGWMessage, [Transferable])
+loadGeometryConduit = awaitForever $ \emsg -> do
+    errOrVal <- runExceptT $ case emsg of
+      LGWLoadUrl _ url -> getUrlSync url >>= ExceptT . parseJSONValue . getTextContent
+      LGWLoadTextContent _ content -> ExceptT . parseJSONValue $ getTextContent content
     case errOrVal of
       Left err -> logError (workerLS loadGeometryDef) err
       Right val@(SomeValue jsv) -> do
@@ -64,9 +64,6 @@ loadGeometryConduit = awaitForever $ \(msg, _curSc) -> do
 #else
 import Commons
 import Reflex
-import qualified Data.JSString as JSString
-import qualified QuaTypes
-import System.FilePath ((</>))
 
 runLoadGeometryWorker :: ( MonadIO m, Reflex t
                          , TriggerEvent t m
@@ -75,28 +72,11 @@ runLoadGeometryWorker :: ( MonadIO m, Reflex t
                          , MonadIO (Performable m)
                          , MonadFix m
                          )
-                      => Event t (LoadedTextContent, Scenario' 'Prepared)
-                      -> QuaViewT Writing t m ()
-runLoadGeometryWorker inEvs = do
-    loadGeometryDefD
-         <- fmap (( \u -> loadGeometryDef
-                      { workerUrl = JSString.pack
-                                    $ JSString.unpack u
-                                   </> JSString.unpack (workerUrl loadGeometryDef)
-                      }
-                  ) . QuaTypes.jsRootUrl
-                 ) <$> quaSettings
-    -- remove an event if the link did not change
-    let newLoadGeometryDefE = attachWithMaybe (\wc wu -> if workerUrl wc == workerUrl wu
-                                                         then Nothing
-                                                         else Just wu
-                                              )
-                                              (current loadGeometryDefD)
-                                              (updated loadGeometryDefD)
-    newLoadGeometryDefD <- sample (current loadGeometryDefD)
-                        >>= \s -> holdDyn s newLoadGeometryDefE
+                      => QuaViewT Writing t m ()
+runLoadGeometryWorker = do
     -- run worker every time its link changes
-    evs <- runWorkerDyn newLoadGeometryDefD $ flip (,) [] <$> inEvs
+    inEvs <- askEvent (WorkerMessage LGWRequest)
+    evs <- runWorker loadGeometryDef $ flip (,) [] <$> inEvs
     registerEvent (WorkerMessage LGWMessage) evs
 
 #endif

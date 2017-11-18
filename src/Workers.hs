@@ -13,16 +13,17 @@ module Workers
    , create, postMessage, postMessage', onMessage
 #ifdef ISWORKER
    , getSelf, execWorkerConduit
+   , module Workers.Commons
 #else
-   , runWorkerDyn, runWorker
+   , runWorkerDyn, runWorker, withAbsoluteUrl
 #endif
    ) where
 
 
 #ifdef DEVELOPMENT
 import Data.Time.Clock.POSIX
-import qualified Data.JSString as JSString
 #endif
+import Data.JSString as JSString
 import Control.Exception.Base (catch)
 import Control.Monad ((>=>))
 import Control.Monad.Trans.Except
@@ -34,11 +35,13 @@ import qualified GHCJS.DOM.JSFFI.Generated.DedicatedWorkerGlobalScope as JSFFI
 import qualified GHCJS.DOM.JSFFI.Generated.MessageEvent as JSFFI
 #ifdef ISWORKER
 import Commons.NoReflex
+import Workers.Commons
 import Control.Concurrent.Chan
-import Data.Conduit
 #else
 import Commons
 import qualified GHCJS.DOM.JSFFI.Generated.ErrorEvent as JSFFI
+import qualified QuaTypes
+import System.FilePath ((</>))
 import Reflex
 #endif
 
@@ -151,11 +154,13 @@ runWorker :: ( ToJSVal inMsg, FromJSVal outMsg
              , MonadFix (QuaViewT isWriting t m)
              , MonadLogger  (QuaViewT isWriting t m)
              , MonadLogger  (Performable (QuaViewT isWriting t m))
+             , Applicative m
+             , QuaViewTrans isWriting
              )
           => WorkerDef
           -> Event t (inMsg, [Transferable])
           -> QuaViewT isWriting t m (Event t outMsg)
-runWorker wd = runWorkerDyn (constDyn wd)
+runWorker wd inEvs = withAbsoluteUrl wd >>= \dwd -> runWorkerDyn dwd inEvs
 
 
 -- | Re-create a worker and associated callbacks every time settings updated
@@ -216,6 +221,19 @@ runWorkerDyn wdDyn inEvs = do
       else logWarn @String (workerLS wd) $
            "Got an error (" <> fname <> (':':show lno) <> (':':show cno) <> "): " <> msg
 
+-- | Update worker definition dynamically in case if js root url changes.
+withAbsoluteUrl :: ( MonadIO (QuaViewT isWriting t m), Reflex t
+                   , PerformEvent t (QuaViewT isWriting t m)
+                   , MonadHold t (QuaViewT isWriting t m)
+                   , MonadIO (Performable (QuaViewT isWriting t m))
+                   , QuaViewTrans isWriting
+                   , Applicative m
+                   )
+                => WorkerDef
+                -> QuaViewT isWriting t m (Dynamic t WorkerDef)
+withAbsoluteUrl wd = fmap f <$> (quaSettings >>= onlyChanges . fmap QuaTypes.jsRootUrl)
+  where
+    f url = wd{ workerUrl = pack $ unpack url </> unpack (workerUrl wd) }
 
 #endif
 

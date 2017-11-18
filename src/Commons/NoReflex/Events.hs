@@ -29,8 +29,10 @@ data QEventType evArg where
     -- | Some type of user action - interaction with UI.
     UserRequest    :: UserRequest evArg -> QEventType evArg
     -- | When we got geometetry from file.
+    --   Note, the geometry is loaded, but not parsed yet.
+    --   To load scenario, we need to put this geometry text into an appropriate worker.
     GeometryLoaded :: QEventType LoadedTextContent
-    -- | Various messages coming from web-workers.
+    -- | Various messages coming to or from web-workers.
     WorkerMessage  :: (GEq (QEventTag WorkerMessage), GCompare (QEventTag WorkerMessage))
                    => QEventTag WorkerMessage evArg -> QEventType evArg
     -- | Changes caused by SmallGL inputs.

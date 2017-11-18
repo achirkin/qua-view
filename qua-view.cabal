@@ -81,6 +81,7 @@ executable qua-view
         Commons.NoReflexDom
         Commons.NoReflexDom.EventMap
         Commons.NoReflexDom.Import
+        Commons.NoReflexDom.Local
         Commons.NoReflexDom.Logger
         Commons.NoReflexDom.QuaViewMonad
         Commons.QuaViewMonad
@@ -172,6 +173,7 @@ executable qua-worker-loadgeometry
         Model.Scenario.Statistics
         SmallGL.Types
         Workers
+        Workers.Commons
         Workers.LoadGeometry
         Workers.Types
     ghc-options: -Wall -fwarn-tabs

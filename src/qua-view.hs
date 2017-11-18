@@ -31,6 +31,9 @@ import qualified SmallGL
 import qualified SmallGL.Types as SmallGL
 import qualified Workers.LoadGeometry as Workers
 
+import qualified QuaTypes
+import Control.Concurrent (forkIO, threadDelay)
+
 main :: IO ()
 main = mainWidgetInElementById "qua-view-widgets" $ runQuaWidget $ mdo
     -- Change the state of the program
@@ -45,15 +48,16 @@ main = mainWidgetInElementById "qua-view-widgets" $ runQuaWidget $ mdo
     -- add the control panel to the page
     _panelStateD <- Widgets.controlPanel
 
-    -- initialize web workers
+    -- get an event of loaded geometry text, combine it with current state of scenario,
+    -- and make a new event to be consumed by the LoadGeometryWorker
     do
       geomLoadedE <- askEvent GeometryLoaded
-      Workers.runLoadGeometryWorker -- I would need to add other loaded geom events here
-         $  (\sc ev -> (ev, Scenario.withoutObjects sc))
-        <$> current scenarioD
-        <@> geomLoadedE
-    loadedGeometryE <- askEvent $ WorkerMessage Workers.LGWMessage
+      registerEvent (WorkerMessage Workers.LGWRequest)
+        $ Workers.LGWLoadTextContent . Scenario.withoutObjects <$> current scenarioD <@> geomLoadedE
 
+    -- initialize web workers
+    Workers.runLoadGeometryWorker
+    loadedGeometryE <- askEvent $ WorkerMessage Workers.LGWMessage
 
 
     renderingApi <- SmallGL.createRenderingEngine canvas
@@ -107,6 +111,16 @@ main = mainWidgetInElementById "qua-view-widgets" $ runQuaWidget $ mdo
         liftIO (setIsProgramBusy Idle)
         Widgets.play aHandler
 
+    -- other init things
+    -- load geometry from url if it is supplied
+    quaSettings >>= sample . fmap QuaTypes.getSubmissionGeometryUrl . current
+                >>= \ms -> case ms of
+      Nothing -> return ()
+      Just url -> do
+        (ev, trigger) <- newTriggerEvent
+        registerEvent (WorkerMessage Workers.LGWRequest)
+          $ Workers.LGWLoadUrl . Scenario.withoutObjects <$> current scenarioD <@> ev
+        liftIO . void . forkIO $ threadDelay 2000000 >> trigger url
 
 
 
