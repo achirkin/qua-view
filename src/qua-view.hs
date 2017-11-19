@@ -67,8 +67,8 @@ main = mainWidgetInElementById "qua-view-widgets" $ runQuaWidget $ mdo
     let icamera = Model.initCamera (realToFrac . fst $ viewPortSizeI aHandler)
                                    (realToFrac . snd $ viewPortSizeI aHandler)
                                    Model.CState { Model.viewPoint  = vec3 (-2) 3 0
-                                                , Model.viewAngles = (2.745, 0.825)
-                                                , Model.viewDist = 68 }
+                                                , Model.viewAngles = (2.745, 0.925)
+                                                , Model.viewDist = 368 }
     plsResetCameraE <- askEvent (UserRequest AskResetCamera)
     cameraD <- Model.dynamicCamera icamera aHandler plsResetCameraE $ current scenarioCenterD
 --    performEvent_ $ liftIO . print <$> updated cameraD
