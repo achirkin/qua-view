@@ -135,7 +135,7 @@ prepareObject sc obj = do
               Just (SomeIntNat (_::Proxy n)) -> do
                 let crsnrs = unsafeCoerce crsnrs' :: IODataFrame Float '[4,2,n]
                 colors <- unsafeArrayThaw . ewgen $
-                  obj^.Object.viewColor.non (sc^.Scenario.defaultLineColor).colorVeci
+                  obj^.Object.viewColor.non (sc^.Scenario.defaultBlockColor).colorVeci
                 return $ obj & Object.renderingData .~ Object.ORDP (ColoredData
                                                                      (CoordsNormals crsnrs)
                                                                      (Colors colors)

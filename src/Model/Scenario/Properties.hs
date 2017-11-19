@@ -148,11 +148,11 @@ foreign import javascript unsafe "($1 && ($1.match(/^(#[A-Fa-f0-9]{3,8})$/) !== 
     js_isHexColor ::  JSString -> Bool
 
 foreign import javascript unsafe
-    "var a = [0,0,0,255];\
+    "$r = new Uint8Array([0,0,0,255]);\
     \if($1.length > 5) { \
-    \   $r = new Uint8Array(a.map(function(e,i){ return parseInt($1.substr(i*2+1,2),16); }));\
+    \   for(var i = 0; i*2 + 1 < $1.length; i++) { $r[i] = parseInt($1.substr(i*2+1,2),16); }\
     \} else { \
-    \   $r = new Uint8Array(a.map(function(e,i){ return parseInt($1.substr(i+1,1),16) * 17; }));\
+    \   for(var i = 0; i + 1 < $1.length; i++) { $r[i] = parseInt($1.substr(i+1,1),16) * 17; }\
     \}"
     js_convertHexToRGBA :: HexColor -> JSVal
 
