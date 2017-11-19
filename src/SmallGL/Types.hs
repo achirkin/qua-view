@@ -74,7 +74,7 @@ type ModeColored  = 'ModeColored
 type ModeTextured = 'ModeTextured
 
 
--- | Coordinate and normal array contains two 4D (homogenious) components:
+-- | Coordinate and normal array contains two 4D (homogeneous) components:
 --
 --    * Points (4th coordinate is 1)
 --    * Normals (4th coordinate is 0, norm == 1)
@@ -92,6 +92,13 @@ newtype TexCoords (n :: Nat) = TexCoords (IODataFrame GLushort '[2, n])
 -- | Draw elements by these indices (note, maxBound == 65535 for GLushort)
 newtype Indices (m :: Nat) = Indices (IODataFrame GLushort '[m])
 
+-- | Selection-rendering Ids of objects.
+--   Default value is 0x00000000 meaning there is no object, or object is not selectable.
+--   First two bytes of a number mean Id of a cell,
+--   second two bytes are Id of an object in a cell.
+--   Cell ids start with 0x0001; so that 0x00010000 is an id of a first renderable object.
+--   Thus, only up to 65536 Ids are allowed in a cell and 65535 cells max are possible.
+newtype SelectIds (n :: Nat) = SelectIds (IODataFrame GLuint '[n])
 
 data RenderingData (m :: RenderingMode) where
   PointData    :: forall n . KnownDim n
@@ -99,24 +106,24 @@ data RenderingData (m :: RenderingMode) where
   LineData     :: forall n k . (KnownDim n, KnownDim k)
                => !(Coords n) -> !(Colors n) -> !(Indices k) -> RenderingData ModeLines
   ColoredData  :: forall n k . (KnownDim n, KnownDim k)
-               => !(CoordsNormals n) -> !(Colors n) -> !(Indices k) -> RenderingData ModeColored
+               => !(CoordsNormals n) -> !(Colors n) -> !(SelectIds n) -> !(Indices k) -> RenderingData ModeColored
   TexturedData :: forall n k . (KnownDim n, KnownDim k)
-               => !(CoordsNormals n) -> !(TexCoords n) -> !(Indices k) -> RenderingData ModeTextured
+               => !(CoordsNormals n) -> !(TexCoords n) -> !(SelectIds n) -> !(Indices k) -> RenderingData ModeTextured
 
 -- | Get number of vertices
 rdVertexNum :: RenderingData m -> Int
 rdVertexNum (PointData   _ (Colors (_ :: IODataFrame GLubyte '[4,n]))  ) = dimVal' @n
 rdVertexNum (LineData    _ (Colors (_ :: IODataFrame GLubyte '[4,n])) _) = dimVal' @n
-rdVertexNum (ColoredData _ (Colors (_ :: IODataFrame GLubyte '[4,n])) _) = dimVal' @n
-rdVertexNum (TexturedData _ (TexCoords (_ :: IODataFrame GLushort '[2,n])) _) = dimVal' @n
+rdVertexNum (ColoredData _ (Colors (_ :: IODataFrame GLubyte '[4,n])) _ _) = dimVal' @n
+rdVertexNum (TexturedData _ (TexCoords (_ :: IODataFrame GLushort '[2,n])) _ _) = dimVal' @n
 
 
 -- | Get number of indices
 rdIndexNum :: RenderingData m -> Int
 rdIndexNum (PointData    _ (Colors (_ :: IODataFrame GLubyte '[4,n]))  ) = dimVal' @n
 rdIndexNum (LineData     _ _ (Indices (_ :: IODataFrame GLushort '[k]))) = dimVal' @k
-rdIndexNum (ColoredData  _ _ (Indices (_ :: IODataFrame GLushort '[k]))) = dimVal' @k
-rdIndexNum (TexturedData _ _ (Indices (_ :: IODataFrame GLushort '[k]))) = dimVal' @k
+rdIndexNum (ColoredData  _ _ _ (Indices (_ :: IODataFrame GLushort '[k]))) = dimVal' @k
+rdIndexNum (TexturedData _ _ _ (Indices (_ :: IODataFrame GLushort '[k]))) = dimVal' @k
 
 -- | Get rendering mode at term level
 renderingMode :: RenderingData m -> RenderingMode
@@ -132,16 +139,16 @@ data WebGLRenderingData (m :: RenderingMode) where
                     -> WebGLRenderingData ModePoints
   WebGLLineData     :: !GLsizei -> WebGLBuffer -> WebGLBuffer -> WebGLBuffer
                     -> WebGLRenderingData ModeLines
-  WebGLColoredData  :: !GLsizei -> WebGLBuffer -> WebGLBuffer -> WebGLBuffer
+  WebGLColoredData  :: !GLsizei -> WebGLBuffer -> WebGLBuffer -> WebGLBuffer -> WebGLBuffer
                     -> WebGLRenderingData ModeColored
-  WebGLTexturedData :: !GLsizei -> WebGLBuffer -> WebGLBuffer -> WebGLBuffer
+  WebGLTexturedData :: !GLsizei -> WebGLBuffer -> WebGLBuffer -> WebGLBuffer -> WebGLBuffer
                     -> WebGLRenderingData ModeTextured
 
 wglSeqLen :: WebGLRenderingData m -> GLsizei
-wglSeqLen (WebGLPointData    n _ _  ) = n
-wglSeqLen (WebGLLineData     n _ _ _) = n
-wglSeqLen (WebGLColoredData  n _ _ _) = n
-wglSeqLen (WebGLTexturedData n _ _ _) = n
+wglSeqLen (WebGLPointData    n _ _    ) = n
+wglSeqLen (WebGLLineData     n _ _ _  ) = n
+wglSeqLen (WebGLColoredData  n _ _ _ _) = n
+wglSeqLen (WebGLTexturedData n _ _ _ _) = n
 
 type family IsSolid (m :: RenderingMode) :: Bool where
     IsSolid 'ModePoints   = 'False
@@ -167,25 +174,25 @@ wglCoordsBuf (WebGLLineData  _ b _ _) = b
 
 wglCoordsNormalsBuf :: IsSolid m ~ 'True
                     => WebGLRenderingData m -> WebGLBuffer
-wglCoordsNormalsBuf (WebGLColoredData  _ b _ _) = b
-wglCoordsNormalsBuf (WebGLTexturedData _ b _ _) = b
+wglCoordsNormalsBuf (WebGLColoredData  _ b _ _ _) = b
+wglCoordsNormalsBuf (WebGLTexturedData _ b _ _ _) = b
 
 wglColorsBuf :: HasTexture m ~ 'False
              => WebGLRenderingData m -> WebGLBuffer
 wglColorsBuf (WebGLPointData    _ _ b  ) = b
 wglColorsBuf (WebGLLineData     _ _ b _) = b
-wglColorsBuf (WebGLColoredData  _ _ b _) = b
+wglColorsBuf (WebGLColoredData  _ _ b _ _) = b
 
 wglTexCoordsBuf :: HasTexture m ~ 'True
                 => WebGLRenderingData m -> WebGLBuffer
-wglTexCoordsBuf (WebGLTexturedData _ _ b _) = b
+wglTexCoordsBuf (WebGLTexturedData _ _ b _ _) = b
 
 
 wglIndicesBuf :: IsIndexedDraw m ~ 'True
                 => WebGLRenderingData m -> WebGLBuffer
-wglIndicesBuf (WebGLLineData     _ _ _ b) = b
-wglIndicesBuf (WebGLColoredData  _ _ _ b) = b
-wglIndicesBuf (WebGLTexturedData _ _ _ b) = b
+wglIndicesBuf (WebGLLineData     _ _ _ b  ) = b
+wglIndicesBuf (WebGLColoredData  _ _ _ _ b) = b
+wglIndicesBuf (WebGLTexturedData _ _ _ _ b) = b
 
 
 -- * Shader attribute locations
@@ -275,15 +282,17 @@ instance ToJSVal (RenderingData m) where
           unsafeSetProp "coords"  (coerce coords) o
           unsafeSetProp "colors"  (coerce colors) o
           unsafeSetProp "indices" (coerce indices) o
-        (ColoredData coordsnormals colors indices) -> do
+        (ColoredData coordsnormals colors selectIds indices) -> do
           unsafeSetProp "k"              (pToJSVal $ rdIndexNum d) o
           unsafeSetProp "coordsnormals"  (coerce coordsnormals) o
           unsafeSetProp "colors"         (coerce colors) o
+          unsafeSetProp "selectids"      (coerce selectIds) o
           unsafeSetProp "indices"        (coerce indices) o
-        (TexturedData coordsnormals texcoords indices) -> do
+        (TexturedData coordsnormals texcoords selectIds indices) -> do
           unsafeSetProp "k"              (pToJSVal $ rdIndexNum d) o
           unsafeSetProp "coordsnormals"  (coerce coordsnormals) o
           unsafeSetProp "texcoords"      (coerce texcoords) o
+          unsafeSetProp "selectids"      (coerce selectIds) o
           unsafeSetProp "indices"        (coerce indices) o
       return $ jsval o
 
@@ -323,10 +332,12 @@ instance FromJSVal (RenderingData m) where
              , Just (SomeIntNat (_::Proxy k))) -> do
               mcoords  <- getDF "coordsnormals" o :: IO (Maybe (IODataFrame Float '[4,2,n]))
               mcolors  <- getDF "colors" o
+              mselectids <- getDF "selectids" o
               mindices <- getDF "indices" o :: IO (Maybe (IODataFrame GLushort '[k]))
               return $ ColoredData <$> (CoordsNormals <$> mcoords)
-                                   <*> (Colors  <$> mcolors)
-                                   <*> (Indices <$> mindices)
+                                   <*> (Colors    <$> mcolors)
+                                   <*> (SelectIds <$> mselectids)
+                                   <*> (Indices   <$> mindices)
 
         Just (SomeIntNat (_::Proxy n), ModeTextured) -> do
           mk    <- unsafeGetProp "k" o >>= fromJSVal
@@ -336,9 +347,11 @@ instance FromJSVal (RenderingData m) where
              , Just (SomeIntNat (_::Proxy k))) -> do
               mcoords  <- getDF "coordsnormals" o :: IO (Maybe (IODataFrame Float '[4,2,n]))
               mtexcoords  <- getDF "texcoords" o
+              mselectids  <- getDF "selectids" o
               mindices <- getDF "indices" o :: IO (Maybe (IODataFrame GLushort '[k]))
               return $ TexturedData <$> (CoordsNormals <$> mcoords)
                                     <*> (TexCoords  <$> mtexcoords)
+                                    <*> (SelectIds <$> mselectids)
                                     <*> (Indices <$> mindices)
 
       where
