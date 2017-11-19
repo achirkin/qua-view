@@ -121,12 +121,14 @@ instance RenderingCells 'ModeColored where
     initRenderingCell' (_::Proxy n) (_::Proxy k) gl = do
         crsnrs <- newDataFrame @_ @'[4,2,n]
         colors <- newDataFrame @_ @'[4,n]
+        selIds <- newDataFrame @_ @'[n]
         ixs    <- newDataFrame @_ @'[k]
 
         let cgIdxLen = 0
         -- create device buffers
         cgCoordsNormalsBuf <- createBuffer gl
         cgColorsBuf        <- createBuffer gl
+        cgSelectIdsBuf     <- createBuffer gl
         cgIndicesBuf       <- createBuffer gl
 
         -- send data to buffers
@@ -136,11 +138,14 @@ instance RenderingCells 'ModeColored where
         bindBuffer gl gl_ARRAY_BUFFER cgColorsBuf
         bufferData' gl gl_ARRAY_BUFFER colors gl_STATIC_DRAW
 
+        bindBuffer gl gl_ARRAY_BUFFER cgSelectIdsBuf
+        bufferData' gl gl_ARRAY_BUFFER selIds gl_STATIC_DRAW
+
         bindBuffer gl gl_ELEMENT_ARRAY_BUFFER cgIndicesBuf
         bufferData' gl gl_ELEMENT_ARRAY_BUFFER ixs gl_STATIC_DRAW
 
-        let rcGPUData = WebGLColoredData cgIdxLen cgCoordsNormalsBuf cgColorsBuf cgIndicesBuf
-            rcData  = ColoredData (CoordsNormals crsnrs) (Colors colors) (Indices ixs)
+        let rcGPUData = WebGLColoredData cgIdxLen cgCoordsNormalsBuf cgColorsBuf cgSelectIdsBuf cgIndicesBuf
+            rcData  = ColoredData (CoordsNormals crsnrs) (Colors colors) (SelectIds selIds) (Indices ixs)
             rcObjects = IntMap.empty
             rcContentDataLength = 0
             rcNextObjId = 0
@@ -153,8 +158,9 @@ instance RenderingCells 'ModeColored where
     growRenderingCellData gl rc@RenderingCell {..}
         | ColoredData (CoordsNormals crsnrs)
                       (Colors (colors :: IODataFrame GLubyte '[4,n]))
+                      (SelectIds selectIds)
                       ixs <- rcData
-        , WebGLColoredData cgIdxLen cgCoordsNormalsBuf cgColorsBuf cgIndicesBuf
+        , WebGLColoredData cgIdxLen cgCoordsNormalsBuf cgColorsBuf cgSelectIdsBuf cgIndicesBuf
                    <- rcGPUData
         , Evidence <- inferTimesKnownDim @2 @n
         = do
@@ -162,17 +168,21 @@ instance RenderingCells 'ModeColored where
         unbindBuffer gl gl_ARRAY_BUFFER
         deleteBuffer gl cgCoordsNormalsBuf
         deleteBuffer gl cgColorsBuf
+        deleteBuffer gl cgSelectIdsBuf
         -- create new data buffers
         crsnrs' <- newDataFrame @_ @'[4,2,2*n]
         colors' <- newDataFrame @_ @'[4,2*n]
+        selectIds' <- newDataFrame @_ @'[2*n]
 
         -- copy old data
         copyMutableDataFrame crsnrs (1:!Z) crsnrs'
         copyMutableDataFrame colors (1:!Z) colors'
+        copyMutableDataFrame selectIds (1:!Z) selectIds'
 
         -- create new WebGL buffers
         cgCoordsNormalsBuf' <- createBuffer gl
         cgColorsBuf'        <- createBuffer gl
+        cgSelectIdsBuf'     <- createBuffer gl
 
         -- send data to buffers
         bindBuffer gl gl_ARRAY_BUFFER cgCoordsNormalsBuf'
@@ -181,17 +191,21 @@ instance RenderingCells 'ModeColored where
         bindBuffer gl gl_ARRAY_BUFFER cgColorsBuf'
         bufferData' gl gl_ARRAY_BUFFER colors' gl_STATIC_DRAW
 
+        bindBuffer gl gl_ARRAY_BUFFER cgSelectIdsBuf'
+        bufferData' gl gl_ARRAY_BUFFER selectIds' gl_STATIC_DRAW
+
         return rc
-          { rcData = ColoredData (CoordsNormals crsnrs') (Colors colors') ixs
-          , rcGPUData = WebGLColoredData cgIdxLen cgCoordsNormalsBuf' cgColorsBuf' cgIndicesBuf
+          { rcData = ColoredData (CoordsNormals crsnrs') (Colors colors') (SelectIds selectIds') ixs
+          , rcGPUData = WebGLColoredData cgIdxLen cgCoordsNormalsBuf' cgColorsBuf' cgSelectIdsBuf' cgIndicesBuf
           }
 
 
     growRenderingCellIndices gl rc@RenderingCell {..}
         | ColoredData crsnrs
                       colors
+                      selectIds
                       (Indices (ixs :: IODataFrame GLushort '[m])) <- rcData
-        , WebGLColoredData cgIdxLen cgCoordsNormalsBuf cgColorsBuf cgIndicesBuf
+        , WebGLColoredData cgIdxLen cgCoordsNormalsBuf cgColorsBuf cgSelectIdsBuf cgIndicesBuf
                    <- rcGPUData
         , Evidence <- inferTimesKnownDim @2 @m
         = do
@@ -212,8 +226,8 @@ instance RenderingCells 'ModeColored where
         bufferData' gl gl_ELEMENT_ARRAY_BUFFER ixs' gl_STATIC_DRAW
 
         return rc
-          { rcData = ColoredData crsnrs colors (Indices ixs')
-          , rcGPUData = WebGLColoredData cgIdxLen cgCoordsNormalsBuf cgColorsBuf cgIndicesBuf'
+          { rcData = ColoredData crsnrs colors selectIds (Indices ixs')
+          , rcGPUData = WebGLColoredData cgIdxLen cgCoordsNormalsBuf cgColorsBuf cgSelectIdsBuf cgIndicesBuf'
           }
 
 
@@ -225,11 +239,13 @@ instance RenderingCells 'ModeColored where
           = growRenderingCellIndices gl rc >>= addRenderedObject gl obj
         | ColoredData (CoordsNormals objCrsnrs)
                       (Colors objColors)
+                      (SelectIds objSelectIds)
                       (Indices objIndices) <- obj
         , ColoredData (CoordsNormals rcCrsnrs)
                       (Colors rcColors)
+                      (SelectIds rcSelectIds)
                       (Indices rcIndices) <- rcData rc
-        , WebGLColoredData cgIdxLen cgCoordsNormalsBuf cgColorsBuf cgIndicesBuf
+        , WebGLColoredData cgIdxLen cgCoordsNormalsBuf cgColorsBuf cgSelectIdsBuf cgIndicesBuf
                   <- rcGPUData rc
         , dataOff <- rcContentDataLength rc
         , roDataLength  <- rdVertexNum obj
@@ -242,11 +258,12 @@ instance RenderingCells 'ModeColored where
           , rcNextObjId = rcNextObjId rc + 1
           , rcObjects = IntMap.insert (rcNextObjId rc) ro (rcObjects rc)
           , rcGPUData = WebGLColoredData (cgIdxLen + fromIntegral roIndexLength)
-                                         cgCoordsNormalsBuf cgColorsBuf cgIndicesBuf
+                                         cgCoordsNormalsBuf cgColorsBuf cgSelectIdsBuf cgIndicesBuf
           }
           = do
         copyMutableDataFrame objCrsnrs (roDataIdx:!Z) rcCrsnrs
         copyMutableDataFrame objColors (roDataIdx:!Z) rcColors
+        copyMutableDataFrame objSelectIds (roDataIdx:!Z) rcSelectIds
         objIndices' <- ewmap @_ @'[] (fromIntegral dataOff +)
                     <$> unsafeFreezeDataFrame objIndices
         copyDataFrame objIndices' (roIndexIdx:!Z) rcIndices
@@ -259,6 +276,9 @@ instance RenderingCells 'ModeColored where
         bindBuffer gl gl_ARRAY_BUFFER cgColorsBuf
         bufferSubData' gl gl_ARRAY_BUFFER (4 * dataOff) objColors
 
+        bindBuffer gl gl_ARRAY_BUFFER cgSelectIdsBuf
+        bufferSubData' gl gl_ARRAY_BUFFER (4 * dataOff) objSelectIds
+
         bindBuffer gl gl_ELEMENT_ARRAY_BUFFER cgIndicesBuf
         bufferSubData' gl gl_ELEMENT_ARRAY_BUFFER (2 * rcContentIndexLength rc) objIndeces''
 
@@ -267,7 +287,7 @@ instance RenderingCells 'ModeColored where
 
 
     transformRenderedObject gl RenderingCell{..} (RenderedObjectId i) m
-        | ColoredData (CoordsNormals rcCrsnrs) _ _ <- rcData
+        | ColoredData (CoordsNormals rcCrsnrs) _ _ _ <- rcData
         , Just RenderedObjRef {..} <- IntMap.lookup i rcObjects
         , Just (SomeIntNat (Proxy :: Proxy n)) <- someIntNatVal roDataLength
           = do
@@ -287,7 +307,7 @@ instance RenderingCells 'ModeColored where
 
 
     setRenderedObjectColor gl RenderingCell{..} (RenderedObjectId i) c
-        | ColoredData _ (Colors colors) _ <- rcData
+        | ColoredData _ (Colors colors) _ _ <- rcData
         , Just RenderedObjRef {..} <- IntMap.lookup i rcObjects
         , Just (SomeIntNat (Proxy :: Proxy n)) <- someIntNatVal roDataLength
           = do
@@ -308,8 +328,9 @@ instance RenderingCells 'ModeColored where
         , rcObjects'               <- IntMap.delete i $ rcObjects rc
         , ColoredData (CoordsNormals rcCrsnrs)
                       (Colors rcColors)
+                      (SelectIds rcSelIds)
                       (Indices rcIndices) <- rcData rc
-        , WebGLColoredData cgIdxLen cgCoordsNormalsBuf cgColorsBuf cgIndicesBuf
+        , WebGLColoredData cgIdxLen cgCoordsNormalsBuf cgColorsBuf cgSelectIdsBuf cgIndicesBuf
                   <- rcGPUData rc
         , toCopyN <- max 0 $ rcContentDataLength rc + 1 - roDataLength - roDataIdx
         , toCopyM <- max 0 $ rcContentIndexLength rc + 1 - roIndexLength - roIndexIdx
@@ -320,11 +341,12 @@ instance RenderingCells 'ModeColored where
               { rcContentDataLength = roDataIdx - 1
               , rcObjects = rcObjects'
               , rcGPUData = WebGLColoredData (fromIntegral $ roIndexIdx - 1)
-                                             cgCoordsNormalsBuf cgColorsBuf cgIndicesBuf
+                                             cgCoordsNormalsBuf cgColorsBuf cgSelectIdsBuf cgIndicesBuf
               }
             else do -- if the object was in the middle of the list, we have to copy whole cell
-        toCopyCrsnrs   <- unsafeSubArray @GLfloat  @'[4,2] @toCopyN rcCrsnrs  (roDataIdx + roDataLength :! Z)
-        toCopyColors   <- unsafeSubArray @GLubyte  @'[4]   @toCopyN rcColors  (roDataIdx + roDataLength :! Z)
+        toCopyCrsnrs   <- unsafeSubArray @GLfloat  @'[4,2] @toCopyN rcCrsnrs (roDataIdx + roDataLength :! Z)
+        toCopyColors   <- unsafeSubArray @GLubyte  @'[4]   @toCopyN rcColors (roDataIdx + roDataLength :! Z)
+        toCopySelIds   <- unsafeSubArray @GLuint   @'[]    @toCopyN rcSelIds (roDataIdx + roDataLength :! Z)
         toCopyIndices' <- ewmap @_ @'[] (flip (-) $ fromIntegral roDataLength)
                       <$> unsafeSubArrayFreeze @GLushort @'[]    @toCopyM rcIndices (roIndexIdx + roIndexLength :! Z)
         toCopyIndices  <- unsafeArrayThaw toCopyIndices'
@@ -336,19 +358,23 @@ instance RenderingCells 'ModeColored where
         bindBuffer gl gl_ARRAY_BUFFER cgColorsBuf
         bufferSubData' gl gl_ARRAY_BUFFER (4 * (roDataIdx - 1)) toCopyColors
 
+        bindBuffer gl gl_ARRAY_BUFFER cgSelectIdsBuf
+        bufferSubData' gl gl_ARRAY_BUFFER (4 * (roDataIdx - 1)) toCopySelIds
+
         bindBuffer gl gl_ELEMENT_ARRAY_BUFFER cgIndicesBuf
         bufferSubData' gl gl_ELEMENT_ARRAY_BUFFER (2 * (roIndexIdx - 1)) toCopyIndices
 
         -- update arrays
         copyMutableDataFrame toCopyCrsnrs (roDataIdx:!Z) rcCrsnrs
         copyMutableDataFrame toCopyColors (roDataIdx:!Z) rcColors
+        copyMutableDataFrame toCopySelIds (roDataIdx:!Z) rcSelIds
         copyMutableDataFrame toCopyIndices (roIndexIdx:!Z) rcIndices
 
         return $ rc
           { rcContentDataLength = rcContentDataLength rc - roDataLength
           , rcObjects = shift ro <$> rcObjects'
           , rcGPUData = WebGLColoredData (cgIdxLen - fromIntegral roIndexLength)
-                                          cgCoordsNormalsBuf cgColorsBuf cgIndicesBuf
+                                          cgCoordsNormalsBuf cgColorsBuf cgSelectIdsBuf cgIndicesBuf
           }
       where
         shift ro ro' | roDataIdx ro' < roDataIdx ro = ro'
@@ -386,3 +412,10 @@ renderCell gl RenderingCell { rcGPUData = d@WebGLTexturedData {} } = do
     drawElements gl gl_TRIANGLES (wglSeqLen d) gl_UNSIGNED_SHORT 0
 
 
+--renderCellSelectors :: WebGLRenderingContext -> RenderingCell m -> IO ()
+--renderCellSelectors _ rc | wglSeqLen (rcGPUData rc) == 0 = return ()
+--renderCellSelectors  gl RenderingCell { rcGPUData = d@WebGLColoredData {} } = do
+--    bindBuffer gl gl_ARRAY_BUFFER (wglCoordsNormalsBuf d) >> setCoordsNormalsBuf gl
+--    bindBuffer gl gl_ARRAY_BUFFER (wglColorsBuf d) >> setColorsBuf gl
+--    bindBuffer gl gl_ELEMENT_ARRAY_BUFFER (wglIndicesBuf d)
+--    drawElements gl gl_TRIANGLES (wglSeqLen d) gl_UNSIGNED_SHORT 0
