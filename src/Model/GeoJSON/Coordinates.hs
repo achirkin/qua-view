@@ -22,7 +22,7 @@
 --
 module Model.GeoJSON.Coordinates
     ( PaddedZeros (..)
-    , bestFittingPlaneN, bestFittingLineN
+    , bestFittingPlaneN -- , bestFittingLineN
     , varX, meanX
     , ObjectCentres (..)
     , getScenarioStatistics
@@ -115,69 +115,70 @@ foreign import javascript unsafe
     "$r1 = $1.length; $r2 = new Uint16Array($1);"
     js_wratIds :: JSVal -> IO (Int, JSVal)
 
--- TODO: currently, we assume the fourth component of df' be always equal to 1!
 project2D :: forall n . (KnownDim n, 2 <= n)
           => DataFrame Float '[4, n]
           -> Vec3f
           -> DataFrame Float '[2, n]
 project2D df' norm = ewmap proj df
     where
-      m  = meanX df'
       proj x = vec2 (unScalar $ dot x nx) (unScalar $ dot x ny)
-      nx' = let x' = vec3 0 1 0 `cross` norm
-                x'' = if dot x' x' < 0.01
-                      then norm `cross` vec3 0 0 1
-                      else x'
+      nx = let x' = vec3 0 1 0 `cross` norm
+               x'' = if dot x' x' < 0.01
+                     then norm `cross` vec3 0 0 1
+                     else x'
             in x'' / fromScalar (normL2 x'')
-      nx = nx' <+:> 0
-      ny = let y' = norm `cross` nx'
-           in y' / fromScalar (normL2 y') <+:> 0
-      df = ewmap (flip (-) m) df'
+      ny = let y' = norm `cross` nx
+           in y' / fromScalar (normL2 y')
+      df = centralizeNFromHom df'
 
-
--- https://math.stackexchange.com/q/2306029
+-- Use this not-so-good check until we implement a proper SVD.
 bestFittingPlaneN :: forall n . (KnownDim n, 2 <= n) => DataFrame Float '[4, n] -> Vec3f
-bestFittingPlaneN df'
-    | -- take mean
-      m  <- meanX df'
-      -- normalized frame
-    , df <- ewmap   @_ @'[4] (flip (-) m) df'
-      -- solve Ax = B
-    , b  <- ewmap @Float @'[] (3:!Z !. ) df :: DataFrame Float '[n]
-    , a  <- ewmap @Float @'[3] @'[n] @'[3,n]
-                  @Float @'[4]       @'[4,n]
-                  (\v -> vec3 (unScalar $ 1:!Z !. v) (unScalar $ 2:!Z !. v) 1 ) df
-    , aT <- transpose a :: DataFrame Float '[n, 3]
-    , aaT <- a %* aT
-    , aX <- inverse aaT
-    , r3 <- aX %* a %* b
-    , df2d <- ewmap (\v -> vec2 (unScalar $ 1:!Z !. v) (unScalar $ 2:!Z !. v) ) df
-    = if var1 b < 0.01
-      then vec3 0 0 1
-      else  if abs (det aaT) > 0.001 && abs (det aX) > 0.001
-            then let v = vec3 (unScalar $ 1 !. r3) (unScalar $ 2 !. r3) 1
-                 in v / fromScalar (normL2 v)
-            else bestFittingLineN df2d <+:> 0
+bestFittingPlaneN  df' =
+    case (\(x,y,z) -> (x > 0.001, y > 0.001, z > 0.001)) . unpackV3 $ varX df of
+        (_, _, False) -> vec3 0 0 1
+        (_, False, _) -> vec3 0 1 0
+        (False, _, _) -> vec3 1 0 0
+        (True, True, True) -> normalized ( (1:!Z !. df) `cross` (2:!Z !. df))
+  where
+    df = centralizeNFromHom df'
 
-
--- Here we assume it is already normalized
-bestFittingLineN :: forall n . (KnownDim n, 2 <= n) => DataFrame Float '[2, n] -> Vec2f
-bestFittingLineN df
-    | -- solve Ax = B
-      b  <- ewmap @Float @'[]  @'[n] @'[n]    (2:!Z !. ) df
-    , a  <- ewmap @Float @'[2] @'[n] @'[2,n]
-                  @Float @'[2]       @'[2,n]
-                  (\v -> vec2 (unScalar $ 1:!Z !. v) 1 ) df
-    , aT <- transpose a :: DataFrame Float '[n, 2]
-    , aaT <- a %* aT
-    , aX <- inverse aaT
-    , r2  <- aX %* a %* b
-    , (vx, vy) <- unpackV2 $ varX df
-    = if abs (det aaT) < 0.001 || vx < 0.001 || vx / vy < 0.00001
-      then vec2 0 1
-      else if vy < 0.001 || vy / vx < 0.00001
-           then vec2 1 0
-           else let v = vec2 (unScalar $ 1 !. r2) 1 in v / fromScalar (normL2 v)
+---- https://math.stackexchange.com/q/2306029
+--bestFittingPlaneN :: forall n . (KnownDim n, 2 <= n) => DataFrame Float '[4, n] -> Vec3f
+--bestFittingPlaneN df'
+--    | -- normalized frame in 3D
+--      df <- centralizeNFromHom df'
+--      -- solve Ax = B
+--    , b  <- ewmap @Float @'[] (3:!Z !. ) df :: DataFrame Float '[n]
+--    , a  <- ewmap @Float @'[3] @'[n] @'[3,n]
+--                  (\v -> vec3 (unScalar $ 1:!Z !. v) (unScalar $ 2:!Z !. v) 1 ) df
+--    , aT <- transpose a :: DataFrame Float '[n, 3]
+--    , aaT <- a %* aT
+--    , aX <- inverse aaT
+--    , r3 <- aX %* a %* b
+--    , df2d <- ewmap (\v -> vec2 (unScalar $ 1:!Z !. v) (unScalar $ 2:!Z !. v) ) df
+--    = case (\(x,y,z) -> (x > 0.001, y > 0.001, z > 0.001)) . unpackV3 $ varX df of
+--        (_, _, False) -> vec3 0 0 1
+--        (_, False, _) -> vec3 0 1 0
+--        (False, _, _) -> vec3 1 0 0
+--        (True, True, True) ->
+--            if abs (det aaT) > 0.001
+--            then let v = vec3 (negate . unScalar $ 1 !. r3) (negate . unScalar $ 2 !. r3) 1
+--                 in v / fromScalar (normL2 v)
+--            else bestFittingLineN df2d <+:> 0
+--
+--
+---- Here we assume it is already normalized
+--bestFittingLineN :: forall n . (KnownDim n, 2 <= n) => DataFrame Float '[2, n] -> Vec2f
+--bestFittingLineN df
+--    | -- solve Ax = B
+--      b  <- ewmap @Float @'[]  @'[n] @'[n]    (2:!Z !. ) df
+--    , a  <- ewmap @Float @'[2] @'[n] @'[2,n]
+--                  (\v -> vec2 (unScalar $ 1:!Z !. v) 1 ) df
+--    , aT <- transpose a :: DataFrame Float '[n, 2]
+--    , aaT <- a %* aT
+--    , aX <- inverse aaT
+--    , r2  <- aX %* a %* b
+--    = let v = vec2 (unScalar $ 1 !. r2) (-1) in v / fromScalar (normL2 v)
 
 meanX :: forall n m . (KnownDim n, KnownDim m) => DataFrame Float '[n, m] -> Vector Float n
 meanX x = ewfoldl (+) 0 x / fromIntegral (dimVal' @m)
@@ -187,10 +188,19 @@ varX x = ewfoldl (\a v -> let v' = (v - m) in a + v' * v' ) 0 x / fromIntegral (
   where
     m = meanX x
 
-var1 :: forall n . KnownDim n => Vector Float n -> Scf
-var1 x = ewfoldl (\a v -> let v' = (v - m) in a + v' * v' ) 0 x / fromIntegral (dimVal' @n - 1)
+--var1 :: forall n . KnownDim n => Vector Float n -> Scf
+--var1 x = ewfoldl (\a v -> let v' = (v - m) in a + v' * v' ) 0 x / fromIntegral (dimVal' @n - 1)
+--  where
+--    m = ewfoldl (+) 0 x / fromIntegral (dimVal' @n)
+
+-- | Take out mean and transform homogeneous coordinates to normal 3D coordinates
+centralizeNFromHom :: forall n . KnownDim n => DataFrame Float '[4,n] -> DataFrame Float '[3,n]
+centralizeNFromHom df' = ewmap (flip (-) m) df
   where
-    m = ewfoldl (+) 0 x / fromIntegral (dimVal' @n)
+    df = ewmap fromHom df'
+    m = meanX df
+
+
 
 ----------------------------------------------------------------------------------------------------
 -- * Converting from JSON
