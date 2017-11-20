@@ -12,14 +12,12 @@ module Main ( main ) where
 import Reflex.Dom
 import Reflex.Dom.Widget.Animation (resizeEvents, viewPortSizeI)
 import Numeric.DataFrame
-import Control.Lens
 
 import Commons
 
 
 import qualified Model.Camera               as Model
 import qualified Model.Scenario             as Scenario
-import qualified Model.Scenario.Object      as Object
 import qualified Model.Scenario.Statistics  as Scenario
 
 import           Widgets.Generation
@@ -28,8 +26,9 @@ import qualified Widgets.Canvas         as Widgets
 import qualified Widgets.ControlPanel   as Widgets
 
 import qualified SmallGL
-import qualified SmallGL.Types as SmallGL
 import qualified Workers.LoadGeometry as Workers
+
+import           Program.Scenario
 
 import qualified QuaTypes
 import Control.Concurrent (forkIO, threadDelay)
@@ -53,7 +52,7 @@ main = mainWidgetInElementById "qua-view-widgets" $ runQuaWidget $ mdo
     do
       geomLoadedE <- askEvent GeometryLoaded
       registerEvent (WorkerMessage Workers.LGWRequest)
-        $ Workers.LGWLoadTextContent . Scenario.withoutObjects <$> current scenarioD <@> geomLoadedE
+        $ Workers.LGWLoadTextContent . Scenario.withoutObjects <$> scenarioB <@> geomLoadedE
 
     -- initialize web workers
     Workers.runLoadGeometryWorker
@@ -80,22 +79,7 @@ main = mainWidgetInElementById "qua-view-widgets" $ runQuaWidget $ mdo
     registerEvent (SmallGLInput SmallGL.ViewTransformChange)
         $ SmallGL.ViewM . Model.viewMatrix <$> updated cameraD
 
-    scenarioD <- holdDyn def scenarioE
-    scenarioE <- performEvent $
-                    ( \oldSc m -> do
-                           logInfo' @JSString "main" "Got this back:" m
-                           case m of
-                             Workers.LGWResult sc -> do
-                                let f :: forall m . SmallGL.RenderingData m -> IO SmallGL.RenderedObjectId
-                                    f d@SmallGL.ColoredData{} = SmallGL.addRObject renderingApi d
-                                    f _                       = pure $ SmallGL.RenderedObjectId (-1)
-                                    g = Object.registerRender f
-                                sc' <- liftIO $ sc & Scenario.objects.traverse %%~ g
-
-                                logInfo @JSString "main" "Registered!:"
-                                return $ oldSc <> sc'
-                             _ -> return oldSc
-                    ) <$> current scenarioD <@> loadedGeometryE
+    scenarioB <- inQuaWidget $ createScenario renderingApi
 
     let scenarioCenterE = fmapMaybe
                           (\m -> case m of
@@ -119,7 +103,7 @@ main = mainWidgetInElementById "qua-view-widgets" $ runQuaWidget $ mdo
       Just url -> do
         (ev, trigger) <- newTriggerEvent
         registerEvent (WorkerMessage Workers.LGWRequest)
-          $ Workers.LGWLoadUrl . Scenario.withoutObjects <$> current scenarioD <@> ev
+          $ Workers.LGWLoadUrl . Scenario.withoutObjects <$> scenarioB <@> ev
         liftIO . void . forkIO $ threadDelay 2000000 >> trigger url
 
 

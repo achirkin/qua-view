@@ -359,6 +359,18 @@ instance RenderingCells 'ModeColored where
     deleteRenderedObject _ rc _ = return rc
 
 
+deleteRenderingCell :: WebGLRenderingContext -> RenderingCell m -> IO ()
+deleteRenderingCell gl RenderingCell{ rcGPUData = WebGLPointData _ a b }
+  = deleteBuffer gl a >> deleteBuffer gl b
+deleteRenderingCell gl RenderingCell{ rcGPUData = WebGLLineData _ a b c }
+  = deleteBuffer gl a >> deleteBuffer gl b >> deleteBuffer gl c
+deleteRenderingCell gl RenderingCell{ rcGPUData = WebGLColoredData _ a b c }
+  = deleteBuffer gl a >> deleteBuffer gl b >> deleteBuffer gl c
+deleteRenderingCell gl RenderingCell{ rcGPUData = WebGLTexturedData _ a b c }
+  = deleteBuffer gl a >> deleteBuffer gl b >> deleteBuffer gl c
+
+
+
 -- | Bind drawing buffers, set up shader attributes, and draw geometry.
 --   This does not include enabling vertex buffers.
 renderCell :: WebGLRenderingContext -> RenderingCell m -> IO ()
