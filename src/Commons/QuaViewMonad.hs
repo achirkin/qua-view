@@ -13,6 +13,7 @@ module Commons.QuaViewMonad
     , showUserMessage, showUserPanic
     , registerEvent, askEvent
     , replaceUserMessageCallback, replaceUserPanicCallback
+    , inQuaWidget
     ) where
 
 
@@ -37,8 +38,14 @@ import           Commons.NoReflexDom.QuaViewMonad
 
 
 -- | Alias to QuaView widget
-type QuaWidget t x = QuaViewT Writing t (Widget x)
+type QuaWidget t x = QuaViewT Writing t
+  ( PostBuildT t
+    (ImmediateDomBuilderT t (WithJSContextSingleton x (PerformEventT t (SpiderHost Global))))
+  )
 
+-- | Hoist qua-view monad into QuaWidget
+inQuaWidget :: Reflex t => QuaViewM t a -> QuaWidget t x a
+inQuaWidget = hoistQuaView (lift.lift.lift)
 
 -- | Try to fetch settings, initialize context and run qua-view inside
 runQuaWidget :: QuaWidget (SpiderTimeline Global) x a -> Widget x a

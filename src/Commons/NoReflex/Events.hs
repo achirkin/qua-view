@@ -10,6 +10,7 @@ module Commons.NoReflex.Events
     , UserRequest (..), ScId
     , WorkerMessage
     , SmallGLInput
+    , ScenarioUpdate
       -- * TH helpers
     , deriveEvent
     ) where
@@ -38,6 +39,9 @@ data QEventType evArg where
     -- | Changes caused by SmallGL inputs.
     SmallGLInput   :: (GEq (QEventTag SmallGLInput), GCompare (QEventTag SmallGLInput))
                    => QEventTag SmallGLInput evArg -> QEventType evArg
+    -- | All updates of scenario  (geometry or properties, etc.).
+    ScenarioUpdate :: (GEq (QEventTag ScenarioUpdate), GCompare (QEventTag ScenarioUpdate))
+                   => QEventTag ScenarioUpdate evArg -> QEventType evArg
 
 
 
@@ -58,6 +62,9 @@ data WorkerMessage
 
 -- | Tag events of SmallGL inputs
 data SmallGLInput
+
+-- | Tag events of some changes in Scenario.
+data ScenarioUpdate
 
 -- | TODO this datatype should be in luci module;
 --   represents a scenario id

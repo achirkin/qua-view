@@ -64,7 +64,6 @@ class QuaViewTrans isWriting where
     isWritingEvents :: IsWritingEvents isWriting
 
 
-
 instance QuaViewTrans Writing where
   newtype QuaViewT Writing t m a = QuaViewT
     { unQuaViewT :: ReaderT (QuaViewContext t) (WriterT (QuaViewEvents t) m) a }

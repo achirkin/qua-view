@@ -78,6 +78,7 @@ data RenderingEngine = RenderingEngine
 data RenderingApi = RenderingApi
   { render     :: AnimationTime -> IO ()
   , addRObject :: RenderingData ModeColored -> IO RenderedObjectId
+  , reset      :: IO ()
   }
 
 
@@ -89,6 +90,8 @@ data instance QEventTag SmallGLInput a where
     ProjTransformChange :: QEventTag SmallGLInput ProjMatrix
     -- | Camera motions
     ViewTransformChange :: QEventTag SmallGLInput ViewMatrix
+    -- | Move objects
+    ObjectTransform     :: QEventTag SmallGLInput (RenderedObjectId, Mat44f)
 
 deriveEvent ''SmallGLInput
 
@@ -166,8 +169,15 @@ createRenderingEngine canvasElem = do
     return RenderingApi
         { render = \t -> modifyMVar_ rre $ \r -> r <$ renderFunction r t
         , addRObject = modifyMVar rre . addRObjectFunction
+        , reset = modifyMVar_ rre resetCells
         }
 
+
+resetCells :: RenderingEngine -> IO RenderingEngine
+resetCells  re@RenderingEngine {..} = do
+  deleteRenderingCell gl rCell
+  rCell' <- initRenderingCell gl
+  return $ re { rCell = rCell' }
 
 
 -- | Create a WebGL rendering context for a canvas
