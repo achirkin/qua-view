@@ -20,6 +20,7 @@ import Reflex.Dynamic
 import Text.Julius (julius)
 
 import Commons
+import QuaTypes
 import Widgets.Generation
 import Widgets.Modal.Help
 import Widgets.Modal.Share
@@ -37,7 +38,7 @@ controlButtonGroup = mdo
             toggleGroupD'  <- expandCtrlGroupButton
             -- show all buttons
             groupContents <- Dom.elClass "div" "fbtn-dropup" $ do
-                shareButton "placeholder link"
+                shareButton
                 resetCameraButton
                 helpButton
                 toggleFullScreenButton
@@ -235,18 +236,19 @@ serviceRunButton stateD = do
     displayButton Inactive = mempty
 
 shareButton :: Reflex t
-            => Text -- ^ share link
-            -> QuaWidget t x ()
-shareButton link = do
-    e <- makeElementFromHtml def $(qhtml
-          [hamlet|
-            <a .fbtn .waves-attach .waves-circle .waves-effect .fbtn-brand>
-              <span .fbtn-text .fbtn-text-left>
-                Submit proposal
-              <span .icon .icon-lg>
-                share
-          |])
-    popupShare (ElementClick <$ Dom.domEvent Dom.Click e) link
+            => QuaWidget t x ()
+shareButton = do
+  settingsD <- quaSettings
+  link <- Dom.sample $ current $ viewUrl <$> settingsD
+  e <- makeElementFromHtml def $(qhtml
+        [hamlet|
+          <a .fbtn .waves-attach .waves-circle .waves-effect .fbtn-brand>
+            <span .fbtn-text .fbtn-text-left>
+              Share proposal
+            <span .icon .icon-lg>
+              share
+        |])
+  popupShare (ElementClick <$ Dom.domEvent Dom.Click e) link
 
 submitProposalButton :: Reflex t => QuaWidget t x ()
 submitProposalButton = do
