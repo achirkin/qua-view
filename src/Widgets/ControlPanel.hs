@@ -18,14 +18,17 @@ import Widgets.ControlButtons
 import Widgets.UserMessages
 import Widgets.Tabs
 import Widgets.Tabs.Geometry
+import Widgets.Tabs.Info
 import Widgets.Tabs.Reviews
 import Widgets.Tabs.Services
+import Model.Scenario (Scenario)
 
 
 -- | Control panel widget is a place for all controls in qua-view!
 controlPanel :: Reflex t
-             => QuaWidget t x (Dynamic t (ComponentState "ControlPanel"))
-controlPanel = mdo
+             => Behavior t Scenario
+             -> QuaWidget t x (Dynamic t (ComponentState "ControlPanel"))
+controlPanel scB = mdo
     stateD <- Dom.elDynClass "div" (toClass <$> stateD) $ mdo
 
       -- tab pane
@@ -34,6 +37,7 @@ controlPanel = mdo
           Dom.elAttr "div" ("style" =: "margin: 0; padding: 0; height: 56px;") Dom.blank
           runTabWidget $ do
             addTab "Geometry" panelGeometry
+            addTab "Info" $ panelInfo scB
             addTab "Reviews" panelReviews
             addTab "Services" panelServices
 
