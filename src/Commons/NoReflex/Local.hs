@@ -194,3 +194,13 @@ instance PToJSVal Value where
     pToJSVal = coerce
 instance PFromJSVal Value where
     pFromJSVal = coerce
+
+instance FromJSON Value' where
+  parseJSON = pure . JavaScript.JSON.Types.Internal.match
+instance ToJSON Value' where
+  toJSON (Object v) = objectValue v
+  toJSON (Array v)  = arrayValue v
+  toJSON (String v) = stringValue v
+  toJSON (Number v) = doubleValue v
+  toJSON (Bool v)   = boolValue v
+  toJSON Null       = nullValue
