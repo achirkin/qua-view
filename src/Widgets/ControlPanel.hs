@@ -18,7 +18,7 @@ import Widgets.ControlButtons
 import Widgets.UserMessages
 import Widgets.Tabs
 import Widgets.Tabs.Geometry
-import Widgets.Tabs.Info
+import Widgets.Tabs.Reviews
 import Widgets.Tabs.Services
 
 
@@ -34,7 +34,7 @@ controlPanel = mdo
           Dom.elAttr "div" ("style" =: "margin: 0; padding: 0; height: 56px;") Dom.blank
           runTabWidget $ do
             addTab "Geometry" panelGeometry
-            addTab "Info" panelInfo
+            addTab "Reviews" panelReviews
             addTab "Services" panelServices
 
       -- view user message widget and register its handlers in qua-view monad
