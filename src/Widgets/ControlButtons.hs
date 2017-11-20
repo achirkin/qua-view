@@ -14,6 +14,7 @@ module Widgets.ControlButtons
     , serviceRunButton
     ) where
 
+import Control.Monad (join)
 import qualified Reflex.Class as Reflex
 import qualified Reflex.Dom as Dom
 import Reflex.Dynamic
@@ -43,7 +44,7 @@ controlButtonGroup = mdo
                 helpButton
                 toggleFullScreenButton
                 groupContents' <- controlPanelButton
-                _serviceStateD <- serviceButtons -- TODO: For running service
+                _serviceStateD <- serviceButtons $ constDyn Inactive -- TODO: For running service
                 _ <- submitProposalButton -- TODO: Submit proposal
                 return groupContents'
             return (toggleGroupD', groupContents)
@@ -199,12 +200,20 @@ resetCameraButton = do
         |])
     registerEvent (UserRequest AskResetCamera) (() <$ Dom.domEvent Dom.Click e)
 
-serviceButtons :: Reflex t => QuaWidget t x (Dynamic t (ComponentState "Service"))
-serviceButtons = mdo
-    serviceStateD <- holdDyn Inactive $ Reflex.leftmost [Active <$ serviceRunE, Inactive <$ serviceClearE]
-    serviceRunE   <- serviceRunButton serviceStateD
-    serviceClearE <- serviceClearButton serviceStateD
-    return serviceStateD
+serviceButtons :: Reflex t
+               => Dynamic t (ComponentState "LuciConnect")
+               -> QuaWidget t x (Dynamic t (ComponentState "Service"))
+serviceButtons luciConD = do
+  serviceStateE <- Dom.dyn $ renderBtn <$> luciConD
+  serviceStateDD <- holdDyn (constDyn Inactive) serviceStateE
+  return $ join serviceStateDD
+  where
+    renderBtn Inactive = return $ constDyn Inactive
+    renderBtn Active = mdo
+      serviceStateD <- holdDyn Inactive $ Reflex.leftmost [Active <$ serviceRunE, Inactive <$ serviceClearE]
+      serviceRunE   <- serviceRunButton serviceStateD
+      serviceClearE <- serviceClearButton serviceStateD
+      return serviceStateD
 
 
 serviceClearButton :: Reflex t
@@ -261,8 +270,3 @@ submitProposalButton = do
                 save
           |])
     popupSubmitProposal (ElementClick <$ Dom.domEvent Dom.Click e)
-
-
-----------------------------------------------------------------------------------------------------
--- below are drafts: buttons that not implemented yet
-----------------------------------------------------------------------------------------------------
