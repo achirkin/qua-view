@@ -8,8 +8,8 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE RecursiveDo #-}
 
-module Widgets.Tabs.Info
-    ( panelInfo
+module Widgets.Tabs.Reviews
+    ( panelReviews
     ) where
 
 import Commons
@@ -23,19 +23,19 @@ import Widgets.Commons
 import Widgets.Generation
 
 
-panelInfo :: Reflex t => QuaWidget t x ()
-panelInfo = do
+panelReviews :: Reflex t => QuaWidget t x ()
+panelReviews = do
   settingsD <- quaSettings
   eitherReviewSettingsE <- httpGetNowOrOnUpdate $ reviewSettingsUrl
                                                <$> settingsD
   reviewSettingsE <- renderError eitherReviewSettingsE
   reviewSettingsD <- holdDyn Nothing $ Just <$> reviewSettingsE
-  void $ dyn $ renderPanelInfo <$> reviewSettingsD
+  void $ dyn $ renderPanelReviews <$> reviewSettingsD
 
-renderPanelInfo :: Reflex t
-                => Maybe ReviewSettings -> QuaWidget t x ()
-renderPanelInfo Nothing = blank
-renderPanelInfo (Just reviewSettings) = do
+renderPanelReviews :: Reflex t
+                   => Maybe ReviewSettings -> QuaWidget t x ()
+renderPanelReviews Nothing = blank
+renderPanelReviews (Just reviewSettings) = do
     responseE <- renderWriteReview reviewSettings
     reviewsD  <- accum accumRevs (reviews reviewSettings) responseE
     let crits = criterions reviewSettings
