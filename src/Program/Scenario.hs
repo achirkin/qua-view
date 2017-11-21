@@ -167,10 +167,10 @@ updateScenarioFromLGW = do
 
 -- TODO: cope with all data types
 registerRenderFunStub :: SmallGL.RenderingApi
-                      -> SmallGL.RenderingData m
+                      -> SmallGL.ObjRenderingData m
                       -> IO SmallGL.RenderedObjectId
-registerRenderFunStub r d@SmallGL.ColoredData{} = SmallGL.addRObject r d
-registerRenderFunStub _ _                       = pure $ SmallGL.RenderedObjectId (-1)
+registerRenderFunStub r d@SmallGL.ObjColoredData{} = SmallGL.addRObject r d
+registerRenderFunStub _ _                          = pure $ SmallGL.RenderedObjectId (-1)
 
 
 ----------------------------------------------------------------------------------------------------

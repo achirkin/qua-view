@@ -22,7 +22,7 @@ packages:
   # WebGL functions
   - location:
       git: https://github.com/achirkin/ghcjs-webgl.git
-      commit: 2b5a6591ea4c133a07bcf806550e3f1d293f4f22
+      commit: 4052509def345f96dd6f33d0dba736e45d776bff
     extra-dep: true
   # pointer events and animation frames for reflex
   - location:

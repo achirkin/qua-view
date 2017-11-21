@@ -22,6 +22,7 @@ module Model.Scenario.Object
 
 import qualified Data.Map.Strict as Map
 import JavaScript.JSON.Types.Instances (ToJSON, FromJSON)
+import JavaScript.WebGL (GLuint)
 import GHC.Generics
 import Numeric.DataFrame
 import Commons.NoReflex
@@ -34,7 +35,7 @@ import qualified Model.Scenario.Object.Geometry as Geometry
 --
 --   It corresponds to @properties.geomID@ value of every feature in luci scenario
 --
-newtype ObjectId = ObjectId { _unObjectId :: Int }
+newtype ObjectId = ObjectId { _unObjectId :: GLuint }
   deriving (PToJSVal, ToJSVal, ToJSON, PFromJSVal, FromJSVal, FromJSON, Eq, Ord)
 
 data ObjectRenderable
@@ -47,7 +48,7 @@ data ObjectRenderable
 
 data ObjectRenderingData (s :: ObjectRenderable) where
   ORDR :: {_renderingId :: !RenderedObjectId } -> ObjectRenderingData 'Renderable
-  ORDP :: forall m . !(RenderingData m)   -> ObjectRenderingData 'Prepared
+  ORDP :: forall m . !(ObjRenderingData m)   -> ObjectRenderingData 'Prepared
   ORDN :: ObjectRenderingData 'NotReady
 
 
@@ -83,7 +84,7 @@ getTransferable = Geometry.getTransferable . _geometry
 
 
 registerRender :: Functor f
-               => (forall m . RenderingData m -> f RenderedObjectId)
+               => (forall m . ObjRenderingData m -> f RenderedObjectId)
                -> Object' 'Prepared -> f (Object' 'Renderable)
 registerRender f s = (\x -> s{_renderingData = ORDR x}) <$> g (_renderingData s)
     where
