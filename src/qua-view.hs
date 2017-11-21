@@ -11,6 +11,7 @@ module Main ( main ) where
 
 import Reflex.Dom
 import Reflex.Dom.Widget.Animation (resizeEvents, viewPortSizeI)
+import qualified Reflex.Dom.Widget.Animation as Animation
 import Numeric.DataFrame
 
 import Commons
@@ -19,6 +20,7 @@ import Commons
 import qualified Model.Camera               as Model
 import qualified Model.Scenario             as Scenario
 import qualified Model.Scenario.Statistics  as Scenario
+import qualified Model.Scenario.Object      as Object
 
 import           Widgets.Generation
 import qualified Widgets.LoadingSplash  as Widgets
@@ -62,6 +64,17 @@ main = mainWidgetInElementById "qua-view-widgets" $ runQuaWidget $ mdo
     renderingApi <- SmallGL.createRenderingEngine canvas
     -- initialize animation handler (and all pointer events).
     aHandler <- Widgets.registerAnimationHandler canvas (SmallGL.render renderingApi)
+    -- selected object id events
+    selectorClicks <-
+       performEvent $ (\((x,y):_) ->
+           liftIO $ SmallGL.getHoveredSelId renderingApi (round x, round y) )
+                 <$> Animation.downPointersB aHandler
+                 <@ select (Animation.pointerEvents aHandler) PClickEvent
+    selectedObjIdD <- holdDyn Nothing . ffor selectorClicks $
+        \oid -> if oid == 0xFFFFFFFF then Nothing else Just (Object.ObjectId oid)
+
+    logDebugEvents' @JSString "qua-view.hs" $ (,) "selectedObjId" . Just <$> updated selectedObjIdD
+
     -- supply animation events to camera
     let icamera = Model.initCamera (realToFrac . fst $ viewPortSizeI aHandler)
                                    (realToFrac . snd $ viewPortSizeI aHandler)

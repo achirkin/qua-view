@@ -25,6 +25,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module SmallGL
     ( ProjMatrix (..), ViewMatrix (..)
@@ -60,24 +61,39 @@ import SmallGL.Shader
 import SmallGL.RenderingCell
 
 data RenderingEngine = RenderingEngine
-  { gl       :: !WebGLRenderingContext
+  { gl          :: !WebGLRenderingContext
     -- ^ WebGL context
-  , vpSize   :: !(GLsizei, GLsizei)
+  , vpSize      :: !(GLsizei, GLsizei)
     -- ^ size of the viewport
-  , uProjLoc :: !WebGLUniformLocation
-  , uViewLoc :: !WebGLUniformLocation
-  , uSunDirLoc :: !WebGLUniformLocation
-  , uProjM   :: !ProjMatrix
-  , uViewM   :: !ViewMatrix
-  , rCell    :: !(RenderingCell ModeColored)
+  , viewProgram :: !RenderingProgram
+  , selProgram  :: !RenderingProgram
+  , selectorObj :: !SelectorObject
+  , uProjM      :: !ProjMatrix
+  , uViewM      :: !ViewMatrix
+  , rCell       :: !(RenderingCell ModeColored)
   }
 
+data RenderingProgram = RenderingProgram
+  { shader      :: !ShaderProgram
+  , uProjLoc    :: !WebGLUniformLocation
+  , uViewLoc    :: !WebGLUniformLocation
+  , uCustomLoc3 :: WebGLUniformLocation
+  }
 
+uSunDirLoc :: RenderingProgram -> WebGLUniformLocation
+uSunDirLoc = uCustomLoc3
+
+data SelectorObject = SelectorObject
+  { selFrameBuf  :: !WebGLFramebuffer
+  , selUbyteView :: !(IODataFrame GLubyte '[4])
+  , selUintView  :: !(IODataFrame GLuint '[])
+  }
 
 -- | Exposed functionality of
 data RenderingApi = RenderingApi
   { render     :: AnimationTime -> IO ()
-  , addRObject :: RenderingData ModeColored -> IO RenderedObjectId
+  , addRObject :: ObjRenderingData ModeColored -> IO RenderedObjectId
+  , getHoveredSelId :: (GLint, GLint) -> IO GLuint
   , reset      :: IO ()
   }
 
@@ -106,13 +122,36 @@ createRenderingEngine canvasElem = do
 
 
     -- init shaders and get attribute locations
-    program <-liftIO $ initShaders gl [(gl_VERTEX_SHADER, vertexShaderText)
-                                      ,(gl_FRAGMENT_SHADER, fragmentShaderText)
-                                      ]
-                                      [(attrLocCoords, "aVertexPosition")
-                                      ,(attrLocNormals,"aVertexNormal")
-                                      ,(attrLocColors, "aVertexColor")
-                                      ]
+    viewProgram <-liftIO $ do
+        shader <- initShaders gl [(gl_VERTEX_SHADER, vertexShaderText)
+                              ,(gl_FRAGMENT_SHADER, fragmentShaderText)
+                              ]
+                              [(attrLocCoords, "aVertexPosition")
+                              ,(attrLocNormals,"aVertexNormal")
+                              ,(attrLocColors, "aVertexColor")
+                              ]
+        let uProjLoc = unifLoc shader "uProjM"
+            uViewLoc = unifLoc shader "uViewM"
+            uCustomLoc3 = unifLoc shader "uSunDir"
+        return $ RenderingProgram {..}
+    selProgram <- liftIO $ do
+        shader <- initShaders gl [(gl_VERTEX_SHADER, vertexSelShaderText)
+                              ,(gl_FRAGMENT_SHADER, fragmentSelShaderText)
+                              ]
+                              [(attrLocCoords, "aVertexPosition")
+                              ,(attrLocSelIds, "aSelector")
+                              ]
+        let uProjLoc = unifLoc shader "uProjM"
+            uViewLoc = unifLoc shader "uViewM"
+            uCustomLoc3 = error "Selector shader does not have third uniform location."
+        return $ RenderingProgram {..}
+    selectorObj <- liftIO $ do
+      selFrameBuf <- initSelectorFramebuffer gl vpSize
+      selUbyteView <- newDataFrame
+      selUintView <- arrayBuffer selUbyteView >>= viewWord32Array @'[] >>=
+          \(SomeIODataFrame d) -> return (unsafeCoerce d)
+      return SelectorObject {..}
+
     -- create objects (including sending data to device)
     rCell <- fmap snd . liftIO . (initRenderingCell gl >>=) . runStateT $ do
        rectData <- liftIO rectangle
@@ -137,15 +176,12 @@ createRenderingEngine canvasElem = do
 
 
 
-    let uProjLoc = unifLoc program "uProjM"
-        uViewLoc = unifLoc program "uViewM"
-        uSunDirLoc = unifLoc program "uSunDir"
-        uProjM = ProjM eye
+    let uProjM = ProjM eye
         uViewM = ViewM eye
         re = RenderingEngine {..}
 
     liftIO $ do
-        useProgram gl $ programId program
+        useProgram gl $ programId $ shader viewProgram
         enableCoordsNormalsBuf gl
         enableColorsBuf gl
         setupViewPort re
@@ -167,8 +203,9 @@ createRenderingEngine canvasElem = do
 
 
     return RenderingApi
-        { render = \t -> modifyMVar_ rre $ \r -> r <$ renderFunction r t
+        { render = \t -> modifyMVar_ rre $ \r -> r <$ (renderFunction r t >> renderSelFunction r t)
         , addRObject = modifyMVar rre . addRObjectFunction
+        , getHoveredSelId = withMVar rre . getSelection
         , reset = modifyMVar_ rre resetCells
         }
 
@@ -186,7 +223,10 @@ getRenderingContext = liftIO . getWebGLContext . unsafeCoerce . _element_raw
 
 
 setupViewPort :: RenderingEngine -> IO ()
-setupViewPort RenderingEngine {..} = do
+setupViewPort RenderingEngine {..} | RenderingProgram {..} <- viewProgram = do
+    useProgram gl $ programId shader
+    enableCoordsNormalsBuf gl
+    enableColorsBuf gl
     -- setup WebGL
     clearColor gl 0 0 0 0
     enable gl gl_DEPTH_TEST
@@ -198,31 +238,134 @@ setupViewPort RenderingEngine {..} = do
     uniformMatrix4fv gl uViewLoc False (getViewM uViewM)
     uncurry (viewport gl 0 0) vpSize
 
-
-
-renderFunction :: RenderingEngine -> AnimationTime -> IO ()
-renderFunction RenderingEngine {..} _ = do
-    -- clear viewport
-    clear gl (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
+setupSelViewPort :: RenderingEngine -> IO ()
+setupSelViewPort RenderingEngine {..} | RenderingProgram {..} <- selProgram = do
+    useProgram gl $ programId shader
+    enableCoordsBuf gl
+    enableSelIdsBuf gl
+    -- setup WebGL
+    clearColor gl 1 1 1 1
+    enable gl gl_DEPTH_TEST
+    disable gl gl_BLEND
+    blendFunc gl gl_ONE gl_ZERO
+    depthFunc gl gl_LEQUAL
     -- supply shader with uniform matrix
     uniformMatrix4fv gl uProjLoc False (getProjM uProjM)
     uniformMatrix4fv gl uViewLoc False (getViewM uViewM)
+    uncurry (viewport gl 0 0) vpSize
+
+
+renderFunction :: RenderingEngine -> AnimationTime -> IO ()
+renderFunction re@RenderingEngine {..} _ | RenderingProgram {..} <- viewProgram = do
+    -- TODO probably this is too much of overhead
+    setupViewPort re
+    -- clear viewport
+    clear gl (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
+    -- supply shader with uniform matrix (don't need id as long as I have setupViewPort re above)
+    --uniformMatrix4fv gl uProjLoc False (getProjM uProjM)
+    --uniformMatrix4fv gl uViewLoc False (getViewM uViewM)
     -- TODO provide a proper sun direction vector
     -- let (sx,sy,sz,_) = unpackV4 $ getViewM uViewM %* vec4 (-0.5) (-0.6) (-1) 0
-    uniform4f gl uSunDirLoc (-0.5) (-0.6) (-1) 0 -- sx sy sz
+    uniform4f gl (uSunDirLoc viewProgram) (-0.5) (-0.6) (-1) 0 -- sx sy sz
     -- draw objects
     renderCell gl rCell
 
-addRObjectFunction :: RenderingData ModeColored
+
+renderSelFunction :: RenderingEngine -> AnimationTime -> IO ()
+renderSelFunction re@RenderingEngine {..} _ | RenderingProgram {..} <- selProgram
+                                            , SelectorObject {..} <- selectorObj = do
+    bindFramebuffer gl gl_FRAMEBUFFER $ Just selFrameBuf
+    -- TODO probably this is too much of overhead
+    setupSelViewPort re
+    -- clear viewport
+    clear gl (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
+    -- supply shader with uniform matrix (don't need id as long as I have setupViewPort re above)
+    --uniformMatrix4fv gl uProjLoc False (getProjM uProjM)
+    --uniformMatrix4fv gl uViewLoc False (getViewM uViewM)
+    -- draw objects
+    renderCellSelectors gl rCell
+    bindFramebuffer gl gl_FRAMEBUFFER Nothing
+
+
+addRObjectFunction :: ObjRenderingData ModeColored
                    -> RenderingEngine
                    -> IO (RenderingEngine, RenderedObjectId)
 addRObjectFunction cd re = do
     (roId, rc') <- addRenderedObject (gl re) cd (rCell re)
     return (re { rCell = rc'}, roId)
 
+initSelectorFramebuffer :: WebGLRenderingContext -> (GLsizei, GLsizei) -> IO WebGLFramebuffer
+initSelectorFramebuffer gl (width,height) = do
+    fb <- createFramebuffer gl
+    bindFramebuffer gl gl_FRAMEBUFFER $ Just fb
+    tex <- createTexture gl
+    bindTexture gl gl_TEXTURE_2D $ Just tex
+    texImage2D gl gl_TEXTURE_2D 0 gl_RGBA width height 0 gl_RGBA gl_UNSIGNED_BYTE Nothing
+    setTexParameters gl
+    framebufferTexture2D gl gl_FRAMEBUFFER gl_COLOR_ATTACHMENT0 gl_TEXTURE_2D tex 0
+    bindTexture gl gl_TEXTURE_2D Nothing
+    rbd <- createRenderbuffer gl
+    bindRenderbuffer gl gl_RENDERBUFFER $ Just rbd
+    renderbufferStorage gl gl_RENDERBUFFER gl_DEPTH_COMPONENT16 width height
+    framebufferRenderbuffer gl gl_FRAMEBUFFER gl_DEPTH_ATTACHMENT gl_RENDERBUFFER rbd
+    bindRenderbuffer gl gl_RENDERBUFFER Nothing
+    bindFramebuffer gl gl_FRAMEBUFFER Nothing
+    return fb
+
+
+
+--initTexture :: WebGLRenderingContext -> Either TexImageSource (TypedArray GLubyte, (GLsizei, GLsizei)) -> IO WebGLTexture
+--initTexture gl texdata = do
+--    tex <- createTexture gl
+--    bindTexture gl gl_TEXTURE_2D tex
+--    case texdata of
+--        Left img -> do
+--            pixelStorei gl gl_UNPACK_FLIP_Y_WEBGL 1
+--            texImage2DImg gl gl_TEXTURE_2D 0 gl_RGBA gl_RGBA gl_UNSIGNED_BYTE img
+--        Right (arr, (w,h)) -> do
+--            pixelStorei gl gl_UNPACK_FLIP_Y_WEBGL 0
+--            texImage2D gl gl_TEXTURE_2D 0 gl_RGBA w h 0 gl_RGBA gl_UNSIGNED_BYTE (Just arr)
+--    setTexParameters gl
+--    bindTexture gl gl_TEXTURE_2D nullRef
+--    return tex
+
+setTexParameters :: WebGLRenderingContext -> IO ()
+setTexParameters gl = do
+    texParameteri gl gl_TEXTURE_2D gl_TEXTURE_WRAP_S $ fromIntegral gl_CLAMP_TO_EDGE
+    texParameteri gl gl_TEXTURE_2D gl_TEXTURE_WRAP_T $ fromIntegral gl_CLAMP_TO_EDGE
+    texParameteri gl gl_TEXTURE_2D gl_TEXTURE_MAG_FILTER $ fromIntegral gl_NEAREST
+    texParameteri gl gl_TEXTURE_2D gl_TEXTURE_MIN_FILTER $ fromIntegral gl_NEAREST
+
+--updateTexture :: WebGLRenderingContext
+--              -> Either TexImageSource (TypedArray GLubyte, (GLsizei, GLsizei))
+--              -> WebGLTexture
+--              -> IO ()
+--updateTexture gl texdata tex = do
+--    bindTexture gl gl_TEXTURE_2D tex
+--    case texdata of
+--        Left img -> do
+--            pixelStorei gl gl_UNPACK_FLIP_Y_WEBGL 1
+--            texImage2DImg gl gl_TEXTURE_2D 0 gl_RGBA gl_RGBA gl_UNSIGNED_BYTE img
+--        Right (arr, (w,h)) -> do
+--            pixelStorei gl gl_UNPACK_FLIP_Y_WEBGL 0
+--            texImage2D gl gl_TEXTURE_2D 0 gl_RGBA w h 0 gl_RGBA gl_UNSIGNED_BYTE (Just arr)
+--    bindTexture gl gl_TEXTURE_2D nullRef
+
+getSelection :: (GLint, GLint) -> RenderingEngine -> IO GLuint
+getSelection (x, y) RenderingEngine {..} | SelectorObject {..} <- selectorObj = do
+    bindFramebuffer gl gl_FRAMEBUFFER $ Just selFrameBuf
+    viewport gl 0 0 w h
+    readPixels gl x (fromIntegral h - y) 1 1 gl_RGBA gl_UNSIGNED_BYTE selUbyteView
+    bindFramebuffer gl gl_FRAMEBUFFER Nothing
+    viewport gl 0 0 w h
+    fmap unScalar $ unsafeFreezeDataFrame selUintView
+  where
+    (w,h) = vpSize
+
+
 ----------------------------------------------------------------------------------------------------
 
-rectangle :: IO (RenderingData ModeColored)
+rectangle :: IO (ObjRenderingData ModeColored)
 rectangle
   | SomeDataFrame ixs <- fromList [0,1,2,0,2,3::Scalar GLushort]
   , crsnrs <-   (vec4  5 9  0 1 <::> vec4 0 0 1 0)
@@ -237,20 +380,13 @@ rectangle
     crsnrs' <- thawDataFrame crsnrs
     colors' <- thawDataFrame colors
     ixs'    <- thawDataFrame ixs
-    return $ ColoredData (CoordsNormals crsnrs') (Colors colors') (Indices ixs')
+    return $ ObjColoredData (CoordsNormals crsnrs') (Colors colors') 0xFFFFFFFF (Indices ixs')
 
 
 
 
 fragmentShaderText :: JSString
 fragmentShaderText =
---  [jsstring|
---     precision mediump float;
---     varying vec4 vColor;
---     void main(void) {
---       gl_FragColor = vColor;
---     }
---  |]
   [jsstring|
     precision mediump float;
     varying vec4 vColor;
@@ -263,19 +399,6 @@ fragmentShaderText =
 
 vertexShaderText :: JSString
 vertexShaderText =
---  [jsstring|
---    attribute vec4 aVertexPosition;
---    attribute vec4 aVertexNormal;
---    attribute vec4 aVertexColor;
---    uniform mat4 uViewM;
---    uniform mat4 uProjM;
---    uniform mat4 uPMV;
---    varying vec4 vColor;
---    void main(void) {
---      gl_Position = uProjM * uViewM * aVertexPosition;
---      vColor = aVertexColor + 0.001*aVertexNormal;
---    }
---  |]
   [jsstring|
     precision mediump float;
     attribute vec4 aVertexPosition;
@@ -296,4 +419,34 @@ vertexShaderText =
       vColor = vec4(clamp(aVertexColor.xyz * brightness, vec3(0,0,0), vec3(a,a,a)), a);
     }
   |]
+
+
+
+
+fragmentSelShaderText :: JSString
+fragmentSelShaderText =
+  [jsstring|
+     precision mediump float;
+     varying vec4 vSelector;
+     void main(void) {
+       gl_FragColor = vSelector;
+     }
+  |]
+
+
+vertexSelShaderText :: JSString
+vertexSelShaderText =
+  [jsstring|
+    precision mediump float;
+    attribute vec4 aVertexPosition;
+    attribute vec4 aSelector;
+    uniform mat4 uViewM;
+    uniform mat4 uProjM;
+    varying vec4 vSelector;
+    void main(void) {
+      vSelector = aSelector;
+      gl_Position = uProjM * uViewM * aVertexPosition;
+    }
+  |]
+
 

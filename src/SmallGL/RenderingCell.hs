@@ -31,7 +31,6 @@ import SmallGL.Types
 
 
 
-
 -- | Coollection of objects in a small area packed in a single set of WebGL buffers for drawing.
 data RenderingCell m = RenderingCell
   { rcData    :: !(RenderingData m)
@@ -87,7 +86,7 @@ class RenderingCells m where
 
     -- | Add one more object to the cell
     addRenderedObject :: WebGLRenderingContext
-                      -> RenderingData m
+                      -> ObjRenderingData m
                       -> RenderingCell m
                       -> IO (RenderedObjectId, RenderingCell m)
 
@@ -132,16 +131,16 @@ instance RenderingCells 'ModeColored where
         cgIndicesBuf       <- createBuffer gl
 
         -- send data to buffers
-        bindBuffer gl gl_ARRAY_BUFFER cgCoordsNormalsBuf
+        bindBuffer gl gl_ARRAY_BUFFER $ Just cgCoordsNormalsBuf
         bufferData' gl gl_ARRAY_BUFFER crsnrs gl_STATIC_DRAW
 
-        bindBuffer gl gl_ARRAY_BUFFER cgColorsBuf
+        bindBuffer gl gl_ARRAY_BUFFER $ Just cgColorsBuf
         bufferData' gl gl_ARRAY_BUFFER colors gl_STATIC_DRAW
 
-        bindBuffer gl gl_ARRAY_BUFFER cgSelectIdsBuf
+        bindBuffer gl gl_ARRAY_BUFFER $ Just cgSelectIdsBuf
         bufferData' gl gl_ARRAY_BUFFER selIds gl_STATIC_DRAW
 
-        bindBuffer gl gl_ELEMENT_ARRAY_BUFFER cgIndicesBuf
+        bindBuffer gl gl_ELEMENT_ARRAY_BUFFER $ Just cgIndicesBuf
         bufferData' gl gl_ELEMENT_ARRAY_BUFFER ixs gl_STATIC_DRAW
 
         let rcGPUData = WebGLColoredData cgIdxLen cgCoordsNormalsBuf cgColorsBuf cgSelectIdsBuf cgIndicesBuf
@@ -165,7 +164,7 @@ instance RenderingCells 'ModeColored where
         , Evidence <- inferTimesKnownDim @2 @n
         = do
         -- cleanup existing webgl buffers
-        unbindBuffer gl gl_ARRAY_BUFFER
+        bindBuffer gl gl_ARRAY_BUFFER Nothing
         deleteBuffer gl cgCoordsNormalsBuf
         deleteBuffer gl cgColorsBuf
         deleteBuffer gl cgSelectIdsBuf
@@ -185,13 +184,13 @@ instance RenderingCells 'ModeColored where
         cgSelectIdsBuf'     <- createBuffer gl
 
         -- send data to buffers
-        bindBuffer gl gl_ARRAY_BUFFER cgCoordsNormalsBuf'
+        bindBuffer gl gl_ARRAY_BUFFER $ Just cgCoordsNormalsBuf'
         bufferData' gl gl_ARRAY_BUFFER crsnrs' gl_STATIC_DRAW
 
-        bindBuffer gl gl_ARRAY_BUFFER cgColorsBuf'
+        bindBuffer gl gl_ARRAY_BUFFER $ Just cgColorsBuf'
         bufferData' gl gl_ARRAY_BUFFER colors' gl_STATIC_DRAW
 
-        bindBuffer gl gl_ARRAY_BUFFER cgSelectIdsBuf'
+        bindBuffer gl gl_ARRAY_BUFFER $ Just cgSelectIdsBuf'
         bufferData' gl gl_ARRAY_BUFFER selectIds' gl_STATIC_DRAW
 
         return rc
@@ -210,7 +209,7 @@ instance RenderingCells 'ModeColored where
         , Evidence <- inferTimesKnownDim @2 @m
         = do
         -- cleanup existing webgl buffers
-        unbindBuffer gl gl_ELEMENT_ARRAY_BUFFER
+        bindBuffer gl gl_ELEMENT_ARRAY_BUFFER Nothing
         deleteBuffer gl cgIndicesBuf
         -- create new data buffers
         ixs' <- newDataFrame @_ @'[2*m]
@@ -222,7 +221,7 @@ instance RenderingCells 'ModeColored where
         cgIndicesBuf' <- createBuffer gl
 
         -- send data to buffers
-        bindBuffer gl gl_ELEMENT_ARRAY_BUFFER cgIndicesBuf'
+        bindBuffer gl gl_ELEMENT_ARRAY_BUFFER $ Just cgIndicesBuf'
         bufferData' gl gl_ELEMENT_ARRAY_BUFFER ixs' gl_STATIC_DRAW
 
         return rc
@@ -233,14 +232,14 @@ instance RenderingCells 'ModeColored where
 
 
     addRenderedObject gl obj rc
-        | rdVertexNum obj + rcContentDataLength rc > rdVertexNum (rcData rc)
+        | ordVertexNum obj + rcContentDataLength rc > rdVertexNum (rcData rc)
           = growRenderingCellData gl rc >>= addRenderedObject gl obj
-        | rdIndexNum obj + rcContentIndexLength rc > rdIndexNum (rcData rc)
+        | ordIndexNum obj + rcContentIndexLength rc > rdIndexNum (rcData rc)
           = growRenderingCellIndices gl rc >>= addRenderedObject gl obj
-        | ColoredData (CoordsNormals objCrsnrs)
-                      (Colors objColors)
-                      (SelectIds objSelectIds)
-                      (Indices objIndices) <- obj
+        | ObjColoredData (CoordsNormals objCrsnrs)
+                         (Colors (objColors :: IODataFrame GLubyte '[4,n]))
+                          selectId
+                         (Indices objIndices) <- obj
         , ColoredData (CoordsNormals rcCrsnrs)
                       (Colors rcColors)
                       (SelectIds rcSelectIds)
@@ -248,9 +247,9 @@ instance RenderingCells 'ModeColored where
         , WebGLColoredData cgIdxLen cgCoordsNormalsBuf cgColorsBuf cgSelectIdsBuf cgIndicesBuf
                   <- rcGPUData rc
         , dataOff <- rcContentDataLength rc
-        , roDataLength  <- rdVertexNum obj
+        , roDataLength  <- ordVertexNum obj
         , roDataIdx     <- dataOff + 1
-        , roIndexLength <- rdIndexNum obj
+        , roIndexLength <- ordIndexNum obj
         , roIndexIdx    <- rcContentIndexLength rc + 1
         , ro <- RenderedObjRef {..}
         , rc' <- rc
@@ -263,6 +262,7 @@ instance RenderingCells 'ModeColored where
           = do
         copyMutableDataFrame objCrsnrs (roDataIdx:!Z) rcCrsnrs
         copyMutableDataFrame objColors (roDataIdx:!Z) rcColors
+        objSelectIds <- thawDataFrame . fromScalar $ scalar selectId :: IO (IODataFrame GLuint '[n])
         copyMutableDataFrame objSelectIds (roDataIdx:!Z) rcSelectIds
         objIndices' <- ewmap @_ @'[] (fromIntegral dataOff +)
                     <$> unsafeFreezeDataFrame objIndices
@@ -270,16 +270,16 @@ instance RenderingCells 'ModeColored where
         objIndeces'' <- unsafeArrayThaw objIndices'
 
         -- send data to buffers
-        bindBuffer gl gl_ARRAY_BUFFER cgCoordsNormalsBuf
+        bindBuffer gl gl_ARRAY_BUFFER $ Just cgCoordsNormalsBuf
         bufferSubData' gl gl_ARRAY_BUFFER (32 * dataOff) objCrsnrs
 
-        bindBuffer gl gl_ARRAY_BUFFER cgColorsBuf
+        bindBuffer gl gl_ARRAY_BUFFER $ Just cgColorsBuf
         bufferSubData' gl gl_ARRAY_BUFFER (4 * dataOff) objColors
 
-        bindBuffer gl gl_ARRAY_BUFFER cgSelectIdsBuf
+        bindBuffer gl gl_ARRAY_BUFFER $ Just cgSelectIdsBuf
         bufferSubData' gl gl_ARRAY_BUFFER (4 * dataOff) objSelectIds
 
-        bindBuffer gl gl_ELEMENT_ARRAY_BUFFER cgIndicesBuf
+        bindBuffer gl gl_ELEMENT_ARRAY_BUFFER $ Just cgIndicesBuf
         bufferSubData' gl gl_ELEMENT_ARRAY_BUFFER (2 * rcContentIndexLength rc) objIndeces''
 
         return (RenderedObjectId $ rcNextObjId rc, rc')
@@ -299,7 +299,7 @@ instance RenderingCells 'ModeColored where
 
 
         -- send data to buffers
-        bindBuffer gl gl_ARRAY_BUFFER (wglCoordsNormalsBuf rcGPUData)
+        bindBuffer gl gl_ARRAY_BUFFER . Just $ wglCoordsNormalsBuf rcGPUData
         bufferSubData' gl gl_ARRAY_BUFFER (32 * (roDataIdx - 1)) objCrsnrs'
     -- could not lookup RenderedObjRef by its id
     transformRenderedObject _ _ _ _ = return ()
@@ -316,7 +316,7 @@ instance RenderingCells 'ModeColored where
         -- apply matrix transform on subarray of points and normals
         overDimIdx_ (dim @'[n]) (\j -> copyDataFrame c (1:!j) objColors)
         -- send data to buffers
-        bindBuffer gl gl_ARRAY_BUFFER (wglColorsBuf rcGPUData)
+        bindBuffer gl gl_ARRAY_BUFFER . Just $ wglColorsBuf rcGPUData
         bufferSubData' gl gl_ARRAY_BUFFER (4 * (roDataIdx - 1)) objColors
     -- could not lookup RenderedObjRef by its id
     setRenderedObjectColor _ _ _ _ = return ()
@@ -352,16 +352,16 @@ instance RenderingCells 'ModeColored where
         toCopyIndices  <- unsafeArrayThaw toCopyIndices'
 
         -- send data to buffers BEFORE doing copy within data arrays
-        bindBuffer gl gl_ARRAY_BUFFER cgCoordsNormalsBuf
+        bindBuffer gl gl_ARRAY_BUFFER $ Just cgCoordsNormalsBuf
         bufferSubData' gl gl_ARRAY_BUFFER (32 * (roDataIdx - 1)) toCopyCrsnrs
 
-        bindBuffer gl gl_ARRAY_BUFFER cgColorsBuf
+        bindBuffer gl gl_ARRAY_BUFFER $ Just cgColorsBuf
         bufferSubData' gl gl_ARRAY_BUFFER (4 * (roDataIdx - 1)) toCopyColors
 
-        bindBuffer gl gl_ARRAY_BUFFER cgSelectIdsBuf
+        bindBuffer gl gl_ARRAY_BUFFER $ Just cgSelectIdsBuf
         bufferSubData' gl gl_ARRAY_BUFFER (4 * (roDataIdx - 1)) toCopySelIds
 
-        bindBuffer gl gl_ELEMENT_ARRAY_BUFFER cgIndicesBuf
+        bindBuffer gl gl_ELEMENT_ARRAY_BUFFER $ Just cgIndicesBuf
         bufferSubData' gl gl_ELEMENT_ARRAY_BUFFER (2 * (roIndexIdx - 1)) toCopyIndices
 
         -- update arrays
@@ -386,14 +386,14 @@ instance RenderingCells 'ModeColored where
 
 
 deleteRenderingCell :: WebGLRenderingContext -> RenderingCell m -> IO ()
-deleteRenderingCell gl RenderingCell{ rcGPUData = WebGLPointData _ a b }
-  = deleteBuffer gl a >> deleteBuffer gl b
-deleteRenderingCell gl RenderingCell{ rcGPUData = WebGLLineData _ a b c }
+deleteRenderingCell gl RenderingCell{ rcGPUData = WebGLPointData _ a b c }
   = deleteBuffer gl a >> deleteBuffer gl b >> deleteBuffer gl c
-deleteRenderingCell gl RenderingCell{ rcGPUData = WebGLColoredData _ a b c }
-  = deleteBuffer gl a >> deleteBuffer gl b >> deleteBuffer gl c
-deleteRenderingCell gl RenderingCell{ rcGPUData = WebGLTexturedData _ a b c }
-  = deleteBuffer gl a >> deleteBuffer gl b >> deleteBuffer gl c
+deleteRenderingCell gl RenderingCell{ rcGPUData = WebGLLineData _ a b c d }
+  = deleteBuffer gl a >> deleteBuffer gl b >> deleteBuffer gl c >> deleteBuffer gl d
+deleteRenderingCell gl RenderingCell{ rcGPUData = WebGLColoredData _ a b c d }
+  = deleteBuffer gl a >> deleteBuffer gl b >> deleteBuffer gl c >> deleteBuffer gl d
+deleteRenderingCell gl RenderingCell{ rcGPUData = WebGLTexturedData _ a b c d }
+  = deleteBuffer gl a >> deleteBuffer gl b >> deleteBuffer gl c >> deleteBuffer gl d
 
 
 
@@ -402,32 +402,49 @@ deleteRenderingCell gl RenderingCell{ rcGPUData = WebGLTexturedData _ a b c }
 renderCell :: WebGLRenderingContext -> RenderingCell m -> IO ()
 renderCell _  rc | wglSeqLen (rcGPUData rc) == 0 = return ()
 renderCell gl RenderingCell { rcGPUData = d@WebGLPointData {} } = do
-    bindBuffer gl gl_ARRAY_BUFFER (wglCoordsBuf d) >> setCoordsBuf gl
-    bindBuffer gl gl_ARRAY_BUFFER (wglColorsBuf d) >> setColorsBuf gl
+    bindBuffer gl gl_ARRAY_BUFFER (Just $ wglCoordsBuf d) >> setCoordsBuf gl
+    bindBuffer gl gl_ARRAY_BUFFER (Just $ wglColorsBuf d) >> setColorsBuf gl
     drawArrays gl gl_POINTS 0 (wglSeqLen d)
 renderCell gl RenderingCell { rcGPUData = d@WebGLLineData {} } = do
-    bindBuffer gl gl_ARRAY_BUFFER (wglCoordsBuf d) >> setCoordsBuf gl
-    bindBuffer gl gl_ARRAY_BUFFER (wglColorsBuf d) >> setColorsBuf gl
-    bindBuffer gl gl_ELEMENT_ARRAY_BUFFER (wglIndicesBuf d)
+    bindBuffer gl gl_ARRAY_BUFFER (Just $ wglCoordsBuf d) >> setCoordsBuf gl
+    bindBuffer gl gl_ARRAY_BUFFER (Just $ wglColorsBuf d) >> setColorsBuf gl
+    bindBuffer gl gl_ELEMENT_ARRAY_BUFFER (Just $ wglIndicesBuf d)
     drawElements gl gl_LINES (wglSeqLen d) gl_UNSIGNED_SHORT 0
 renderCell gl RenderingCell { rcGPUData = d@WebGLColoredData {} } = do
-    bindBuffer gl gl_ARRAY_BUFFER (wglCoordsNormalsBuf d) >> setCoordsNormalsBuf gl
-    bindBuffer gl gl_ARRAY_BUFFER (wglColorsBuf d) >> setColorsBuf gl
-    bindBuffer gl gl_ELEMENT_ARRAY_BUFFER (wglIndicesBuf d)
+    bindBuffer gl gl_ARRAY_BUFFER (Just $ wglCoordsNormalsBuf d) >> setCoordsNormalsBuf gl
+    bindBuffer gl gl_ARRAY_BUFFER (Just $ wglColorsBuf d) >> setColorsBuf gl
+    bindBuffer gl gl_ELEMENT_ARRAY_BUFFER (Just $ wglIndicesBuf d)
     drawElements gl gl_TRIANGLES (wglSeqLen d) gl_UNSIGNED_SHORT 0
 renderCell gl RenderingCell { rcGPUData = d@WebGLTexturedData {} } = do
     -- TODO need a texture!
     -- bindTexture gl gl_TEXTURE_2D gmcMapTexture
-    bindBuffer gl gl_ARRAY_BUFFER (wglCoordsNormalsBuf d) >> setCoordsNormalsBuf gl
-    bindBuffer gl gl_ARRAY_BUFFER (wglTexCoordsBuf d)     >> setTexCoordsBuf gl
-    bindBuffer gl gl_ELEMENT_ARRAY_BUFFER (wglIndicesBuf d)
+    bindBuffer gl gl_ARRAY_BUFFER (Just $ wglCoordsNormalsBuf d) >> setCoordsNormalsBuf gl
+    bindBuffer gl gl_ARRAY_BUFFER (Just $ wglTexCoordsBuf d)     >> setTexCoordsBuf gl
+    bindBuffer gl gl_ELEMENT_ARRAY_BUFFER (Just $ wglIndicesBuf d)
     drawElements gl gl_TRIANGLES (wglSeqLen d) gl_UNSIGNED_SHORT 0
 
 
---renderCellSelectors :: WebGLRenderingContext -> RenderingCell m -> IO ()
---renderCellSelectors _ rc | wglSeqLen (rcGPUData rc) == 0 = return ()
---renderCellSelectors  gl RenderingCell { rcGPUData = d@WebGLColoredData {} } = do
---    bindBuffer gl gl_ARRAY_BUFFER (wglCoordsNormalsBuf d) >> setCoordsNormalsBuf gl
---    bindBuffer gl gl_ARRAY_BUFFER (wglColorsBuf d) >> setColorsBuf gl
---    bindBuffer gl gl_ELEMENT_ARRAY_BUFFER (wglIndicesBuf d)
---    drawElements gl gl_TRIANGLES (wglSeqLen d) gl_UNSIGNED_SHORT 0
+-- | Render ids of objects into a supplied framebuffer.
+--   Then we can use it to find out which object is selected by their ids.
+renderCellSelectors :: WebGLRenderingContext -> RenderingCell m -> IO ()
+renderCellSelectors _ rc | wglSeqLen (rcGPUData rc) == 0 = return ()
+renderCellSelectors gl RenderingCell { rcGPUData = d@WebGLPointData {} } = do
+    bindBuffer gl gl_ARRAY_BUFFER (Just $ wglCoordsBuf d) >> setCoordsBuf gl
+    bindBuffer gl gl_ARRAY_BUFFER (Just $ wglSelectorIdsBuf d) >> setSelIdsBuf gl
+    drawArrays gl gl_POINTS 0 (wglSeqLen d)
+renderCellSelectors gl RenderingCell { rcGPUData = d@WebGLLineData {} } = do
+    bindBuffer gl gl_ARRAY_BUFFER (Just $ wglCoordsBuf d) >> setCoordsBuf gl
+    bindBuffer gl gl_ARRAY_BUFFER (Just $ wglSelectorIdsBuf d) >> setSelIdsBuf gl
+    bindBuffer gl gl_ELEMENT_ARRAY_BUFFER (Just $ wglIndicesBuf d)
+    drawElements gl gl_LINES (wglSeqLen d) gl_UNSIGNED_SHORT 0
+renderCellSelectors gl RenderingCell { rcGPUData =  d@WebGLColoredData {}  } = do
+    bindBuffer gl gl_ARRAY_BUFFER (Just $ wglCoordsNormalsBuf d) >> setCoordsNoNormalsBuf gl
+    bindBuffer gl gl_ARRAY_BUFFER (Just $ wglSelectorIdsBuf d) >> setSelIdsBuf gl
+    bindBuffer gl gl_ELEMENT_ARRAY_BUFFER (Just $ wglIndicesBuf d)
+    drawElements gl gl_TRIANGLES (wglSeqLen d) gl_UNSIGNED_SHORT 0
+renderCellSelectors gl RenderingCell { rcGPUData =  d@WebGLTexturedData {}  } = do
+    bindBuffer gl gl_ARRAY_BUFFER (Just $ wglCoordsNormalsBuf d) >> setCoordsNoNormalsBuf gl
+    bindBuffer gl gl_ARRAY_BUFFER (Just $ wglSelectorIdsBuf d) >> setSelIdsBuf gl
+    bindBuffer gl gl_ELEMENT_ARRAY_BUFFER (Just $ wglIndicesBuf d)
+    drawElements gl gl_TRIANGLES (wglSeqLen d) gl_UNSIGNED_SHORT 0
+

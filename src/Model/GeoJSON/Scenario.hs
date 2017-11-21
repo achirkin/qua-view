@@ -94,7 +94,9 @@ instance FromJSON (Object.Object' 'Object.NotReady) where
 prepareScenario :: ScenarioStatistics
                 -> Scenario.Scenario' 'Object.NotReady
                 -> IO (Scenario.Scenario' 'Object.Prepared)
-prepareScenario st sc = Scenario.objects (traverse $ performGTransform >=> prepareObject sc) sc
+prepareScenario st sc = Scenario.objects (Map.traverseWithKey
+                                           $ \i -> performGTransform >=> prepareObject sc i
+                                         ) sc
   where
     performGTransform :: Object.Object' 'Object.NotReady -> IO (Object.Object' 'Object.NotReady)
     performGTransform =
@@ -105,16 +107,18 @@ prepareScenario st sc = Scenario.objects (traverse $ performGTransform >=> prepa
       else return
 
 prepareObject :: Scenario.Scenario' s
+              -> Object.ObjectId
               -> Object.Object' 'Object.NotReady
               -> IO (Object.Object' 'Object.Prepared)
-prepareObject sc obj = do
+prepareObject sc (Object.ObjectId objId) obj = do
     mindices <- setNormalsAndComputeIndices (obj^.Object.geometry)
     case obj^.Object.geometry of
 
       Geometry.Points (SomeIODataFrame pts) -> do
         colors <- unsafeArrayThaw . ewgen $
            obj^.Object.viewColor.non (sc^.Scenario.defaultPointColor).colorVeci
-        return $ obj & Object.renderingData .~ Object.ORDP (PointData  (Coords pts) (Colors colors))
+        return $ obj & Object.renderingData .~ Object.ORDP
+                                                (ObjPointData  (Coords pts) (Colors colors) objId)
 
       lins@(Geometry.Lines _) -> case mindices of
           Nothing -> error "Could not get indices for a line string"
@@ -122,9 +126,11 @@ prepareObject sc obj = do
             SomeIODataFrame coords <- Geometry.allData lins
             colors <- unsafeArrayThaw . ewgen $
                obj^.Object.viewColor.non (sc^.Scenario.defaultLineColor).colorVeci
-            return $ obj & Object.renderingData .~ Object.ORDP (LineData (Coords coords)
-                                                                         (Colors colors)
-                                                                         (Indices indices))
+            return $ obj & Object.renderingData .~ Object.ORDP
+                                                     (ObjLineData (Coords coords)
+                                                                  (Colors colors)
+                                                                   objId
+                                                                  (Indices indices))
 
       polys@(Geometry.Polygons _) -> case mindices of
           Nothing -> error "Could not get indices for a polygon"
@@ -136,8 +142,9 @@ prepareObject sc obj = do
                 let crsnrs = unsafeCoerce crsnrs' :: IODataFrame Float '[4,2,n]
                 colors <- unsafeArrayThaw . ewgen $
                   obj^.Object.viewColor.non (sc^.Scenario.defaultBlockColor).colorVeci
-                return $ obj & Object.renderingData .~ Object.ORDP (ColoredData
-                                                                     (CoordsNormals crsnrs)
-                                                                     (Colors colors)
-                                                                     (Indices indices))
+                return $ obj & Object.renderingData .~ Object.ORDP
+                                                         (ObjColoredData (CoordsNormals crsnrs)
+                                                                         (Colors colors)
+                                                                         objId
+                                                                         (Indices indices))
 
