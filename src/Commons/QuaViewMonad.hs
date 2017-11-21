@@ -50,7 +50,7 @@ inQuaWidget = hoistQuaView (lift.lift.lift)
 -- | Try to fetch settings, initialize context and run qua-view inside
 runQuaWidget :: QuaWidget (SpiderTimeline Global) x a -> Widget x a
 runQuaWidget m = mdo
-  ctx <- initQuaViewContext qEvs
+  ctx <- initQuaViewContext $ assembleQuaViewEvents qEvs
   (r, qEvs) <- runWithCtx m ctx
   return r
 

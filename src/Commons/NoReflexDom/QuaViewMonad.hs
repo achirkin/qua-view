@@ -24,7 +24,7 @@ import           Control.Monad.Trans.Reader
 import           Control.Monad.Trans.Writer.Lazy
 import           Control.Monad.Trans.Maybe
 import           Control.Monad.Trans.Control
-import qualified Data.Dependent.Map as DMap (singleton, findWithDefault)
+import qualified Data.Dependent.Map as DMap (findWithDefault)
 import           Data.IORef
 import           Data.Maybe (fromMaybe)
 import           GHCJS.DOM.JSFFI.Generated.ParentNode (querySelector)
@@ -66,17 +66,17 @@ class QuaViewTrans isWriting where
 
 instance QuaViewTrans Writing where
   newtype QuaViewT Writing t m a = QuaViewT
-    { unQuaViewT :: ReaderT (QuaViewContext t) (WriterT (QuaViewEvents t) m) a }
-  quaViewT = QuaViewT . ReaderT . const . WriterT . fmap (flip (,) noEvents)
+    { unQuaViewT :: ReaderT (QuaViewContext t) (WriterT (QuaViewEventList t) m) a }
+  quaViewT = QuaViewT . ReaderT . const . WriterT . fmap (flip (,) emptyEvList)
   {-# INLINE quaViewT #-}
-  askContext = QuaViewT . ReaderT $ \c -> WriterT (pure (c, noEvents))
+  askContext = QuaViewT . ReaderT $ \c -> WriterT (pure (c, emptyEvList))
   {-# INLINE askContext #-}
   hoistQuaView h q = QuaViewT . ReaderT $ \r -> WriterT . h . runWriterT $ runReaderT (unQuaViewT q) r
   {-# INLINE hoistQuaView #-}
   isWritingEvents = WritingEvents
   {-# INLINE isWritingEvents #-}
 
-runWithCtx :: QuaViewT Writing t m a -> QuaViewContext t -> m (a, QuaViewEvents t)
+runWithCtx :: QuaViewT Writing t m a -> QuaViewContext t -> m (a, QuaViewEventList t)
 runWithCtx m = runWriterT . runReaderT (unQuaViewT m)
 
 instance QuaViewTrans NoWriting where
@@ -134,12 +134,12 @@ showUserPanic msg = fmap quaViewPanicMsgHandler askContext
 
 -- | Put an event into a global environment.
 --   This will be available in all widgets via `askEvent` function.
-registerEvent :: (Reflex t, Applicative m)
+registerEvent :: Applicative m
               => QEventType a
               -> Event t a
               -> QuaViewT Writing t m ()
 registerEvent key = QuaViewT . ReaderT . const
-                  . WriterT . pure . (,) () . QuaViewEvents . DMap.singleton key
+                  . WriterT . pure . (,) () . singletonEvList key
 
 -- | Get an event from an environment.
 --   If the event has not ever been registered in qua-view, this function returns `never`,
@@ -203,12 +203,10 @@ foreign import javascript unsafe
 
 
 
-instance MonadIO m
-      => MonadLogger (QuaViewT NoWriting t m) where
+instance MonadIO m => MonadLogger (QuaViewT NoWriting t m) where
   askLogger = quaViewLoggerFunc <$> askContext
 
-instance (MonadIO m, Reflex t)
-      => MonadLogger (QuaViewT Writing t m) where
+instance MonadIO m => MonadLogger (QuaViewT Writing t m) where
   askLogger = quaViewLoggerFunc <$> askContext
 
 instance QuaViewTrans isWriting => MonadTrans (QuaViewT isWriting t) where
@@ -219,9 +217,9 @@ instance MonadTransControl (QuaViewT NoWriting t) where
   liftWith f = QuaViewT' . ReaderT $ \r -> f $ \t -> runReaderT (unQuaViewT' t) r
   restoreT = QuaViewT' . restoreT
 instance MonadTransControl (QuaViewT Writing t) where
-  type StT (QuaViewT Writing t) a = (a, QuaViewEvents t)
+  type StT (QuaViewT Writing t) a = (a, QuaViewEventList t)
   liftWith f = QuaViewT . ReaderT $
-        \r -> WriterT $ fmap (flip (,) noEvents)
+        \r -> WriterT $ fmap (flip (,) emptyEvList)
                              (f $ \t -> runWriterT $ runReaderT (unQuaViewT t) r)
   restoreT = QuaViewT . ReaderT . const . WriterT
 
@@ -237,7 +235,7 @@ instance MonadAdjust t m => MonadAdjust t (QuaViewT NoWriting t m) where
 -- TODO: atm we discard @Event t (QuaViewEvents t)@,
 -- whereas a correct behavior would be to transform this using something like switchPromptly.
 -- this means we may omit some events if they update via MonadAdjust functions!
-instance (Reflex t, MonadAdjust t m) => MonadAdjust t (QuaViewT Writing t m) where
+instance MonadAdjust t m => MonadAdjust t (QuaViewT Writing t m) where
   runWithReplace a0 a' = do
     ctx <- askContext
     ((a,ie), evs) <- quaViewT $ runWithReplace (runWithCtx a0 ctx)
@@ -284,17 +282,17 @@ deriving instance MonadSample t m  => MonadSample t (QuaViewT NoWriting t m)
 deriving instance MonadHold t m    => MonadHold t (QuaViewT NoWriting t m)
 
 
-deriving instance Functor m => Functor (QuaViewT Writing t m)
-deriving instance (Reflex t, Applicative m)    => Applicative (QuaViewT Writing t m)
-deriving instance (Reflex t, Monad m)          => Monad (QuaViewT Writing t m)
-deriving instance (Reflex t, MonadFix m)       => MonadFix (QuaViewT Writing t m)
-deriving instance (Reflex t, MonadIO m)        => MonadIO (QuaViewT Writing t m)
-deriving instance (Reflex t, MonadSample t m)  => MonadSample t (QuaViewT Writing t m)
-deriving instance (Reflex t, MonadHold t m)    => MonadHold t (QuaViewT Writing t m)
+deriving instance Functor m        => Functor (QuaViewT Writing t m)
+deriving instance Applicative m    => Applicative (QuaViewT Writing t m)
+deriving instance Monad m          => Monad (QuaViewT Writing t m)
+deriving instance MonadFix m       => MonadFix (QuaViewT Writing t m)
+deriving instance MonadIO m        => MonadIO (QuaViewT Writing t m)
+deriving instance MonadSample t m  => MonadSample t (QuaViewT Writing t m)
+deriving instance MonadHold t m    => MonadHold t (QuaViewT Writing t m)
 
 deriving instance TriggerEvent t m
       => TriggerEvent t (QuaViewT NoWriting t m)
-instance (Reflex t, TriggerEvent t m)
+instance TriggerEvent t m
       => TriggerEvent t (QuaViewT Writing t m) where
     newTriggerEvent = quaViewT newTriggerEvent
     newTriggerEventWithOnComplete = quaViewT newTriggerEventWithOnComplete
