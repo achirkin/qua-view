@@ -5,7 +5,7 @@
 {-# LANGUAGE JavaScriptFFI #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Model.Scenario.Properties
-    ( Properties, PropName(..), PropValue
+    ( Properties, PropName(..), PropValue(..)
     , toPropValue, fromPropValue, propValue
     , property, propertyWithParsing
     , HexColor, colorVeci, colorVecf
@@ -55,7 +55,7 @@ propValue :: (Functor f, FromJSON a, ToJSON a)
 propValue f v =  toPropValue <$> f (fromPropValue v)
 
 
--- | Lens into peroperty value by its name inside a Properties map.
+-- | Lens into property value by its name inside a Properties map.
 property :: (Functor f, FromJSON a, ToJSON a)
          => PropName
          -> (Maybe a -> f (Maybe a))
@@ -160,4 +160,3 @@ foreign import javascript unsafe
     "($1).reduce(function(a, x)\
       \{return a.concat(('00').concat(x.toString(16)).substr(-2));}, '#')"
     js_convertRGBAToHex :: JSVal -> HexColor
-
