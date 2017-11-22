@@ -91,10 +91,12 @@ data SelectorObject = SelectorObject
 
 -- | Exposed functionality of
 data RenderingApi = RenderingApi
-  { render     :: AnimationTime -> IO ()
-  , addRObject :: ObjRenderingData ModeColored -> IO RenderedObjectId
+  { render          :: AnimationTime -> IO ()
+  , addRObject      :: ObjRenderingData ModeColored -> IO RenderedObjectId
   , getHoveredSelId :: (GLint, GLint) -> IO GLuint
-  , reset      :: IO ()
+  , setObjectColor  :: RenderedObjectId -> Vector GLubyte 4 -> IO ()
+  , transformObject :: RenderedObjectId -> Mat44f -> IO ()
+  , reset           :: IO ()
   }
 
 
@@ -206,6 +208,8 @@ createRenderingEngine canvasElem = do
         { render = \t -> modifyMVar_ rre $ \r -> r <$ (renderFunction r t >> renderSelFunction r t)
         , addRObject = modifyMVar rre . addRObjectFunction
         , getHoveredSelId = withMVar rre . getSelection
+        , setObjectColor = \i -> withMVar rre . setObjectColor' i
+        , transformObject = \i -> withMVar rre . transformObject' i
         , reset = modifyMVar_ rre resetCells
         }
 
@@ -312,6 +316,13 @@ initSelectorFramebuffer gl (width,height) = do
     bindFramebuffer gl gl_FRAMEBUFFER Nothing
     return fb
 
+setObjectColor' :: RenderedObjectId -> Vector GLubyte 4 -> RenderingEngine -> IO ()
+setObjectColor' roId c RenderingEngine {..}
+  = setRenderedObjectColor gl rCell roId c
+
+transformObject' :: RenderedObjectId -> Mat44f -> RenderingEngine -> IO ()
+transformObject' roId c RenderingEngine {..}
+  = transformRenderedObject gl rCell roId c
 
 
 --initTexture :: WebGLRenderingContext -> Either TexImageSource (TypedArray GLubyte, (GLsizei, GLsizei)) -> IO WebGLTexture

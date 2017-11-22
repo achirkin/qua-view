@@ -11,7 +11,6 @@ module Main ( main ) where
 
 import Reflex.Dom
 import Reflex.Dom.Widget.Animation (resizeEvents, viewPortSizeI)
-import qualified Reflex.Dom.Widget.Animation as Animation
 import Numeric.DataFrame
 
 import Commons
@@ -20,7 +19,6 @@ import Commons
 import qualified Model.Camera               as Model
 import qualified Model.Scenario             as Scenario
 import qualified Model.Scenario.Statistics  as Scenario
-import qualified Model.Scenario.Object      as Object
 
 import           Widgets.Generation
 import qualified Widgets.LoadingSplash  as Widgets
@@ -31,6 +29,7 @@ import qualified SmallGL
 import qualified Workers.LoadGeometry as Workers
 
 import           Program.Scenario
+import           Program.Scenario.Object
 
 import qualified QuaTypes
 import Control.Concurrent (forkIO, threadDelay)
@@ -65,15 +64,8 @@ main = mainWidgetInElementById "qua-view-widgets" $ runQuaWidget $ mdo
     -- initialize animation handler (and all pointer events).
     aHandler <- Widgets.registerAnimationHandler canvas (SmallGL.render renderingApi)
     -- selected object id events
-    selectorClicks <-
-       performEvent $ (\((x,y):_) ->
-           liftIO $ SmallGL.getHoveredSelId renderingApi (round x, round y) )
-                 <$> Animation.downPointersB aHandler
-                 <@ select (Animation.pointerEvents aHandler) PClickEvent
-    selectedObjIdD <- holdDyn Nothing . ffor selectorClicks $
-        \oid -> if oid == 0xFFFFFFFF then Nothing else Just (Object.ObjectId oid)
-
-    logDebugEvents' @JSString "qua-view.hs" $ (,) "selectedObjId" . Just <$> updated selectedObjIdD
+    selectedObjIdD <- objectSelectionsDyn aHandler renderingApi
+    colorObjectsOnSelection renderingApi scenarioB selectedObjIdD
 
     -- supply animation events to camera
     let icamera = Model.initCamera (realToFrac . fst $ viewPortSizeI aHandler)
@@ -83,7 +75,7 @@ main = mainWidgetInElementById "qua-view-widgets" $ runQuaWidget $ mdo
                                                 , Model.viewDist = 468 }
     plsResetCameraE <- askEvent (UserRequest AskResetCamera)
     cameraD <- Model.dynamicCamera icamera aHandler plsResetCameraE $ current scenarioCenterD
---    performEvent_ $ liftIO . print <$> updated cameraD
+
     -- initialize WebGL rendering context
     registerEvent (SmallGLInput SmallGL.ViewPortResize)
         $ resizeEvents aHandler
@@ -100,6 +92,7 @@ main = mainWidgetInElementById "qua-view-widgets" $ runQuaWidget $ mdo
                              _ -> Nothing
                           ) loadedGeometryE
     scenarioCenterD <- holdDyn (vec2 0 0) scenarioCenterE
+
 
 
     -- Notify everyone that the program h finished starting up now
