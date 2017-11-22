@@ -5,7 +5,7 @@
 {-# LANGUAGE JavaScriptFFI #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Model.Scenario.Properties
-    ( Properties, PropName(..), PropValue(..)
+    ( Properties, PropName (..), PropValue ()
     , toPropValue, fromPropValue, propValue
     , property, propertyWithParsing
     , HexColor, colorVeci, colorVecf
