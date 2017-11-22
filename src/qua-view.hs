@@ -46,7 +46,7 @@ main = mainWidgetInElementById "qua-view-widgets" $ runQuaWidget $ mdo
     canvas <- Widgets.getWebGLCanvas
 
     -- add the control panel to the page
-    _panelStateD <- Widgets.controlPanel
+    _panelStateD <- Widgets.controlPanel scenarioB
 
     -- get an event of loaded geometry text, combine it with current state of scenario,
     -- and make a new event to be consumed by the LoadGeometryWorker
