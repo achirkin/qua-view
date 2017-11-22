@@ -7,16 +7,17 @@
 --   The main structure in qua-view!
 --
 module Model.Scenario
-    ( Scenario, Scenario' (..), getTransferables
+    ( Scenario, Scenario' (..), getTransferables, resolvedObjectColor
     , name, geoLoc, properties, objects, objIdSeq, withoutObjects
-    , defaultActiveColor, defaultStaticColor
+    , selectedDynamicColor, selectedStaticColor, selectedGroupColor
+    , defaultStaticColor
     , defaultBlockColor, defaultLineColor, defaultPointColor
     , defaultObjectHeight
     ) where
 
 
 --import qualified Data.Map.Strict as Map
-import Control.Lens (set)
+import Control.Lens (set,(^.),non)
 import Control.Applicative ((<|>))
 import Data.Foldable (toList)
 import Data.Semigroup (stimesIdempotentMonoid)
@@ -25,6 +26,7 @@ import Commons.NoReflex
 import Model.Scenario.Properties
 --import Model.Scenario.Statistics
 import qualified Model.Scenario.Object as Object
+import qualified Model.Scenario.Object.Geometry as Geometry
 
 
 type Scenario = Scenario' 'Object.Renderable
@@ -55,6 +57,16 @@ getTransferables = mapM Object.getTransferable . toList . _objects
 withoutObjects :: Scenario' s -> Scenario' 'Object.Prepared
 withoutObjects = set objects mempty
 
+-- | Resolve view color of object based on object and scenario properties.
+resolvedObjectColor :: Scenario' s -> Object.Object' t -> HexColor
+resolvedObjectColor s o = o^.Object.viewColor.non sdef
+  where
+    sdef = case o^.Object.geometry of
+      Geometry.Points _ -> s^.defaultPointColor
+      Geometry.Lines  _ -> s^.defaultLineColor
+      Geometry.Polygons  _ -> case o^.Object.objectBehavior of
+        Object.Static  -> s^.defaultStaticColor
+        Object.Dynamic -> s^.defaultBlockColor
 
 -- * Lenses
 
@@ -91,11 +103,25 @@ objIdSeq f s = (\x -> s{_objIdSeq = x}) <$> f (_objIdSeq s)
 
 -- * Special properties
 
-defaultActiveColor :: Functor f
-                   => (HexColor -> f HexColor) -> Scenario' s -> f (Scenario' s)
-defaultActiveColor f = properties $ property "defaultActiveColor" g
+selectedDynamicColor :: Functor f
+                     => (HexColor -> f HexColor) -> Scenario' s -> f (Scenario' s)
+selectedDynamicColor f = properties $ property "selectedDynamicColor" g
    where
-     g Nothing  = Just <$> f "#FF8888FF"
+     g Nothing  = Just <$> f "#FF9999FF"
+     g (Just c) = Just <$> f c
+
+selectedGroupColor :: Functor f
+                   => (HexColor -> f HexColor) -> Scenario' s -> f (Scenario' s)
+selectedGroupColor f = properties $ property "selectedGroupColor" g
+   where
+     g Nothing  = Just <$> f "#EE8888FF"
+     g (Just c) = Just <$> f c
+
+selectedStaticColor :: Functor f
+                     => (HexColor -> f HexColor) -> Scenario' s -> f (Scenario' s)
+selectedStaticColor f = properties $ property "selectedStaticColor" g
+   where
+     g Nothing  = Just <$> f "#BB8888FF"
      g (Just c) = Just <$> f c
 
 defaultStaticColor :: Functor f

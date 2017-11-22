@@ -31,12 +31,12 @@ import Model.Scenario.Properties
 import Model.Scenario.Object.Geometry (Geometry)
 import qualified Model.Scenario.Object.Geometry as Geometry
 
--- | Refernce to object in a scenario.
+-- | Reference to object in a scenario.
 --
 --   It corresponds to @properties.geomID@ value of every feature in luci scenario
 --
 newtype ObjectId = ObjectId { _unObjectId :: GLuint }
-  deriving (PToJSVal, ToJSVal, ToJSON, PFromJSVal, FromJSVal, FromJSON, Eq, Ord)
+  deriving (PToJSVal, ToJSVal, ToJSON, PFromJSVal, FromJSVal, FromJSON, Eq, Ord, Show)
 
 data ObjectRenderable
    = Renderable

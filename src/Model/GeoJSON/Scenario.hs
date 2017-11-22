@@ -112,11 +112,11 @@ prepareObject :: Scenario.Scenario' s
               -> IO (Object.Object' 'Object.Prepared)
 prepareObject sc (Object.ObjectId objId) obj = do
     mindices <- setNormalsAndComputeIndices (obj^.Object.geometry)
+    let ocolor = Scenario.resolvedObjectColor sc obj ^. colorVeci
     case obj^.Object.geometry of
 
       Geometry.Points (SomeIODataFrame pts) -> do
-        colors <- unsafeArrayThaw . ewgen $
-           obj^.Object.viewColor.non (sc^.Scenario.defaultPointColor).colorVeci
+        colors <- unsafeArrayThaw $ ewgen ocolor
         return $ obj & Object.renderingData .~ Object.ORDP
                                                 (ObjPointData  (Coords pts) (Colors colors) objId)
 
@@ -124,8 +124,7 @@ prepareObject sc (Object.ObjectId objId) obj = do
           Nothing -> error "Could not get indices for a line string"
           Just (SomeIODataFrame indices) -> do
             SomeIODataFrame coords <- Geometry.allData lins
-            colors <- unsafeArrayThaw . ewgen $
-               obj^.Object.viewColor.non (sc^.Scenario.defaultLineColor).colorVeci
+            colors <- unsafeArrayThaw $ ewgen ocolor
             return $ obj & Object.renderingData .~ Object.ORDP
                                                      (ObjLineData (Coords coords)
                                                                   (Colors colors)
@@ -140,8 +139,7 @@ prepareObject sc (Object.ObjectId objId) obj = do
               Nothing -> error "Data size for a polygon"
               Just (SomeIntNat (_::Proxy n)) -> do
                 let crsnrs = unsafeCoerce crsnrs' :: IODataFrame Float '[4,2,n]
-                colors <- unsafeArrayThaw . ewgen $
-                  obj^.Object.viewColor.non (sc^.Scenario.defaultBlockColor).colorVeci
+                colors <- unsafeArrayThaw $ ewgen ocolor
                 return $ obj & Object.renderingData .~ Object.ORDP
                                                          (ObjColoredData (CoordsNormals crsnrs)
                                                                          (Colors colors)
