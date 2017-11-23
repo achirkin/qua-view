@@ -4,6 +4,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE BangPatterns #-}
 module Model.Scenario.Object.Geometry
     ( Geometry (..), getTransferable, allData
     , applyTransform, applyGeomCoords
@@ -110,20 +111,8 @@ fromObj o = unsafeGetProp "type" o >>= fromJSVal >>= \mt -> case mt :: Maybe JSS
 
 -- | Multiply geometry vectors with 4D hom matrix on the left in a fast way.
 applyTransform :: Geometry -> Mat44f -> IO ()
-applyTransform g m = allData g >>= \(SomeIODataFrame df) -> js_applyTransform df (unsafeCoerce m)
+applyTransform !g !m = allData g >>= \(SomeIODataFrame !df) -> applyTransformDF m df df
 
-foreign import javascript unsafe
-    "var n = $1.length, v;\
-    \ for(var i = 0; i < n; i+= 4 ){\
-    \   v = [0,0,0,0];\
-    \   for(var j = 0; j < 4; j++){\
-    \     for(var k = 0; k < 4; k++){\
-    \       v[j] += $1[i+k] * $2[j + 4*k];\
-    \     }\
-    \   }\
-    \   $1.set(v,i);\
-    \ }"
-    js_applyTransform :: IODataFrame Float ns -> JSVal -> IO ()
 
 
 
