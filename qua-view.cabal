@@ -91,6 +91,7 @@ executable qua-view
         Model.Scenario.Object.Geometry
         Model.Scenario.Properties
         Model.Scenario.Statistics
+        Program.Camera
         Program.Scenario
         Program.Scenario.Object
         SmallGL
