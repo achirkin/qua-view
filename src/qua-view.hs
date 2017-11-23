@@ -10,7 +10,7 @@
 module Main ( main ) where
 
 import Reflex.Dom
-import Reflex.Dom.Widget.Animation (resizeEvents, viewPortSizeI)
+import Reflex.Dom.Widget.Animation (resizeEvents)
 import Numeric.DataFrame
 
 import Commons
@@ -28,6 +28,7 @@ import qualified Widgets.ControlPanel   as Widgets
 import qualified SmallGL
 import qualified Workers.LoadGeometry as Workers
 
+import           Program.Camera
 import           Program.Scenario
 import           Program.Scenario.Object
 
@@ -68,13 +69,7 @@ main = mainWidgetInElementById "qua-view-widgets" $ runQuaWidget $ mdo
     colorObjectsOnSelection renderingApi scenarioB selectedObjIdD
 
     -- supply animation events to camera
-    let icamera = Model.initCamera (realToFrac . fst $ viewPortSizeI aHandler)
-                                   (realToFrac . snd $ viewPortSizeI aHandler)
-                                   Model.CState { Model.viewPoint  = vec3 (-2) 3 0
-                                                , Model.viewAngles = (2.745, 0.995)
-                                                , Model.viewDist = 468 }
-    plsResetCameraE <- askEvent (UserRequest AskResetCamera)
-    cameraD <- Model.dynamicCamera icamera aHandler plsResetCameraE $ current scenarioCenterD
+    cameraD <- inQuaWidget $ dynamicCamera aHandler $ current scenarioCenterD
 
     -- initialize WebGL rendering context
     registerEvent (SmallGLInput SmallGL.ViewPortResize)
