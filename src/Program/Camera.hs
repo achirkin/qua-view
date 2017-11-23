@@ -2,6 +2,7 @@
 -- | Dynamic behavior of camera
 module Program.Camera
     ( dynamicCamera
+    , objectTransformEvents
     ) where
 
 
@@ -29,8 +30,10 @@ defaultCState = CState
 dynamicCamera :: Reflex t
               => AnimationHandler t
               -> Behavior t Vec2f
+              -> Behavior t Bool
+                 -- ^ whether camera is locked due to object actions
               -> QuaViewM t (Dynamic t Camera)
-dynamicCamera aHandler defCenterPointB = mdo
+dynamicCamera aHandler defCenterPointB camLockedB = mdo
     resetCameraE <- askEvent $ UserRequest AskResetCamera
     -- all changes of the viewport size come from AResizeEvent (or resetCameraE)
     viewportSizeD <- holdDyn (viewportSize icam) $ leftmost [resizeE, viewportSize icam <$ resetCameraE]
@@ -106,8 +109,51 @@ dynamicCamera aHandler defCenterPointB = mdo
           <$> A.buttonsB aHandler
           <*> A.downPointersB aHandler
           <*> A.curPointersB aHandler
+          <@ gate (not <$> camLockedB)
+             (select (A.animationEvents aHandler) (APointerEvent PMoveEvent))
+
+
+-- | Computes matrix transforms as if object with the given center position were selected.
+--   This function does not check if any object is selected at the moment;
+--   applying the transform to an appropriate object at an appropriate time
+--   is the responsibility of the caller.
+--
+--   This event triggers on every pointer move when at least one pointer is down.
+objectTransformEvents :: Reflex t
+                      => AnimationHandler t
+                      -> Behavior t Camera
+                      -> Behavior t Vec3f -- ^ position of object center (used for rotation)
+                      -> Event t Mat44f
+objectTransformEvents aHandler camB oCenterB = fmapMaybe id movs
+  where
+    -- All pointer move events
+    pointerT :: Camera -> Int -> Vec3f -> [(Vec2f,Vec2f)] -> Maybe Mat44f
+    -- move unknown move (should not happen anyway)
+    pointerT _ _ _ [] = Nothing
+    -- Three-finger rotation
+    pointerT cam 1 center ((o1,n1):_:_:_)  = Just $ rotateObject o1 n1 cam center
+    -- Complicated two-finger control
+    pointerT cam 1 _ [(o1,n1),(o2,n2)] = Just $ twoFingerObject (o1,o2) (n1,n2) cam
+    -- Mouse control
+    pointerT cam b center ((opos,npos):_)
+         -- do nothing if no button pressed
+       | b == 0 = Nothing
+         -- Drag horizontally using left mouse button
+       | b == 1 = Just $ dragObject opos npos cam
+         -- Rotating using secondary button (right m b)
+       | b == 2 = Just $ rotateObject opos npos cam center
+         -- fallback to horizontal dragging
+       | otherwise = Just $ dragObject opos npos cam
+
+    dTupleToVec :: (Double, Double) -> Vec2f
+    dTupleToVec (x,y) = vec2 (realToFrac x) (realToFrac y)
+
+    movs = (\cam b c as bs -> pointerT cam b c
+                               $ zipWith (\o n -> (dTupleToVec o, dTupleToVec n)) as bs
+           )
+          <$> camB
+          <*> A.buttonsB aHandler
+          <*> oCenterB
+          <*> A.downPointersB aHandler
+          <*> A.curPointersB aHandler
           <@ select (A.animationEvents aHandler) (APointerEvent PMoveEvent)
-
-
-
-

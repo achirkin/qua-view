@@ -10,7 +10,7 @@
 module Main ( main ) where
 
 import Reflex.Dom
-import Reflex.Dom.Widget.Animation (resizeEvents)
+import Reflex.Dom.Widget.Animation -- (resizeEvents)
 import Numeric.DataFrame
 
 import Commons
@@ -67,9 +67,12 @@ main = mainWidgetInElementById "qua-view-widgets" $ runQuaWidget $ mdo
     -- selected object id events
     selectedObjIdD <- objectSelectionsDyn aHandler renderingApi
     colorObjectsOnSelection renderingApi scenarioB selectedObjIdD
+    -- move objects events
+    camLockedB <- inQuaWidget
+      $ moveSelectedObjects aHandler renderingApi (current cameraD) scenarioB selectedObjIdD
 
     -- supply animation events to camera
-    cameraD <- inQuaWidget $ dynamicCamera aHandler $ current scenarioCenterD
+    cameraD <- inQuaWidget $ dynamicCamera aHandler (current scenarioCenterD) camLockedB
 
     -- initialize WebGL rendering context
     registerEvent (SmallGLInput SmallGL.ViewPortResize)
@@ -79,7 +82,7 @@ main = mainWidgetInElementById "qua-view-widgets" $ runQuaWidget $ mdo
     registerEvent (SmallGLInput SmallGL.ViewTransformChange)
         $ SmallGL.ViewM . Model.viewMatrix <$> updated cameraD
 
-    scenarioB <- inQuaWidget $ createScenario renderingApi
+    scenarioB <- createScenario renderingApi
 
     let scenarioCenterE = fmapMaybe
                           (\m -> case m of
@@ -87,7 +90,6 @@ main = mainWidgetInElementById "qua-view-widgets" $ runQuaWidget $ mdo
                              _ -> Nothing
                           ) loadedGeometryE
     scenarioCenterD <- holdDyn (vec2 0 0) scenarioCenterE
-
 
 
     -- Notify everyone that the program h finished starting up now

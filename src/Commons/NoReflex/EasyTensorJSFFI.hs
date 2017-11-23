@@ -14,6 +14,7 @@ module Commons.NoReflex.EasyTensorJSFFI
     , transferableToDataFrame
     , Transferable
     , unsafeSubArrayFreeze, unsafeSubArray, unsafeArrayThaw
+    , applyTransformDF
     ) where
 
 
@@ -29,6 +30,7 @@ import JavaScript.Array (JSArray)
 import JavaScript.JSON.Types.Internal
 import JavaScript.JSON.Types.Instances
 import JavaScript.Object
+import System.IO.Unsafe (unsafePerformIO)
 
 instance ToJSVal    (IODataFrame t ns) where
     toJSVal = pure . coerce
@@ -159,5 +161,33 @@ unsafeSubArray df i
 
 unsafeArrayThaw :: DataFrame t (a :+ as) -> IO (IODataFrame t (a :+ as))
 unsafeArrayThaw df = pure (unsafeCoerce df)
+
+-- | Apply matrix transform on dataframes.
+applyTransformDF :: Mat44f -- ^ transform matrix
+                 -> IODataFrame Float (4 :+ ns) -- ^ source matrix
+                 -> IODataFrame Float (4 :+ ns) -- ^ destination matrix
+                 -> IO ()
+applyTransformDF m src dst = case unsafePerformIO $ unsafeArrayThaw m of
+    m' -> m' `seq` src `seq` dst `seq` js_applyTransform m' src dst
+
+
+-- I had to use very weird initializator i = -4 in order to workaround crazy js code builder.
+-- the problem was that the code i +=4 is erazed from the code after $1.set command.
+foreign import javascript unsafe
+    "var n = $2.length, i = -4, v;\
+    \ while(i < n - 4){\
+    \   i = i + 4;\
+    \   v = [0,0,0,0];\
+    \   for(var j = 0; j < 4; j++){\
+    \     for(var k = 0; k < 4; k++){\
+    \       v[j] += $2[i+k] * $1[j + 4*k];\
+    \     }\
+    \   }\
+    \   $3.set(v,i);\
+    \ }"
+    js_applyTransform :: IODataFrame Float '[4,4]     -- ^ transform matrix
+                      -> IODataFrame Float (4 :+ ns)  -- ^ source matrix
+                      -> IODataFrame Float (4 :+ ns)  -- ^ destination matrix
+                      -> IO ()
 
 

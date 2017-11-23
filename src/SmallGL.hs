@@ -45,13 +45,18 @@ import JavaScript.WebGL
 
 import Data.Bits
 
+
+import           Data.IntMap.Strict (IntMap)
+import qualified Data.IntMap.Strict as IntMap
+
 import Prelude hiding (unlines)
 import Data.JSString hiding (length, map)
 
 import Numeric.DataFrame
 import Numeric.DataFrame.IO
 import qualified Numeric.Matrix as M
---import Numeric.Dimensions
+import Numeric.Dimensions
+import Numeric.TypeLits
 
 
 import Commons
@@ -71,6 +76,8 @@ data RenderingEngine = RenderingEngine
   , uProjM      :: !ProjMatrix
   , uViewM      :: !ViewMatrix
   , rCell       :: !(RenderingCell ModeColored)
+  , geomCache   :: !(IntMap (SomeIODataFrame Float '[N 4, N 2, XN 0]))
+    -- ^ Last submitted versions of active geometries
   }
 
 data RenderingProgram = RenderingProgram
@@ -96,6 +103,8 @@ data RenderingApi = RenderingApi
   , getHoveredSelId :: (GLint, GLint) -> IO GLuint
   , setObjectColor  :: RenderedObjectId -> Vector GLubyte 4 -> IO ()
   , transformObject :: RenderedObjectId -> Mat44f -> IO ()
+  , addToGeomCache  :: RenderedObjectId -> IO ()
+  , resetGeomCache  :: IO ()
   , reset           :: IO ()
   }
 
@@ -180,6 +189,7 @@ createRenderingEngine canvasElem = do
 
     let uProjM = ProjM eye
         uViewM = ViewM eye
+        geomCache = mempty
         re = RenderingEngine {..}
 
     liftIO $ do
@@ -204,21 +214,40 @@ createRenderingEngine canvasElem = do
            let r' = r{vpSize = (floor *** floor) newVPSize } in r' <$ setupViewPort r'
 
 
-    return RenderingApi
-        { render = \t -> modifyMVar_ rre $ \r -> r <$ (renderFunction r t >> renderSelFunction r t)
-        , addRObject = modifyMVar rre . addRObjectFunction
-        , getHoveredSelId = withMVar rre . getSelection
-        , setObjectColor = \i -> withMVar rre . setObjectColor' i
-        , transformObject = \i -> withMVar rre . transformObject' i
-        , reset = modifyMVar_ rre resetCells
-        }
+    let rApi = RenderingApi
+            { render = \t -> modifyMVar_ rre $ \r -> r <$ (renderFunction r t >> renderSelFunction r t)
+            , addRObject = modifyMVar rre . addRObjectFunction
+            , getHoveredSelId = withMVar rre . getSelection
+            , setObjectColor = \i -> withMVar rre . setObjectColor' i
+            , transformObject = \i -> withMVar rre . transformObject' i
+            , addToGeomCache = modifyMVar_ rre . addToGeomCache'
+            , resetGeomCache = modifyMVar_ rre $ \r -> pure r{geomCache = mempty}
+            , reset = modifyMVar_ rre resetCells
+            }
+
+--     askEvent (SmallGLInput ViewTransformChange)
+
+    return rApi
+
+addToGeomCache' :: RenderedObjectId -> RenderingEngine -> IO RenderingEngine
+addToGeomCache' (RenderedObjectId roid) re@RenderingEngine {..}
+  | ColoredData (CoordsNormals rcCrsnrs) _ _ _ <- rcData rCell
+  = case IntMap.lookup roid $ rcObjects rCell of
+      Nothing -> return re
+      Just RenderedObjRef {..} -> case someIntNatVal roDataLength of
+        Nothing -> return re
+        Just (SomeIntNat (Proxy :: Proxy n)) -> do
+          objCrsnrs <- unsafeSubArrayFreeze @Float @'[4,2] @n rcCrsnrs (roDataIdx :! Z)
+          ioObjCrsnrs <- thawDataFrame objCrsnrs
+          return re{ geomCache = IntMap.insert roid (SomeIODataFrame ioObjCrsnrs) geomCache }
+addToGeomCache' _ re = pure re
 
 
 resetCells :: RenderingEngine -> IO RenderingEngine
 resetCells  re@RenderingEngine {..} = do
   deleteRenderingCell gl rCell
   rCell' <- initRenderingCell gl
-  return $ re { rCell = rCell' }
+  return $ re { rCell = rCell', geomCache = mempty }
 
 
 -- | Create a WebGL rendering context for a canvas
@@ -321,8 +350,10 @@ setObjectColor' roId c RenderingEngine {..}
   = setRenderedObjectColor gl rCell roId c
 
 transformObject' :: RenderedObjectId -> Mat44f -> RenderingEngine -> IO ()
-transformObject' roId c RenderingEngine {..}
-  = transformRenderedObject gl rCell roId c
+transformObject' roId@(RenderedObjectId i) m RenderingEngine {..}
+  = case IntMap.lookup i geomCache of
+      Nothing -> return ()
+      Just cache ->  transformRenderedObject' gl rCell roId cache m
 
 
 --initTexture :: WebGLRenderingContext -> Either TexImageSource (TypedArray GLubyte, (GLsizei, GLsizei)) -> IO WebGLTexture

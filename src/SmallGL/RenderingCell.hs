@@ -24,6 +24,7 @@ import Commons.NoReflex.EasyTensorJSFFI
 import           Data.IntMap.Strict (IntMap)
 import qualified Data.IntMap.Strict as IntMap
 
+import Unsafe.Coerce
 
 --import Commons
 import SmallGL.Types
@@ -96,6 +97,14 @@ class RenderingCells m where
                             -> RenderedObjectId
                             -> Mat44f -- ^ transformation matrix to apply on every point and normal
                             -> IO ()
+
+    -- | transform object in a cell using its rendering id, tranformation matrix, and external source array
+    transformRenderedObject' :: WebGLRenderingContext
+                             -> RenderingCell m
+                             -> RenderedObjectId
+                             -> SomeIODataFrame Float (N 4 :+ ns)
+                             -> Mat44f -- ^ transformation matrix to apply on every point and normal
+                             -> IO ()
 
     -- | Fill a single object with a single color
     setRenderedObjectColor :: WebGLRenderingContext
@@ -297,13 +306,28 @@ instance RenderingCells 'ModeColored where
         copyDataFrame objCrsnrs (roDataIdx:!Z) rcCrsnrs
         objCrsnrs' <- unsafeArrayThaw objCrsnrs
 
-
         -- send data to buffers
         bindBuffer gl gl_ARRAY_BUFFER . Just $ wglCoordsNormalsBuf rcGPUData
         bufferSubData' gl gl_ARRAY_BUFFER (32 * (roDataIdx - 1)) objCrsnrs'
     -- could not lookup RenderedObjRef by its id
     transformRenderedObject _ _ _ _ = return ()
 
+
+    transformRenderedObject' gl RenderingCell{..} (RenderedObjectId i)
+                            (SomeIODataFrame (objCrsnrs :: IODataFrame Float xns)) m
+        | ColoredData (CoordsNormals rcCrsnrs) _ _ _ <- rcData
+        , Evidence <- unsafeCoerce (Evidence @(xns~xns)) :: Evidence ('[4,2,n] ~ xns)
+        , Just RenderedObjRef {..} <- IntMap.lookup i rcObjects
+          = do
+        -- apply matrix transform on subarray of points and normals
+        objCrsnrs' <- unsafeSubArray rcCrsnrs (roDataIdx :! Z)
+        applyTransformDF m objCrsnrs objCrsnrs'
+
+        -- send data to buffers
+        bindBuffer gl gl_ARRAY_BUFFER . Just $ wglCoordsNormalsBuf rcGPUData
+        bufferSubData' gl gl_ARRAY_BUFFER (32 * (roDataIdx - 1)) objCrsnrs'
+    -- could not lookup RenderedObjRef by its id
+    transformRenderedObject' _ _ _ _ _ = return ()
 
 
     setRenderedObjectColor gl RenderingCell{..} (RenderedObjectId i) c
