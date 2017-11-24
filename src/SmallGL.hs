@@ -29,7 +29,8 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module SmallGL
     ( ProjMatrix (..), ViewMatrix (..)
-    , RenderingApi (..), QEventTag (..)
+    , RenderingApi (addRObject, getHoveredSelId, render)
+    , QEventTag (..)
     , createRenderingEngine
     ) where
 
@@ -56,7 +57,6 @@ import Numeric.DataFrame
 import Numeric.DataFrame.IO
 import qualified Numeric.Matrix as M
 import Numeric.Dimensions
-import Numeric.TypeLits
 
 
 import Commons
@@ -76,7 +76,7 @@ data RenderingEngine = RenderingEngine
   , uProjM      :: !ProjMatrix
   , uViewM      :: !ViewMatrix
   , rCell       :: !(RenderingCell ModeColored)
-  , geomCache   :: !(IntMap (SomeIODataFrame Float '[N 4, N 2, XN 0]))
+  , geomCache   :: !(IntMap (SomeIODataFrame Float '[N 4, XN 0]))
     -- ^ Last submitted versions of active geometries
   }
 
@@ -101,9 +101,8 @@ data RenderingApi = RenderingApi
   { render          :: AnimationTime -> IO ()
   , addRObject      :: ObjRenderingData ModeColored -> IO RenderedObjectId
   , getHoveredSelId :: (GLint, GLint) -> IO GLuint
-  , setObjectColor  :: RenderedObjectId -> Vector GLubyte 4 -> IO ()
-  , transformObject :: RenderedObjectId -> Mat44f -> IO ()
-  , addToGeomCache  :: RenderedObjectId -> IO ()
+  , setObjectColor  :: [(RenderedObjectId, Vector GLubyte 4)] -> IO ()
+  , transformObject :: [(RenderedObjectId, Mat44f)] -> IO ()
   , resetGeomCache  :: IO ()
   , reset           :: IO ()
   }
@@ -112,13 +111,19 @@ data RenderingApi = RenderingApi
 -- | Some changes that affect WebGL rendering.
 data instance QEventTag SmallGLInput a where
     -- | Every time windows is resized
-    ViewPortResize      :: QEventTag SmallGLInput Animation.ResizeEvent
+    ViewPortResize        :: QEventTag SmallGLInput Animation.ResizeEvent
     -- | Camera updates of viewport projection
-    ProjTransformChange :: QEventTag SmallGLInput ProjMatrix
+    ProjTransformChange   :: QEventTag SmallGLInput ProjMatrix
     -- | Camera motions
-    ViewTransformChange :: QEventTag SmallGLInput ViewMatrix
+    ViewTransformChange   :: QEventTag SmallGLInput ViewMatrix
     -- | Move objects
-    ObjectTransform     :: QEventTag SmallGLInput (RenderedObjectId, Mat44f)
+    TransformObject       :: QEventTag SmallGLInput [(RenderedObjectId, Mat44f)]
+    -- | Move objects
+    SetObjectColor        :: QEventTag SmallGLInput [(RenderedObjectId, Vector GLubyte 4)]
+    -- | Persist o
+    PersistGeomTransforms :: QEventTag SmallGLInput [(RenderedObjectId, Mat44f)]
+    -- | Clean up all viewed geometry, empty all buffers, release resource
+    ResetGL               :: QEventTag SmallGLInput ()
 
 deriveEvent ''SmallGLInput
 
@@ -198,49 +203,46 @@ createRenderingEngine canvasElem = do
         enableColorsBuf gl
         setupViewPort re
     rre <- liftIO $ newMVar re
+    let rApi = RenderingApi
+            { render = \t -> modifyMVar_ rre $ \r -> r <$ (renderFunction r t >> renderSelFunction r t)
+            , addRObject = modifyMVar rre . addRObjectFunction
+            , getHoveredSelId = withMVar rre . getSelection
+            , setObjectColor = withMVar rre . setObjectColor'
+            , transformObject = modifyMVar_ rre . transformObject'
+            , resetGeomCache = modifyMVar_ rre $ \r -> pure r{geomCache = mempty}
+            , reset = modifyMVar_ rre resetCells
+            }
 
-    -- update camera matrices
+    -- React on all SmallGL input events
     projTransformChangeE <- askEvent $ SmallGLInput ProjTransformChange
     performEvent_ . ffor projTransformChangeE $ \m -> liftIO $
         modifyMVar_ rre (\r -> return r{uProjM = m})
+
     viewTransformChangeE <- askEvent $ SmallGLInput ViewTransformChange
     performEvent_ . ffor viewTransformChangeE $ \m -> liftIO $
         modifyMVar_ rre (\r -> return r{uViewM = m})
-
 
     viewPortResizeE <- askEvent $ SmallGLInput ViewPortResize
     performEvent_ . ffor viewPortResizeE $ \(ResizeEvent newVPSize) ->
         liftIO . modifyMVar_ rre $ \r ->
            let r' = r{vpSize = (floor *** floor) newVPSize } in r' <$ setupViewPort r'
 
+    askEvent (SmallGLInput TransformObject)
+      >>= performEvent_ . fmap (liftIO . transformObject rApi)
 
-    let rApi = RenderingApi
-            { render = \t -> modifyMVar_ rre $ \r -> r <$ (renderFunction r t >> renderSelFunction r t)
-            , addRObject = modifyMVar rre . addRObjectFunction
-            , getHoveredSelId = withMVar rre . getSelection
-            , setObjectColor = \i -> withMVar rre . setObjectColor' i
-            , transformObject = \i -> withMVar rre . transformObject' i
-            , addToGeomCache = modifyMVar_ rre . addToGeomCache'
-            , resetGeomCache = modifyMVar_ rre $ \r -> pure r{geomCache = mempty}
-            , reset = modifyMVar_ rre resetCells
-            }
+    askEvent (SmallGLInput SetObjectColor)
+      >>= performEvent_ . fmap (liftIO . setObjectColor rApi)
 
---     askEvent (SmallGLInput ViewTransformChange)
+    askEvent (SmallGLInput PersistGeomTransforms)
+      >>= performEvent_ . fmap (\xs -> liftIO $ do
+                                         transformObject rApi xs
+                                         resetGeomCache rApi
+                               )
+
+    askEvent (SmallGLInput ResetGL)
+      >>= performEvent_ . (liftIO (reset rApi) <$)
 
     return rApi
-
-addToGeomCache' :: RenderedObjectId -> RenderingEngine -> IO RenderingEngine
-addToGeomCache' (RenderedObjectId roid) re@RenderingEngine {..}
-  | ColoredData (CoordsNormals rcCrsnrs) _ _ _ <- rcData rCell
-  = case IntMap.lookup roid $ rcObjects rCell of
-      Nothing -> return re
-      Just RenderedObjRef {..} -> case someIntNatVal roDataLength of
-        Nothing -> return re
-        Just (SomeIntNat (Proxy :: Proxy n)) -> do
-          objCrsnrs <- unsafeSubArrayFreeze @Float @'[4,2] @n rcCrsnrs (roDataIdx :! Z)
-          ioObjCrsnrs <- thawDataFrame objCrsnrs
-          return re{ geomCache = IntMap.insert roid (SomeIODataFrame ioObjCrsnrs) geomCache }
-addToGeomCache' _ re = pure re
 
 
 resetCells :: RenderingEngine -> IO RenderingEngine
@@ -345,15 +347,26 @@ initSelectorFramebuffer gl (width,height) = do
     bindFramebuffer gl gl_FRAMEBUFFER Nothing
     return fb
 
-setObjectColor' :: RenderedObjectId -> Vector GLubyte 4 -> RenderingEngine -> IO ()
-setObjectColor' roId c RenderingEngine {..}
-  = setRenderedObjectColor gl rCell roId c
+setObjectColor' :: [(RenderedObjectId, Vector GLubyte 4)] -> RenderingEngine -> IO ()
+setObjectColor' ((roId, c):xs) re@RenderingEngine {..}
+  = setRenderedObjectColor gl rCell roId c >> setObjectColor' xs re
+setObjectColor' [] _ = pure ()
 
-transformObject' :: RenderedObjectId -> Mat44f -> RenderingEngine -> IO ()
-transformObject' roId@(RenderedObjectId i) m RenderingEngine {..}
+-- | Update object geometry and put previous version of geometry into cache if necessary.
+transformObject' :: [(RenderedObjectId, Mat44f)] -> RenderingEngine -> IO RenderingEngine
+transformObject' ((roId@(RenderedObjectId i), m):xs) re@RenderingEngine {..}
   = case IntMap.lookup i geomCache of
-      Nothing -> return ()
-      Just cache ->  transformRenderedObject' gl rCell roId cache m
+      Nothing -> do
+        mgeom <- copyObjectGeometry rCell roId
+        case mgeom of
+          Nothing -> transformObject' xs re
+          Just cache -> do
+            transformRenderedObject' gl rCell roId cache m
+            transformObject' xs re{ geomCache = IntMap.insert i cache geomCache }
+      Just cache -> transformRenderedObject' gl rCell roId cache m >> transformObject' xs re
+transformObject' [] re = pure re
+
+
 
 
 --initTexture :: WebGLRenderingContext -> Either TexImageSource (TypedArray GLubyte, (GLsizei, GLsizei)) -> IO WebGLTexture

@@ -102,9 +102,14 @@ class RenderingCells m where
     transformRenderedObject' :: WebGLRenderingContext
                              -> RenderingCell m
                              -> RenderedObjectId
-                             -> SomeIODataFrame Float (N 4 :+ ns)
+                             -> SomeIODataFrame Float '[N 4, XN 0]
                              -> Mat44f -- ^ transformation matrix to apply on every point and normal
                              -> IO ()
+
+    -- | Get geometry of an object as it is stored in WebGL buffer
+    copyObjectGeometry :: RenderingCell m
+                       -> RenderedObjectId
+                       -> IO (Maybe (SomeIODataFrame Float '[N 4, XN 0]))
 
     -- | Fill a single object with a single color
     setRenderedObjectColor :: WebGLRenderingContext
@@ -312,15 +317,27 @@ instance RenderingCells 'ModeColored where
     -- could not lookup RenderedObjRef by its id
     transformRenderedObject _ _ _ _ = return ()
 
+    copyObjectGeometry RenderingCell{..} (RenderedObjectId i)
+      | ColoredData (CoordsNormals rcCrsnrs) _ _ _ <- rcData
+      , Just RenderedObjRef {..} <- IntMap.lookup i rcObjects
+      , Just (SomeIntNat (Proxy :: Proxy n)) <- someIntNatVal roDataLength
+      , Just (SomeIntNat (Proxy :: Proxy n2)) <- someIntNatVal (roDataLength*2)
+        = do
+      objCrsnrs <- unsafeSubArrayFreeze @Float @'[4,2] @n rcCrsnrs (roDataIdx :! Z)
+      ioObjCrsnrs <- thawDataFrame (unsafeCoerce objCrsnrs :: DataFrame Float '[4,n2])
+      return $ Just $ SomeIODataFrame ioObjCrsnrs
+    copyObjectGeometry _ _ = pure Nothing
+
 
     transformRenderedObject' gl RenderingCell{..} (RenderedObjectId i)
                             (SomeIODataFrame (objCrsnrs :: IODataFrame Float xns)) m
         | ColoredData (CoordsNormals rcCrsnrs) _ _ _ <- rcData
-        , Evidence <- unsafeCoerce (Evidence @(xns~xns)) :: Evidence ('[4,2,n] ~ xns)
+        , Evidence <- unsafeCoerce (Evidence @(xns~xns)) :: Evidence ('[4,n2] ~ xns)
         , Just RenderedObjRef {..} <- IntMap.lookup i rcObjects
+        , Just (SomeIntNat (Proxy :: Proxy n)) <- someIntNatVal roDataLength
           = do
         -- apply matrix transform on subarray of points and normals
-        objCrsnrs' <- unsafeSubArray rcCrsnrs (roDataIdx :! Z)
+        objCrsnrs' <- unsafeSubArray @Float @'[4,2] @n rcCrsnrs (roDataIdx :! Z)
         applyTransformDF m objCrsnrs objCrsnrs'
 
         -- send data to buffers
@@ -328,6 +345,8 @@ instance RenderingCells 'ModeColored where
         bufferSubData' gl gl_ARRAY_BUFFER (32 * (roDataIdx - 1)) objCrsnrs'
     -- could not lookup RenderedObjRef by its id
     transformRenderedObject' _ _ _ _ _ = return ()
+
+
 
 
     setRenderedObjectColor gl RenderingCell{..} (RenderedObjectId i) c

@@ -165,7 +165,7 @@ unsafeArrayThaw df = pure (unsafeCoerce df)
 -- | Apply matrix transform on dataframes.
 applyTransformDF :: Mat44f -- ^ transform matrix
                  -> IODataFrame Float (4 :+ ns) -- ^ source matrix
-                 -> IODataFrame Float (4 :+ ns) -- ^ destination matrix
+                 -> IODataFrame Float (4 :+ ns') -- ^ destination matrix
                  -> IO ()
 applyTransformDF m src dst = case unsafePerformIO $ unsafeArrayThaw m of
     m' -> m' `seq` src `seq` dst `seq` js_applyTransform m' src dst
@@ -187,7 +187,7 @@ foreign import javascript unsafe
     \ }"
     js_applyTransform :: IODataFrame Float '[4,4]     -- ^ transform matrix
                       -> IODataFrame Float (4 :+ ns)  -- ^ source matrix
-                      -> IODataFrame Float (4 :+ ns)  -- ^ destination matrix
+                      -> IODataFrame Float (4 :+ ns')  -- ^ destination matrix
                       -> IO ()
 
 

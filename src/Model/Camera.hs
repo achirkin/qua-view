@@ -15,7 +15,7 @@ module Model.Camera
 import           Data.Fixed                  (mod')
 
 import           Numeric.DataFrame
---import Numeric.Dimensions
+import           Numeric.Dimensions
 import qualified Numeric.Matrix              as Matrix
 import qualified Numeric.Quaternion          as Q
 
@@ -88,11 +88,12 @@ stateToView CState {
     dv = vec3 (t * cos φ) (t * sin φ)  (ρ * sin theta)
     t = ρ * cos theta
 
+
 ----------------------------------------------------------------------------------------------
 -- Camera movement functions -----------------------------------------------------------------
 ----------------------------------------------------------------------------------------------
 
--- | Dragging - pan world on xz plane (e.g. using left mouse button)
+-- | Dragging - pan world on xy plane (e.g. using left mouse button)
 dragHorizontal :: Vec2f -- ^ Old screen coordinates
                -> Vec2f -- ^ New screen coordinates
                -> Camera -- ^ Modify the camera state
@@ -102,7 +103,7 @@ dragHorizontal oldPoint newPoint camera@Camera {
             viewPoint = vp
         }
     } = ostate {
-            viewPoint = vp + proj newPoint - proj oldPoint
+            viewPoint = vp - proj newPoint + proj oldPoint
         }
   where
     proj = screenToWorld cam' (vp ! 3)
@@ -221,7 +222,7 @@ twoFingerControl (unpackV2 -> (opx1,opy1),unpackV2 -> (opx2,opy2))
 ----------------------------------------------------------------------------------------------
 
 
--- | Dragging - pan object on xz plane (e.g. using left mouse button)
+-- | Dragging - pan object on xy plane (e.g. using left mouse button)
 dragObject :: Vec2f -- ^ Old screen coordinates
            -> Vec2f -- ^ New screen coordinates
            -> Camera -- ^ Get matrices
@@ -238,16 +239,18 @@ rotateObject :: Vec2f -- ^ Old screen coordinates
              -> Camera -- ^ Get matrices
              -> Vec3f -- ^ World position of rotation center
              -> Mat44f  -- ^ transformation matrix
-rotateObject oldScreenPos newScreenPos camera p = Matrix.rotateZ a
+rotateObject oldScreenPos newScreenPos camera p = trans %* Matrix.rotateZ a %* trans'
   where
+    trans = Matrix.translate3 p
+    trans' = Matrix.translate3 ( - p )
     proj = screenToWorld camera 0
     op = proj oldScreenPos
     np = proj newScreenPos
 
     -- rotation angle
-    dv1 = unit $ np - p
-    dv0 = unit $ op - p
-    a = unScalar $ atan2 (2 !. cross dv0 dv1) (dot dv1 dv0)
+    dv1 = unit . update (3:!Z) (0 :: Scf) $ np - p
+    dv0 = unit . update (3:!Z) (0 :: Scf) $ op - p
+    a = unScalar $ atan2 (3 !. cross dv0 dv1) (dot dv0 dv1)
 
 
 -- | Rotate, scale, and pan with two fingers
@@ -267,7 +270,7 @@ twoFingerObject (oScreenPos1, oScreenPos2)
     op2 = proj oScreenPos2
     np1 = proj nScreenPos1
     np2 = proj nScreenPos2
-    dv = newPoint - oldPoint
+    dv = oldPoint - newPoint
     rotq = signum $ Q.getRotScale (op2 - op1) (np2 - np1)
 
 
@@ -279,17 +282,23 @@ twoFingerObject (oScreenPos1, oScreenPos2)
 --   z coordinate of the result is given as an argument to the function.
 --
 --   Use this function partially applied if you need a projection several times.
+--
+--   Note:
+--
+--     * Camera position in NDC is (0 0 0 1)
+--     * Maximum distance in NDC is 1, thus coordinate on far plane is (x y 1 1)
 screenToWorld :: Camera -> Scf -> Vec2f -> Vec3f
 screenToWorld camera z = imat `seq` campos `seq` width `seq` height `seq` f
   where
-    imat = inverse (projMatrix camera %* viewMatrix camera)
+    mm = projMatrix camera %* viewMatrix camera
+    imat = inverse mm
     (width, height) = viewportSize camera
     campos = fromHom $ imat %* vec4 0 0 0 1
     f (unpackV2 -> (px,py)) = findPos campos (p - campos) z
         where
           p = fromHom $ imat %* vec4
                 (2 * px / width - 1)
-                (1 - 2 * py / height) (-1) 1
+                (1 - 2 * py / height) 1 1
 
 
 
