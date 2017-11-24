@@ -66,7 +66,7 @@ main = mainWidgetInElementById "qua-view-widgets" $ runQuaWidget $ mdo
     aHandler <- Widgets.registerAnimationHandler canvas (SmallGL.render renderingApi)
     -- selected object id events
     selectedObjIdD <- objectSelectionsDyn aHandler renderingApi
-    colorObjectsOnSelection renderingApi scenarioB selectedObjIdD
+    inQuaWidget $ colorObjectsOnSelection scenarioB selectedObjIdD
     -- move objects events
     camLockedB <- inQuaWidget
       $ moveSelectedObjects aHandler renderingApi (current cameraD) scenarioB selectedObjIdD

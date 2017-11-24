@@ -57,14 +57,14 @@ createScenario renderingApi = do
     objectPropUpdated   <- askEvent $ ScenarioUpdate ObjectPropertyUpdated
     objectLocUpdated    <- askEvent $ ScenarioUpdate ObjectLocationUpdated
 
-    (updateGLObjE, updateGLObjTrigger) <- newTriggerEvent
-    registerEvent (SmallGLInput SmallGL.ObjectTransform) updateGLObjE
+    (resetGLE, resetGLcb) <- newTriggerEvent
+    registerEvent (SmallGLInput SmallGL.ResetGL) resetGLE
 
     -- Assemble events into scenario behavior
     accumM (&) def $ leftmost
           [ loadScenarioPart renderingApi <$> scenarioUpdated
-          , clearScenario renderingApi <$ scenarioCleared
-          , updateObjectGeomInScenario updateGLObjTrigger <$> objectLocUpdated
+          , clearScenario resetGLcb <$ scenarioCleared
+          , updateObjectGeomInScenario <$> objectLocUpdated
           , updateObjectPropInScenario <$> objectPropUpdated
           , updateScenarioProp <$> scenarioPropUpdated
           ]
@@ -81,18 +81,17 @@ loadScenarioPart renderingApi newSc oldSc  = do
     return $ oldSc <> sc'
 
 clearScenario :: MonadIO (PushM t)
-    => SmallGL.RenderingApi
+    => (() -> IO ())
     -> Scenario
     -> PushM t Scenario
-clearScenario renderingApi _ = fmap def . liftIO $ SmallGL.reset renderingApi
+clearScenario resetGLcb _ = fmap def . liftIO $ resetGLcb ()
 
 updateObjectGeomInScenario :: MonadIO (PushM t)
-    => ((SmallGL.RenderedObjectId, Mat44f) -> IO ())
-    -> (ObjectId, Mat44f)
+    => (ObjectId, Mat44f)
     -> Scenario
     -> PushM t Scenario
-updateObjectGeomInScenario k p
-    = Scenario.objects (updateObjectGeomInCollection k p)
+updateObjectGeomInScenario
+    = Scenario.objects . updateObjectGeomInCollection
 
 updateObjectPropInScenario ::
        (ObjectId, PropName, Maybe PropValue)
@@ -110,15 +109,14 @@ updateScenarioProp p = pure . over Scenario.properties (updateProps p)
 
 
 updateObjectGeomInCollection :: MonadIO (PushM t)
-    => ((SmallGL.RenderedObjectId, Mat44f) -> IO ())
-    -> (ObjectId, Mat44f)
+    => (ObjectId, Mat44f)
     -> Object.Collection
     -> PushM t  Object.Collection
-updateObjectGeomInCollection k (i, m) objs
+updateObjectGeomInCollection (i, m) objs
     = case Map.lookup i objs of
         Nothing -> pure objs
         Just o -> do
-          o' <- updateObjectGeom k m o
+          o' <- updateObjectGeom m o
           return $ Map.insert i o' objs
 
 updateObjectPropInCollection ::
@@ -129,14 +127,11 @@ updateObjectPropInCollection (i, n, v) = Map.adjust (updateObjectProp (n,v)) i
 
 
 updateObjectGeom :: MonadIO (PushM t)
-    => ((SmallGL.RenderedObjectId, Mat44f) -> IO ())
-    -> Mat44f
+    => Mat44f
     -> Object
     -> PushM t Object
-updateObjectGeom k m obj = do
-    liftIO $ do
-      Geometry.applyTransform (obj^.Object.geometry) m
-      k ( obj^.Object.renderingId, m )
+updateObjectGeom m obj = liftIO $ do
+    Geometry.applyTransform (obj^.Object.geometry) m
     return $ obj & Object.center %~ (m %*)
 
 

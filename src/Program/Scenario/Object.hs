@@ -24,7 +24,7 @@ import           Reflex
 import           Reflex.Dom.Widget.Animation (AnimationHandler)
 import qualified Reflex.Dom.Widget.Animation as Animation
 import           Control.Lens
-import           Numeric.DataFrame (fromHom) -- Mat44f, (%*))
+import           Numeric.DataFrame (fromHom, eye) -- Mat44f, (%*))
 
 import           Model.Camera (Camera)
 import           Model.Scenario (Scenario)
@@ -67,35 +67,30 @@ objectSelectionsDyn aHandler renderingApi = do
 
 
 -- | Color objects when they are selected or unselected.
---   This function does not generate any Reflex objects and does not affect any existing Reflex objects.
---   It just updates SmallGL color buffers based on scenario settings.
-colorObjectsOnSelection :: ( Reflex t, MonadIO (Performable m)
-                           , PerformEvent t m
-                           )
-                        => SmallGL.RenderingApi
-                        -> Behavior t Scenario
+colorObjectsOnSelection :: Reflex t
+                        => Behavior t Scenario
                         -> Dynamic t (Maybe ObjectId)
-                        -> m ()
-colorObjectsOnSelection renderingApi scB selObjD
-    = performEvent_ $ f <$> scB <*> current selObjD <@> updated selObjD
-  where
-    f scenario oldObjId newObjId = liftIO $ do
-        case mnewObj of
-          Nothing -> return ()
-          Just o  -> SmallGL.setObjectColor renderingApi
-                                            (o^.Object.renderingId)
-                                            (selectedColor $ o^.Object.objectBehavior)
-        case moldObj of
-          Nothing -> return ()
-          Just o  -> SmallGL.setObjectColor renderingApi
-                                            (o^.Object.renderingId)
-                                            (Scenario.resolvedObjectColor scenario o ^. colorVeci)
+                        -> QuaViewM t ()
+colorObjectsOnSelection scB selObjD = do
 
-      where
-        selectedColor Object.Dynamic = scenario^.Scenario.selectedDynamicColor.colorVeci
-        selectedColor Object.Static  = scenario^.Scenario.selectedStaticColor.colorVeci
-        moldObj = oldObjId >>= \i -> scenario ^. Scenario.objects . at i
-        mnewObj = newObjId >>= \i -> scenario ^. Scenario.objects . at i
+    registerEvent (SmallGLInput SmallGL.SetObjectColor) . nonEmptyOnly
+       $ ( \scenario oldOId newOId ->
+             do
+              obj <- getObj scenario oldOId
+              return ( obj^.Object.renderingId
+                     , Scenario.resolvedObjectColor scenario obj ^. colorVeci )
+             <>
+             do
+              obj <- getObj scenario newOId
+              return ( obj^.Object.renderingId
+                     , selectedColor scenario $ obj^.Object.objectBehavior  )
+         )
+      <$> scB <*> current selObjD <@> updated selObjD
+
+  where
+    getObj scenario moid = maybe [] (:[]) $ moid >>= \i -> scenario ^. Scenario.objects . at i
+    selectedColor sc Object.Dynamic = sc^.Scenario.selectedDynamicColor.colorVeci
+    selectedColor sc Object.Static  = sc^.Scenario.selectedStaticColor.colorVeci
 
 
 
@@ -132,45 +127,88 @@ moveSelectedObjects aHandler renderingApi cameraB scenarioB selObjIdD = do
     downsE <- performEvent $ getClicked renderingApi
                           <$> Animation.curPointersB aHandler
                           <@ select (Animation.pointerEvents aHandler) PDownEvent
-    camLockedB <- hold False $ leftmost [ (==) <$> current selObjIdD <@> fmapMaybe (fmap Just) downsE
-                                        , False <$ upsE
-                                        ]
-    selectedRenderingIdD <- holdDyn Nothing $ fmap (view Object.renderingId) <$> selectedObjE
+
+    -- We lock camera movemement and activate object transform when a pointer is down on a selected
+    -- object. If there are more than one pointer, we reset object motion every up or down event
+    -- to change motion mode correcty. However, if camera is not locked before pointer up event,
+    -- the event should not fire to avoid unnecessary trivial geometry updates.
+    rec  camLockedD <- holdDyn False camLockedE
+         ptrNB <- accum (&) (0 :: Int)
+                  $ leftmost [ (+1) <$ downsE
+                             , (\n -> max 0 (n-1)) <$ upsE
+                             , (\n -> max 0 (n-1)) <$ clicksE
+                             , (const 0 :: Int -> Int) <$ cancelsE
+                             ]
+         let upsE = select (Animation.pointerEvents aHandler) PUpEvent
+             clicksE = select (Animation.pointerEvents aHandler) PClickEvent
+             cancelsE = select (Animation.pointerEvents aHandler) PCancelEvent
+             downME = downF <$> ptrNB <*> current camLockedD <*> current selObjIdD <@> downsE
+             downF :: Int -> Bool -> Maybe ObjectId -> Maybe ObjectId -> Maybe Bool
+             downF ptrN wasLocked wasSelected isPressed
+                | ptrN > 0 && wasLocked     = Just True
+                | ptrN > 0 && not wasLocked = Nothing
+                | wasSelected == isPressed  = True <$ isPressed
+                | otherwise                 = Nothing
+             clickME = upF <$> ptrNB <*> current camLockedD <@ clicksE
+             upME = upF <$> ptrNB <*> current camLockedD <@ upsE
+             upF :: Int -> Bool -> Maybe Bool
+             upF ptrN wasLocked
+                | wasLocked && ptrN > 1 = Just True
+                | wasLocked             = Just False
+                | otherwise             = Nothing
+             cancelME = cancelF <$> current camLockedD <@ cancelsE
+             cancelF wasLocked
+                | wasLocked = Just False
+                | otherwise = Nothing
+             camLockedE = fmapMaybe id $ leftmost [cancelME, upME, clickME, downME]
 
 
-    -- find center position for correct rotation
-    centerPosB <- hold 0 $ fromHom . view Object.center
-                        <$> fmapMaybe id selectedObjE -- does not work on obj updates
+
     -- events of object transforms
-    let transformE = gate camLockedB
+    let transformE = gate (current camLockedD)
                    $ objectTransformEvents aHandler cameraB centerPosB
 
-    registerEvent (ScenarioUpdate ObjectLocationUpdated) $ fmapMaybe (\(mx,y) -> flip (,) y <$> mx)
-                                                         $ (,) <$> current selObjIdD
-                                                               <@> transformE
-    performEvent_ $ ( \mi -> case mi of
-                        Nothing -> return ()
-                        Just i  -> liftIO $ SmallGL.addToGeomCache renderingApi i
-                    )
-                <$> current selectedRenderingIdD
-                <@ select (Animation.pointerEvents aHandler) PDownEvent
+    transformB <- hold eye $ transformE
 
-    performEvent_ $ ( \mi m -> case mi of
-                        Nothing -> return ()
-                        Just i  -> liftIO $ SmallGL.transformObject renderingApi i m
-                    )
-                <$> current selectedRenderingIdD
-                <@> transformE
 
-    logDebugEvents' @JSString "Program.Object" $ (,)  "transform!" . Just <$> transformE
-    return camLockedB
---    performEvent_ $ f <$>  <*> scenarioB <*> selObjB <$> objectTransformEvents cameraB
+    -- Every time camera UNLOCKED event happens, or LOCKED->LOCKED event happens,
+    --  we need to persist current changes
+    let persistGeomChangeE = fmapMaybe id
+                           $ (\moid m wasLocked -> if wasLocked then flip (,) m <$> moid else Nothing )
+                          <$> current selObjIdD
+                          <*> transformB
+                          <*> current camLockedD
+                          <@ updated camLockedD
+
+    registerEvent (ScenarioUpdate ObjectLocationUpdated) persistGeomChangeE
+    registerEvent (SmallGLInput SmallGL.PersistGeomTransforms)
+        $ (\s (i, m) -> case s ^. Scenario.objects . at i of
+                        Nothing -> []
+                        Just o  -> [(o ^. Object.renderingId,m)]
+          )
+       <$> scenarioB
+       <@> persistGeomChangeE
+    registerEvent (SmallGLInput SmallGL.TransformObject)
+        $ fmap (:[])
+        $ fmapMaybe (\(mi, m) -> flip (,) m <$> mi)
+        $ (,) <$> selectedRenderingIdB <@> transformE
+
+
+
+    logDebugEvents' @JSString "Program.Object"
+         $ (,)  "Camera-locked state:" . Just
+        <$> updated camLockedD
+    return $ current camLockedD
   where
-    upsE = select (Animation.pointerEvents aHandler) PUpEvent
-    selectedObjE = (\s mi -> mi >>= \i -> s ^. Scenario.objects . at i)
-                <$> scenarioB <@> updated selObjIdD
+    selectedObjB = (\s mi -> mi >>= \i -> s ^. Scenario.objects . at i)
+                <$> scenarioB <*> current selObjIdD
+    selectedRenderingIdB = fmap (view Object.renderingId) <$> selectedObjB
+    -- find center position for correct rotation
+    centerPosB = maybe 0 (fromHom . view Object.center) <$> selectedObjB
 
 
+nonEmptyOnly :: Reflex t => Event t [a] -> Event t [a]
+nonEmptyOnly = ffilter (not . null)
 
 
 -- | Helper function to determine ObjectId of a currently hovered object.
