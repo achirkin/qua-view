@@ -26,7 +26,7 @@ import qualified Numeric.Quaternion          as Q
 -- | Object-Centered Camera
 data Camera = Camera
     { viewportSize :: !(Float, Float)
-    , clippingDist :: !(Float, Float)
+    , clippingDist :: !Float
     , projMatrix   :: !Mat44f
     , oldState     :: !CState
       -- ^ This state changes at the end of user action, e.g. PointerUp or MouseWheel.
@@ -61,14 +61,15 @@ initCamera width height state = Camera
     , newState     = state
     }
   where
-    clippingD = (0.1, 2000)
+    clippingD = 2000
 
 
-makeProjM :: (Float, Float) -> (Float, Float) -> Mat44f
-makeProjM (n, f) (width, height) = Matrix.perspective n f fovy ratio
+makeProjM :: Float -> (Float, Float) -> Mat44f
+makeProjM f (width, height) = Matrix.perspective n f fovy ratio
   where
     ratio = width / height
     fovy = (1*) . atan2 height . sqrt $ height*height + width*width
+    n = nearPlane f
 
 
 relativeToOldPoint :: Camera -> Camera
@@ -77,6 +78,9 @@ relativeToOldPoint cam@Camera{oldState = os, newState = ns} = cam
     , newState = ns {viewPoint = viewPoint ns - viewPoint os}
     }
 
+
+nearPlane :: Float -> Float
+nearPlane = (/1000)
 
 ----------------------------------------------------------------------------------------------
 -- Camera convertions ------------------------------------------------------------------------
@@ -106,8 +110,10 @@ stateToView CState {
 -- | Camera position in NDC coordinates as per
 --    https://en.wikibooks.org/wiki/GLSL_Programming/Vertex_Transformations#Viewport_Transformation
 eyeNDC :: Camera -> Vec4f
-eyeNDC Camera { clippingDist = (n,f)}
-  = vec4 0 0 (- (f+n)/(f-n)) 1
+eyeNDC Camera { clippingDist = f}
+    = vec4 0 0 (- (f+n)/(f-n)) 1
+  where
+    n = nearPlane f
 
 -- | Assume the pointer is on the far clipping plane;
 --   thus, z coordinate is 1.

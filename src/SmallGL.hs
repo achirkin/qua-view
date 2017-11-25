@@ -149,7 +149,7 @@ createRenderingEngine canvasElem = do
         let uProjLoc = unifLoc shader "uProjM"
             uViewLoc = unifLoc shader "uViewM"
             uCustomLoc3 = unifLoc shader "uSunDir"
-        return $ RenderingProgram {..}
+        return RenderingProgram {..}
     selProgram <- liftIO $ do
         shader <- initShaders gl [(gl_VERTEX_SHADER, vertexSelShaderText)
                               ,(gl_FRAGMENT_SHADER, fragmentSelShaderText)
@@ -160,7 +160,7 @@ createRenderingEngine canvasElem = do
         let uProjLoc = unifLoc shader "uProjM"
             uViewLoc = unifLoc shader "uViewM"
             uCustomLoc3 = error "Selector shader does not have third uniform location."
-        return $ RenderingProgram {..}
+        return RenderingProgram {..}
     selectorObj <- liftIO $ do
       selFrameBuf <- initSelectorFramebuffer gl vpSize
       selUbyteView <- newDataFrame
@@ -204,7 +204,7 @@ createRenderingEngine canvasElem = do
         setupViewPort re
     rre <- liftIO $ newMVar re
     let rApi = RenderingApi
-            { render = \t -> modifyMVar_ rre $ \r -> r <$ (renderFunction r t >> renderSelFunction r t)
+            { render = withMVar rre . renderFunction
             , addRObject = modifyMVar rre . addRObjectFunction
             , getHoveredSelId = withMVar rre . getSelection
             , setObjectColor = withMVar rre . setObjectColor'
@@ -267,6 +267,8 @@ setupViewPort RenderingEngine {..} | RenderingProgram {..} <- viewProgram = do
     enable gl gl_DEPTH_TEST
     enable gl gl_BLEND
     blendFunc gl gl_ONE gl_ONE_MINUS_SRC_ALPHA
+    depthMask gl True
+    depthRange gl 0 1
     depthFunc gl gl_LEQUAL
     -- supply shader with uniform matrix
     uniformMatrix4fv gl uProjLoc False (getProjM uProjM)
@@ -290,8 +292,8 @@ setupSelViewPort RenderingEngine {..} | RenderingProgram {..} <- selProgram = do
     uncurry (viewport gl 0 0) vpSize
 
 
-renderFunction :: RenderingEngine -> AnimationTime -> IO ()
-renderFunction re@RenderingEngine {..} _ | RenderingProgram {..} <- viewProgram = do
+renderFunction :: AnimationTime -> RenderingEngine -> IO ()
+renderFunction _ re@RenderingEngine {..} | RenderingProgram {..} <- viewProgram = do
     -- TODO probably this is too much of overhead
     setupViewPort re
     -- clear viewport
@@ -306,20 +308,20 @@ renderFunction re@RenderingEngine {..} _ | RenderingProgram {..} <- viewProgram 
     renderCell gl rCell
 
 
-renderSelFunction :: RenderingEngine -> AnimationTime -> IO ()
-renderSelFunction re@RenderingEngine {..} _ | RenderingProgram {..} <- selProgram
-                                            , SelectorObject {..} <- selectorObj = do
-    bindFramebuffer gl gl_FRAMEBUFFER $ Just selFrameBuf
-    -- TODO probably this is too much of overhead
-    setupSelViewPort re
-    -- clear viewport
-    clear gl (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
-    -- supply shader with uniform matrix (don't need id as long as I have setupViewPort re above)
-    --uniformMatrix4fv gl uProjLoc False (getProjM uProjM)
-    --uniformMatrix4fv gl uViewLoc False (getViewM uViewM)
-    -- draw objects
-    renderCellSelectors gl rCell
-    bindFramebuffer gl gl_FRAMEBUFFER Nothing
+--renderSelFunction :: RenderingEngine -> AnimationTime -> IO ()
+--renderSelFunction re@RenderingEngine {..} _ | RenderingProgram {..} <- selProgram
+--                                            , SelectorObject {..} <- selectorObj = do
+--    bindFramebuffer gl gl_FRAMEBUFFER $ Just selFrameBuf
+--    -- TODO probably this is too much of overhead
+--    setupSelViewPort re
+--    -- clear viewport
+--    clear gl (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
+--    -- supply shader with uniform matrix (don't need id as long as I have setupViewPort re above)
+--    --uniformMatrix4fv gl uProjLoc False (getProjM uProjM)
+--    --uniformMatrix4fv gl uViewLoc False (getViewM uViewM)
+--    -- draw objects
+--    renderCellSelectors gl rCell
+--    bindFramebuffer gl gl_FRAMEBUFFER Nothing
 
 
 addRObjectFunction :: ObjRenderingData ModeColored
@@ -407,15 +409,18 @@ setTexParameters gl = do
 --    bindTexture gl gl_TEXTURE_2D nullRef
 
 getSelection :: (GLint, GLint) -> RenderingEngine -> IO GLuint
-getSelection (x, y) RenderingEngine {..} | SelectorObject {..} <- selectorObj = do
+getSelection (x, y) re@RenderingEngine {..} | SelectorObject {..} <- selectorObj = do
     bindFramebuffer gl gl_FRAMEBUFFER $ Just selFrameBuf
-    viewport gl 0 0 w h
+    setupSelViewPort re
+    -- clear viewport
+    clear gl (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
+    -- draw objects
+    renderCellSelectors gl rCell
     readPixels gl x (fromIntegral h - y) 1 1 gl_RGBA gl_UNSIGNED_BYTE selUbyteView
     bindFramebuffer gl gl_FRAMEBUFFER Nothing
-    viewport gl 0 0 w h
-    fmap unScalar $ unsafeFreezeDataFrame selUintView
+    unScalar <$> unsafeFreezeDataFrame selUintView
   where
-    (w,h) = vpSize
+    (_,h) = vpSize
 
 
 ----------------------------------------------------------------------------------------------------
