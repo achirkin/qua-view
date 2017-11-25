@@ -26,6 +26,7 @@ import qualified Numeric.Quaternion          as Q
 -- | Object-Centered Camera
 data Camera = Camera
     { viewportSize :: !(Float, Float)
+    , clippingDist :: !(Float, Float)
     , projMatrix   :: !Mat44f
     , oldState     :: !CState
       -- ^ This state changes at the end of user action, e.g. PointerUp or MouseWheel.
@@ -54,14 +55,17 @@ initCamera :: Float -- ^ width of the viewport
            -> Camera
 initCamera width height state = Camera
     { viewportSize = (width,height)
-    , projMatrix   = makeProjM (width,height)
+    , clippingDist = clippingD
+    , projMatrix   = makeProjM clippingD (width,height)
     , oldState     = state
     , newState     = state
     }
+  where
+    clippingD = (0.1, 2000)
 
 
-makeProjM :: (Float, Float) -> Mat44f
-makeProjM (width, height) = Matrix.perspective 0.1 2000 fovy ratio
+makeProjM :: (Float, Float) -> (Float, Float) -> Mat44f
+makeProjM (n, f) (width, height) = Matrix.perspective n f fovy ratio
   where
     ratio = width / height
     fovy = (1*) . atan2 height . sqrt $ height*height + width*width
@@ -72,6 +76,7 @@ relativeToOldPoint cam@Camera{oldState = os, newState = ns} = cam
     { oldState = os {viewPoint = 0}
     , newState = ns {viewPoint = viewPoint ns - viewPoint os}
     }
+
 
 ----------------------------------------------------------------------------------------------
 -- Camera convertions ------------------------------------------------------------------------
@@ -88,6 +93,30 @@ stateToView CState {
     dv = vec3 (t * cos φ) (t * sin φ)  (ρ * sin theta)
     t = ρ * cos theta
 
+--eyePos :: CState -> Vec3f
+--eyePos CState {
+--        viewPoint  = v,
+--        viewAngles = (φ, theta),
+--        viewDist   = ρ
+--    } = v + dv
+--  where
+--    dv = vec3 (t * cos φ) (t * sin φ)  (ρ * sin theta)
+--    t = ρ * cos theta
+
+-- | Camera position in NDC coordinates as per
+--    https://en.wikibooks.org/wiki/GLSL_Programming/Vertex_Transformations#Viewport_Transformation
+eyeNDC :: Camera -> Vec4f
+eyeNDC Camera { clippingDist = (n,f)}
+  = vec4 0 0 (- (f+n)/(f-n)) 1
+
+-- | Assume the pointer is on the far clipping plane;
+--   thus, z coordinate is 1.
+--   The position of a pointer is given in screen coorinates (pixels)
+ptrNDC :: Camera -> Vec2f -> Vec4f
+ptrNDC Camera { viewportSize = (width, height) } p
+  | (px, py) <- unpackV2 p
+  = vec4 (2 * px / width - 1)
+         (1 - 2 * py / height) 1 1
 
 ----------------------------------------------------------------------------------------------
 -- Camera movement functions -----------------------------------------------------------------
@@ -109,13 +138,12 @@ dragHorizontal oldPoint newPoint camera@Camera {
     proj = screenToWorld cam' (vp ! 3)
     cam' = relativeToOldPoint camera
 
--- | Dragging - pan world on xy plane
+-- | Dragging - pan world on a plane parallel to screen
 dragVertical :: Vec2f -- ^ Old screen coordinates
              -> Vec2f -- ^ New screen coordinates
              -> Camera -- ^ Modify the camera state
              -> CState
-dragVertical (unpackV2 -> (ox,oy) ) (unpackV2 -> (x,y)) Camera {
-        viewportSize = (width, height),
+dragVertical op np cam@Camera {
         projMatrix = projmat,
         oldState   = ostate@CState {
             viewPoint = v,
@@ -125,12 +153,13 @@ dragVertical (unpackV2 -> (ox,oy) ) (unpackV2 -> (x,y)) Camera {
             viewPoint = v + dv
         }
   where
-    imat = inverse (projmat %* stateToView ostate) :: Mat44f
-    sdx = scalar $ ρ * (x-ox) / width
-    dz = ρ * (y-oy) / height
-    (dx, dy, _) = unpackV3 $ fromScalar sdx *
-                (unit . fromHom $ imat %* vec4 (-1) 0 0 0 )-- 0 0 1 1 - imat %* vec4 1 0 1 1)
-    dv = vec3 dx dy dz
+    imat = inverse (projmat %* stateToView ostate)
+    ndcOp = ptrNDC cam op
+    ndcNp = ptrNDC cam np
+    worldOfar = fromHom $ imat %* ndcOp
+    worldNfar = fromHom $ imat %* ndcNp
+    c = fromScalar $ scalar ρ / (3:!Z !. worldOfar)
+    dv = (worldNfar - worldOfar) * c
 
 
 -- | Rotating around viewPoint
@@ -160,60 +189,45 @@ scroll s Camera {
         oldState = ostate@CState { viewDist = ρ }
     } = ostate { viewDist = max 0.1 (ρ * (1 + min (8 / (1 + ρ)) (max (max (-0.8) (- 8 / (1 + ρ))) s))) }
 
--- | Rotate, scale, and pan with two fingers
+-- | Rotate, scale, and pan camera with two fingers
 twoFingerControl :: (Vec2f, Vec2f) -- ^ Old screen coordinates
                  -> (Vec2f, Vec2f) -- ^ New screen coordinates
                  -> Camera -- ^ Modify the camera state
                  -> CState
-twoFingerControl (unpackV2 -> (opx1,opy1),unpackV2 -> (opx2,opy2))
-                 (unpackV2 -> (npx1,npy1),unpackV2 -> (npx2,npy2))
-                 Camera {
-                    viewportSize = (width, height),
-                    projMatrix   = projmat,
+twoFingerControl (op1,op2)
+                 (np1,np2)
+                 cam@Camera {
                     oldState     = ostate@CState {
-                        viewPoint  = ovp@((! 2) -> h),
+                        viewPoint  = ovp@((! 3) -> h),
                         viewAngles = (φ, theta),
                         viewDist   = ρ
                     }
     } = ostate {
-            viewPoint  = nvp, -- ovp + dvp,
+            viewPoint  = nvp,
             viewAngles = (φ', theta),
             viewDist   = max 0.1 (ρ * dlen)
         }
   where
-    imat = inverse $ projmat %* stateToView ostate
-    screenO1 = vec4 (2 * opx1 / width - 1) (1 - 2 * opy1 / height) 1 1
-    screenO2 = vec4 (2 * opx2 / width - 1) (1 - 2 * opy2 / height) 1 1
-    screenN1 = vec4 (2 * npx1 / width - 1) (1 - 2 * npy1 / height) 1 1
-    screenN2 = vec4 (2 * npx2 / width - 1) (1 - 2 * npy2 / height) 1 1
+    proj = screenToWorld cam h
     up = vec3 0 0 1
-    campos = fromHom $ imat %* vec4 0 0 0 1
-    realO1 = findPos campos (fromHom (imat %* screenO1) - campos) h
-    realO2 = findPos campos (fromHom (imat %* screenO2) - campos) h
-    realN1 = findPos campos (fromHom (imat %* screenN1) - campos) h
-    realN2 = findPos campos (fromHom (imat %* screenN2) - campos) h
-    dOld = realO2 - realO1
-    dNew = realN2 - realN1
-    realN = 0.5 * (realN1 + realN2)
-    realO = 0.5 * (realO1 + realO2)
+    worldO1 = proj op1
+    worldO2 = proj op2
+    worldN1 = proj np1
+    worldN2 = proj np2
+    dOld = worldO2 - worldO1
+    dNew = worldN2 - worldN1
+    worldN = 0.5 * (worldN1 + worldN2)
+    worldO = 0.5 * (worldO1 + worldO2)
     qs = Q.getRotScale dNew dOld
     -- scaling
     dlen = sqrt $ Q.square qs
---            olen = normL2 dOld
---            nlen = normL2 dNew
---            dlen = if abs (olen/nlen - 1) < 0.05
---                then 1
---                else let dl0 = olen/nlen
---                     in 1 + (dl0 - 1) * min 1 (50 / (1 + ρ)) -- prevent going too far away on large distances
     -- rotating
-    dφ = let da = signum (unScalar . dot up $ Q.imVec qs) * Q.qArg qs -- atan2 (indexVector 2 $ cross dNew dOld) (dot dNew dOld)
+    dφ = let da = signum (unScalar . dot up $ Q.imVec qs) * Q.qArg qs
          in if abs da < 0.05 then 0 else da
     φ' = mod' (φ+dφ+pi) (2*pi) - pi
     -- panning
     -- combine actions
-    nvp = Q.rotScale qs (ovp - realN) + realO
---            nvp = rotScale (realToFrac dlen * axisRotation up (φ - φ')) (ovp-realN1)
---                  + realO1 -- + 2*newPoint
+    nvp = Q.rotScale qs (ovp - worldN) + worldO
 
 
 
@@ -233,7 +247,7 @@ dragObject oldScreenPos newScreenPos camera
     proj = screenToWorld cam' 0
     cam' = relativeToOldPoint camera
 
--- | Rotating - rotate object on w.r.t. y axis (e.g. using right mouse button)
+-- | Rotating - rotate object on w.r.t. z axis (e.g. using right mouse button)
 rotateObject :: Vec2f -- ^ Old screen coordinates
              -> Vec2f -- ^ New screen coordinates
              -> Camera -- ^ Get matrices
@@ -253,7 +267,7 @@ rotateObject oldScreenPos newScreenPos camera p = trans %* Matrix.rotateZ a %* t
     a = unScalar $ atan2 (3 !. cross dv0 dv1) (dot dv0 dv1)
 
 
--- | Rotate, scale, and pan with two fingers
+-- | Rotate and pan with two fingers
 twoFingerObject :: (Vec2f, Vec2f) -- ^ Old screen coordinates
                 -> (Vec2f, Vec2f) -- ^ New screen coordinates
                 -> Camera -- ^ Get matrices
@@ -261,7 +275,7 @@ twoFingerObject :: (Vec2f, Vec2f) -- ^ Old screen coordinates
 twoFingerObject (oScreenPos1, oScreenPos2)
                 (nScreenPos1, nScreenPos2)
                 camera
-    = Matrix.translate3 dv %* Q.toMatrix44 rotq
+    = Matrix.translate3 newPoint %* Q.toMatrix44 rotq %* Matrix.translate3 (-oldPoint)
   where
     proj = screenToWorld camera 0
     oldPoint = (op1 + op2) / 2
@@ -270,13 +284,14 @@ twoFingerObject (oScreenPos1, oScreenPos2)
     op2 = proj oScreenPos2
     np1 = proj nScreenPos1
     np2 = proj nScreenPos2
-    dv = oldPoint - newPoint
     rotq = signum $ Q.getRotScale (op2 - op1) (np2 - np1)
 
 
 ----------------------------------------------------------------------------------------------
 -- Helpers  ----------------------------------------------------------------------------------
 ----------------------------------------------------------------------------------------------
+
+
 
 -- | Transform a point in screen coordinates into a point on a ground in world coordinates.
 --   z coordinate of the result is given as an argument to the function.
@@ -285,20 +300,19 @@ twoFingerObject (oScreenPos1, oScreenPos2)
 --
 --   Note:
 --
---     * Camera position in NDC is (0 0 0 1)
---     * Maximum distance in NDC is 1, thus coordinate on far plane is (x y 1 1)
+--   The formulae are taken from
+--     https://en.wikibooks.org/wiki/GLSL_Programming/Vertex_Transformations#Viewport_Transformation
+--
+--   Visible objects in NDC coordinates are always in MinMax (vec4 (-1) (-1) (-1) 1) (vec4 1 1 1 1).
+--   It is important that z coordinates varies from -1 (near clipping plane) to 1 (far clipping plane).
+--
+--   Camera (eye) position in NDC is slightly behind the near clipping plane @vec4 0 0 (- (f+n)/(f-n)) 1@.
 screenToWorld :: Camera -> Scf -> Vec2f -> Vec3f
-screenToWorld camera z = imat `seq` campos `seq` width `seq` height `seq` f
+screenToWorld camera z = imat `seq` campos `seq` f
   where
-    mm = projMatrix camera %* viewMatrix camera
-    imat = inverse mm
-    (width, height) = viewportSize camera
-    campos = fromHom $ imat %* vec4 0 0 0 1
-    f (unpackV2 -> (px,py)) = findPos campos (p - campos) z
-        where
-          p = fromHom $ imat %* vec4
-                (2 * px / width - 1)
-                (1 - 2 * py / height) 1 1
+    imat = inverse $ projMatrix camera %* stateToView (oldState camera)
+    campos = fromHom $ imat %* eyeNDC camera
+    f p = findPos campos (fromHom (imat %* ptrNDC camera p) - campos) z
 
 
 
