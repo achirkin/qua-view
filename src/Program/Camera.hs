@@ -38,7 +38,8 @@ dynamicCamera aHandler defCenterPointB camLockedB = mdo
     -- all changes of the viewport size come from AResizeEvent (or resetCameraE)
     viewportSizeD <- holdDyn (viewportSize icam) $ leftmost [resizeE, viewportSize icam <$ resetCameraE]
     -- projection matrix also changes only at AResizeEvents (or resetCameraE)
-    projMatrixD <- holdDyn (projMatrix icam) $ leftmost [makeProjM <$> resizeE, projMatrix icam <$ resetCameraE]
+    projMatrixD <- holdDyn (projMatrix icam) $ leftmost [ makeProjM (clippingDist icam) <$> resizeE
+                                                        , projMatrix icam <$ resetCameraE]
     -- checkpoint camera states - when there are no active actions, such as mouse dragging
     oldStateD <- holdDyn (oldState icam) $ leftmost
         [ -- mouse wheel is an atomic event, so we update oldState directly
@@ -61,6 +62,7 @@ dynamicCamera aHandler defCenterPointB camLockedB = mdo
         ]
 
     let camD = Camera <$> viewportSizeD
+                      <*> pure (clippingDist icam)
                       <*> projMatrixD
                       <*> oldStateD
                       <*> newStateD
