@@ -491,8 +491,9 @@ vertexShaderText =
         vec4 globalPos = uViewM * aVertexPosition;
         gl_Position = uProjM * globalPos;
         vDist = globalPos.xyz/(globalPos.w*uClippingDist*#{x});
-        vec4 tNormal = normalize(uViewM * aVertexNormal);
-        mediump float brightness = 0.7 + 0.3 * abs(dot(aVertexNormal,uSunDir)); // * sign(dot(tNormal,globalPos));
+        // vertex normal that is always directed to an eye
+        vec4 tVertexNormal = aVertexNormal * sign(dot(uViewM * aVertexNormal, - globalPos));
+        mediump float brightness = 0.8 - 0.3 * dot(tVertexNormal,uSunDir);
         mediump float a = aVertexColor.w;
         vColor = vec4(clamp(aVertexColor.xyz * brightness, vec3(0,0,0), vec3(a,a,a)), a);
       }
