@@ -21,6 +21,7 @@ import Control.Lens hiding (indices)
 import System.IO.Unsafe (unsafePerformIO)
 import qualified Data.Map.Strict as Map
 import JavaScript.JSON.Types.Instances
+import JavaScript.JSON.Types.Internal
 import Numeric.DataFrame
 import Numeric.DataFrame.IO
 import Numeric.Dimensions
@@ -40,7 +41,7 @@ import Model.GeoJSON.Coordinates.Wgs84
 instance FromJSON (Scenario.Scenario' 'Object.NotReady) where
     parseJSON v = flip (withObject "Scenario object") v $ \scObj -> do
         -- basic properties are all optional,
-        -- they are parsed only if we are given scenario object (wrapped FeatureCollection
+        -- they are parsed only if we are given scenario object (wrapped FeatureCollection)
         _name       <- scObj .:? "name"
         -- msrid       <- scObj .:? "srid"
         mlon        <- scObj .:? "lon"
@@ -49,7 +50,7 @@ instance FromJSON (Scenario.Scenario' 'Object.NotReady) where
         _properties <- scObj .:? "properties" .!= def
         let _geoLoc = (,,) <$> mlon <*> mlat <*> Just alt
 
-        -- Feature collection maybe this object itself or 'geometry' sub-object
+        -- Feature collection may be this object itself or 'geometry' sub-object
         fc <- scObj .:? "geometry" .!= scObj
         objList <- fc .: "features"
 
@@ -89,6 +90,33 @@ instance FromJSON (Object.Object' 'Object.NotReady) where
 
 
         pure Object.Object {..}
+
+
+instance ToJSON (Object.Object' m) where
+    toJSON o = objectValue $ object
+      [ ("type", stringValue "Feature")
+      , ("geometry", toJSON $ o ^. Object.geometry )
+      , ("properties", toJSON $ o ^. Object.properties )
+      ]
+
+instance ToJSON (Scenario.Scenario' m) where
+    toJSON sc = objectValue $ object
+        $  ("name", sc^?Scenario.name._Just.to stringValue)
+        ?: ("lon",  sc^?Scenario.geoLoc._Just._1.to doubleValue)
+        ?: ("lat",  sc^?Scenario.geoLoc._Just._2.to doubleValue)
+        ?: ("alt",  sc^?Scenario.geoLoc._Just._3.to doubleValue)
+        ?: [ ("properties", toJSON $ sc ^. Scenario.properties )
+           , ("geometry"
+             , objectValue $ object
+               [ ("type", stringValue "FeatureCollection")
+               , ("features", toJSON . Map.elems $ sc ^. Scenario.objects)
+               ] -- TODO: do we need to store objects' geomIDs here?
+             )
+           ]
+      where
+        infixr 5 ?:
+        (_, Nothing) ?: xs = xs
+        (s, Just v)  ?: xs = (s,v):xs
 
 
 prepareScenario :: ScenarioStatistics

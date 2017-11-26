@@ -86,6 +86,9 @@ executable qua-view
         Commons.NoReflexDom.QuaViewMonad
         Commons.QuaViewMonad
         Model.Camera
+        Model.GeoJSON.Coordinates
+        Model.GeoJSON.Coordinates.Wgs84
+        Model.GeoJSON.Scenario
         Model.Scenario
         Model.Scenario.Object
         Model.Scenario.Object.Geometry
@@ -107,6 +110,7 @@ executable qua-view
         Widgets.LoadingSplash
         Widgets.Modal
         Widgets.Modal.BrowseScenarios
+        Widgets.Modal.DownloadScenario
         Widgets.Modal.EdxGuide
         Widgets.Modal.Help
         Widgets.Modal.SaveScenario

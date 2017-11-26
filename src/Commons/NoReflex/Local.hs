@@ -17,7 +17,7 @@ module Commons.NoReflex.Local
     , LoadedTextContent (..)
       -- * Local functions
     , jsstring
-    , castToJSString, parseJSONValue
+    , castToJSString, parseJSONValue, jsonStringify
     ) where
 
 
@@ -167,7 +167,8 @@ parseJSONValue str = liftIO $  do
 foreign import javascript unsafe "try{$r1 = JSON.parse($1); $r2 = null;}catch(err){$r1 = null; $r2 = err;}"
     js_parseJSON :: JSString -> IO (Nullable JSVal, Nullable JSError)
 
-
+foreign import javascript unsafe "JSON.stringify($1)"
+    jsonStringify :: Value -> IO JSString
 
 instance PFromJSVal a => PFromJSVal (Map JSString a) where
     pFromJSVal v = case fromJSON $ coerce v of
