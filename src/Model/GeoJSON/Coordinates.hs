@@ -360,18 +360,18 @@ foreign import javascript unsafe "Array.prototype.slice.call($2, 0, $1)"
     js_vecToJSArray :: Int -> JSVal -> Value
 
 foreign import javascript unsafe
-    "var a = [];\
-    \ for(var i = 0; i < $3.length; i+=$1){\
-    \   a.push(Array.prototype.slice.call($3, i, i + $2));\
+    "var a = [], i = -$1;\
+    \ while(i < $3.length - $1){\
+    \   i+=$1; a.push(Array.prototype.slice.call($3, i, i + $2));\
     \ } $r = a;"
     js_vecToJSArray2Stride :: Int -> Int -> JSVal -> Value
 
 foreign import javascript unsafe
-    "var a = [], r, is = $3.concat([$4.length]);\
+    "var a = [], r, j, is = $3.concat([$4.length]);\
     \ for(var i = 0; i < is.length - 1; i++){\
-    \   r = [];\
-    \   for(var j = is[i]; j < is[i+1]; i+=$1){\
-    \     r.push(Array.prototype.slice.call($3, j, j + $2));\
+    \   r = []; j = is[i]-$1;\
+    \   while(j < is[i+1] - $1){\
+    \     j+=$1; r.push(Array.prototype.slice.call($3, j, j + $2));\
     \   }\
     \   r.push(r[0]);\
     \   a.push(r);\

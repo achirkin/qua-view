@@ -28,7 +28,7 @@ import Model.Scenario (Scenario)
 controlPanel :: Reflex t
              => Behavior t Scenario
              -> QuaWidget t x (Dynamic t (ComponentState "ControlPanel"))
-controlPanel scB = mdo
+controlPanel scenarioB = mdo
     stateD <- Dom.elDynClass "div" (toClass <$> stateD) $ mdo
 
       -- tab pane
@@ -37,7 +37,7 @@ controlPanel scB = mdo
           Dom.elAttr "div" ("style" =: "margin: 0; padding: 0; height: 56px;") Dom.blank
           runTabWidget $ do
             addTab "Geometry" panelGeometry
-            addTab "Info" $ panelInfo scB
+            addTab "Info" $ panelInfo scenarioB
             addTab "Reviews" panelReviews
             addTab "Services" panelServices
 
@@ -45,7 +45,7 @@ controlPanel scB = mdo
       userMessageWidget >>= replaceUserMessageCallback
 
       -- GUI control buttons
-      controlButtonGroup
+      controlButtonGroup scenarioB
 
     return stateD
   where

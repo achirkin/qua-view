@@ -22,7 +22,9 @@ import Text.Julius (julius)
 
 import Commons
 import QuaTypes
+import Model.Scenario (Scenario)
 import Widgets.Generation
+import Widgets.Modal.DownloadScenario
 import Widgets.Modal.Help
 import Widgets.Modal.Share
 import Widgets.Modal.SubmitProposal
@@ -30,8 +32,9 @@ import Widgets.Modal.SubmitProposal
 -- | Control button group is a column of colourfull buttons in the bottom-right corner of the screen.
 --   It defines the most useful functions of qua-kit.
 controlButtonGroup :: Reflex t
-                   => QuaWidget t x ( Dynamic t (ComponentState "ControlPanel"))
-controlButtonGroup = mdo
+                   => Behavior t Scenario
+                   -> QuaWidget t x ( Dynamic t (ComponentState "ControlPanel"))
+controlButtonGroup scenarioB = mdo
     (toggleGroupD, cpStateD) <-
         Dom.elDynClass "div" (toPanelClass <$> cpStateD) $
           Dom.elDynClass "div" toggleGroupD $ do
@@ -39,6 +42,7 @@ controlButtonGroup = mdo
             toggleGroupD'  <- expandCtrlGroupButton
             -- show all buttons
             groupContents <- Dom.elClass "div" "fbtn-dropup" $ do
+                downloadScenarioButton scenarioB
                 shareButton
                 resetCameraButton
                 helpButton
@@ -270,3 +274,18 @@ submitProposalButton = do
                 save
           |])
     popupSubmitProposal (ElementClick <$ Dom.domEvent Dom.Click e)
+
+
+downloadScenarioButton :: Reflex t => Behavior t Scenario -> QuaWidget t x ()
+downloadScenarioButton scB = do
+    e <- makeElementFromHtml def $(qhtml
+          [hamlet|
+            <a .fbtn .waves-attach .waves-circle .waves-effect>
+              <span .fbtn-text .fbtn-text-left>
+                Download scenario
+              <span .icon .icon-lg>
+                file_download
+          |])
+    popupDownloadScenario scB (ElementClick <$ Dom.domEvent Dom.Click e)
+
+
