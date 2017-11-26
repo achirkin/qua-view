@@ -1,5 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -19,7 +18,7 @@ module Program.Scenario.Object
 import           Commons
 
 --import qualified Data.Map.Strict as Map
-import           Data.Maybe (isJust)
+import           Data.Maybe (isJust, maybeToList)
 import           Reflex
 import           Reflex.Dom.Widget.Animation (AnimationHandler)
 import qualified Reflex.Dom.Widget.Animation as Animation
@@ -71,8 +70,7 @@ colorObjectsOnSelection :: Reflex t
                         => Behavior t Scenario
                         -> Dynamic t (Maybe ObjectId)
                         -> QuaViewM t ()
-colorObjectsOnSelection scB selObjD = do
-
+colorObjectsOnSelection scB selObjD =
     registerEvent (SmallGLInput SmallGL.SetObjectColor) . nonEmptyOnly
        $ ( \scenario oldOId newOId ->
              do
@@ -86,9 +84,8 @@ colorObjectsOnSelection scB selObjD = do
                      , selectedColor scenario $ obj^.Object.objectBehavior  )
          )
       <$> scB <*> current selObjD <@> updated selObjD
-
   where
-    getObj scenario moid = maybe [] (:[]) $ moid >>= \i -> scenario ^. Scenario.objects . at i
+    getObj scenario moid = maybeToList $ moid >>= \i -> scenario ^. Scenario.objects . at i
     selectedColor sc Object.Dynamic = sc^.Scenario.selectedDynamicColor.colorVeci
     selectedColor sc Object.Static  = sc^.Scenario.selectedStaticColor.colorVeci
 
@@ -126,7 +123,9 @@ moveSelectedObjects aHandler renderingApi cameraB scenarioB selObjIdD = do
     -- if the object is pointerDown'ed
     downsE <- performEvent $ getClicked renderingApi
                           <$> Animation.curPointersB aHandler
-                          <@ select (Animation.pointerEvents aHandler) PDownEvent
+                          <@ gate -- track pointer-downs only when an object is selected and dynamic
+                            ((\mo -> mo ^? _Just . Object.objectBehavior == Just Object.Dynamic) <$> selectedObjB)
+                            (select (Animation.pointerEvents aHandler) PDownEvent)
 
     -- We lock camera movemement and activate object transform when a pointer is down on a selected
     -- object. If there are more than one pointer, we reset object motion every up or down event
@@ -168,7 +167,7 @@ moveSelectedObjects aHandler renderingApi cameraB scenarioB selObjIdD = do
     let transformE = gate (current camLockedD)
                    $ objectTransformEvents aHandler cameraB centerPosB
 
-    transformB <- hold eye $ transformE
+    transformB <- hold eye transformE
 
 
     -- Every time camera UNLOCKED event happens, or LOCKED->LOCKED event happens,

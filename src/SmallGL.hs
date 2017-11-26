@@ -85,10 +85,14 @@ data RenderingProgram = RenderingProgram
   , uProjLoc    :: !WebGLUniformLocation
   , uViewLoc    :: !WebGLUniformLocation
   , uCustomLoc3 :: WebGLUniformLocation
+  , uCustomLoc4 :: WebGLUniformLocation
   }
 
 uSunDirLoc :: RenderingProgram -> WebGLUniformLocation
 uSunDirLoc = uCustomLoc3
+
+uClippingDist :: RenderingProgram -> WebGLUniformLocation
+uClippingDist = uCustomLoc4
 
 data SelectorObject = SelectorObject
   { selFrameBuf  :: !WebGLFramebuffer
@@ -149,6 +153,7 @@ createRenderingEngine canvasElem = do
         let uProjLoc = unifLoc shader "uProjM"
             uViewLoc = unifLoc shader "uViewM"
             uCustomLoc3 = unifLoc shader "uSunDir"
+            uCustomLoc4 = unifLoc shader "uClippingDist"
         return RenderingProgram {..}
     selProgram <- liftIO $ do
         shader <- initShaders gl [(gl_VERTEX_SHADER, vertexSelShaderText)
@@ -160,6 +165,7 @@ createRenderingEngine canvasElem = do
         let uProjLoc = unifLoc shader "uProjM"
             uViewLoc = unifLoc shader "uViewM"
             uCustomLoc3 = error "Selector shader does not have third uniform location."
+            uCustomLoc4 = error "Selector shader does not have fourth uniform location."
         return RenderingProgram {..}
     selectorObj <- liftIO $ do
       selFrameBuf <- initSelectorFramebuffer gl vpSize
@@ -245,6 +251,15 @@ createRenderingEngine canvasElem = do
     return rApi
 
 
+projMToClippingDist :: ProjMatrix -> Scf
+projMToClippingDist (ProjM m) = f
+  where
+    a = 3:!3:!Z !. m
+    b = 3:!4:!Z !. m
+    f = b / (a + 1)
+    -- n = b / (a - 1)
+
+
 resetCells :: RenderingEngine -> IO RenderingEngine
 resetCells  re@RenderingEngine {..} = do
   deleteRenderingCell gl rCell
@@ -267,12 +282,14 @@ setupViewPort RenderingEngine {..} | RenderingProgram {..} <- viewProgram = do
     enable gl gl_DEPTH_TEST
     enable gl gl_BLEND
     blendFunc gl gl_ONE gl_ONE_MINUS_SRC_ALPHA
+    depthFunc gl gl_LEQUAL
     depthMask gl True
     depthRange gl 0 1
-    depthFunc gl gl_LEQUAL
     -- supply shader with uniform matrix
     uniformMatrix4fv gl uProjLoc False (getProjM uProjM)
     uniformMatrix4fv gl uViewLoc False (getViewM uViewM)
+    uniform4f gl (uSunDirLoc viewProgram) (-0.5) (-0.6) (-1) 0 -- sx sy sz
+    uniform1fv gl (uClippingDist viewProgram) (projMToClippingDist uProjM)
     uncurry (viewport gl 0 0) vpSize
 
 setupSelViewPort :: RenderingEngine -> IO ()
@@ -298,12 +315,6 @@ renderFunction _ re@RenderingEngine {..} | RenderingProgram {..} <- viewProgram 
     setupViewPort re
     -- clear viewport
     clear gl (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
-    -- supply shader with uniform matrix (don't need id as long as I have setupViewPort re above)
-    --uniformMatrix4fv gl uProjLoc False (getProjM uProjM)
-    --uniformMatrix4fv gl uViewLoc False (getViewM uViewM)
-    -- TODO provide a proper sun direction vector
-    -- let (sx,sy,sz,_) = unpackV4 $ getViewM uViewM %* vec4 (-0.5) (-0.6) (-1) 0
-    uniform4f gl (uSunDirLoc viewProgram) (-0.5) (-0.6) (-1) 0 -- sx sy sz
     -- draw objects
     renderCell gl rCell
 
@@ -444,41 +455,50 @@ rectangle
 
 
 
+-- | This variable is used to control how smooth is fading near the far clipping plane.
+--   such that object fades when squared distance goes from fadeConst - 1 to fadeConst.
+fadeConst :: Double
+fadeConst = 10
 
 fragmentShaderText :: JSString
 fragmentShaderText =
-  [jsstring|
-    precision mediump float;
-    varying vec4 vColor;
-    varying vec3 vDist;
-    void main(void) {
-      mediump float fade = clamp(3.0 - dot(vDist,vDist), 0.0, 1.0);
-      gl_FragColor = vColor * fade;
-    }
-  |]
+    [jsstring|
+      precision mediump float;
+      varying vec4 vColor;
+      varying vec3 vDist;
+      void main(void) {
+        mediump float fade = clamp(#{x} - dot(vDist,vDist), 0.0, 1.0);
+        gl_FragColor = vColor * fade;
+      }
+    |]
+  where
+   x = toJSString $ show fadeConst
 
 vertexShaderText :: JSString
 vertexShaderText =
-  [jsstring|
-    precision mediump float;
-    attribute vec4 aVertexPosition;
-    attribute vec4 aVertexNormal;
-    attribute vec4 aVertexColor;
-    uniform mat4 uViewM;
-    uniform mat4 uProjM;
-    uniform vec4 uSunDir;
-    varying vec4 vColor;
-    varying vec3 vDist;
-    void main(void) {
-      vec4 globalPos = uViewM * aVertexPosition;
-      gl_Position = uProjM * globalPos;
-      vDist = globalPos.xyz/(globalPos.w*1000.0);
-      vec4 tNormal = normalize(uViewM * aVertexNormal);
-      mediump float brightness = 0.7 + 0.3 * abs(dot(aVertexNormal,uSunDir)); // * sign(dot(tNormal,globalPos));
-      mediump float a = aVertexColor.w;
-      vColor = vec4(clamp(aVertexColor.xyz * brightness, vec3(0,0,0), vec3(a,a,a)), a);
-    }
-  |]
+    [jsstring|
+      precision mediump float;
+      attribute vec4 aVertexPosition;
+      attribute vec4 aVertexNormal;
+      attribute vec4 aVertexColor;
+      uniform mat4 uViewM;
+      uniform mat4 uProjM;
+      uniform vec4 uSunDir;
+      uniform float uClippingDist;
+      varying vec4 vColor;
+      varying vec3 vDist;
+      void main(void) {
+        vec4 globalPos = uViewM * aVertexPosition;
+        gl_Position = uProjM * globalPos;
+        vDist = globalPos.xyz/(globalPos.w*uClippingDist*#{x});
+        vec4 tNormal = normalize(uViewM * aVertexNormal);
+        mediump float brightness = 0.7 + 0.3 * abs(dot(aVertexNormal,uSunDir)); // * sign(dot(tNormal,globalPos));
+        mediump float a = aVertexColor.w;
+        vColor = vec4(clamp(aVertexColor.xyz * brightness, vec3(0,0,0), vec3(a,a,a)), a);
+      }
+    |]
+  where
+    x = toJSString . show $ 1 / sqrt fadeConst
 
 
 

@@ -80,7 +80,7 @@ relativeToOldPoint cam@Camera{oldState = os, newState = ns} = cam
 
 
 nearPlane :: Float -> Float
-nearPlane = (/1000)
+nearPlane = (/500)
 
 ----------------------------------------------------------------------------------------------
 -- Camera convertions ------------------------------------------------------------------------
