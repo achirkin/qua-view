@@ -341,8 +341,8 @@ instance ToJSON Geometry where
     toJSON (Polygons ((SomeIODataFrame sdf, holes) :| []))
         = objectValue $ object
             [ ("type", toJSON ("Polygon" :: JSString))
-            , ("coordinates", js_vecToJSArray3StrideNRings 8 3
-                                   (toJSON (0: map (8*) holes)) (unsafeCoerce sdf))
+            , ("coordinates", sdf `seq` js_vecToJSArray3StrideNRings 8 3
+                                          (toJSON (0: map (8*) holes)) (unsafeCoerce sdf))
             ]
     toJSON (Polygons (x:|xs))
         = objectValue $ object
@@ -352,7 +352,8 @@ instance ToJSON Geometry where
       where
         f :: (SomeIODataFrame Float '[N 4, N 2, XN 3], [Int]) -> Value
         f (SomeIODataFrame sdf, holes)
-           = js_vecToJSArray3StrideNRings 8 3 (toJSON (0: map (8*) holes)) (unsafeCoerce sdf)
+           = sdf `seq`
+              js_vecToJSArray3StrideNRings 8 3 (toJSON (0: map (8*) holes)) (unsafeCoerce sdf)
 
 
 
@@ -367,15 +368,15 @@ foreign import javascript unsafe
     js_vecToJSArray2Stride :: Int -> Int -> JSVal -> Value
 
 foreign import javascript unsafe
-    "var a = [], r, j, is = $3.concat([$4.length]);\
+    "var r, j, is = $3.concat([$4.length]); $r = [];\
     \ for(var i = 0; i < is.length - 1; i++){\
     \   r = []; j = is[i]-$1;\
     \   while(j < is[i+1] - $1){\
-    \     j+=$1; r.push(Array.prototype.slice.call($3, j, j + $2));\
+    \     j+=$1; r.push(Array.prototype.slice.call($4, j, j + $2));\
     \   }\
     \   r.push(r[0]);\
-    \   a.push(r);\
-    \ } $r = a;"
+    \   $r.push(r);\
+    \ }"
     js_vecToJSArray3StrideNRings :: Int -> Int -> Value -> JSVal -> Value
 
 
