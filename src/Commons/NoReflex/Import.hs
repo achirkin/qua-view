@@ -12,6 +12,7 @@ module Commons.NoReflex.Import
     , DMap, DSum (..)
       -- * Some commonly used types re-exported
     , Text, JSString, JSVal, Map
+    , module Data.JSString.Text
     , Nullable (..), nullableToMaybe, maybeToNullable
     , PFromJSVal (..), PToJSVal (..), ToJSVal (..), FromJSVal (..), ToJSString, toJSString
       -- * Other useful libraries
@@ -38,6 +39,7 @@ import Data.Map.Lazy (Map)
 import Data.Dependent.Map (DMap, DSum (..))
 import Data.JSString (JSString)
 import Data.Text (Text)
+import Data.JSString.Text
 import Data.Traversable (for)
 import GHCJS.Types (JSVal)
 import GHCJS.DOM.Types ( Nullable (..), nullableToMaybe, maybeToNullable, toJSString

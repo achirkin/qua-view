@@ -8,10 +8,13 @@ module Widgets.Modal.DownloadScenario
     ) where
 
 import Reflex.Dom
-import Text.Julius (julius)
+import Text.Julius (julius, rawJS)
+import Language.Haskell.TH
+import Control.Lens
 
 import Commons
-import Model.Scenario (Scenario) -- definition of scenario
+import Model.Scenario (Scenario)
+import qualified Model.Scenario as Scenario
 import Model.GeoJSON.Scenario () -- toJSON instance for Scenario
 import JavaScript.JSON.Types.Instances (toJSON)
 import Widgets.Commons
@@ -25,13 +28,14 @@ popupDownloadScenario :: Reflex t
                       -> Event t (ElementClick downloadScenarioButton)
                       -> QuaWidget t x ()
 popupDownloadScenario scB scContentPopupE
-  = void $ createSmallModalWithClicks' scContentPopupE Inactive $ downloadScenarioContent scB scContentPopupE
+  = void $ createSmallModalWithClicks' scContentPopupE Inactive
+         $ downloadScenarioContent scB scContentPopupE
 
 
 downloadScenarioContent :: Reflex t
                         => Behavior t Scenario
                         -> Event t (ElementClick downloadScenarioButton)
-                        -> QuaWidget t x (Event t (ElementClick "cancel submit proposal"))
+                        -> QuaWidget t x (Event t (ElementClick "Close Submit Proposal Modal"))
 downloadScenarioContent scB scContentPopupE = do
     runCode
     -- save scenario into globally defined url every time this event happens
@@ -40,32 +44,47 @@ downloadScenarioContent scB scContentPopupE = do
 
     elClass "div" "modal-heading" $
       elClass "p" "modal-title" $ text "Download scenario geometry"
-    fileNameEl <- elClass "div" "modal-inner" $
+    _ <- elClass "div" "modal-inner" $
       elClass "div" "form-group form-group-label" $ do
-        -- TODO: Add more things here
-        elAttr "label" (("class" =: "floating-label") <> ("for" =: "download-scgeom-name-input"))
+        elAttr "label" (("class" =: "floating-label") <> ("for" =: nameFieldId))
           $ text "File name"
         textInput
-          $ def & attributes .~ constDyn (("class" =: "form-control") <> ("id" =: "download-scgeom-name-input"))
+          $ def & attributes .~ constDyn (("class" =: "form-control") <> ("id" =: nameFieldId))
+                & setValue .~ (view (Scenario.name.non "".to textFromJSString)
+                               <$> scB <@ scContentPopupE)
     elClass "div" "modal-footer" $
       elClass "p" "text-right" $ do
         ce <- buttonFlat "Close" def
-        se <- buttonFlat "Download" ("id" =: "q$ScenarioContentLink")
-        return ce
+        se <- buttonFlat "Download" $ "onclick" =: "document['q$downloadScenarioContentUrl']();"
+        return $ leftmost [ce, se]
   where
-    runCode = $(qjs
-        [julius|
-            var q$ScenarioContentUrl = null;
-            document.q$makeScenarioContentUrl = function(txt) {
-                if (q$ScenarioContentUrl !== null) {
-                  window['URL']['revokeObjectURL'](q$ScenarioContentUrl);
-                }
-                q$ScenarioContentUrl
-                   = window['URL']['createObjectURL'](new Blob([txt], {type: 'application/json'}));
-                document['getElementById']('q$ScenarioContentLink').href = q$ScenarioContentUrl;
-            };
-        |])
+    (runCode, nameFieldId) = $(do
+          nameFId <- newVar
+          scenarioContentUrl <- newVar
+          exportVars <- returnVars [nameFId]
+          let scurl = rawJS scenarioContentUrl
+          runCode' <- qjs
+            [julius|
+                var #{scurl} = null;
+                document['q$makeScenarioContentUrl'] = function(txt) {
+                    if (#{scurl} !== null) {
+                      window.URL.revokeObjectURL(#{scurl});
+                    }
+                    #{scurl} = window.URL.createObjectURL
+                        (new Blob([txt], {type: 'application/json;charset=utf-8'}));
+                };
+                document['q$downloadScenarioContentUrl'] = function() {
+                    var a = document.createElement("a");
+                    a.href = #{scurl};
+                    a.download = document.getElementById('#{rawJS nameFId}')['value'] + ".scenario";
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                };
+            |]
+          return $ ConE (tupleDataName 2) `AppE` runCode' `AppE` exportVars
+       )
 
 
-foreign import javascript "document.q$makeScenarioContentUrl($1);"
+foreign import javascript "document['q$makeScenarioContentUrl']($1);"
   js_makeScenarioContentUrl :: JSString -> IO ()
