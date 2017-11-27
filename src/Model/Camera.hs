@@ -9,7 +9,7 @@ module Model.Camera
     , initCamera
     , scroll, dragHorizontal, dragVertical, rotateCentered, twoFingerControl
     , dragObject, rotateObject, twoFingerObject
-    , makeProjM
+    , makeProjM, defaultCState
     ) where
 
 import           Data.Fixed                  (mod')
@@ -47,6 +47,14 @@ data CState = CState {
         viewAngles    :: !(Float, Float),
         viewDist      :: !Float
     } deriving Show
+
+
+defaultCState :: CState
+defaultCState = CState
+  { viewPoint  = vec3 (-2) 3 0
+  , viewAngles = (2.745, 0.995)
+  , viewDist = 668
+  }
 
 -- | Create camera
 initCamera :: Float -- ^ width of the viewport

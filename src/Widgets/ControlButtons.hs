@@ -21,6 +21,7 @@ import Reflex.Dynamic
 import Text.Julius (julius)
 
 import Commons
+import SmallGL (RenderingApi)
 import QuaTypes
 import Model.Scenario (Scenario)
 import Widgets.Generation
@@ -32,9 +33,10 @@ import Widgets.Modal.SubmitProposal
 -- | Control button group is a column of colourfull buttons in the bottom-right corner of the screen.
 --   It defines the most useful functions of qua-kit.
 controlButtonGroup :: Reflex t
-                   => Behavior t Scenario
+                   => RenderingApi
+                   -> Behavior t Scenario
                    -> QuaWidget t x ( Dynamic t (ComponentState "ControlPanel"))
-controlButtonGroup scenarioB = mdo
+controlButtonGroup rApi scenarioB = mdo
     (toggleGroupD, cpStateD) <-
         Dom.elDynClass "div" (toPanelClass <$> cpStateD) $
           Dom.elDynClass "div" toggleGroupD $ do
@@ -49,7 +51,7 @@ controlButtonGroup scenarioB = mdo
                 toggleFullScreenButton
                 groupContents' <- controlPanelButton
                 _serviceStateD <- serviceButtons $ constDyn Inactive -- TODO: For running service
-                _ <- submitProposalButton -- TODO: Submit proposal
+                _ <- submitProposalButton rApi scenarioB
                 return groupContents'
             return (toggleGroupD', groupContents)
     return cpStateD
@@ -263,8 +265,10 @@ shareButton = do
         |])
   popupShare (ElementClick <$ Dom.domEvent Dom.Click e) link
 
-submitProposalButton :: Reflex t => QuaWidget t x ()
-submitProposalButton = do
+submitProposalButton :: Reflex t
+                     => RenderingApi
+                     -> Behavior t Scenario -> QuaWidget t x ()
+submitProposalButton rApi scenarioB = do
     e <- makeElementFromHtml def $(qhtml
           [hamlet|
             <a .fbtn .waves-attach .waves-circle .waves-effect .fbtn-brand>
@@ -273,7 +277,7 @@ submitProposalButton = do
               <span .icon .icon-lg>
                 save
           |])
-    popupSubmitProposal (ElementClick <$ Dom.domEvent Dom.Click e)
+    popupSubmitProposal rApi scenarioB (ElementClick <$ Dom.domEvent Dom.Click e)
 
 
 downloadScenarioButton :: Reflex t => Behavior t Scenario -> QuaWidget t x ()
