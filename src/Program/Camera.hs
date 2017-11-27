@@ -18,13 +18,6 @@ import           Model.Camera
 
 
 
-defaultCState :: CState
-defaultCState = CState
-  { viewPoint  = vec3 (-2) 3 0
-  , viewAngles = (2.745, 0.995)
-  , viewDist = 668
-  }
-
 
 -- | Reflex camera's behavior
 dynamicCamera :: Reflex t

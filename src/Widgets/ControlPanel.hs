@@ -13,6 +13,8 @@ module Widgets.ControlPanel
 import qualified Reflex.Dom as Dom
 
 import Commons
+import Model.Scenario (Scenario)
+import SmallGL (RenderingApi)
 import Widgets.Generation
 import Widgets.ControlButtons
 import Widgets.UserMessages
@@ -21,14 +23,14 @@ import Widgets.Tabs.Geometry
 import Widgets.Tabs.Info
 import Widgets.Tabs.Reviews
 import Widgets.Tabs.Services
-import Model.Scenario (Scenario)
 
 
 -- | Control panel widget is a place for all controls in qua-view!
 controlPanel :: Reflex t
-             => Behavior t Scenario
+             => RenderingApi
+             -> Behavior t Scenario
              -> QuaWidget t x (Dynamic t (ComponentState "ControlPanel"))
-controlPanel scenarioB = mdo
+controlPanel renderingApi scenarioB = mdo
     stateD <- Dom.elDynClass "div" (toClass <$> stateD) $ mdo
 
       -- tab pane
@@ -45,7 +47,7 @@ controlPanel scenarioB = mdo
       userMessageWidget >>= replaceUserMessageCallback
 
       -- GUI control buttons
-      controlButtonGroup scenarioB
+      controlButtonGroup renderingApi scenarioB
 
     return stateD
   where

@@ -29,7 +29,7 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module SmallGL
     ( ProjMatrix (..), ViewMatrix (..)
-    , RenderingApi (addRObject, getHoveredSelId, render)
+    , RenderingApi (addRObject, getHoveredSelId, render, renderToImage)
     , QEventTag (..)
     , createRenderingEngine
     ) where
@@ -57,6 +57,7 @@ import Numeric.DataFrame
 import Numeric.DataFrame.IO
 import qualified Numeric.Matrix as M
 import Numeric.Dimensions
+import Numeric.TypeLits
 
 
 import Commons
@@ -64,6 +65,7 @@ import SmallGL.Types
 import SmallGL.Shader
 
 import SmallGL.RenderingCell
+import SmallGL.SelectorObject
 
 data RenderingEngine = RenderingEngine
   { gl          :: !WebGLRenderingContext
@@ -94,12 +96,6 @@ uSunDirLoc = uCustomLoc3
 uClippingDist :: RenderingProgram -> WebGLUniformLocation
 uClippingDist = uCustomLoc4
 
-data SelectorObject = SelectorObject
-  { selFrameBuf  :: !WebGLFramebuffer
-  , selUbyteView :: !(IODataFrame GLubyte '[4])
-  , selUintView  :: !(IODataFrame GLuint '[])
-  }
-
 -- | Exposed functionality of
 data RenderingApi = RenderingApi
   { render          :: AnimationTime -> IO ()
@@ -109,6 +105,8 @@ data RenderingApi = RenderingApi
   , transformObject :: [(RenderedObjectId, Mat44f)] -> IO ()
   , resetGeomCache  :: IO ()
   , reset           :: IO ()
+  , renderToImage   :: (GLsizei, GLsizei) -> ProjMatrix -> ViewMatrix -> IO JSString
+    -- ^ Render scene to image of given size
   }
 
 
@@ -128,6 +126,7 @@ data instance QEventTag SmallGLInput a where
     PersistGeomTransforms :: QEventTag SmallGLInput [(RenderedObjectId, Mat44f)]
     -- | Clean up all viewed geometry, empty all buffers, release resource
     ResetGL               :: QEventTag SmallGLInput ()
+
 
 deriveEvent ''SmallGLInput
 
@@ -167,12 +166,7 @@ createRenderingEngine canvasElem = do
             uCustomLoc3 = error "Selector shader does not have third uniform location."
             uCustomLoc4 = error "Selector shader does not have fourth uniform location."
         return RenderingProgram {..}
-    selectorObj <- liftIO $ do
-      selFrameBuf <- initSelectorFramebuffer gl vpSize
-      selUbyteView <- newDataFrame
-      selUintView <- arrayBuffer selUbyteView >>= viewWord32Array @'[] >>=
-          \(SomeIODataFrame d) -> return (unsafeCoerce d)
-      return SelectorObject {..}
+    selectorObj <- liftIO $ initSelectorObject gl vpSize
 
     -- create objects (including sending data to device)
     rCell <- fmap snd . liftIO . (initRenderingCell gl >>=) . runStateT $ do
@@ -212,11 +206,12 @@ createRenderingEngine canvasElem = do
     let rApi = RenderingApi
             { render = withMVar rre . renderFunction
             , addRObject = modifyMVar rre . addRObjectFunction
-            , getHoveredSelId = withMVar rre . getSelection
+            , getHoveredSelId = modifyMVar rre . getSelection
             , setObjectColor = withMVar rre . setObjectColor'
             , transformObject = modifyMVar_ rre . transformObject'
             , resetGeomCache = modifyMVar_ rre $ \r -> pure r{geomCache = mempty}
             , reset = modifyMVar_ rre resetCells
+            , renderToImage = \s p -> withMVar rre . renderToImage' s p
             }
 
     -- React on all SmallGL input events
@@ -319,21 +314,6 @@ renderFunction _ re@RenderingEngine {..} | RenderingProgram {..} <- viewProgram 
     renderCell gl rCell
 
 
---renderSelFunction :: RenderingEngine -> AnimationTime -> IO ()
---renderSelFunction re@RenderingEngine {..} _ | RenderingProgram {..} <- selProgram
---                                            , SelectorObject {..} <- selectorObj = do
---    bindFramebuffer gl gl_FRAMEBUFFER $ Just selFrameBuf
---    -- TODO probably this is too much of overhead
---    setupSelViewPort re
---    -- clear viewport
---    clear gl (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
---    -- supply shader with uniform matrix (don't need id as long as I have setupViewPort re above)
---    --uniformMatrix4fv gl uProjLoc False (getProjM uProjM)
---    --uniformMatrix4fv gl uViewLoc False (getViewM uViewM)
---    -- draw objects
---    renderCellSelectors gl rCell
---    bindFramebuffer gl gl_FRAMEBUFFER Nothing
-
 
 addRObjectFunction :: ObjRenderingData ModeColored
                    -> RenderingEngine
@@ -342,23 +322,8 @@ addRObjectFunction cd re = do
     (roId, rc') <- addRenderedObject (gl re) cd (rCell re)
     return (re { rCell = rc'}, roId)
 
-initSelectorFramebuffer :: WebGLRenderingContext -> (GLsizei, GLsizei) -> IO WebGLFramebuffer
-initSelectorFramebuffer gl (width,height) = do
-    fb <- createFramebuffer gl
-    bindFramebuffer gl gl_FRAMEBUFFER $ Just fb
-    tex <- createTexture gl
-    bindTexture gl gl_TEXTURE_2D $ Just tex
-    texImage2D gl gl_TEXTURE_2D 0 gl_RGBA width height 0 gl_RGBA gl_UNSIGNED_BYTE Nothing
-    setTexParameters gl
-    framebufferTexture2D gl gl_FRAMEBUFFER gl_COLOR_ATTACHMENT0 gl_TEXTURE_2D tex 0
-    bindTexture gl gl_TEXTURE_2D Nothing
-    rbd <- createRenderbuffer gl
-    bindRenderbuffer gl gl_RENDERBUFFER $ Just rbd
-    renderbufferStorage gl gl_RENDERBUFFER gl_DEPTH_COMPONENT16 width height
-    framebufferRenderbuffer gl gl_FRAMEBUFFER gl_DEPTH_ATTACHMENT gl_RENDERBUFFER rbd
-    bindRenderbuffer gl gl_RENDERBUFFER Nothing
-    bindFramebuffer gl gl_FRAMEBUFFER Nothing
-    return fb
+
+
 
 setObjectColor' :: [(RenderedObjectId, Vector GLubyte 4)] -> RenderingEngine -> IO ()
 setObjectColor' ((roId, c):xs) re@RenderingEngine {..}
@@ -380,47 +345,9 @@ transformObject' ((roId@(RenderedObjectId i), m):xs) re@RenderingEngine {..}
 transformObject' [] re = pure re
 
 
-
-
---initTexture :: WebGLRenderingContext -> Either TexImageSource (TypedArray GLubyte, (GLsizei, GLsizei)) -> IO WebGLTexture
---initTexture gl texdata = do
---    tex <- createTexture gl
---    bindTexture gl gl_TEXTURE_2D tex
---    case texdata of
---        Left img -> do
---            pixelStorei gl gl_UNPACK_FLIP_Y_WEBGL 1
---            texImage2DImg gl gl_TEXTURE_2D 0 gl_RGBA gl_RGBA gl_UNSIGNED_BYTE img
---        Right (arr, (w,h)) -> do
---            pixelStorei gl gl_UNPACK_FLIP_Y_WEBGL 0
---            texImage2D gl gl_TEXTURE_2D 0 gl_RGBA w h 0 gl_RGBA gl_UNSIGNED_BYTE (Just arr)
---    setTexParameters gl
---    bindTexture gl gl_TEXTURE_2D nullRef
---    return tex
-
-setTexParameters :: WebGLRenderingContext -> IO ()
-setTexParameters gl = do
-    texParameteri gl gl_TEXTURE_2D gl_TEXTURE_WRAP_S $ fromIntegral gl_CLAMP_TO_EDGE
-    texParameteri gl gl_TEXTURE_2D gl_TEXTURE_WRAP_T $ fromIntegral gl_CLAMP_TO_EDGE
-    texParameteri gl gl_TEXTURE_2D gl_TEXTURE_MAG_FILTER $ fromIntegral gl_NEAREST
-    texParameteri gl gl_TEXTURE_2D gl_TEXTURE_MIN_FILTER $ fromIntegral gl_NEAREST
-
---updateTexture :: WebGLRenderingContext
---              -> Either TexImageSource (TypedArray GLubyte, (GLsizei, GLsizei))
---              -> WebGLTexture
---              -> IO ()
---updateTexture gl texdata tex = do
---    bindTexture gl gl_TEXTURE_2D tex
---    case texdata of
---        Left img -> do
---            pixelStorei gl gl_UNPACK_FLIP_Y_WEBGL 1
---            texImage2DImg gl gl_TEXTURE_2D 0 gl_RGBA gl_RGBA gl_UNSIGNED_BYTE img
---        Right (arr, (w,h)) -> do
---            pixelStorei gl gl_UNPACK_FLIP_Y_WEBGL 0
---            texImage2D gl gl_TEXTURE_2D 0 gl_RGBA w h 0 gl_RGBA gl_UNSIGNED_BYTE (Just arr)
---    bindTexture gl gl_TEXTURE_2D nullRef
-
-getSelection :: (GLint, GLint) -> RenderingEngine -> IO GLuint
-getSelection (x, y) re@RenderingEngine {..} | SelectorObject {..} <- selectorObj = do
+getSelection :: (GLint, GLint) -> RenderingEngine -> IO (RenderingEngine, GLuint)
+getSelection (x, y) re@RenderingEngine {..} = do
+    so@SelectorObject {..} <- updateSelectorSizeIfNeeded gl vpSize selectorObj
     bindFramebuffer gl gl_FRAMEBUFFER $ Just selFrameBuf
     setupSelViewPort re
     -- clear viewport
@@ -429,9 +356,101 @@ getSelection (x, y) re@RenderingEngine {..} | SelectorObject {..} <- selectorObj
     renderCellSelectors gl rCell
     readPixels gl x (fromIntegral h - y) 1 1 gl_RGBA gl_UNSIGNED_BYTE selUbyteView
     bindFramebuffer gl gl_FRAMEBUFFER Nothing
-    unScalar <$> unsafeFreezeDataFrame selUintView
+    (,) re{selectorObj = so} . unScalar <$> unsafeFreezeDataFrame selUintView
   where
     (_,h) = vpSize
+
+
+
+
+
+
+renderToImage' :: (GLsizei, GLsizei) -> ProjMatrix -> ViewMatrix
+               -> RenderingEngine -> IO JSString
+renderToImage' (width,height) projMat viewMat RenderingEngine {..}
+      | RenderingProgram {..} <- viewProgram
+      , Just (SomeIntNat (Proxy :: Proxy width)) <- someIntNatVal $ fromIntegral width
+      , Just (SomeIntNat (Proxy :: Proxy height)) <- someIntNatVal $ fromIntegral height
+      = do
+    -- create buffer to render stuff into it
+    fb <- createFramebuffer gl
+    bindFramebuffer gl gl_FRAMEBUFFER $ Just fb
+    tex <- createTexture gl
+    bindTexture gl gl_TEXTURE_2D $ Just tex
+    texImage2D gl gl_TEXTURE_2D 0 gl_RGBA width height 0 gl_RGBA gl_UNSIGNED_BYTE Nothing
+    setTexParameters gl
+    framebufferTexture2D gl gl_FRAMEBUFFER gl_COLOR_ATTACHMENT0 gl_TEXTURE_2D tex 0
+    bindTexture gl gl_TEXTURE_2D Nothing
+    rbd <- createRenderbuffer gl
+    bindRenderbuffer gl gl_RENDERBUFFER $ Just rbd
+    renderbufferStorage gl gl_RENDERBUFFER gl_DEPTH_COMPONENT16 width height
+    framebufferRenderbuffer gl gl_FRAMEBUFFER gl_DEPTH_ATTACHMENT gl_RENDERBUFFER rbd
+    bindRenderbuffer gl gl_RENDERBUFFER Nothing
+
+
+    -- setup rendering context
+    useProgram gl $ programId shader
+    enableCoordsNormalsBuf gl
+    enableColorsBuf gl
+    -- setup WebGL
+    clearColor gl 0 0 0 0
+    enable gl gl_DEPTH_TEST
+    enable gl gl_BLEND
+    blendFunc gl gl_ONE gl_ONE_MINUS_SRC_ALPHA
+    depthFunc gl gl_LEQUAL
+    depthMask gl True
+    depthRange gl 0 1
+    -- supply shader with uniform matrix
+    uniformMatrix4fv gl uProjLoc False (invertedY $ getProjM projMat)
+    uniformMatrix4fv gl uViewLoc False (getViewM viewMat)
+    uniform4f gl (uSunDirLoc viewProgram) (-0.5) (-0.6) (-1) 0 -- sx sy sz
+    uniform1fv gl (uClippingDist viewProgram) (projMToClippingDist projMat)
+    viewport gl 0 0 width height
+
+    -- clear viewport
+    clear gl (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
+
+    -- draw objects
+    renderCell gl rCell
+
+    -- get texture content
+    imgData <- newDataFrame :: IO (IODataFrame GLubyte '[4,width,height])
+    readPixels gl 0 0 width height gl_RGBA gl_UNSIGNED_BYTE imgData
+    imgjsval <- js_dfToImageData width height imgData
+
+    -- release all context
+    bindFramebuffer gl gl_FRAMEBUFFER Nothing
+    deleteRenderbuffer gl rbd
+    deleteTexture gl tex
+    deleteFramebuffer gl fb
+    return imgjsval
+  where
+    invertedY :: Mat44f -> Mat44f
+    invertedY m = update (2:!2:!Z) (negate $ 2:!2:!Z !. m :: Scf)
+                $ update (2:!4:!Z) (negate $ 2:!4:!Z !. m :: Scf) m
+renderToImage' _ _ _ _ = (newDataFrame :: IO (IODataFrame GLubyte '[4,1,1]))
+                     >>= js_dfToImageData 1 1
+
+
+
+
+foreign import javascript unsafe
+    "var canvas = document.createElement('canvas');\
+    \canvas.width = $1;\
+    \canvas.height = $2;\
+    \var context = canvas.getContext('2d');\
+    \var imageData = context.createImageData($1, $2);\
+    \imageData.data.set($3);\
+    \context.putImageData(imageData, 0, 0);\
+    \$r = canvas.toDataURL();"
+    js_dfToImageData :: GLsizei -- ^ width
+                     -> GLsizei -- ^ height
+                     -> IODataFrame GLubyte '[4, w, h] -- ^ image data
+                     -> IO JSString -- ^ image url
+
+
+
+
 
 
 ----------------------------------------------------------------------------------------------------
