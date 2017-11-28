@@ -190,7 +190,7 @@ guessQuaSettings = do
     loggingUrl = Nothing
     luciUrl = Nothing
     getSubmissionGeometryUrl = Nothing
-    postSubmissionUrl = Nothing
+    putSubmissionUrl = Nothing
     reviewSettingsUrl = Nothing
 
 foreign import javascript unsafe
