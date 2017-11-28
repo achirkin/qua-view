@@ -9,8 +9,104 @@ Compiled application currently is available on http://qua-kit.ethz.ch/
 
 Supports mouse and finger control. Works best on chrome (desktop or mobile), but most other browsers working too.
 
+## Qua-kit scenario representation
 
-## Developer setup
+We gradually add new functionality to qua-kit visualization.
+As a consequence, some of the features are not representable via standard GeoJSON. To overcome this problem, we have extended the format we use to import GeoJSON objects.
+Though, the changes do not affect normal GeoJSON files.
+The extended format adds one more layer of JSON to GeoJSON feature collections.
+Here is a current example structure of a scenario file:
+```yaml
+[root]
+  - name # [String] name of the scenario
+  - lon  # [Number] longitude of the scenario center in degrees
+  - lat  # [Number] latitude of the scenario center in degrees
+  - alt  # [Number] altitude of the scenario center in meters (default is 0 if omitted)
+  - srid # [Int]   (e.g. 4326 in case of WGS'84) - georeference system id
+  - geometry:
+      [Feature Collection Object] # content of scenario
+  - properties: # key-value collection of scenario-wise properties
+                # look at Model.Scenario module for these properties
+      - defaultObjectHeight  # [Number] default building height in meters (default: 3.5)
+      - selectedDynamicColor # [#RRGGBB] set visualization colors (default: "#FF9999FF")
+      - selectedGroupColor   # [#RRGGBB] set visualization colors (default: "#EE8888FF")
+      - selectedStaticColor  # [#RRGGBB] set visualization colors (default: "#BB8888FF")
+      - defaultStaticColor   # [#RRGGBB] set visualization colors (default: "#808088FF")
+      - defaultBlockColor    # [#RRGGBB] set visualization colors (default: "#C0C082FF")
+      - defaultLineColor     # [#RRGGBB] set visualization colors (default: "#CC6666FF")
+      - defaultPointColor    # [#RRGGBB] set visualization colors (default: "#006666FF")
+      - viewDistance         # [Number] distance in meters where objects fade in white (default: 2000)
+      - mapZoomLevel         # [Int] tile server zoom level, typically something like 13-17 (default: 15)
+      - useMapLayer          # [Bool] whether to use map or not (default: false)
+      - mapUrl               # [String] url pattern, like "http://a.tile.stamen.com/toner/${z}/${x}/${y}.png"
+                             # look at http://wiki.openstreetmap.org/wiki/Tile_servers for more information
+                             # (default: "https://a.tile.openstreetmap.org/${z}/${x}/${y}.png")
+      - hiddenProperties     # [[String]] list of object property names to not show in the viewer
+      - evaluationCellSize   # [Number] used for rendering service result - resolution of heatmaps
+```
+Special object properties:
+```yaml
+[Feature]
+  - type: "Feature"
+  - geometry: {..}     # GeoJSON Geometry object (any object except GeometryCollection)
+  - properties: # key-value collection of object-specific properties
+                # look at Model.Scenario.Object module for these properties
+      - geomID         # [Int] luci-compatible id of an object
+      - height         # [Number] height of a building to be extruded if it is given in 2D
+      - viewColor      # [#RRGGBB] set the color of an object explicitly
+      - static         # [Bool] cannot move object if true (default: false)
+      - selectable     # [Bool] if we can click on object to select it (default: true; implies static: true)
+      - visible        # [Bool] if object is renderable at all (default: true; false implies non selectable and static)
+      - special        # [String] :: [SpecialObjectType] defines this object as a special control object
+ ```
+Special object types are used to control `qua-view` behavior. We use `special :: String` property of object to define a special object. Below is the list of possible values of `special` property and their meaning.
+
+  * `"camera"` means we define a default camera position in `qua-view` for this scenario.
+    * Must be at most one for a scenario.
+    * Geometry type must be a valid `"MultiPoint"`.
+    * Geometry must contain exactly two 3D points [camera position, look at point].
+    * Default property values:
+       ```yaml
+       - static: true
+       - selectable: false
+       - visible: false
+       ```
+    * Example:
+      ```json
+      { "type": "Feature"
+      , "geometry":
+        { "type": "MultiPoint"
+        , "coordinates": [[camera_x,camera_y,camera_z],[lookat_x,lookat_y,lookat_z]]
+        }
+      , "properties": { "special": "camera"}
+      }
+      ```
+  * `"forcedArea"` is a polygon specifying working area of the scenario; used e.g. by the luci services manager to determine the area to be evaluated.
+    * Must be at most one for a scenario.
+    * Geometry type must be a valid `"Polygon"`.
+    * Default property values:
+       ```yaml
+       - static: true
+       - selectable: false
+       - visible: true
+       - viewColor: "#FFFFFF99"
+       ```
+    * Example:
+      ```json
+      { "type": "Feature"
+      , "geometry":
+        { "type": "MultiPoint"
+        , "coordinates": [[[...]]]
+        }
+      , "properties": { "special": "forcedArea"}
+      }
+      ```
+
+
+
+## Development
+
+### Setup
 
 First, we need to install GHCJS. We install GHCJS via stack, but before that some dependencies need to be installed.
 Refer to [GHCJS documentation](https://github.com/ghcjs/ghcjs/tree/ghc-8.0) to check, which are needed.
@@ -86,7 +182,7 @@ stack install hoogle haddock-2.17.4 haddock-api-2.17.4
 stack exec hoogle -- server --port=8080 --local
 ```
 
-### Build the project
+### Build the project standalone
 
 Finally, you can generate the website into the `/web` directory:
 
