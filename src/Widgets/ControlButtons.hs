@@ -18,6 +18,7 @@ import Control.Monad (join)
 import qualified Reflex.Class as Reflex
 import qualified Reflex.Dom as Dom
 import Reflex.Dynamic
+import Reflex (ffor)
 import Text.Julius (julius)
 
 import Commons
@@ -265,19 +266,26 @@ shareButton = do
         |])
   popupShare (ElementClick <$ Dom.domEvent Dom.Click e) link
 
+
+-- | A button to submit scenario for an exercise (edX or workshop).
+--   It is visible iff postSubmissionUrl field of QuaSettings is not empty.
 submitProposalButton :: Reflex t
                      => RenderingApi
                      -> Behavior t Scenario -> QuaWidget t x ()
 submitProposalButton rApi scenarioB = do
-    e <- makeElementFromHtml def $(qhtml
-          [hamlet|
-            <a .fbtn .waves-attach .waves-circle .waves-effect .fbtn-brand>
-              <span .fbtn-text .fbtn-text-left>
-                Submit proposal
-              <span .icon .icon-lg>
-                save
-          |])
-    popupSubmitProposal rApi scenarioB (ElementClick <$ Dom.domEvent Dom.Click e)
+    submittionUrlD <- fmap putSubmissionUrl <$> quaSettings
+    void . Dom.dyn . ffor submittionUrlD $ \msubmissionUrl -> case msubmissionUrl of
+      Nothing -> pure ()
+      Just submissionUrl -> do
+        e <- makeElementFromHtml def $(qhtml
+              [hamlet|
+                <a .fbtn .waves-attach .waves-circle .waves-effect .fbtn-brand>
+                  <span .fbtn-text .fbtn-text-left>
+                    Submit proposal
+                  <span .icon .icon-lg>
+                    save
+              |])
+        popupSubmitProposal rApi scenarioB (submissionUrl <$ Dom.domEvent Dom.Click e)
 
 
 downloadScenarioButton :: Reflex t => Behavior t Scenario -> QuaWidget t x ()

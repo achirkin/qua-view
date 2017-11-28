@@ -81,8 +81,6 @@ data UserRequest evArg where
     AskClearGeometry  :: UserRequest ()
     -- | User wants to reset camera to its default position.
     AskResetCamera    :: UserRequest ()
-    -- | User wants to submit exercise. TODO: Need to add image and geometry?
-    AskSubmitProposal :: UserRequest Text
 
 ----------------------------------------------------------------------------------------------------
 -- * Template Haskell
