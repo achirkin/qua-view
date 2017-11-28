@@ -36,12 +36,14 @@ userMessageWidget = do
     (consoleEl, ()) <- elAttr "div" ("id" =: consoleDivId) $
        elAttr' "div" ("id" =: consoleDivContentId) blank
     doc <- askDocument
-    void $ accumM @_ @(Event _)
+    evs <- accumM @_ @(Event _)
                   (\msgs (m, mgetCbks) -> do
                         msgs' <- updateMessageNodes (_element_raw consoleEl) msgs
                         m' <- createMessageNode doc (_element_raw consoleEl) m mgetCbks
                         return $ m' : msgs'
                   ) [] msgE
+    -- TODO: currently, I have to do this weird perform event to make sure accumM executes well.
+    performEvent_ $ flip seq (pure ()) <$> evs
     return $ UserMessageCallback (makeUMsgCallback msgCallback)
   where
 

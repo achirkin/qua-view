@@ -7,6 +7,7 @@ module Commons.Http
     ( httpGet
     , httpGetNow, httpGetNow'
     , httpGetNowOrOnUpdate
+    , httpPut
     , httpPost
     ) where
 
@@ -45,9 +46,22 @@ httpPost :: forall t a b m
           , Reflex t )
          => Event t (JSString, a) -> m (Event t (Either JSError b))
 httpPost event = do
-  (resultE, resultTrigger) <- newTriggerEvent
-  performEvent_ $ flip doHttp resultTrigger . uncurry postJsonReqConfig <$> event
+  (resultE, t) <- newTriggerEvent
+  performEvent_ $ flip doHttp t. uncurry postJsonReqConfig <$> event
   return resultE
+
+
+-- | HTTP PUT `ToJSON a` upon `Event a`
+httpPut :: forall t a b m
+        . ( ToJSON a, FromJSON b, TriggerEvent t m, PerformEvent t m
+          , HasJSContext (Performable m), MonadIO (Performable m)
+          , Reflex t )
+         => Event t (JSString, a) -> m (Event t (Either JSError b))
+httpPut event = do
+  (resultE, t) <- newTriggerEvent
+  performEvent_ $ flip doHttp t. uncurry putJsonReqConfig <$> event
+  return resultE
+
 
 -- | HTTP GET immediately
 httpGetNow :: forall t b m
@@ -85,7 +99,7 @@ doHttp :: forall a b m
 doHttp reqConfig cb = void $ newXMLHttpRequestWithError reqConfig cb'
    where
       cb' :: Either XhrException XhrResponse -> IO ()
-      cb' = (>>= cb) . parseResp . handleErr
+      cb' = handleErr >=> parseResp >=> cb
       parseResp =
         let parseJson (Just t) = parseJSONValue $ toJSString t
             parseJson Nothing  = return $ Left mempty
@@ -98,11 +112,21 @@ doHttp reqConfig cb = void $ newXMLHttpRequestWithError reqConfig cb'
         let status = fromIntegral $ _xhrResponse_status res
             fromMay (Just err) = textToJSString err
             fromMay Nothing    = toJSString $ show status
+            fromJSONMay x = case fromJSON x of
+              JSON.Success v -> v
+              JSON.Error  _ -> Nothing
         in  if status >= 200 && status < (300::Int)
-            then Right res
-            else Left $ JSError $ fromMay $ _xhrResponse_responseText res
-      handleErr (Left XhrException_Error)   = Left "XHR Error"
-      handleErr (Left XhrException_Aborted) = Left "XHR Aborted"
+            then pure $ Right res
+            else do
+              jserr <- maybe (pure $ Left "")
+                             (parseJSONValue . toJSString)
+                     $ _xhrResponse_responseText res
+              return $ case jserr of
+                Left _ -> Left . JSError . fromMay $ _xhrResponse_responseText res
+                Right v -> Left . JSError . fromMay $
+                   JSON.lookup ("message" :: JSString) v >>= fromJSONMay
+      handleErr (Left XhrException_Error)   = pure $ Left "XHR Error"
+      handleErr (Left XhrException_Aborted) = pure $ Left "XHR Aborted"
 
 getReqConfig :: JSString -> XhrRequest ()
 getReqConfig url = XhrRequest "GET" (textFromJSString url) def
@@ -116,4 +140,19 @@ postJsonReqConfig url payload =
                       , _xhrRequestConfig_sendData = body
                       }
   where headerUrlEnc = "Content-type" =: "application/json"
+                    <> "Accept" =: "application/json, text/plain;q=0.9, */*;q=0.8"
         body = encode $ toJSON payload
+
+
+-- | Create a "PUT" request from an URL and thing with a JSON representation
+--   based on Reflex.Dom.Xhr (postJson)
+putJsonReqConfig :: (ToJSON a) => JSString -> a -> XhrRequest JSString
+putJsonReqConfig url payload =
+  XhrRequest "PUT" (textFromJSString url) $ def {
+                        _xhrRequestConfig_headers  = headerUrlEnc
+                      , _xhrRequestConfig_sendData = body
+                      }
+  where headerUrlEnc = "Content-type" =: "application/json"
+                    <> "Accept" =: "application/json, text/plain;q=0.9, */*;q=0.8"
+        body = encode $ toJSON payload
+
