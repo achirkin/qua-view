@@ -52,16 +52,23 @@ Special object properties:
   - properties: # key-value collection of object-specific properties
                 # look at Model.Scenario.Object module for these properties
       - geomID         # [Int] luci-compatible id of an object
+                       # (assigned by qua-view if missing in a scenario file)
+                       # must be in a range [0x00000001 .. 0xFFFFFFFE] to work in qua-view properly.
+      - groupID        # [Int] An identifier grouping multiple objects to move together
       - height         # [Number] height of a building to be extruded if it is given in 2D
       - viewColor      # [#RRGGBB] set the color of an object explicitly
       - static         # [Bool] cannot move object if true (default: false)
-      - selectable     # [Bool] if we can click on object to select it (default: true; implies static: true)
-      - visible        # [Bool] if object is renderable at all (default: true; false implies non selectable and static)
+      - selectable     # [Bool] if we can click on object to select it
+                       # (default: true)
+                       # (selectable = false implies static = true)
+      - visible        # [Bool] if object is renderable at all
+                       # (default: true)
+                       # (visible = false implies selectable = false and static = true)
       - special        # [String] :: [SpecialObjectType] defines this object as a special control object
  ```
 Special object types are used to control `qua-view` behavior. We use `special :: String` property of object to define a special object. Below is the list of possible values of `special` property and their meaning.
 
-  * `"camera"` means we define a default camera position in `qua-view` for this scenario.
+  * `"special": "camera"` means we define a default camera position in `qua-view` for this scenario.
     * Must be at most one for a scenario.
     * Geometry type must be a valid `"MultiPoint"`.
     * Geometry must contain exactly two 3D points [camera position, look at point].
@@ -81,7 +88,7 @@ Special object types are used to control `qua-view` behavior. We use `special ::
       , "properties": { "special": "camera"}
       }
       ```
-  * `"forcedArea"` is a polygon specifying working area of the scenario; used e.g. by the luci services manager to determine the area to be evaluated.
+  * `""special": forcedArea"` is a polygon specifying working area of the scenario; used e.g. by the luci services manager to determine the area to be evaluated.
     * Must be at most one for a scenario.
     * Geometry type must be a valid `"Polygon"`.
     * Default property values:
@@ -101,7 +108,13 @@ Special object types are used to control `qua-view` behavior. We use `special ::
       , "properties": { "special": "forcedArea"}
       }
       ```
-
+  * `"special": "template"` states that an object can be used as a template to create new objects.
+    It appears on the geometry pane and allows to drag-&-drop it to a scene to create a copy.
+    * There may be any number of template objects
+    * A new (cloned object) retains all the properties of the template except `static`, `selectable`, and `visible`,
+      which are reset to their defaults.
+      This allows to hide a template object in a scene.
+    * If a template object is a part of a group, the whole group is considered to be a template.
 
 
 ## Development
