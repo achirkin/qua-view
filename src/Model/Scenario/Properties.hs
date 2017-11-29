@@ -9,6 +9,7 @@ module Model.Scenario.Properties
     , toPropValue, fromPropValue, propValue
     , property, propertyWithParsing
     , HexColor, colorVeci, colorVecf
+    , FromJSONOrString (..)
     ) where
 
 
@@ -90,10 +91,29 @@ instance FromJSONOrString Double where
         String s -> nullableToMaybe $ js_parseDouble s
         _ -> Nothing
 
+instance FromJSONOrString Int where
+    parseJSONOrString v = case match v of
+        Number x -> Just $ round x
+        String s -> nullableToMaybe $ js_parseInt s
+        _ -> Nothing
+
+instance FromJSONOrString Word where
+    parseJSONOrString v = case match v of
+        Number x -> Just $ round x
+        String s -> nullableToMaybe $ js_parseWord s
+        _ -> Nothing
+
 foreign import javascript unsafe
     "var a = parseFloat($1); $r = isNaN(a) ? null : a;"
     js_parseDouble :: JSString -> Nullable Double
 
+foreign import javascript unsafe
+    "var a = parseInt($1); $r = isNaN(a) ? null : Math.abs(a);"
+    js_parseWord :: JSString -> Nullable Word
+
+foreign import javascript unsafe
+    "var a = parseInt($1); $r = isNaN(a) ? null : a;"
+    js_parseInt :: JSString -> Nullable Int
 
 
 instance PFromJSVal Properties where

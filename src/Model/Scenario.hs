@@ -13,6 +13,9 @@ module Model.Scenario
     , defaultStaticColor
     , defaultBlockColor, defaultLineColor, defaultPointColor
     , defaultObjectHeight
+    , viewDistance, evaluationCellSize
+    , mapZoomLevel, useMapLayer, mapUrl
+    , hiddenProperties
     ) where
 
 
@@ -97,11 +100,46 @@ objIdSeq :: Functor f
 objIdSeq f s = (\x -> s{_objIdSeq = x}) <$> f (_objIdSeq s)
 
 
+instance Semigroup (Scenario' s) where
+  scOld <> scNew =  Scenario
+    {               -- trying to update scenario name if it has changed
+      _name       = _name scNew <|> _name scOld
+                    -- keeping GeoLocation from older version
+    , _geoLoc     = _geoLoc scOld <|> _geoLoc scNew
+                    -- prefer duplicate properties from a new version
+    , _properties = _properties scNew <> _properties scOld
+                    -- replace older objects with newer ones
+    , _objects    = _objects scNew <> _objects scOld
+                    -- get maximum of objId counters to make sure
+                    -- no objects could have the same object Id
+    , _objIdSeq   = max (_objIdSeq scOld) (_objIdSeq scNew)
+    }
+  stimes = stimesIdempotentMonoid
+
+instance Monoid (Scenario' s) where
+  mempty = Scenario
+    { _name       = Nothing
+    , _geoLoc     = Nothing
+    , _properties = mempty
+    , _objects    = mempty
+    , _objIdSeq   = Object.ObjectId 0
+    }
+  mappend = (<>)
+
+instance Default (Scenario' s) where
+  def = mempty
 
 
 
 
 -- * Special properties
+
+defaultObjectHeight :: Functor f
+                    => (Double -> f Double) -> Scenario' s -> f (Scenario' s)
+defaultObjectHeight f = properties $ property "defaultObjectHeight" g
+   where
+     g Nothing  = Just <$> f 3.5
+     g (Just c) = Just <$> f c
 
 selectedDynamicColor :: Functor f
                      => (HexColor -> f HexColor) -> Scenario' s -> f (Scenario' s)
@@ -152,41 +190,49 @@ defaultPointColor f = properties $ property "defaultPointColor" g
      g Nothing  = Just <$> f "#006666FF"
      g (Just c) = Just <$> f c
 
-
-defaultObjectHeight :: Functor f
-                    => (Double -> f Double) -> Scenario' s -> f (Scenario' s)
-defaultObjectHeight f = properties $ property "defaultObjectHeight" g
+viewDistance :: Functor f
+             => (Double -> f Double) -> Scenario' s -> f (Scenario' s)
+viewDistance f = properties $ property "viewDistance" g
    where
-     g Nothing  = Just <$> f 3.5
+     g Nothing  = Just <$> f 2000
+     g (Just c) = Just <$> f c
+
+mapZoomLevel :: Functor f
+             => (Int -> f Int) -> Scenario' s -> f (Scenario' s)
+mapZoomLevel f = properties $ property "mapZoomLevel" g
+   where
+     g Nothing  = Just <$> f 15
+     g (Just c) = Just <$> f c
+
+useMapLayer :: Functor f
+            => (Bool -> f Bool) -> Scenario' s -> f (Scenario' s)
+useMapLayer f = properties $ property "useMapLayer" g
+   where
+     g Nothing  = Just <$> f False
+     g (Just c) = Just <$> f c
+
+mapUrl :: Functor f
+       => (JSString -> f JSString) -> Scenario' s -> f (Scenario' s)
+mapUrl f = properties $ property "mapUrl" g
+   where
+     g Nothing  = Just <$> f "https://a.tile.openstreetmap.org/${z}/${x}/${y}.png"
+     g (Just c) = Just <$> f c
+
+hiddenProperties :: Functor f
+                 => ([JSString] -> f [JSString]) -> Scenario' s -> f (Scenario' s)
+hiddenProperties f = properties $ property "hiddenProperties" g
+   where
+     g Nothing  = Just <$> f [ "geomID", "groupID"
+                             , "hiddenProperties", "viewColor"
+                             , "height", "static", "selectable"
+                             , "visible", "special"]
+     g (Just c) = Just <$> f c
+
+evaluationCellSize :: Functor f
+                   => (Double -> f Double) -> Scenario' s -> f (Scenario' s)
+evaluationCellSize f = properties $ property "evaluationCellSize" g
+   where
+     g Nothing  = Just <$> f 5.0
      g (Just c) = Just <$> f c
 
 
-
-instance Semigroup (Scenario' s) where
-  scOld <> scNew =  Scenario
-    {               -- trying to update scenario name if it has changed
-      _name       = _name scNew <|> _name scOld
-                    -- keeping GeoLocation from older version
-    , _geoLoc     = _geoLoc scOld <|> _geoLoc scNew
-                    -- prefer duplicate properties from a new version
-    , _properties = _properties scNew <> _properties scOld
-                    -- replace older objects with newer ones
-    , _objects    = _objects scNew <> _objects scOld
-                    -- get maximum of objId counters to make sure
-                    -- no objects could have the same object Id
-    , _objIdSeq   = max (_objIdSeq scOld) (_objIdSeq scNew)
-    }
-  stimes = stimesIdempotentMonoid
-
-instance Monoid (Scenario' s) where
-  mempty = Scenario
-    { _name       = Nothing
-    , _geoLoc     = Nothing
-    , _properties = mempty
-    , _objects    = mempty
-    , _objIdSeq   = Object.ObjectId 0
-    }
-  mappend = (<>)
-
-instance Default (Scenario' s) where
-  def = mempty

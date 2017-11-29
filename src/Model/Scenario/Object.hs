@@ -12,16 +12,19 @@
 --   > import qualified Model.Scenario.Object as Object
 --
 module Model.Scenario.Object
-    ( Object, Object' (..), ObjectId (..), ObjectBehavior (..), Collection, Collection'
+    ( Object, Object' (..), ObjectId (..), GroupId (..), ObjectBehavior (..)
+    , Collection, Collection'
     , ObjectRenderable (..), ObjectRenderingData (..)
     , getTransferable, registerRender
     , renderingData, renderingId, center, geometry, properties
     , height, viewColor, objectBehavior
+    , geomID, groupID
+    , selectable, visible, special
     ) where
 
-
+import Control.Lens
 import qualified Data.Map.Strict as Map
-import JavaScript.JSON.Types.Instances (ToJSON, FromJSON)
+import JavaScript.JSON.Types.Instances (ToJSON (..), FromJSON (..))
 import JavaScript.WebGL (GLuint)
 import GHC.Generics
 import Numeric.DataFrame
@@ -37,6 +40,17 @@ import qualified Model.Scenario.Object.Geometry as Geometry
 --
 newtype ObjectId = ObjectId { _unObjectId :: GLuint }
   deriving (PToJSVal, ToJSVal, ToJSON, PFromJSVal, FromJSVal, FromJSON, Eq, Ord, Show)
+
+
+newtype GroupId = GroupId { _unGroupId :: GLuint }
+  deriving (PToJSVal, ToJSVal, ToJSON, PFromJSVal, FromJSVal, FromJSON, Eq, Ord, Show)
+
+instance FromJSONOrString ObjectId where
+    parseJSONOrString = fmap (ObjectId . (fromIntegral :: Word -> GLuint)). parseJSONOrString
+
+instance FromJSONOrString GroupId where
+    parseJSONOrString = fmap (GroupId . (fromIntegral :: Word -> GLuint)) . parseJSONOrString
+
 
 data ObjectRenderable
    = Renderable
@@ -82,7 +96,6 @@ data ObjectBehavior = Static | Dynamic deriving (Eq,Show)
 getTransferable :: Object' s -> IO Transferable
 getTransferable = Geometry.getTransferable . _geometry
 
-
 registerRender :: Functor f
                => (forall m . ObjRenderingData m -> f RenderedObjectId)
                -> Object' 'Prepared -> f (Object' 'Renderable)
@@ -100,44 +113,20 @@ renderingId :: Functor f
             -> Object' 'Renderable -> f (Object' 'Renderable)
 renderingId f s = (\x -> s{_renderingData = ORDR x}) <$> f (_renderingId $ _renderingData s)
 
-
 center :: Functor f
        => (Vec4f -> f Vec4f)
        -> Object' s -> f (Object' s)
 center f s = (\x -> s{_center = x}) <$> f (_center s)
-
 
 geometry :: Functor f
          => (Geometry -> f Geometry)
          -> Object' s -> f (Object' s)
 geometry f s = (\x -> s{_geometry = x}) <$> f (_geometry s)
 
-
 properties :: Functor f
            => (Properties -> f Properties)
            -> Object' s -> f (Object' s)
 properties f s = (\x -> s{_properties = x}) <$> f (_properties s)
-
-
--- * Special properties
-
-height :: Functor f => (Maybe Double -> f (Maybe Double)) -> Object' s -> f (Object' s)
-height = properties . propertyWithParsing "height"
-
-
-viewColor :: Functor f
-          => (Maybe HexColor -> f (Maybe HexColor)) -> Object' s -> f (Object' s)
-viewColor = properties . property "viewColor"
-
-objectBehavior :: Functor f
-               => (ObjectBehavior -> f ObjectBehavior) -> Object' s -> f (Object' s)
-objectBehavior f = properties $ propertyWithParsing "static" g
-  where
-    g (Just True) = Just . (Static ==) <$> f Static
-    g _           = Just . (Static ==) <$> f Dynamic
-
-
-
 
 -- | Alias for a map of objects
 type Collection' s = Map ObjectId (Object' s)
@@ -165,4 +154,91 @@ foreign import javascript unsafe
 foreign import javascript unsafe
   "$1.push([$2,$3]);"
   js_addKeyVal :: JSVal -> ObjectId -> JSVal -> IO ()
+
+
+-- * Special properties (with no scenario-based resolving)
+
+-- | Property "special" of objects; lets scenario customize qua-view presentation.
+data SpecialObject
+  = SpecialCamera
+  | SpecialForcedArea
+  | SpecialTemplate
+  deriving Eq
+
+instance Show SpecialObject where
+  show SpecialCamera     = "camera"
+  show SpecialForcedArea = "forcedArea"
+  show SpecialTemplate   = "template"
+
+instance FromJSON SpecialObject where
+  parseJSON v = parseJSON v >>= \s -> case (s :: JSString) of
+    "camera"     -> return SpecialCamera
+    "forcedArea" -> return SpecialForcedArea
+    "template"   -> return SpecialTemplate
+    _            -> fail $ "Unknown special object: " ++ show s
+
+instance ToJSON SpecialObject where
+  toJSON SpecialCamera     = toJSON ("camera" :: JSString)
+  toJSON SpecialForcedArea = toJSON ("forcedArea" :: JSString)
+  toJSON SpecialTemplate   = toJSON ("template" :: JSString)
+
+geomID :: Functor f => (Maybe ObjectId -> f (Maybe ObjectId)) -> Object' s -> f (Object' s)
+geomID = properties . propertyWithParsing "geomID"
+
+groupID :: Functor f => (Maybe ObjectId -> f (Maybe ObjectId)) -> Object' s -> f (Object' s)
+groupID = properties . propertyWithParsing "groupID"
+
+height :: Functor f => (Maybe Double -> f (Maybe Double)) -> Object' s -> f (Object' s)
+height = properties . propertyWithParsing "height"
+
+viewColor :: Functor f
+          => (Maybe HexColor -> f (Maybe HexColor)) -> Object' s -> f (Object' s)
+viewColor f o = properties (property "viewColor" g) o
+  where
+    g (Just c) = f (Just c)
+    g Nothing  = f dueSpecial
+    dueSpecial = case o ^. special of
+      Just SpecialCamera     -> Nothing
+      Just SpecialForcedArea -> Just "#FFFFFF99"
+      Just SpecialTemplate   -> Nothing
+      Nothing                -> Nothing
+
+objectBehavior :: Functor f
+               => (ObjectBehavior -> f ObjectBehavior) -> Object' s -> f (Object' s)
+objectBehavior f o = properties (propertyWithParsing "static" g) o
+  where
+    g (Just True)  = Just . (Static ==) <$> f Static
+    g (Just False) = Just . (Static ==) <$> f Dynamic
+    g Nothing
+       | not (o ^. selectable) = Just . (Static ==) <$> f Static
+       | otherwise             = Just . (Static ==) <$> f Dynamic
+
+selectable :: Functor f
+           => (Bool -> f Bool) -> Object' s -> f (Object' s)
+selectable f o = properties (propertyWithParsing "selectable" g) o
+   where
+     g (Just x) = Just <$> f x
+     g Nothing  = Just <$> f (dueSpecial && o ^. visible)
+     dueSpecial = case o^. special of
+       Just SpecialCamera     -> False
+       Just SpecialForcedArea -> False
+       Just SpecialTemplate   -> True
+       Nothing                -> True
+
+visible :: Functor f
+        => (Bool -> f Bool) -> Object' s -> f (Object' s)
+visible f o = properties (propertyWithParsing "visible" g) o
+  where
+    g (Just x)  = Just <$> f x
+    g Nothing   = Just <$> f dueSpecial
+    dueSpecial = case o ^. special of
+      Just SpecialCamera     -> False
+      Just SpecialForcedArea -> True
+      Just SpecialTemplate   -> True
+      Nothing                -> True
+
+special :: Functor f
+        => (Maybe SpecialObject -> f (Maybe SpecialObject))
+        -> Object' s -> f (Object' s)
+special = properties . property "special"
 
