@@ -23,14 +23,16 @@ import Widgets.Tabs.Geometry
 import Widgets.Tabs.Info
 import Widgets.Tabs.Reviews
 import Widgets.Tabs.Services
+import Model.Scenario.Object (ObjectId (..))
 
 
 -- | Control panel widget is a place for all controls in qua-view!
 controlPanel :: Reflex t
              => RenderingApi
              -> Behavior t Scenario
+             -> Dynamic t (Maybe ObjectId)
              -> QuaWidget t x (Dynamic t (ComponentState "ControlPanel"))
-controlPanel renderingApi scenarioB = mdo
+controlPanel renderingApi scenarioB selectedObjIdD = mdo
     stateD <- Dom.elDynClass "div" (toClass <$> stateD) $ mdo
 
       -- tab pane
@@ -39,7 +41,7 @@ controlPanel renderingApi scenarioB = mdo
           Dom.elAttr "div" ("style" =: "margin: 0; padding: 0; height: 56px;") Dom.blank
           runTabWidget $ do
             addTab "Geometry" panelGeometry
-            addTab "Info" $ panelInfo scenarioB
+            addTab "Info" $ panelInfo scenarioB selectedObjIdD
             addTab "Reviews" panelReviews
             addTab "Services" panelServices
 
