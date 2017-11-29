@@ -113,7 +113,7 @@ Special object types are used to control `qua-view` behavior. We use `special ::
     * There may be any number of template objects
     * A new (cloned) object retains all the properties of the template except `static`, `selectable`,`template`, and `visible`,
       which are reset to their defaults (removed from the property list).
-      This allows to hide a template object in a scene.
+      This allows to hide a template object in a scene if necessary.
     * If a template object is a part of a group, the whole group is considered to be a template.
 
 
