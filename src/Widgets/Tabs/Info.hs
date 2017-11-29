@@ -1,9 +1,5 @@
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE RecursiveDo #-}
@@ -14,7 +10,7 @@ module Widgets.Tabs.Info
 
 import Control.Lens
 import Data.Map (toList)
-import Data.Maybe (fromMaybe, isJust)
+import Data.Maybe (fromMaybe)
 import Data.Text (pack)
 import Data.Text.Read (double)
 import Reflex.Dom
@@ -29,30 +25,24 @@ import Model.Scenario.Properties
 import Program.Scenario
 import Widgets.Generation
 
-data InfoData = InfoData (Maybe ObjectId) Properties
-
 panelInfo :: Reflex t
           => Behavior t Scenario.Scenario
           -> Dynamic t (Maybe ObjectId)
           -> QuaWidget t x ()
 panelInfo scenarioB selectedObjIdD = do
-  scenarioPropUpdatedE <- askEvent $ ScenarioUpdate ScenarioPropertyUpdated
-  scenarioUpdatedE     <- askEvent $ ScenarioUpdate ScenarioUpdated
-  delayedE <- delay 0 $ leftmost --delay so we sample the behavior after its updated
-    [ () <$ scenarioPropUpdatedE
-    , () <$ scenarioUpdatedE
-    ]
-  let getScProps = view Scenario.properties
-  let getData (s, mObjId) = InfoData mObjId props
-        where
-          props = case mObjId of
-            Just objId -> fromMaybe (getScProps s) $ s ^?
-                          Scenario.objects.(at objId)._Just.Object.properties
-            Nothing    -> getScProps s
-  let scLoadedE    = Nothing <$ delayedE
-      objSelectedE = updated selectedObjIdD
-      propE = getData <$> attach scenarioB (leftmost [objSelectedE, scLoadedE])
-  propUpdatedED <- widgetHold (return never) (renderInfo <$> propE)
+  (delayedE, updateCB) <- newTriggerEvent
+  askEvent (ScenarioUpdate ObjectPropertyUpdated)   >>= triggerDelayed updateCB
+  askEvent (ScenarioUpdate ScenarioPropertyUpdated) >>= triggerDelayed updateCB
+  askEvent (ScenarioUpdate ScenarioUpdated)         >>= triggerDelayed updateCB
+  askEvent (ScenarioUpdate ScenarioCleared)         >>= triggerDelayed updateCB
+
+  let propsGivenE = getProps <$> scenarioB
+                             <@> leftmost [ current selectedObjIdD <@ delayedE
+                                          , updated selectedObjIdD]
+      getProps s mid = fromMaybe (s^.Scenario.properties)
+                     ( mid >>= \i -> s^?Scenario.objects.at i._Just.Object.properties )
+
+  propUpdatedED <- widgetHold (pure never) (renderInfo <$> propsGivenE)
   let propUpdatedE = switchPromptlyDyn propUpdatedED
       (updateScE, updateObjE) = fanEither $ f <$> current selectedObjIdD <@> propUpdatedE
       f Nothing prop              = Left prop
@@ -60,22 +50,17 @@ panelInfo scenarioB selectedObjIdD = do
   registerEvent (ScenarioUpdate ObjectPropertyUpdated)   updateObjE
   registerEvent (ScenarioUpdate ScenarioPropertyUpdated) updateScE
 
-renderInfo :: Reflex t => InfoData -> QuaWidget t x (Event t (PropName, Maybe PropValue))
-renderInfo (InfoData mObjId props) = do
-  when (isJust mObjId)
-    $ el "p" $ text "Object selected"
+renderInfo :: Reflex t => Properties -> QuaWidget t x (Event t (PropName, Maybe PropValue))
+renderInfo props = do
   fmap leftmost $ elClass "table" tableClass $ traverse renderProp $ toList props
   where
     renderProp (PropName key, pval)
-        | mvval <- fromPropValue pval :: Maybe GHCJS.Value' = do
-      updatedE <- case mvval of
-        Just val -> if isJust (valToMTxt val)
-                    then el "tr" $ do
-                      el "td" $ text $ textFromJSString key
-                      el "td" $ renderPropVal val
-                    else return never
-        Nothing -> return never
-      return $ ((,) (PropName key)) <$> updatedE
+        | Just val <- fromPropValue pval >>= valToMTxt
+        = do updatedE <- el "tr" $ do
+               el "td" $ text $ textFromJSString key
+               el "td" $ renderPropVal val
+             return $ ((,) (PropName key)) <$> updatedE
+        | otherwise = return never
     tableClass = $(do
         tableCls <- newVar
         qcss
@@ -103,26 +88,19 @@ renderInfo (InfoData mObjId props) = do
         returnVars [tableCls]
       )
 
+-- | Assume value is constant, because we redraw the whole list on every update anyway.
 renderPropVal :: Reflex t
-              => GHCJS.Value'
+              => Text
               -> QuaWidget t x (Event t (Maybe PropValue))
 renderPropVal val = mdo
-  valB <- hold val newValE
-  let mvalB = valToMTxt <$> valB
-  mTxtInputD <- let renderV editable = do
-                      mval <- sample mvalB
-                      case mval of
-                        Just v -> case editable of
-                          False -> text v >> return Nothing
-                          True  -> do
-                            t <- textInput $ def
-                                   & textInputConfig_initialValue .~ v
-                                   & attributes .~ constDyn ("class" =: "form-control")
-                            return $ Just t
-                        Nothing -> return Nothing
+  mTxtInputD <- let renderV False = text val >> return Nothing
+                    renderV True
+                      = fmap Just
+                      . textInput $ def
+                                  & textInputConfig_initialValue .~ val
+                                  & attributes .~ constDyn ("class" =: "form-control")
                 in  widgetHold (renderV False) (renderV <$> editableE)
-  saveE <- let getEnter (Just t) = tagPromptlyDyn (t^.textInput_value) --TODO: filter out empty input
-                                     $ keypress Enter t
+  saveE <- let getEnter (Just t) = tagPromptlyDyn (t^.textInput_value) $ keypress Enter t
                getEnter Nothing  = never
            in  switchPromptOnly never $ getEnter <$> updated mTxtInputD
   (editBtn, _) <- elClass' "span" "icon" $ text "edit"
@@ -130,8 +108,10 @@ renderPropVal val = mdo
                    True  <$ domEvent Click editBtn
                  , False <$ saveE
                  ]
-  let newValE = parseValue <$> saveE
-  return $ Just <$> toPropValue <$> newValE
+  return $ Just <$> toPropValue . parseValue <$> saveE
+
+triggerDelayed :: Reflex t => (() -> IO ()) -> Event t a -> QuaWidget t x ()
+triggerDelayed updateCB e = performEvent_ $ liftIO (updateCB ()) <$ e
 
 parseValue :: Text -> GHCJS.Value'
 parseValue v
@@ -141,7 +121,10 @@ parseValue v
     | otherwise                   = GHCJS.String $ textToJSString v
 
 valToMTxt :: GHCJS.Value' -> Maybe Text
-valToMTxt (GHCJS.String v) = Just $ textFromJSString v
-valToMTxt (GHCJS.Number v) = Just $ pack $ show v
-valToMTxt (GHCJS.Bool v)   = Just $ pack $ show v
-valToMTxt _                = Nothing
+valToMTxt (GHCJS.String "") = Nothing
+valToMTxt (GHCJS.String v)  = Just $ textFromJSString v
+valToMTxt (GHCJS.Number v) | i <- round v :: Int
+                           , fromIntegral i == v = Just $ pack $ show i
+                           | otherwise           = Just $ pack $ show v
+valToMTxt (GHCJS.Bool v)    = Just $ pack $ show v
+valToMTxt _                 = Nothing
