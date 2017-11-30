@@ -43,6 +43,7 @@ Here is a current example structure of a scenario file:
                              # (default: "https://a.tile.openstreetmap.org/${z}/${x}/${y}.png")
       - hiddenProperties     # [[String]] list of object property names to not show in the viewer
       - evaluationCellSize   # [Number] used for rendering service result - resolution of heatmaps
+      - previewImgUrl        # [String] url to show an image above the info panel
 ```
 Special object properties:
 ```yaml
@@ -56,6 +57,7 @@ Special object properties:
                        # must be in a range [0x00000001 .. 0xFFFFFFFE] to work in qua-view properly.
       - groupID        # [Int] An identifier grouping multiple objects to move together
       - height         # [Number] height of a building to be extruded if it is given in 2D
+      - previewImgUrl  # [String] url to show an image above the info panel
       - viewColor      # [#RRGGBB] set the color of an object explicitly
       - static         # [Bool] cannot move object if true (default: false)
       - selectable     # [Bool] if we can click on object to select it

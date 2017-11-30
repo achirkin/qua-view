@@ -52,6 +52,11 @@ panelInfo scenarioB selectedObjIdD = do
 
 renderInfo :: Reflex t => Properties -> QuaWidget t x (Event t (PropName, Maybe PropValue))
 renderInfo props = do
+  -- draw an image above the info table if it is available
+  forM_ (props^.previewImgUrl) $
+    \imgUrl -> elAttr "img" ( "src" =: textFromJSString imgUrl
+                            <> "style" =: "width: 100%" ) blank
+  -- draw the info table
   fmap leftmost $ elClass "table" tableClass $ traverse renderProp $ toList props
   where
     renderProp (PropName key, pval)
@@ -66,20 +71,27 @@ renderInfo props = do
         qcss
           [cassius|
             .#{tableCls}
+              width: 100%
+              font-size: 10pt
+              line-height: 15pt
+              tr:
+                width: 100%
               tr:nth-child(even)
                 background: white
+              tr:nth-child(odd)
+                background: #FFF5EE
               tr:hover
                 background: #FF5722
                 color: white
               td
-                padding: 5px 5px 5px 15px
+                padding: 3px 5px 3px 5px
+                overflow: hidden
               td:first-child
                 text-align: right
               td>.icon
                 margin-left: 10px
                 cursor: pointer
               td input
-                width: 180px
                 color: #BF360C
                 background-color: white
                 ~ .icon
