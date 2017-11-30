@@ -287,7 +287,7 @@ instance (MonadHold t m, MonadAdjust t m)
     QuaViewT . lift . tell $ DynQuaViewEventsAssembled qevs
     return $ (rmap, PatchDMapWithMove <$> revs)
 
-newtype WrapedRes t v a = WrapedRes { unWR :: (v a, DynQuaViewEventList t) }
+newtype WrapedRes t v a = WrapedRes (v a, DynQuaViewEventList t)
 
 
 instance PostBuild t m => PostBuild t (QuaViewT NoWriting t m) where

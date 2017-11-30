@@ -10,6 +10,7 @@ module Model.Scenario.Properties
     , property, propertyWithParsing
     , HexColor, colorVeci, colorVecf
     , FromJSONOrString (..)
+    , previewImgUrl
     ) where
 
 
@@ -180,3 +181,8 @@ foreign import javascript unsafe
     "($1).reduce(function(a, x)\
       \{return a.concat(('00').concat(x.toString(16)).substr(-2));}, '#')"
     js_convertRGBAToHex :: JSVal -> HexColor
+
+
+previewImgUrl :: Functor f
+              => (Maybe JSString -> f (Maybe JSString)) -> Properties -> f Properties
+previewImgUrl = property "previewImgUrl"
