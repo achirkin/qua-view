@@ -48,11 +48,16 @@ inQuaWidget :: Reflex t => QuaViewM t a -> QuaWidget t x a
 inQuaWidget = hoistQuaView (lift.lift.lift)
 
 -- | Try to fetch settings, initialize context and run qua-view inside
+--   Note, the order of execution here is important;
+--   we use mfix to aggregate events from the whole program and then feed it into the same program
+--   as a reader environment.
+--   We have to pue assembleQuaViewEvents function in the end to avoid being blocked on mvar.
 runQuaWidget :: QuaWidget (SpiderTimeline Global) x a -> Widget x a
 runQuaWidget m = mdo
-  ctx <- initQuaViewContext $ assembleQuaViewEvents qEvs
-  (r, qEvs) <- runWithCtx m ctx
-  return r
+  ctx <- initQuaViewContext qEvs
+  rez <- runWithCtx m ctx
+  qEvs <- assembleQuaViewEvents $ snd rez
+  return $ fst rez
 
 
 -- | Try to fetch settings and initialize context
@@ -129,7 +134,8 @@ defaultMsgFun (ProgressMsg msg) = do
 
 instance DomBuilder t m => DomBuilder t (QuaViewT NoWriting t m) where
   type DomBuilderSpace (QuaViewT NoWriting t m) = DomBuilderSpace m
-instance (Reflex t, DomBuilder t m) => DomBuilder t (QuaViewT Writing t m) where
+instance (Reflex t, DomBuilder t m, MonadHold t m)
+      => DomBuilder t (QuaViewT Writing t m) where
   type DomBuilderSpace (QuaViewT Writing t m) = DomBuilderSpace m
   element t cfg child = do
     (relem, (a,evs)) <- liftWith $ \runInner -> element t cfg $ runInner child
