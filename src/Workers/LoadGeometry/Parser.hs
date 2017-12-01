@@ -134,19 +134,24 @@ checkGroupId objId obj = do
 
 
 
-
 prepareObject :: Object.ObjectId
               -> Object.Object' 'Object.NotReady
               -> PrepScenario (Object.Object' 'Object.Prepared)
 prepareObject (Object.ObjectId objId) obj = (view _2 >>=) $ \sc -> liftIO $ do
     mindices <- setNormalsAndComputeIndices (obj^.Object.geometry)
     let ocolor = Scenario.resolvedObjectColor sc obj ^. colorVeci
+        -- parse property "selectable" to check whether an object can be selected or not.
+        selectorId = if obj^.Object.selectable
+                     then objId
+                     else 0xFFFFFFFF
     case obj^.Object.geometry of
 
       Geometry.Points (SomeIODataFrame pts) -> do
         colors <- unsafeArrayThaw $ ewgen ocolor
         return $ obj & Object.renderingData .~ Object.ORDP
-                                                (ObjPointData  (Coords pts) (Colors colors) objId)
+                                                (ObjPointData  (Coords pts)
+                                                               (Colors colors)
+                                                               selectorId)
 
       lins@(Geometry.Lines _) -> case mindices of
           Nothing -> error "Could not get indices for a line string"
@@ -156,7 +161,7 @@ prepareObject (Object.ObjectId objId) obj = (view _2 >>=) $ \sc -> liftIO $ do
             return $ obj & Object.renderingData .~ Object.ORDP
                                                      (ObjLineData (Coords coords)
                                                                   (Colors colors)
-                                                                   objId
+                                                                  selectorId
                                                                   (Indices indices))
 
       polys@(Geometry.Polygons _) -> case mindices of
@@ -171,7 +176,7 @@ prepareObject (Object.ObjectId objId) obj = (view _2 >>=) $ \sc -> liftIO $ do
                 return $ obj & Object.renderingData .~ Object.ORDP
                                                          (ObjColoredData (CoordsNormals crsnrs)
                                                                          (Colors colors)
-                                                                         objId
+                                                                         selectorId
                                                                          (Indices indices))
 
 
