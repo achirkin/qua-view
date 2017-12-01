@@ -8,7 +8,7 @@
 --
 module Model.Scenario
     ( Scenario, Scenario' (..), getTransferables
-    , name, geoLoc, properties, objects, objIdSeq, withoutObjects
+    , name, geoLoc, properties, objects, objIdSeq, viewState, withoutObjects
     , selectedDynamicColor, selectedStaticColor, selectedGroupColor
     , defaultStaticColor
     , defaultBlockColor, defaultLineColor, defaultPointColor
@@ -17,18 +17,21 @@ module Model.Scenario
     , mapZoomLevel, useMapLayer, mapUrl
     , hiddenProperties
     , resolvedObjectHeight, resolvedObjectColor
+    , ScenarioState (..)
+    , cameraPos, cameraLoc, cameraLookAt, objectGroups, clippingDist
     ) where
 
 
---import qualified Data.Map.Strict as Map
-import Control.Lens (set,(^.),non)
+import qualified Data.Map.Strict as Map
+import Control.Lens (set,(^.),non, _1, _2)
 import Control.Applicative ((<|>))
+import Numeric.DataFrame hiding (toList)
 import Data.Foldable (toList)
 import Data.Semigroup (stimesIdempotentMonoid)
 import GHC.Generics
 import Commons.NoReflex
 import Model.Scenario.Properties
---import Model.Scenario.Statistics
+import           Model.Scenario.Object ( GroupId, ObjectId)
 import qualified Model.Scenario.Object as Object
 import qualified Model.Scenario.Object.Geometry as Geometry
 
@@ -45,11 +48,14 @@ data Scenario' s
     -- ^ key-value of arbitrary JSON properties
   , _objects    :: !(Object.Collection' s)
     -- ^ Map with scenario content
-  , _objIdSeq   :: !Object.ObjectId
+  , _objIdSeq   :: !ObjectId
+    -- ^ Keep track of highest ObjectId to be able to generate more
+  , _viewState  :: !ScenarioState
+    -- ^ Some necessary information for viewing and interacting with scenario
   } deriving Generic
 
-instance FromJSVal (Scenario' 'Object.Prepared)
-instance ToJSVal   (Scenario' 'Object.Prepared)
+instance FromJSVal (Scenario' Object.Prepared)
+instance ToJSVal   (Scenario' Object.Prepared)
 
 -- | Get transferable content of each scenario object
 getTransferables :: Scenario' s -> IO [Transferable]
@@ -58,8 +64,9 @@ getTransferables = mapM Object.getTransferable . toList . _objects
 -- | Get scenario with no Objects inside.
 --   Used to send scenario information to a geometry loader,
 --   so that geometry loader has scenario context.
-withoutObjects :: Scenario' s -> Scenario' 'Object.Prepared
+withoutObjects :: Scenario' s -> Scenario' Object.Prepared
 withoutObjects = set objects mempty
+               . set (viewState.objectGroups) mempty
 
 -- * Lenses
 
@@ -85,9 +92,14 @@ objects :: Functor f
 objects f s = (\x -> s{_objects = x}) <$> f (_objects s)
 
 objIdSeq :: Functor f
-         => (Object.ObjectId -> f (Object.ObjectId))
+         => (ObjectId -> f ObjectId)
          -> Scenario' s -> f (Scenario' s)
 objIdSeq f s = (\x -> s{_objIdSeq = x}) <$> f (_objIdSeq s)
+
+viewState :: Functor f
+          => (ScenarioState -> f ScenarioState)
+          -> Scenario' s -> f (Scenario' s)
+viewState f s = (\x -> s{_viewState = x}) <$> f (_viewState s)
 
 
 instance Semigroup (Scenario' s) where
@@ -103,6 +115,8 @@ instance Semigroup (Scenario' s) where
                     -- get maximum of objId counters to make sure
                     -- no objects could have the same object Id
     , _objIdSeq   = max (_objIdSeq scOld) (_objIdSeq scNew)
+                    -- just get a new view state
+    , _viewState  = _viewState scNew
     }
   stimes = stimesIdempotentMonoid
 
@@ -113,6 +127,7 @@ instance Monoid (Scenario' s) where
     , _properties = mempty
     , _objects    = mempty
     , _objIdSeq   = Object.ObjectId 0
+    , _viewState  = def
     }
   mappend = (<>)
 
@@ -227,7 +242,7 @@ evaluationCellSize f = properties $ property "evaluationCellSize" g
 
 
 
--- * resolved properties
+-- * Resolved properties
 
 -- | Resolve view color of object based on object and scenario properties.
 resolvedObjectColor :: Scenario' s -> Object.Object' t -> HexColor
@@ -243,4 +258,54 @@ resolvedObjectColor s o = o^.Object.viewColor.non sdef
 -- | Resolve object height to extrude it if necessary
 resolvedObjectHeight :: Scenario' s -> Object.Object' t -> Double
 resolvedObjectHeight s o = o^.Object.height.non (s^.defaultObjectHeight)
+
+
+
+-- * Computed and updateable attributes
+
+-- | Parsed settings for qua-view
+data ScenarioState
+  = ScenarioState
+  { _cameraPos    :: !(Vec3f, Vec3f)
+  , _objectGroups :: !(Map.Map GroupId [ObjectId])
+  , _clippingDist :: !Double
+  } deriving Generic
+
+instance FromJSVal ScenarioState
+instance ToJSVal   ScenarioState
+
+
+instance Default ScenarioState where
+  def = ScenarioState
+    { _cameraPos    = (vec3 100 150 500, 0)
+    , _objectGroups = mempty
+    , _clippingDist = 2000
+    }
+
+
+cameraPos :: Functor f
+          => ((Vec3f, Vec3f) -> f (Vec3f, Vec3f))
+          -> ScenarioState -> f ScenarioState
+cameraPos f s = (\x -> s{_cameraPos = x}) <$> f (_cameraPos s)
+
+cameraLoc :: Functor f
+          => (Vec3f -> f Vec3f)
+          -> ScenarioState -> f ScenarioState
+cameraLoc = cameraPos . _1
+
+cameraLookAt :: Functor f
+             => (Vec3f -> f Vec3f)
+             -> ScenarioState -> f ScenarioState
+cameraLookAt = cameraPos . _2
+
+objectGroups :: Functor f
+             => ((Map.Map GroupId [ObjectId]) -> f (Map.Map GroupId [ObjectId]))
+             -> ScenarioState -> f ScenarioState
+objectGroups f s = (\x -> s{_objectGroups = x}) <$> f (_objectGroups s)
+
+clippingDist :: Functor f
+             => (Double -> f Double)
+             -> ScenarioState -> f ScenarioState
+clippingDist f s = (\x -> s{_clippingDist = x}) <$> f (_clippingDist s)
+
 

@@ -53,7 +53,7 @@ loadGeometryConduit = awaitForever $ \emsg -> do
         case parse parseScenarioJSON val of
            Success sc' -> do
               stat <- get
-              sc <- liftIO $ prepareScenario stat sc'
+              sc <- liftIO $ prepareScenario stat def sc'
               trs <- liftIO $ getTransferables sc
               yield (LGWResult sc, trs)
            Error s -> do
