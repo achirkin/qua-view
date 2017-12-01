@@ -56,7 +56,7 @@ instance FromJSVal  (DataFrame t (n':ns :: [Nat])) where
 
 instance ToJSVal (SomeIODataFrame t '[N n, XN k]) where
     toJSVal (SomeIODataFrame (df :: IODataFrame t ns))
-      | (Evidence :: Evidence ([n,m] ~ ns)) <- unsafeCoerce (Evidence :: Evidence ()) = do
+      | (Evidence :: Evidence ([n,m] ~ ns)) <- unsafeCoerce (Evidence @(ns ~ ns)) = do
         o <- create
         unsafeSetProp "n"  (pToJSVal (dimVal' @m)) o
         unsafeSetProp "df" (coerce df) o
@@ -76,7 +76,7 @@ instance (KnownDim n, ElemTypeInference t)
 
 instance ToJSVal (SomeIODataFrame t '[N n1, N n2, XN k]) where
     toJSVal (SomeIODataFrame (df :: IODataFrame t ns))
-      | (Evidence :: Evidence ([n1,n2,m] ~ ns)) <- unsafeCoerce (Evidence :: Evidence ()) = do
+      | (Evidence :: Evidence ([n1,n2,m] ~ ns)) <- unsafeCoerce (Evidence @(ns ~ ns)) = do
         o <- create
         unsafeSetProp "n"  (pToJSVal (dimVal' @m)) o
         unsafeSetProp "df" (coerce df) o
