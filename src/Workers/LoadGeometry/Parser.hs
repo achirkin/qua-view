@@ -91,6 +91,7 @@ prepareScenario st ss sc = do
                         >=> performExtrude
                         >=> checkGroupId i
                         >=> prepareObject i
+                        >=> checkSpecial i
     return $ newSc & Scenario.viewState .~ newSs
   where
     oldSs = ss -- update clipping distance if it is given in properties
@@ -180,4 +181,31 @@ prepareObject (Object.ObjectId objId) obj = (view _2 >>=) $ \sc -> liftIO $ do
                                                                          (Indices indices))
 
 
+-- | Check property "special" and act accordingly
+checkSpecial :: Object.ObjectId
+             -> Object.Object' s -> PrepScenario (Object.Object' s)
+checkSpecial _objId obj = case obj ^. Object.special of
+  Nothing -> return obj
+  Just Object.SpecialForcedArea ->
+    liftIO (putStrLn "Warning: special:forcedArea encountered, but not parsed.")
+    >> return obj
+  Just Object.SpecialTemplate   ->
+    liftIO (putStrLn "Warning: special:template encountered, but not parsed.")
+    >> return obj
+  Just Object.SpecialCamera     ->
+    obj <$ prepareSpecialCamera obj
 
+
+prepareSpecialCamera :: Object.Object' s -> PrepScenario ()
+prepareSpecialCamera obj = do
+    cp <- liftIO . getTwoPoints $ obj ^. Object.geometry
+    Scenario.cameraPos .= cp
+  where
+    getTwoPoints :: Geometry.Geometry -> IO (Vec3f, Vec3f)
+    getTwoPoints (Geometry.Points (SomeIODataFrame (df :: IODataFrame Float ns)))
+      | (Evidence :: Evidence ([4,n] ~ ns)) <- unsafeCoerce (Evidence @(ns ~ ns))
+      = do
+      camP <- unsafeSubArrayFreeze @Float @'[] @3 df (1:!1:!Z)
+      lookAtP <- unsafeSubArrayFreeze @Float @'[] @3 df (1:!2:!Z)
+      return (camP, lookAtP)
+    getTwoPoints _ = error "special:camera must be a MultiPoint!"
