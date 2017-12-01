@@ -23,7 +23,6 @@ import Workers.Types
 import Commons.NoReflex
 import Numeric.DataFrame
 import Model.GeoJSON.Coordinates
-import Model.GeoJSON.Scenario
 import Model.Scenario
 import Model.Scenario.Statistics
 import Control.Monad.State.Strict
@@ -31,6 +30,7 @@ import Control.Monad.Trans.Except
 import JavaScript.JSON.Types.Internal
 import JavaScript.JSON.Types.Instances
 
+import Workers.LoadGeometry.Parser
 
 loadGeometryConduit :: (MonadIO m, MonadLogger m, MonadState ScenarioStatistics m)
                     => Conduit LGWRequest m (LGWMessage, [Transferable])
@@ -50,7 +50,7 @@ loadGeometryConduit = awaitForever $ \emsg -> do
               yield (LGWSCStat stat, [])
            Error s ->
               logWarn (workerLS loadGeometryDef) $ "Could not parse centres: " <> s
-        case fromJSON val of
+        case parse parseScenarioJSON val of
            Success sc' -> do
               stat <- get
               sc <- liftIO $ prepareScenario stat sc'

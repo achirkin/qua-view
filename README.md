@@ -90,7 +90,7 @@ Special object types are used to control `qua-view` behavior. We use `special ::
       , "properties": { "special": "camera"}
       }
       ```
-  * `"special": forcedArea"` is a polygon specifying working area of the scenario; used e.g. by the luci services manager to determine the area to be evaluated.
+  * `"special": "forcedArea"` is a polygon specifying working area of the scenario; used e.g. by the luci services manager to determine the area to be evaluated.
     * Must be at most one for a scenario.
     * Geometry type must be a valid `"Polygon"`.
     * Default property values:

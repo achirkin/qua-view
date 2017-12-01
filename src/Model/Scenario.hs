@@ -7,7 +7,7 @@
 --   The main structure in qua-view!
 --
 module Model.Scenario
-    ( Scenario, Scenario' (..), getTransferables, resolvedObjectColor
+    ( Scenario, Scenario' (..), getTransferables
     , name, geoLoc, properties, objects, objIdSeq, withoutObjects
     , selectedDynamicColor, selectedStaticColor, selectedGroupColor
     , defaultStaticColor
@@ -16,6 +16,7 @@ module Model.Scenario
     , viewDistance, evaluationCellSize
     , mapZoomLevel, useMapLayer, mapUrl
     , hiddenProperties
+    , resolvedObjectHeight, resolvedObjectColor
     ) where
 
 
@@ -59,17 +60,6 @@ getTransferables = mapM Object.getTransferable . toList . _objects
 --   so that geometry loader has scenario context.
 withoutObjects :: Scenario' s -> Scenario' 'Object.Prepared
 withoutObjects = set objects mempty
-
--- | Resolve view color of object based on object and scenario properties.
-resolvedObjectColor :: Scenario' s -> Object.Object' t -> HexColor
-resolvedObjectColor s o = o^.Object.viewColor.non sdef
-  where
-    sdef = case o^.Object.geometry of
-      Geometry.Points _ -> s^.defaultPointColor
-      Geometry.Lines  _ -> s^.defaultLineColor
-      Geometry.Polygons  _ -> case o^.Object.objectBehavior of
-        Object.Static  -> s^.defaultStaticColor
-        Object.Dynamic -> s^.defaultBlockColor
 
 -- * Lenses
 
@@ -235,4 +225,22 @@ evaluationCellSize f = properties $ property "evaluationCellSize" g
      g Nothing  = Just <$> f 5.0
      g (Just c) = Just <$> f c
 
+
+
+-- * resolved properties
+
+-- | Resolve view color of object based on object and scenario properties.
+resolvedObjectColor :: Scenario' s -> Object.Object' t -> HexColor
+resolvedObjectColor s o = o^.Object.viewColor.non sdef
+  where
+    sdef = case o^.Object.geometry of
+      Geometry.Points _ -> s^.defaultPointColor
+      Geometry.Lines  _ -> s^.defaultLineColor
+      Geometry.Polygons  _ -> case o^.Object.objectBehavior of
+        Object.Static  -> s^.defaultStaticColor
+        Object.Dynamic -> s^.defaultBlockColor
+
+-- | Resolve object height to extrude it if necessary
+resolvedObjectHeight :: Scenario' s -> Object.Object' t -> Double
+resolvedObjectHeight s o = o^.Object.height.non (s^.defaultObjectHeight)
 

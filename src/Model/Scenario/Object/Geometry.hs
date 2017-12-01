@@ -8,9 +8,14 @@
 module Model.Scenario.Object.Geometry
     ( Geometry (..), getTransferable, allData
     , applyTransform, applyGeomCoords
+    , concatGeometry
+    , vertexNumber, vertexNumbers
+    , extrudeSolidGeometry
     ) where
 
 
+import Data.Foldable (foldl')
+import qualified Data.List.NonEmpty as NonEmpty
 import JavaScript.Object
 import GHCJS.Types (jsval)
 import Unsafe.Coerce (unsafeCoerce)
@@ -72,6 +77,94 @@ applyGeomCoords (Polygons pls) f = forM_ @_ @_ @_ @() pls $
             x <- unsafeSubArrayFreeze iodf j
             copyDataFrame (f x) j iodf
 
+
+-- | Make a volume out of a flat geometry by extruding its z coordinates
+--   by a given height.
+extrudeSolidGeometry :: Double -> Geometry -> IO Geometry
+extrudeSolidGeometry _ x@Points{} = pure x
+extrudeSolidGeometry _ x@Lines{} = pure x
+extrudeSolidGeometry h (Polygons xs) = do
+  geom <- Polygons . sconcat <$> traverse (extrudePoly h) xs
+  concatGeometry geom
+
+extrudePoly :: Double -> (SomeIODataFrame Float '[N 4, N 2, XN 3], [Int])
+            -> IO (NonEmpty (SomeIODataFrame Float '[N 4, N 2, XN 3], [Int]))
+extrudePoly h (SomeIODataFrame (mdf :: IODataFrame Float ns), holes)
+    | (Evidence :: Evidence ('[4,2,n] ~ ns)) <- unsafeCoerce (Evidence @(ns ~ ns))
+    , n <- dimVal' @n
+    , dv <- vec4 0 0 (realToFrac h) 0 <::> 0 :: Mat42f
+    , wallIds <- concat $
+                zipWith (\s e -> (e:!Z, s:!Z):[ (i:!Z,(i+1):!Z) | i <- [s..e-1]] )
+                        (1 : map (+1) holes) (holes ++ [n])
+    = do
+    floo <- unsafeFreezeDataFrame mdf
+    let roof = ewmap (+dv) floo
+    iowalls <- forM wallIds $ \(i,j) ->
+      let wall = (roof ! i) <::> (roof ! j)
+            <+:> (floo ! j) <+:> (floo ! i)
+      in flip (,) [] . SomeIODataFrame <$> thawDataFrame wall
+    ioroof <- thawDataFrame roof
+    return ((SomeIODataFrame ioroof, holes) :| iowalls)
+
+vertexNumber :: Geometry -> Int
+vertexNumber (Points (SomeIODataFrame (_ :: IODataFrame Float ns)))
+    | (Evidence :: Evidence ('[4,n] ~ ns)) <- unsafeCoerce (Evidence @(ns ~ ns))
+    = dimVal' @n
+vertexNumber (Lines lns) = foldl' (+) 0 $ flip fmap lns $
+    \(SomeIODataFrame (_ :: IODataFrame Float ns)) ->
+      case unsafeCoerce (Evidence @(ns ~ ns)) of
+        (Evidence :: Evidence ('[4,n] ~ ns)) -> dimVal' @n
+vertexNumber (Polygons pls) = foldl' (+) 0 $ flip fmap pls $
+    \(SomeIODataFrame (_ :: IODataFrame Float ns), _) ->
+      case unsafeCoerce (Evidence @(ns ~ ns)) of
+        (Evidence :: Evidence ('[4,2,n] ~ ns)) -> dimVal' @n
+
+vertexNumbers :: Geometry -> NonEmpty Int
+vertexNumbers (Points (SomeIODataFrame (_ :: IODataFrame Float ns)))
+    | (Evidence :: Evidence ('[4,n] ~ ns)) <- unsafeCoerce (Evidence @(ns ~ ns))
+    = dimVal' @n :| []
+vertexNumbers (Lines lns) = flip fmap lns $
+    \(SomeIODataFrame (_ :: IODataFrame Float ns)) ->
+      case unsafeCoerce (Evidence @(ns ~ ns)) of
+        (Evidence :: Evidence ('[4,n] ~ ns)) -> dimVal' @n
+vertexNumbers (Polygons pls) = flip fmap pls $
+    \(SomeIODataFrame (_ :: IODataFrame Float ns), _) ->
+      case unsafeCoerce (Evidence @(ns ~ ns)) of
+        (Evidence :: Evidence ('[4,2,n] ~ ns)) -> dimVal' @n
+
+
+-- | Restore the geometry invariant:
+--   make sure all polygons are stored contiguous in a single TypedArray.
+concatGeometry :: Geometry -> IO Geometry
+concatGeometry x@Points{} = pure x
+concatGeometry x@(Lines lns)
+  | n <- vertexNumber x
+  , starts <- NonEmpty.scanl (+) 1 $ vertexNumbers x
+  , Just (SomeIntNat (_::Proxy na)) <- someIntNatVal n
+  = do
+  allDataDf <- newDataFrame :: IO (IODataFrame Float '[4,na])
+  fmap Lines .
+    forM (NonEmpty.zip lns starts) $
+      \(SomeIODataFrame (iodf :: IODataFrame Float ns), i)  ->
+        case unsafeCoerce (Evidence @(ns ~ ns)) of
+          (Evidence :: Evidence ('[4,n] ~ ns)) -> do
+            copyMutableDataFrame iodf (i:!Z) allDataDf
+            SomeIODataFrame <$> unsafeSubArray @_ @'[4] @n allDataDf (i:!Z)
+concatGeometry x@(Polygons pls)
+  | n <- vertexNumber x
+  , starts <- NonEmpty.scanl (+) 1 $ vertexNumbers x
+  , Just (SomeIntNat (_::Proxy na)) <- someIntNatVal n
+  = do
+  allDataDf <- newDataFrame :: IO (IODataFrame Float '[4,2,na])
+  fmap Polygons .
+    forM (NonEmpty.zip pls starts) $
+      \((SomeIODataFrame (iodf :: IODataFrame Float ns), holes), i)  ->
+        case unsafeCoerce (Evidence @(ns ~ ns)) of
+          (Evidence :: Evidence ('[4,2,n] ~ ns)) -> do
+            copyMutableDataFrame iodf (i:!Z) allDataDf
+            flip (,) holes . SomeIODataFrame
+                          <$> unsafeSubArray @_ @'[4,2] @n allDataDf (i:!Z)
+concatGeometry _ = error "Could not get type-level geometry sizes"
 
 instance ToJSVal Geometry where
     toJSVal (Points sdf) = do
