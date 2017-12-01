@@ -60,9 +60,12 @@ createScenario renderingApi = do
     (resetGLE, resetGLcb) <- newTriggerEvent
     registerEvent (SmallGLInput SmallGL.ResetGL) resetGLE
 
+    (updateSSE, updateSScb) <- newTriggerEvent
+    registerEvent (ScenarioUpdate ScenarioStateUpdatedOut) updateSSE
+
     -- Assemble events into scenario behavior
     accumM (&) def $ leftmost
-          [ loadScenarioPart renderingApi <$> scenarioUpdated
+          [ loadScenarioPart updateSScb renderingApi <$> scenarioUpdated
           , clearScenario resetGLcb <$ scenarioCleared
           , updateObjectGeomInScenario <$> objectLocUpdated
           , updateObjectPropInScenario <$> objectPropUpdated
@@ -71,14 +74,17 @@ createScenario renderingApi = do
 
 
 loadScenarioPart :: MonadIO (PushM t)
-    => SmallGL.RenderingApi
+    => (Scenario.ScenarioState -> IO ())
+    -> SmallGL.RenderingApi
     -> Scenario' 'Object.Prepared  -- ^ scenario update
     -> Scenario -- ^ previous scenario state
     -> PushM t Scenario
-loadScenarioPart renderingApi newSc oldSc  = do
+loadScenarioPart updateSScb renderingApi newSc oldSc  = do
     sc' <- liftIO $ newSc & Scenario.objects.traverse %%~
                               Object.registerRender (registerRenderFunStub renderingApi)
-    return $ oldSc <> sc'
+    let updatedSc = oldSc <> sc'
+    liftIO . updateSScb $ updatedSc ^. Scenario.viewState
+    return updatedSc
 
 clearScenario :: MonadIO (PushM t)
     => (() -> IO ())
@@ -192,6 +198,8 @@ data instance QEventTag ScenarioUpdate evArg where
     ObjectPropertyUpdated   :: QEventTag ScenarioUpdate (ObjectId, PropName, Maybe PropValue)
     -- | Update object location using transformation matrix
     ObjectLocationUpdated   :: QEventTag ScenarioUpdate (ObjectId, Mat44f)
+    -- | OUTGOING EVENT: scenario has updated its viewState.
+    ScenarioStateUpdatedOut :: QEventTag ScenarioUpdate Scenario.ScenarioState
 
 
 

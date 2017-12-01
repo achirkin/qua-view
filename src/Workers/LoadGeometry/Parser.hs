@@ -14,7 +14,7 @@ import Data.List (mapAccumL)
 import Control.Lens hiding (indices)
 import Control.Monad.Trans.RWS.Strict
 import qualified Data.Map.Strict as Map
-import JavaScript.JSON.Types.Instances
+import JavaScript.JSON.Types.Instances hiding ((.=))
 import JavaScript.JSON.Types.Internal
 import Numeric.DataFrame
 import Numeric.DataFrame.IO
@@ -84,13 +84,21 @@ prepareScenario :: ScenarioStatistics
                 -> Scenario.Scenario' 'Object.NotReady
                 -> IO (Scenario.Scenario' 'Object.Prepared)
 prepareScenario st ss sc = do
-    (newSc, newSs, ()) <- (\m -> runRWST m (st, sc) ss)
+    (newSc, newSs, ()) <- (\m -> runRWST m (st, sc) oldSs)
                 $ flip Scenario.objects sc
                   $ Map.traverseWithKey
                     $ \i -> performGTransform st
                         >=> performExtrude
+                        >=> checkGroupId i
                         >=> prepareObject i
     return $ newSc & Scenario.viewState .~ newSs
+  where
+    oldSs = ss -- update clipping distance if it is given in properties
+             & Scenario.clippingDist .~ sc^.Scenario.properties
+                                           .property "viewDistance"
+                                           .non (inferViewDistance st)
+               -- set default camera position
+             & Scenario.cameraPos .~ inferCameraLookAt st
 
 
 -- | extrude geometry if we find it necessary
@@ -115,6 +123,15 @@ performGTransform st =
                                              in  vec4 x' y' z t
                                       )
     else return
+
+-- | Add an GroupId-ObjectId pair if there is one to ScenarioState
+checkGroupId :: Object.ObjectId
+             -> Object.Object' s -> PrepScenario (Object.Object' s)
+checkGroupId objId obj = do
+  forM_ (obj^.Object.groupID)
+    $ \gId -> Scenario.objectGroups . at gId . non [] %= (objId:)
+  return obj
+
 
 
 

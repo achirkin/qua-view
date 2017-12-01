@@ -6,7 +6,7 @@ module Program.Camera
     ) where
 
 
-
+import           Control.Lens
 import           Commons
 
 import           Numeric.DataFrame
@@ -15,6 +15,8 @@ import           Reflex.Dom.Widget.Animation ( AEventType (..), PEventType (..),
 import qualified Reflex.Dom.Widget.Animation as A
 
 import           Model.Camera
+import qualified Model.Scenario as Scenario
+import qualified Program.Scenario as Scenario
 
 
 
@@ -22,19 +24,27 @@ import           Model.Camera
 -- | Reflex camera's behavior
 dynamicCamera :: Reflex t
               => AnimationHandler t
-              -> Behavior t Vec2f
               -> Behavior t Bool
                  -- ^ whether camera is locked due to object actions
               -> QuaViewM t (Dynamic t Camera)
-dynamicCamera aHandler defCenterPointB camLockedB = mdo
+dynamicCamera aHandler camLockedB = mdo
+    scStateUpdatedE <- askEvent $ ScenarioUpdate Scenario.ScenarioStateUpdatedOut
     resetCameraE <- askEvent $ UserRequest AskResetCamera
-    -- all changes of the viewport size come from AResizeEvent (or resetCameraE)
-    viewportSizeD <- holdDyn (viewportSize icam) $ leftmost [resizeE, viewportSize icam <$ resetCameraE]
-    -- projection matrix also changes only at AResizeEvents (or resetCameraE)
-    projMatrixD <- holdDyn (projMatrix icam) $ leftmost [ makeProjM (clippingDist icam) <$> resizeE
-                                                        , projMatrix icam <$ resetCameraE]
+    -- derive default camera state and its position from scenario
+    initCStateB <- hold initCStateI
+      $ lookAtState . view Scenario.cameraPos <$> scStateUpdatedE
+    clippingDistD <- holdDyn clippingDistI
+      $ view Scenario.clippingDist <$> scStateUpdatedE
+
+    -- all changes of the viewport size come from AResizeEvent
+    viewportSizeD <- holdDyn (viewportSize camI) $ resizeE
+    -- projection matrix also changes only at AResizeEvents
+    projMatrixD <- holdDyn (projMatrix camI)
+      $ leftmost [ makeProjM      <$> current clippingDistD <@> updated viewportSizeD
+                 , flip makeProjM <$> current viewportSizeD <@> updated clippingDistD
+                 ]
     -- checkpoint camera states - when there are no active actions, such as mouse dragging
-    oldStateD <- holdDyn (oldState icam) $ leftmost
+    oldStateD <- holdDyn (oldState camI) $ leftmost
         [ -- mouse wheel is an atomic event, so we update oldState directly
           flip wheelT <$> camB <@> select (A.animationEvents aHandler) AWheelEvent
           -- copy newState when some continuous action finishes
@@ -44,10 +54,10 @@ dynamicCamera aHandler defCenterPointB camLockedB = mdo
           -- should not be needed, but also should not harm?
         , newState <$> camB <@ select (A.animationEvents aHandler) (APointerEvent PDownEvent)
           -- reset camera
-        , (\cp -> (oldState icam){ viewPoint = cp <+:> 0 } ) <$> defCenterPointB <@ resetCameraE
+        , initCStateB <@ resetCameraE
         ]
     -- updates on every action
-    newStateD <- holdDyn (newState icam) $ leftmost
+    newStateD <- holdDyn (newState camI) $ leftmost
         [ -- every time oldState updates, copy its state
           updated oldStateD
           -- get pairs of screen points (old-new) on each mouseDrag event
@@ -55,7 +65,7 @@ dynamicCamera aHandler defCenterPointB camLockedB = mdo
         ]
 
     let camD = Camera <$> viewportSizeD
-                      <*> pure (clippingDist icam)
+                      <*> clippingDistD
                       <*> projMatrixD
                       <*> oldStateD
                       <*> newStateD
@@ -63,9 +73,11 @@ dynamicCamera aHandler defCenterPointB camLockedB = mdo
 
     return camD
   where
-    icam = initCamera (realToFrac . fst $ A.viewPortSizeI aHandler)
+    initCStateI = lookAtState $ def ^. Scenario.cameraPos
+    clippingDistI = def ^. Scenario.clippingDist
+    camI = initCamera (realToFrac . fst $ A.viewPortSizeI aHandler)
                       (realToFrac . snd $ A.viewPortSizeI aHandler)
-                      defaultCState
+                      clippingDistI initCStateI
     -- resize events in local format
     resizeE = (\(A.ResizeEvent s) -> realToFrac *** realToFrac $ s)
               <$> select (A.animationEvents aHandler) AResizeEvent

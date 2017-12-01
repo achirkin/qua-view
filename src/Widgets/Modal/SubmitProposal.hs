@@ -8,6 +8,7 @@ module Widgets.Modal.SubmitProposal
     ( popupSubmitProposal
     ) where
 
+import Control.Lens
 import Reflex.Dom
 import JavaScript.JSON.Types.Instances (toJSON)
 import QuaTypes.Submission
@@ -15,8 +16,8 @@ import QuaTypes.Submission
 import Commons
 import SmallGL
 import SmallGL.Types (ProjMatrix (..), ViewMatrix (..))
-import Model.Camera (initCamera, defaultCState, projMatrix, viewMatrix)
-import Model.Scenario (Scenario)
+import Model.Camera (initCamera, lookAtState, projMatrix, viewMatrix)
+import Model.Scenario
 import Model.GeoJSON.Scenario () -- toJSON instance for Scenario
 import Widgets.Commons
 import Widgets.Generation
@@ -42,8 +43,16 @@ saveScenarioContent :: Reflex t
                     -> QuaWidget t x (Event t (ElementClick "cancel submit proposal"))
 saveScenarioContent renderingApi scenarioB submitPopupUrlE = do
     -- prepare scenario preview url
-    imgurlE <- performEvent . (<$ submitPopupUrlE) $
-      liftIO $ SmallGL.renderToImage renderingApi (imgWidth, imgHeight) projMat viewMat
+    imgurlE <- performEvent . ffor (scenarioB <@ submitPopupUrlE) $ \scenario ->
+      let imgWidth = 800
+          imgHeight = 800
+          defCam = initCamera (fromIntegral imgWidth)
+                              (fromIntegral imgHeight)
+                              (scenario^.viewState.clippingDist)
+                              (lookAtState $ scenario^.viewState.cameraPos)
+          projMat = ProjM $ projMatrix defCam
+          viewMat = ViewM $ viewMatrix defCam
+      in  liftIO $ SmallGL.renderToImage renderingApi (imgWidth, imgHeight) projMat viewMat
     -- prepare scenario content
     scContentE <- performEvent . ffor (scenarioB <@ submitPopupUrlE) $
       liftIO . jsonStringify . toJSON
@@ -90,13 +99,6 @@ saveScenarioContent renderingApi scenarioB submitPopupUrlE = do
 
     return $ leftmost [cancelE, ElementClick <$ submitWithDescrE]
   where
-    imgWidth = 800
-    imgHeight = 800
-    defCam = initCamera (fromIntegral imgWidth)
-                        (fromIntegral imgHeight)
-                        defaultCState
-    projMat = ProjM $ projMatrix defCam
-    viewMat = ViewM $ viewMatrix defCam
     submitProposalDescrId = $( newVar >>= returnVars . (:[]))
     makePut submitUrl imgurl scContent description
       = ( submitUrl

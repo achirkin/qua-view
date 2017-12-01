@@ -6,10 +6,10 @@ module Model.Camera
     ( Camera (..)
     , viewMatrix
     , CState (..)
-    , initCamera
+    , initCamera, lookAtState
     , scroll, dragHorizontal, dragVertical, rotateCentered, twoFingerControl
     , dragObject, rotateObject, twoFingerObject
-    , makeProjM, defaultCState
+    , makeProjM
     ) where
 
 import           Data.Fixed                  (mod')
@@ -49,27 +49,39 @@ data CState = CState {
     } deriving Show
 
 
-defaultCState :: CState
-defaultCState = CState
-  { viewPoint  = vec3 (-2) 3 0
-  , viewAngles = (2.745, 0.995)
-  , viewDist = 668
-  }
+-- | Calculate the state base on the camera position and lookAt position
+lookAtState :: (Vec3f, Vec3f)
+            -> CState
+lookAtState (camP, lookAtP)
+    | l < 0.01  = CState
+        { viewPoint  = vec3 (-2) 3 0
+        , viewAngles = (2.745, 0.995)
+        , viewDist = 668
+        }
+    | otherwise = CState
+      { viewPoint = lookAtP
+      , viewAngles = (atan2 y x, asin $ z / l)
+      , viewDist = l
+      }
+  where
+    l = unScalar $ normL2 v
+    v = camP - lookAtP
+    (x, y, z) = unpackV3 v
+
 
 -- | Create camera
-initCamera :: Float -- ^ width of the viewport
-           -> Float -- ^ height of the viewport
+initCamera :: Float  -- ^ width of the viewport
+           -> Float  -- ^ height of the viewport
+           -> Float  -- ^ clipping distance
            -> CState -- ^ look position and direction
            -> Camera
-initCamera width height state = Camera
+initCamera width height clippingD state = Camera
     { viewportSize = (width,height)
     , clippingDist = clippingD
     , projMatrix   = makeProjM clippingD (width,height)
     , oldState     = state
     , newState     = state
     }
-  where
-    clippingD = 2000
 
 
 makeProjM :: Float -> (Float, Float) -> Mat44f
