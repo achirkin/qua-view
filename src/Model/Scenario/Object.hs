@@ -14,7 +14,8 @@
 module Model.Scenario.Object
     ( Object, Object' (..), ObjectId (..), GroupId (..), ObjectBehavior (..)
     , Collection, Collection'
-    , ObjectRenderable (..), ObjectRenderingData (..)
+    , ObjectRenderable (..), Renderable, Prepared, NotReady
+    , ObjectRenderingData (..), SpecialObject (..)
     , getTransferable, registerRender
     , renderingData, renderingId, center, geometry, properties
     , height, viewColor, objectBehavior
@@ -59,6 +60,13 @@ data ObjectRenderable
      -- ^ Rendering data for object is prepared, but not uploaded to SmallGL yet
    | NotReady
      -- ^ Object just have been imported and not ready to be rendered yet.
+
+-- | Object has its rendering id
+type Renderable = 'Renderable
+-- | Rendering data for object is prepared, but not uploaded to SmallGL yet
+type Prepared   = 'Prepared
+-- | Object just have been imported and not ready to be rendered yet
+type NotReady   = 'NotReady
 
 data ObjectRenderingData (s :: ObjectRenderable) where
   ORDR :: {_renderingId :: !RenderedObjectId } -> ObjectRenderingData 'Renderable
@@ -145,7 +153,7 @@ instance ToJSVal (Map ObjectId (Object' 'Prepared)) where
         return j
      where
        f :: JSVal -> ObjectId -> Object' 'Prepared -> IO ()
-       f j i o = toJSVal o >>= js_addKeyVal j i
+       f j i o = toJSVal o >>= js_addKeyVal j (_unObjectId i)
 
 
 foreign import javascript unsafe
@@ -154,7 +162,25 @@ foreign import javascript unsafe
 
 foreign import javascript unsafe
   "$1.push([$2,$3]);"
-  js_addKeyVal :: JSVal -> ObjectId -> JSVal -> IO ()
+  js_addKeyVal :: JSVal -> GLuint -> JSVal -> IO ()
+
+
+
+instance FromJSVal (Map.Map GroupId [ObjectId]) where
+    fromJSVal = fmap (fmap Map.fromAscList) . fromJSVal
+    fromJSValUnchecked = fmap Map.fromAscList . fromJSValUnchecked
+
+
+instance ToJSVal (Map.Map GroupId [ObjectId]) where
+    toJSVal m = do
+        j <- js_createMap
+        _ <- Map.traverseWithKey (f j) m
+        return j
+     where
+       f :: JSVal -> GroupId -> [ObjectId] -> IO ()
+       f j i o = toJSVal o >>= js_addKeyVal j (_unGroupId i)
+
+
 
 
 -- * Special properties (with no scenario-based resolving)

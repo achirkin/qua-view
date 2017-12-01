@@ -12,6 +12,7 @@ import Data.Semigroup
 import Data.Maybe (fromMaybe)
 import Data.List (mapAccumL)
 import Control.Lens hiding (indices)
+import Control.Monad.Trans.RWS.Strict
 import qualified Data.Map.Strict as Map
 import JavaScript.JSON.Types.Instances
 import JavaScript.JSON.Types.Internal
@@ -45,6 +46,7 @@ parseScenarioJSON v = flip (withObject "Scenario object") v $ \scObj -> do
         alt         <- scObj .:? "alt" .!= 0
         _properties <- scObj .:? "properties" .!= def
         let _geoLoc = (,,) <$> mlon <*> mlat <*> Just alt
+            _viewState = def
 
         -- Feature collection may be this object itself or 'geometry' sub-object
         fc <- scObj .:? "geometry" .!= scObj
@@ -74,37 +76,52 @@ parseScenarioJSON v = flip (withObject "Scenario object") v $ \scObj -> do
 
 
 
+type PrepScenario = RWST (ScenarioStatistics, Scenario.Scenario' 'Object.NotReady)
+                         () Scenario.ScenarioState IO
+
 prepareScenario :: ScenarioStatistics
+                -> Scenario.ScenarioState
                 -> Scenario.Scenario' 'Object.NotReady
                 -> IO (Scenario.Scenario' 'Object.Prepared)
-prepareScenario st sc = flip Scenario.objects sc $
-    Map.traverseWithKey
-      $ \i -> performGTransform
-          >=> performExtrude
-          >=> prepareObject sc i
-
-  where
-    -- transform from WGS'84 if we find it necessary
-    performGTransform :: Object.Object' 'Object.NotReady -> IO (Object.Object' 'Object.NotReady)
-    performGTransform =
-      if guessIsWgs84 st
-      then \obj -> do
-        Geometry.applyGeomCoords (obj^.Object.geometry) (wgs84ToMetric (centerPoint st))
-        return obj
-      else return
-
-    -- extrude geometry if we find it necessary
-    performExtrude :: Object.Object' 'Object.NotReady -> IO (Object.Object' 'Object.NotReady)
-    performExtrude o | Object.was2D o   = let h = Scenario.resolvedObjectHeight sc o
-                                          in Object.geometry (Geometry.extrudeSolidGeometry h) o
-                     | otherwise        = pure o
+prepareScenario st ss sc = do
+    (newSc, newSs, ()) <- (\m -> runRWST m (st, sc) ss)
+                $ flip Scenario.objects sc
+                  $ Map.traverseWithKey
+                    $ \i -> performGTransform st
+                        >=> performExtrude
+                        >=> prepareObject i
+    return $ newSc & Scenario.viewState .~ newSs
 
 
-prepareObject :: Scenario.Scenario' s
-              -> Object.ObjectId
+-- | extrude geometry if we find it necessary
+performExtrude :: Object.Object' 'Object.NotReady -> PrepScenario (Object.Object' 'Object.NotReady)
+performExtrude o | Object.was2D o = do
+                     sc <- view _2
+                     let h = Scenario.resolvedObjectHeight sc o
+                     liftIO $ Object.geometry (Geometry.extrudeSolidGeometry h) o
+                 | otherwise      = pure o
+
+
+-- | Transform from WGS'84 if we find it necessary
+performGTransform :: ScenarioStatistics -> Object.Object' 'Object.NotReady
+                  -> PrepScenario (Object.Object' 'Object.NotReady)
+performGTransform st =
+  if guessIsWgs84 st
+    then \obj -> liftIO $ do
+      Geometry.applyGeomCoords (obj^.Object.geometry) (wgs84ToMetric (centerPoint st))
+      return $ obj & Object.center %~ (\v -> let (x,y,z,t) = unpackV4 v
+                                                 v' = wgs84ToMetric (centerPoint st) (vec2 x y)
+                                                 (x',y') = unpackV2 v'
+                                             in  vec4 x' y' z t
+                                      )
+    else return
+
+
+
+prepareObject :: Object.ObjectId
               -> Object.Object' 'Object.NotReady
-              -> IO (Object.Object' 'Object.Prepared)
-prepareObject sc (Object.ObjectId objId) obj = do
+              -> PrepScenario (Object.Object' 'Object.Prepared)
+prepareObject (Object.ObjectId objId) obj = (view _2 >>=) $ \sc -> liftIO $ do
     mindices <- setNormalsAndComputeIndices (obj^.Object.geometry)
     let ocolor = Scenario.resolvedObjectColor sc obj ^. colorVeci
     case obj^.Object.geometry of
