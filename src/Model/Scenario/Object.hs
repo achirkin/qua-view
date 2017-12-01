@@ -212,7 +212,7 @@ instance ToJSON SpecialObject where
 geomID :: Functor f => (Maybe ObjectId -> f (Maybe ObjectId)) -> Object' s -> f (Object' s)
 geomID = properties . propertyWithParsing "geomID"
 
-groupID :: Functor f => (Maybe ObjectId -> f (Maybe ObjectId)) -> Object' s -> f (Object' s)
+groupID :: Functor f => (Maybe GroupId -> f (Maybe GroupId)) -> Object' s -> f (Object' s)
 groupID = properties . propertyWithParsing "groupID"
 
 height :: Functor f => (Maybe Double -> f (Maybe Double)) -> Object' s -> f (Object' s)

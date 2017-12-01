@@ -1,11 +1,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE RecordWildCards #-}
 -- | Information about scenarios
 --
 --   Read various info about objects count and positions
 --
 module Model.Scenario.Statistics
     ( ScenarioStatistics (..)
+    , inferViewDistance, inferCameraLookAt
     ) where
 
 
@@ -62,8 +64,29 @@ instance Monoid ScenarioStatistics where
     mappend = (<>)
 
 
+inferViewDistance :: ScenarioStatistics -> Float
+inferViewDistance ScenarioStatistics {..} = trunc $ sqrt n * r * 0.1
+  where
+    -- assume minimum possible radius is 100 m
+    minRad = 100
+    -- assume maximum possible radius is 10 km
+    maxRad = 10000
+
+    trunc = max minRad . min maxRad
+    -- characteristic size in terms of number of blocks
+    n = fromIntegral $ min 100 objNumber
+    -- characteristic size in terms of radius
+    r = unScalar
+      $ min (normL2 (lowerCorner - centerPoint))
+            (normL2 (upperCorner - centerPoint))
 
 
+inferCameraLookAt :: ScenarioStatistics -> (Vec3f, Vec3f)
+inferCameraLookAt s@ScenarioStatistics {..} = (v+dv, v)
+  where
+    r = inferViewDistance s
+    v = centerPoint <+:> 0
+    dv = vec3 (-0.3*r) (-0.2*r) (0.7*r)
 
 
 

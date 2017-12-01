@@ -11,14 +11,12 @@ module Main ( main ) where
 
 import Reflex.Dom
 import Reflex.Dom.Widget.Animation -- (resizeEvents)
-import Numeric.DataFrame
 
 import Commons
 
 
 import qualified Model.Camera               as Model
 import qualified Model.Scenario             as Scenario
-import qualified Model.Scenario.Statistics  as Scenario
 
 import           Widgets.Generation
 import qualified Widgets.LoadingSplash  as Widgets
@@ -58,8 +56,6 @@ main = mainWidgetInElementById "qua-view-widgets" $ runQuaWidget $ mdo
 
     -- initialize web workers
     Workers.runLoadGeometryWorker
-    loadedGeometryE <- askEvent $ WorkerMessage Workers.LGWMessage
-
 
     renderingApi <- SmallGL.createRenderingEngine canvas
     -- initialize animation handler (and all pointer events).
@@ -72,7 +68,7 @@ main = mainWidgetInElementById "qua-view-widgets" $ runQuaWidget $ mdo
       $ moveSelectedObjects aHandler renderingApi (current cameraD) scenarioB selectedObjIdD
 
     -- supply animation events to camera
-    cameraD <- inQuaWidget $ dynamicCamera aHandler (current scenarioCenterD) camLockedB
+    cameraD <- inQuaWidget $ dynamicCamera aHandler camLockedB
 
     -- initialize WebGL rendering context
     registerEvent (SmallGLInput SmallGL.ViewPortResize)
@@ -84,12 +80,6 @@ main = mainWidgetInElementById "qua-view-widgets" $ runQuaWidget $ mdo
 
     scenarioB <- createScenario renderingApi
 
-    let scenarioCenterE = fmapMaybe
-                          (\m -> case m of
-                             Workers.LGWSCStat st -> Just $ Scenario.centerPoint st
-                             _ -> Nothing
-                          ) loadedGeometryE
-    scenarioCenterD <- holdDyn (vec2 0 0) scenarioCenterE
 
     -- Notify everyone that the program h finished starting up now
     mainBuilt <- getPostBuild

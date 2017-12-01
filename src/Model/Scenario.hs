@@ -196,7 +196,7 @@ defaultPointColor f = properties $ property "defaultPointColor" g
      g (Just c) = Just <$> f c
 
 viewDistance :: Functor f
-             => (Double -> f Double) -> Scenario' s -> f (Scenario' s)
+             => (Float -> f Float) -> Scenario' s -> f (Scenario' s)
 viewDistance f = properties $ property "viewDistance" g
    where
      g Nothing  = Just <$> f 2000
@@ -268,7 +268,7 @@ data ScenarioState
   = ScenarioState
   { _cameraPos    :: !(Vec3f, Vec3f)
   , _objectGroups :: !(Map.Map GroupId [ObjectId])
-  , _clippingDist :: !Double
+  , _clippingDist :: !Float
   } deriving Generic
 
 instance FromJSVal ScenarioState
@@ -304,7 +304,7 @@ objectGroups :: Functor f
 objectGroups f s = (\x -> s{_objectGroups = x}) <$> f (_objectGroups s)
 
 clippingDist :: Functor f
-             => (Double -> f Double)
+             => (Float -> f Float)
              -> ScenarioState -> f ScenarioState
 clippingDist f s = (\x -> s{_clippingDist = x}) <$> f (_clippingDist s)
 
