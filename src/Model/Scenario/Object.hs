@@ -81,6 +81,7 @@ data Object' (s :: ObjectRenderable) = Object
   , _center        :: !Vec4f
   , _geometry      :: !Geometry
   , _properties    :: !Properties
+  , was2D          :: !Bool
   } deriving Generic
 
 instance FromJSVal (Object' 'Prepared)
