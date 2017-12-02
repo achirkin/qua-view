@@ -18,12 +18,14 @@ module Program.Scenario.Object
 import           Commons
 
 --import qualified Data.Map.Strict as Map
-import           Data.Maybe (isJust, maybeToList)
+import           Data.Maybe (isJust, maybeToList, mapMaybe, fromMaybe)
+import           Data.Foldable (foldl')
 import           Reflex
 import           Reflex.Dom.Widget.Animation (AnimationHandler)
 import qualified Reflex.Dom.Widget.Animation as Animation
 import           Control.Lens
-import           Numeric.DataFrame (fromHom, eye) -- Mat44f, (%*))
+import           Control.Applicative ((<|>))
+import           Numeric.DataFrame (fromHom, eye, fromScalar) -- Mat44f, (%*))
 
 import           Model.Camera (Camera)
 import           Model.Scenario (Scenario)
@@ -74,18 +76,31 @@ colorObjectsOnSelection scB selObjD =
     registerEvent (SmallGLInput SmallGL.SetObjectColor) . nonEmptyOnly
        $ ( \scenario oldOId newOId ->
              do
-              obj <- getObj scenario oldOId
+              (i, mainObj) <- getObj scenario oldOId
+              obj <- mainObj : getGroup i scenario mainObj
               return ( obj^.Object.renderingId
                      , Scenario.resolvedObjectColor scenario obj ^. colorVeci )
              <>
              do
-              obj <- getObj scenario newOId
-              return ( obj^.Object.renderingId
-                     , selectedColor scenario $ obj^.Object.objectBehavior  )
+              (i, mainObj) <- getObj scenario newOId
+              ( mainObj^.Object.renderingId
+               , selectedColor scenario $ mainObj^.Object.objectBehavior  )
+               : do
+                 obj <- getGroup i scenario mainObj
+                 return ( obj^.Object.renderingId
+                        , scenario^.Scenario.selectedGroupColor.colorVeci
+                        )
          )
       <$> scB <*> current selObjD <@> updated selObjD
   where
-    getObj scenario moid = maybeToList $ moid >>= \i -> scenario ^. Scenario.objects . at i
+    getObj scenario moid = maybeToList $ moid >>= \i -> (,) i <$> scenario ^. Scenario.objects . at i
+    getGroup j scenario obj = maybeToList (obj^.Object.groupID)
+                          >>= (\i -> scenario^..Scenario.viewState
+                                               .Scenario.objectGroups
+                                               .at i._Just
+                                               .to (filter (j /=))
+                                               .traverse)
+                          >>= (\i -> scenario^..Scenario.objects.at i._Just)
     selectedColor sc Object.Dynamic = sc^.Scenario.selectedDynamicColor.colorVeci
     selectedColor sc Object.Static  = sc^.Scenario.selectedStaticColor.colorVeci
 
@@ -141,12 +156,13 @@ moveSelectedObjects aHandler renderingApi cameraB scenarioB selObjIdD = do
          let upsE = select (Animation.pointerEvents aHandler) PUpEvent
              clicksE = select (Animation.pointerEvents aHandler) PClickEvent
              cancelsE = select (Animation.pointerEvents aHandler) PCancelEvent
-             downME = downF <$> ptrNB <*> current camLockedD <*> current selObjIdD <@> downsE
-             downF :: Int -> Bool -> Maybe ObjectId -> Maybe ObjectId -> Maybe Bool
+             downME = downF <$> ptrNB <*> current camLockedD <*> selectedGroupObjIdsB <@> downsE
+             downF :: Int -> Bool -> [ObjectId] -> Maybe ObjectId -> Maybe Bool
              downF ptrN wasLocked wasSelected isPressed
                 | ptrN > 0 && wasLocked     = Just True
                 | ptrN > 0 && not wasLocked = Nothing
-                | wasSelected == isPressed  = True <$ isPressed
+                | Just i <- isPressed
+                , i `elem` wasSelected      = Just True
                 | otherwise                 = Nothing
              clickME = upF <$> ptrNB <*> current camLockedD <@ clicksE
              upME = upF <$> ptrNB <*> current camLockedD <@ upsE
@@ -165,7 +181,10 @@ moveSelectedObjects aHandler renderingApi cameraB scenarioB selObjIdD = do
 
     -- events of object transforms
     let transformE = gate (current camLockedD)
-                   $ objectTransformEvents aHandler cameraB centerPosB
+                   $ leftmost
+                     [ eye <$ updated camLockedD
+                     , objectTransformEvents aHandler cameraB centerPosB
+                     ]
 
     transformB <- hold eye transformE
 
@@ -173,24 +192,24 @@ moveSelectedObjects aHandler renderingApi cameraB scenarioB selObjIdD = do
     -- Every time camera UNLOCKED event happens, or LOCKED->LOCKED event happens,
     --  we need to persist current changes
     let persistGeomChangeE = fmapMaybe id
-                           $ (\moid m wasLocked -> if wasLocked then flip (,) m <$> moid else Nothing )
-                          <$> current selObjIdD
+                           $ (\oids m wasLocked -> if wasLocked && not (null oids)
+                                                   then Just (oids,m) else Nothing )
+                          <$> selectedGroupObjIdsB
                           <*> transformB
                           <*> current camLockedD
                           <@ updated camLockedD
 
     registerEvent (ScenarioUpdate ObjectLocationUpdated) persistGeomChangeE
     registerEvent (SmallGLInput SmallGL.PersistGeomTransforms)
-        $ (\s (i, m) -> case s ^. Scenario.objects . at i of
-                        Nothing -> []
-                        Just o  -> [(o ^. Object.renderingId,m)]
+        $ (\s (is, m) -> (\o -> (o ^. Object.renderingId,m))
+                      <$> mapMaybe (\i -> s ^. Scenario.objects . at i) is
           )
        <$> scenarioB
        <@> persistGeomChangeE
     registerEvent (SmallGLInput SmallGL.TransformObject)
-        $ fmap (:[])
-        $ fmapMaybe (\(mi, m) -> flip (,) m <$> mi)
-        $ (,) <$> selectedRenderingIdB <@> transformE
+        $ nonEmptyOnly
+        $ (\ids m -> flip (,) m <$> ids)
+       <$> selectedRenderingIdsB <@> transformE
 
 
 
@@ -201,9 +220,19 @@ moveSelectedObjects aHandler renderingApi cameraB scenarioB selObjIdD = do
   where
     selectedObjB = (\s mi -> mi >>= \i -> s ^. Scenario.objects . at i)
                 <$> scenarioB <*> current selObjIdD
-    selectedRenderingIdB = fmap (view Object.renderingId) <$> selectedObjB
+    selectedGroupIdB = preview (_Just.Object.groupID._Just) <$> selectedObjB
+    selectedGroupObjIdsB = (\selOid s mi -> fromMaybe [] $
+                               (mi >>= \i -> s ^. Scenario.viewState.Scenario.objectGroups.at i)
+                               <|> fmap (:[]) selOid
+                           )
+                        <$> current selObjIdD <*> scenarioB <*> selectedGroupIdB
+    selectedGroupB = (\s is -> is >>= \i -> s ^.. Scenario.objects . at i . _Just)
+                  <$> scenarioB <*> selectedGroupObjIdsB
+    selectedRenderingIdsB = map (view Object.renderingId) <$> selectedGroupB
     -- find center position for correct rotation
-    centerPosB = maybe 0 (fromHom . view Object.center) <$> selectedObjB
+    centerPosB = (\cs -> foldl' (+) 0 cs / fromScalar (max 1 . fromIntegral $ length cs))
+               . map (fromHom . view Object.center)
+               <$> selectedGroupB
 
 
 nonEmptyOnly :: Reflex t => Event t [a] -> Event t [a]
