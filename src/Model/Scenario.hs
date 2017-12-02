@@ -157,7 +157,7 @@ selectedGroupColor :: Functor f
                    => (HexColor -> f HexColor) -> Scenario' s -> f (Scenario' s)
 selectedGroupColor f = properties $ property "selectedGroupColor" g
    where
-     g Nothing  = Just <$> f "#EE8888FF"
+     g Nothing  = Just <$> f "#CC8888DD"
      g (Just c) = Just <$> f c
 
 selectedStaticColor :: Functor f

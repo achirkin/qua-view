@@ -17,9 +17,11 @@ module Program.Scenario
 
 
 import qualified Data.Map.Strict as Map
+import           Data.Maybe (mapMaybe)
 import           Reflex
 import           Control.Lens
 import           Numeric.DataFrame (Mat44f, (%*))
+import           Control.Monad (foldM)
 import           Commons
 
 import           Model.Scenario (Scenario, Scenario')
@@ -93,7 +95,7 @@ clearScenario :: MonadIO (PushM t)
 clearScenario resetGLcb _ = fmap def . liftIO $ resetGLcb ()
 
 updateObjectGeomInScenario :: MonadIO (PushM t)
-    => (ObjectId, Mat44f)
+    => ([ObjectId], Mat44f)
     -> Scenario
     -> PushM t Scenario
 updateObjectGeomInScenario
@@ -113,17 +115,17 @@ updateScenarioProp ::
 updateScenarioProp p = pure . over Scenario.properties (updateProps p)
 
 
-
 updateObjectGeomInCollection :: MonadIO (PushM t)
-    => (ObjectId, Mat44f)
+    => ([ObjectId], Mat44f)
     -> Object.Collection
     -> PushM t  Object.Collection
-updateObjectGeomInCollection (i, m) objs
-    = case Map.lookup i objs of
-        Nothing -> pure objs
-        Just o -> do
-          o' <- updateObjectGeom m o
-          return $ Map.insert i o' objs
+updateObjectGeomInCollection (is, m) objs
+    = foldM f objs xs
+  where
+    xs = mapMaybe (\i -> (,) i <$> Map.lookup i objs ) is
+    f c (i,o) = do
+      o' <- updateObjectGeom m o
+      return $ Map.insert i o' c
 
 updateObjectPropInCollection ::
        (ObjectId, PropName, Maybe PropValue)
@@ -197,7 +199,7 @@ data instance QEventTag ScenarioUpdate evArg where
     -- | Add, modify, or delete object property
     ObjectPropertyUpdated   :: QEventTag ScenarioUpdate (ObjectId, PropName, Maybe PropValue)
     -- | Update object location using transformation matrix
-    ObjectLocationUpdated   :: QEventTag ScenarioUpdate (ObjectId, Mat44f)
+    ObjectLocationUpdated   :: QEventTag ScenarioUpdate ([ObjectId], Mat44f)
     -- | OUTGOING EVENT: scenario has updated its viewState.
     ScenarioStateUpdatedOut :: QEventTag ScenarioUpdate Scenario.ScenarioState
 
