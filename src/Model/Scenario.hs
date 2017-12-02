@@ -196,11 +196,8 @@ defaultPointColor f = properties $ property "defaultPointColor" g
      g (Just c) = Just <$> f c
 
 viewDistance :: Functor f
-             => (Float -> f Float) -> Scenario' s -> f (Scenario' s)
-viewDistance f = properties $ property "viewDistance" g
-   where
-     g Nothing  = Just <$> f 2000
-     g (Just c) = Just <$> f c
+             => (Maybe Float -> f (Maybe Float)) -> Scenario' s -> f (Scenario' s)
+viewDistance = properties . property "viewDistance"
 
 mapZoomLevel :: Functor f
              => (Int -> f Int) -> Scenario' s -> f (Scenario' s)
