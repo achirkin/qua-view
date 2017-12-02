@@ -95,9 +95,7 @@ prepareScenario st ss sc = do
     return $ newSc & Scenario.viewState .~ newSs
   where
     oldSs = ss -- update clipping distance if it is given in properties
-             & Scenario.clippingDist .~ sc^.Scenario.properties
-                                           .property "viewDistance"
-                                           .non (inferViewDistance st)
+             & Scenario.clippingDist .~ sc^.Scenario.viewDistance.non (inferViewDistance st)
                -- set default camera position
              & Scenario.cameraPos .~ inferCameraLookAt st
 
