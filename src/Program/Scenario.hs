@@ -169,7 +169,7 @@ updateScenarioFromLGW = do
       return $ Just sc
     updateOrComplain (LGWSError (JSError err)) = do
       showUserMessage . SingleMsg $
-        "Error happened when I tried to receive a new geometry! " <> err
+        "Loading geometry error. " <> err
       return Nothing
     -- I guess, later we will use this to set up scenario location?..
     updateOrComplain (LGWSCStat _) = pure Nothing
