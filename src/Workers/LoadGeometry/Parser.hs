@@ -3,6 +3,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+
 module Workers.LoadGeometry.Parser
     ( parseScenarioJSON
     , prepareScenario
@@ -11,6 +12,7 @@ module Workers.LoadGeometry.Parser
 import Data.Semigroup
 import Data.Maybe (fromMaybe)
 import Data.List (mapAccumL)
+import Data.Sequence
 import Control.Lens hiding (indices)
 import Control.Monad.Trans.RWS.Strict
 import qualified Data.Map.Strict as Map
@@ -62,7 +64,7 @@ parseScenarioJSON v = flip (withObject "Scenario object") v $ \scObj -> do
                      $ mapAccumL (\i o -> case o ^. Object.properties.property "geomID" of
                                     Nothing -> (i+1, (Object.ObjectId i
                                                      , o & Object.properties
-                                                                 .property "geomID" .~ (Just i)
+                                                                 .property "geomID" .~ Just i
                                                      ))
                                     Just k  -> (i  , (Object.ObjectId k, o))
                                  )
@@ -77,22 +79,26 @@ parseScenarioJSON v = flip (withObject "Scenario object") v $ \scObj -> do
 
 
 type PrepScenario = RWST (ScenarioStatistics, Scenario.Scenario' 'Object.NotReady)
-                         () Scenario.ScenarioState IO
+                         (Seq JSError) Scenario.ScenarioState IO
+
+report :: JSError -> PrepScenario ()
+report = tell . singleton
 
 prepareScenario :: ScenarioStatistics
                 -> Scenario.ScenarioState
                 -> Scenario.Scenario' 'Object.NotReady
-                -> IO (Scenario.Scenario' 'Object.Prepared)
+                -> IO (Scenario.Scenario' 'Object.Prepared, Seq JSError)
 prepareScenario st ss sc = do
-    (newSc, newSs, ()) <- (\m -> runRWST m (st, sc) oldSs)
-                $ flip Scenario.objects sc
-                  $ Map.traverseWithKey
-                    $ \i -> performGTransform st
-                        >=> performExtrude
-                        >=> checkGroupId i
-                        >=> prepareObject i
-                        >=> checkSpecial i
-    return $ newSc & Scenario.viewState .~ newSs
+    (newSc, newSs, errs) <- (\m -> runRWST m (st, sc) oldSs)
+      . flip Scenario.objects sc
+        . (fmap (Map.mapMaybe id) .)
+          . Map.traverseWithKey -- use Map.traverseMapWithKey when 0.5.8 at least is available
+            $ \i -> performGTransform st
+                >=> performExtrude
+                >=> checkGroupId i
+                >=> checkSpecial i
+                >=> prepareObject i
+    return (newSc & Scenario.viewState .~ newSs, errs)
   where
     oldSs = ss -- update clipping distance if it is given in properties
              & Scenario.clippingDist .~ sc^.Scenario.viewDistance.non (inferViewDistance st)
@@ -135,44 +141,48 @@ checkGroupId objId obj = do
 
 prepareObject :: Object.ObjectId
               -> Object.Object' 'Object.NotReady
-              -> PrepScenario (Object.Object' 'Object.Prepared)
-prepareObject (Object.ObjectId objId) obj = (view _2 >>=) $ \sc -> liftIO $ do
-    mindices <- setNormalsAndComputeIndices (obj^.Object.geometry)
+              -> PrepScenario (Maybe (Object.Object' 'Object.Prepared))
+prepareObject (Object.ObjectId objId) obj = (view _2 >>=) $ \sc -> do
+    mindices <- liftIO $ setNormalsAndComputeIndices (obj^.Object.geometry)
     let ocolor = Scenario.resolvedObjectColor sc obj ^. colorVeci
         -- parse property "selectable" to check whether an object can be selected or not.
         selectorId = if obj^.Object.selectable
                      then objId
                      else 0xFFFFFFFF
+        reportFail s = Nothing <$ report
+            ( "Error preparing GeoJSON Feature [geomID="
+              <> JSError (toJSString $ show objId)
+              <> "]: " <> s)
     case obj^.Object.geometry of
 
       Geometry.Points (SomeIODataFrame pts) -> do
-        colors <- unsafeArrayThaw $ ewgen ocolor
-        return $ obj & Object.renderingData .~ Object.ORDP
+        colors <- liftIO . unsafeArrayThaw $ ewgen ocolor
+        return . Just $ obj & Object.renderingData .~ Object.ORDP
                                                 (ObjPointData  (Coords pts)
                                                                (Colors colors)
                                                                selectorId)
 
       lins@(Geometry.Lines _) -> case mindices of
-          Nothing -> error "Could not get indices for a line string"
-          Just (SomeIODataFrame indices) -> do
+          Nothing -> reportFail "Could not get indices for a line string"
+          Just (SomeIODataFrame indices) -> liftIO $  do
             SomeIODataFrame coords <- Geometry.allData lins
             colors <- unsafeArrayThaw $ ewgen ocolor
-            return $ obj & Object.renderingData .~ Object.ORDP
+            return . Just $ obj & Object.renderingData .~ Object.ORDP
                                                      (ObjLineData (Coords coords)
                                                                   (Colors colors)
                                                                   selectorId
                                                                   (Indices indices))
 
       polys@(Geometry.Polygons _) -> case mindices of
-          Nothing -> error "Could not get indices for a polygon"
+          Nothing -> reportFail "Could not get indices for a polygon"
           Just (SomeIODataFrame indices) -> do
-            SomeIODataFrame (crsnrs' :: IODataFrame Float ns) <- Geometry.allData polys
+            SomeIODataFrame (crsnrs' :: IODataFrame Float ns) <- liftIO $ Geometry.allData polys
             case someIntNatVal (dimVal (dim @ns) `div` 8) of
-              Nothing -> error "Data size for a polygon"
+              Nothing -> reportFail "Data size for a polygon"
               Just (SomeIntNat (_::Proxy n)) -> do
                 let crsnrs = unsafeCoerce crsnrs' :: IODataFrame Float '[4,2,n]
-                colors <- unsafeArrayThaw $ ewgen ocolor
-                return $ obj & Object.renderingData .~ Object.ORDP
+                colors <- liftIO $ unsafeArrayThaw $ ewgen ocolor
+                return . Just $ obj & Object.renderingData .~ Object.ORDP
                                                          (ObjColoredData (CoordsNormals crsnrs)
                                                                          (Colors colors)
                                                                          selectorId
@@ -185,25 +195,25 @@ checkSpecial :: Object.ObjectId
 checkSpecial _objId obj = case obj ^. Object.special of
   Nothing -> return obj
   Just Object.SpecialForcedArea ->
-    liftIO (putStrLn "Warning: special:forcedArea encountered, but not parsed.")
-    >> return obj
+    obj <$ report "special:forcedArea encountered, but not parsed."
   Just Object.SpecialTemplate   ->
-    liftIO (putStrLn "Warning: special:template encountered, but not parsed.")
-    >> return obj
+    obj <$ report "special:template encountered, but not parsed."
   Just Object.SpecialCamera     ->
     obj <$ prepareSpecialCamera obj
 
 
 prepareSpecialCamera :: Object.Object' s -> PrepScenario ()
 prepareSpecialCamera obj = do
-    cp <- liftIO . getTwoPoints $ obj ^. Object.geometry
-    Scenario.cameraPos .= cp
+    cp <-  getTwoPoints $ obj ^. Object.geometry
+    forM_ cp $ assign Scenario.cameraPos
   where
-    getTwoPoints :: Geometry.Geometry -> IO (Vec3f, Vec3f)
+    getTwoPoints :: Geometry.Geometry -> PrepScenario (Maybe (Vec3f, Vec3f))
     getTwoPoints (Geometry.Points (SomeIODataFrame (df :: IODataFrame Float ns)))
       | (Evidence :: Evidence ([4,n] ~ ns)) <- unsafeCoerce (Evidence @(ns ~ ns))
-      = do
+      , dimVal' @n == 2
+      = liftIO $ do
       camP <- unsafeSubArrayFreeze @Float @'[] @3 df (1:!1:!Z)
       lookAtP <- unsafeSubArrayFreeze @Float @'[] @3 df (1:!2:!Z)
-      return (camP, lookAtP)
-    getTwoPoints _ = error "special:camera must be a MultiPoint!"
+      return $ Just (camP, lookAtP)
+    getTwoPoints _ = Nothing <$ report "special:camera must be a MultiPoint with exactly two points!"
+

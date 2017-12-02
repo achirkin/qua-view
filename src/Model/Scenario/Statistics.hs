@@ -65,16 +65,16 @@ instance Monoid ScenarioStatistics where
 
 
 inferViewDistance :: ScenarioStatistics -> Float
-inferViewDistance ScenarioStatistics {..} = trunc $ sqrt n * r * 0.1
+inferViewDistance ScenarioStatistics {..} = trunc $ 20 * r / sqrt n
   where
     -- assume minimum possible radius is 100 m
-    minRad = 100
+    minRad = 1000
     -- assume maximum possible radius is 10 km
     maxRad = 10000
 
     trunc = max minRad . min maxRad
     -- characteristic size in terms of number of blocks
-    n = fromIntegral $ min 100 objNumber
+    n = fromIntegral $ max 100 objNumber
     -- characteristic size in terms of radius
     r = unScalar
       $ min (normL2 (lowerCorner - centerPoint))

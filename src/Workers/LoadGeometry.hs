@@ -53,8 +53,9 @@ loadGeometryConduit = awaitForever $ \emsg -> do
         case parse parseScenarioJSON val of
            Success sc' -> do
               stat <- get
-              sc <- liftIO $ prepareScenario stat def sc'
+              (sc, errs) <- liftIO $ prepareScenario stat def sc'
               trs <- liftIO $ getTransferables sc
+              forM_ errs $ \e -> yield (LGWSError e, [])
               yield (LGWResult sc, trs)
            Error s -> do
               logWarn (workerLS loadGeometryDef) $ "Could not parse scenario: " <> s

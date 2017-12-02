@@ -296,7 +296,7 @@ cameraLookAt :: Functor f
 cameraLookAt = cameraPos . _2
 
 objectGroups :: Functor f
-             => ((Map.Map GroupId [ObjectId]) -> f (Map.Map GroupId [ObjectId]))
+             => (Map.Map GroupId [ObjectId] -> f (Map.Map GroupId [ObjectId]))
              -> ScenarioState -> f ScenarioState
 objectGroups f s = (\x -> s{_objectGroups = x}) <$> f (_objectGroups s)
 
