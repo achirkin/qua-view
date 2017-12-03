@@ -38,6 +38,8 @@ Here is a current example structure of a scenario file:
       - viewDistance         # [Number] distance in meters where objects fade in white (default: 2000)
       - mapZoomLevel         # [Int] tile server zoom level, typically something like 13-17 (default: 15)
       - useMapLayer          # [Bool] whether to use map or not (default: false)
+      - mapOpacity           # [Number] make a map semi-transparent (default: 0.8)
+                             # (min (transparent): 0.0; max (opaque): 1.0)
       - mapUrl               # [String] url pattern, like "http://a.tile.stamen.com/toner/${z}/${x}/${y}.png"
                              # look at http://wiki.openstreetmap.org/wiki/Tile_servers for more information
                              # (default: "https://a.tile.openstreetmap.org/${z}/${x}/${y}.png")

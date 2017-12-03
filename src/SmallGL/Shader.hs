@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE Strict #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  SmallGL.Shader
@@ -58,20 +59,22 @@ foreign import javascript unsafe "$1 != null && $1.hasOwnProperty('location')" j
 
 newtype JSMap a = JSMap JSVal
 
-jsMapFromList :: Coercible a JSVal => [(JSString, a)] -> JSMap a
-jsMapFromList = foldl f mm
-    where mm = js_emptyMap
-          f m (name, val) = jssetMapVal name val m
+jsMapFromList :: Coercible a JSVal => [(JSString, a)] -> IO (JSMap a)
+jsMapFromList xs = do
+    mm <- js_emptyMap
+    foldM f mm xs
+  where
+    f m (name, val) = jssetMapVal name val m
 
 jsIndexMap :: Coercible JSVal a => JSMap a -> JSString -> a
 jsIndexMap = coerce . js_indexMap
 
-foreign import javascript unsafe "$r = {};" js_emptyMap :: JSMap a
+foreign import javascript unsafe "$r = {};" js_emptyMap :: IO (JSMap a)
 
 foreign import javascript unsafe "$r = $3; $r[$1] = $2;"
-    js_setMapVal :: JSString -> JSVal -> JSMap a -> JSMap a
+    js_setMapVal :: JSString -> JSVal -> JSMap a -> IO (JSMap a)
 
-jssetMapVal :: Coercible a JSVal => JSString -> a -> JSMap a -> JSMap a
+jssetMapVal :: Coercible a JSVal => JSString -> a -> JSMap a -> IO (JSMap a)
 jssetMapVal s v = js_setMapVal s (coerce v)
 
 foreign import javascript unsafe "$r = $1[$2];"
@@ -124,7 +127,7 @@ initShaders gl shtexts explicitLocs = do
     -- load attributes' information
     attrCount <- fromMaybe (0::GLuint) . pFromJSVal <$>getProgramParameter gl shaderProgram gl_ACTIVE_ATTRIBUTES
 --    putStrLn $ "Shader attributes: " ++ show attrCount
-    shaderAttribs <- fmap jsMapFromList $ sequence . flip map [0..attrCount-1] $ \i -> do
+    shaderAttribs <- (>>= jsMapFromList) $ sequence . flip map [0..attrCount-1] $ \i -> do
         activeInfo <- getActiveAttrib gl shaderProgram i
         checkGLError gl $ "GetActiveAttrib gl for getting shader attrib " ++ show i
         aPos <- getAttribLocation gl shaderProgram (aiName activeInfo)
@@ -132,7 +135,7 @@ initShaders gl shtexts explicitLocs = do
     -- load uniforms' information
     uniCount <- fromMaybe (0::GLuint) . pFromJSVal <$> getProgramParameter gl shaderProgram gl_ACTIVE_UNIFORMS
 --    putStrLn $ "Shader uniforms: " ++ show attrCount
-    shaderUniforms <- fmap jsMapFromList $ sequence . flip map [0..uniCount-1] $ \i -> do
+    shaderUniforms <- (>>= jsMapFromList) $ sequence . flip map [0..uniCount-1] $ \i -> do
         activeInfo <- getActiveUniform gl shaderProgram i
         checkGLError gl $ "GetActiveUniform gl for getting shader uniform " ++ show i
         uPos <- getUniformLocation gl shaderProgram (aiName activeInfo)
