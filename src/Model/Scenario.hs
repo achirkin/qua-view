@@ -14,7 +14,7 @@ module Model.Scenario
     , defaultBlockColor, defaultLineColor, defaultPointColor
     , defaultObjectHeight
     , viewDistance, evaluationCellSize
-    , mapZoomLevel, useMapLayer, mapUrl
+    , mapZoomLevel, mapOpacity, useMapLayer, mapUrl
     , hiddenProperties
     , resolvedObjectHeight, resolvedObjectColor
     , ScenarioState (..)
@@ -204,6 +204,13 @@ mapZoomLevel :: Functor f
 mapZoomLevel f = properties $ property "mapZoomLevel" g
    where
      g Nothing  = Just <$> f 15
+     g (Just c) = Just <$> f c
+
+mapOpacity :: Functor f
+           => (Double -> f Double) -> Scenario' s -> f (Scenario' s)
+mapOpacity f = properties $ property "mapOpacity" g
+   where
+     g Nothing  = Just <$> f 0.8
      g (Just c) = Just <$> f c
 
 useMapLayer :: Functor f

@@ -1,4 +1,4 @@
-{-# LANGUAGE DataKinds, FlexibleContexts #-}
+{-# LANGUAGE DataKinds, FlexibleContexts, Strict #-}
 -----------------------------------------------------------------------------
 --
 -- Module      :  SmallGL.Helpers

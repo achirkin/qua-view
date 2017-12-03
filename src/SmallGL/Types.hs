@@ -30,7 +30,36 @@ import GHCJS.Marshal (FromJSVal(..), ToJSVal(..))
 import GHCJS.Marshal.Pure (PFromJSVal(..), PToJSVal(..))
 import Data.Coerce (coerce)
 import Unsafe.Coerce (unsafeCoerce)
+import SmallGL.Shader
 
+
+-- | This variable is used to control how smooth is fading near the far clipping plane.
+--   such that object fades when squared distance goes from fadeConst - 1 to fadeConst.
+fadeConst :: Double
+fadeConst = 10
+
+
+
+data RenderingProgram = RenderingProgram
+  { shader      :: !ShaderProgram
+  , uProjLoc    :: !WebGLUniformLocation
+  , uViewLoc    :: !WebGLUniformLocation
+  , uCustomLoc3 :: WebGLUniformLocation
+  , uCustomLoc4 :: WebGLUniformLocation
+  , uCustomLoc5 :: WebGLUniformLocation
+  }
+
+uSunDirLoc :: RenderingProgram -> WebGLUniformLocation
+uSunDirLoc = uCustomLoc3
+
+uSamplerLoc :: RenderingProgram -> WebGLUniformLocation
+uSamplerLoc = uCustomLoc3
+
+uClippingDistLoc :: RenderingProgram -> WebGLUniformLocation
+uClippingDistLoc = uCustomLoc4
+
+uTexOpacityLoc :: RenderingProgram -> WebGLUniformLocation
+uTexOpacityLoc = uCustomLoc5
 
 -- | Id of an object within rendering system
 --    (should be kept by other components, but not exposed outside viewer).
@@ -42,6 +71,13 @@ newtype ProjMatrix = ProjM { getProjM :: Mat44f }
 -- | Project global coordinates to camera space coordinates
 newtype ViewMatrix = ViewM { getViewM :: Mat44f }
 
+projMToClippingDist :: ProjMatrix -> Scf
+projMToClippingDist (ProjM m) = f
+  where
+    a = 3:!3:!Z !. m
+    b = 3:!4:!Z !. m
+    f = b / (a + 1)
+    -- n = b / (a - 1)
 
 -- | Rendering modes supported by the engine
 data RenderingMode
@@ -258,7 +294,7 @@ setCoordsNormalsBuf gl = do
     vertexAttribPointer gl attrLocNormals 4 gl_FLOAT False 32 16
 
 setCoordsNoNormalsBuf :: WebGLRenderingContext -> IO ()
-setCoordsNoNormalsBuf gl = do
+setCoordsNoNormalsBuf gl =
     vertexAttribPointer gl attrLocCoords  4 gl_FLOAT False 32 0
 
 setCoordsBuf :: WebGLRenderingContext -> IO ()

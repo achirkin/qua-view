@@ -28,7 +28,6 @@ custom-setup
         directory >=1.3,
         filepath >=1.4
 
-
 executable qua-view
 
     if flag(dev)
@@ -96,11 +95,13 @@ executable qua-view
         Model.Scenario.Properties
         Model.Scenario.Statistics
         Program.Camera
+        Program.MapTiles
         Program.Scenario
         Program.Scenario.Object
         SmallGL
         SmallGL.Helpers
         SmallGL.RenderingCell
+        SmallGL.RenderingMapTiles
         SmallGL.SelectorObject
         SmallGL.Shader
         SmallGL.Types
@@ -181,6 +182,8 @@ executable qua-worker-loadgeometry
         Model.Scenario.Object.Geometry
         Model.Scenario.Properties
         Model.Scenario.Statistics
+        SmallGL.Helpers
+        SmallGL.Shader
         SmallGL.Types
         Workers
         Workers.Commons

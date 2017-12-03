@@ -66,35 +66,23 @@ import SmallGL.Shader
 
 import SmallGL.RenderingCell
 import SmallGL.SelectorObject
+import SmallGL.RenderingMapTiles
 
 data RenderingEngine = RenderingEngine
-  { gl          :: !WebGLRenderingContext
+  { gl            :: !WebGLRenderingContext
     -- ^ WebGL context
-  , vpSize      :: !(GLsizei, GLsizei)
+  , vpSize        :: !(GLsizei, GLsizei)
     -- ^ size of the viewport
-  , viewProgram :: !RenderingProgram
-  , selProgram  :: !RenderingProgram
-  , selectorObj :: !SelectorObject
-  , uProjM      :: !ProjMatrix
-  , uViewM      :: !ViewMatrix
-  , rCell       :: !(RenderingCell ModeColored)
-  , geomCache   :: !(IntMap (SomeIODataFrame Float '[N 4, XN 0]))
+  , viewProgram   :: !RenderingProgram
+  , selProgram    :: !RenderingProgram
+  , renderMapProg :: !RenderMTilesProgram
+  , selectorObj   :: !SelectorObject
+  , uProjM        :: !ProjMatrix
+  , uViewM        :: !ViewMatrix
+  , rCell         :: !(RenderingCell ModeColored)
+  , geomCache     :: !(IntMap (SomeIODataFrame Float '[N 4, XN 0]))
     -- ^ Last submitted versions of active geometries
   }
-
-data RenderingProgram = RenderingProgram
-  { shader      :: !ShaderProgram
-  , uProjLoc    :: !WebGLUniformLocation
-  , uViewLoc    :: !WebGLUniformLocation
-  , uCustomLoc3 :: WebGLUniformLocation
-  , uCustomLoc4 :: WebGLUniformLocation
-  }
-
-uSunDirLoc :: RenderingProgram -> WebGLUniformLocation
-uSunDirLoc = uCustomLoc3
-
-uClippingDist :: RenderingProgram -> WebGLUniformLocation
-uClippingDist = uCustomLoc4
 
 -- | Exposed functionality of
 data RenderingApi = RenderingApi
@@ -120,10 +108,14 @@ data instance QEventTag SmallGLInput a where
     ViewTransformChange   :: QEventTag SmallGLInput ViewMatrix
     -- | Move objects
     TransformObject       :: QEventTag SmallGLInput [(RenderedObjectId, Mat44f)]
-    -- | Move objects
+    -- | Set objects' colors
     SetObjectColor        :: QEventTag SmallGLInput [(RenderedObjectId, Vector GLubyte 4)]
-    -- | Persist o
+    -- | Move objects and delete their cached old positions
     PersistGeomTransforms :: QEventTag SmallGLInput [(RenderedObjectId, Mat44f)]
+    -- | Set map rendering parameters
+    SetMapTileOpacity     :: QEventTag SmallGLInput Scf
+    -- | Add a new map cell to rendering
+    AddMapTileToRendering :: QEventTag SmallGLInput (DataFrame Float '[4,4], TexImageSource)
     -- | Clean up all viewed geometry, empty all buffers, release resource
     ResetGL               :: QEventTag SmallGLInput ()
 
@@ -141,30 +133,32 @@ createRenderingEngine canvasElem = do
 
 
     -- init shaders and get attribute locations
-    viewProgram <-liftIO $ do
+    viewProgram <- liftIO $ do
         shader <- initShaders gl [(gl_VERTEX_SHADER, vertexShaderText)
-                              ,(gl_FRAGMENT_SHADER, fragmentShaderText)
-                              ]
-                              [(attrLocCoords, "aVertexPosition")
-                              ,(attrLocNormals,"aVertexNormal")
-                              ,(attrLocColors, "aVertexColor")
-                              ]
+                                 ,(gl_FRAGMENT_SHADER, fragmentShaderText)
+                                 ]
+                                 [(attrLocCoords, "aVertexPosition")
+                                 ,(attrLocNormals,"aVertexNormal")
+                                 ,(attrLocColors, "aVertexColor")
+                                 ]
         let uProjLoc = unifLoc shader "uProjM"
             uViewLoc = unifLoc shader "uViewM"
             uCustomLoc3 = unifLoc shader "uSunDir"
             uCustomLoc4 = unifLoc shader "uClippingDist"
+            uCustomLoc5 = unifLoc shader "Selector shader does not have fifth uniform location."
         return RenderingProgram {..}
     selProgram <- liftIO $ do
         shader <- initShaders gl [(gl_VERTEX_SHADER, vertexSelShaderText)
-                              ,(gl_FRAGMENT_SHADER, fragmentSelShaderText)
-                              ]
-                              [(attrLocCoords, "aVertexPosition")
-                              ,(attrLocSelIds, "aSelector")
-                              ]
+                                 ,(gl_FRAGMENT_SHADER, fragmentSelShaderText)
+                                 ]
+                                 [(attrLocCoords, "aVertexPosition")
+                                 ,(attrLocSelIds, "aSelector")
+                                 ]
         let uProjLoc = unifLoc shader "uProjM"
             uViewLoc = unifLoc shader "uViewM"
             uCustomLoc3 = error "Selector shader does not have third uniform location."
             uCustomLoc4 = error "Selector shader does not have fourth uniform location."
+            uCustomLoc5 = unifLoc shader "Selector shader does not have fifth uniform location."
         return RenderingProgram {..}
     selectorObj <- liftIO $ initSelectorObject gl vpSize
 
@@ -190,6 +184,7 @@ createRenderingEngine canvasElem = do
        StateT $ \c -> (,) () <$> deleteRenderedObject gl c rId7
        return ()
 
+    renderMapProg <- liftIO $ initMapTilesProgram gl 0.8
 
 
     let uProjM = ProjM eye
@@ -210,7 +205,7 @@ createRenderingEngine canvasElem = do
             , setObjectColor = withMVar rre . setObjectColor'
             , transformObject = modifyMVar_ rre . transformObject'
             , resetGeomCache = modifyMVar_ rre $ \r -> pure r{geomCache = mempty}
-            , reset = modifyMVar_ rre resetCells
+            , reset = modifyMVar_ rre (resetCells >=> clearMapTiles')
             , renderToImage = \s p -> withMVar rre . renderToImage' s p
             }
 
@@ -240,26 +235,24 @@ createRenderingEngine canvasElem = do
                                          resetGeomCache rApi
                                )
 
+    askEvent (SmallGLInput SetMapTileOpacity)
+      >>= performEvent_ . fmap (liftIO . modifyMVar_ rre . setMapTileOpacity')
+
+    askEvent (SmallGLInput AddMapTileToRendering)
+      >>= performEvent_ . fmap (liftIO . modifyMVar_ rre . addMapTile')
+
+
     askEvent (SmallGLInput ResetGL)
       >>= performEvent_ . (liftIO (reset rApi) <$)
 
     return rApi
 
 
-projMToClippingDist :: ProjMatrix -> Scf
-projMToClippingDist (ProjM m) = f
-  where
-    a = 3:!3:!Z !. m
-    b = 3:!4:!Z !. m
-    f = b / (a + 1)
-    -- n = b / (a - 1)
-
-
 resetCells :: RenderingEngine -> IO RenderingEngine
 resetCells  re@RenderingEngine {..} = do
   deleteRenderingCell gl rCell
   rCell' <- initRenderingCell gl
-  return $ re { rCell = rCell', geomCache = mempty }
+  clearMapTiles' re { rCell = rCell', geomCache = mempty }
 
 
 -- | Create a WebGL rendering context for a canvas
@@ -269,22 +262,14 @@ getRenderingContext = liftIO . getWebGLContext . unsafeCoerce . _element_raw
 
 setupViewPort :: RenderingEngine -> IO ()
 setupViewPort RenderingEngine {..} | RenderingProgram {..} <- viewProgram = do
-    useProgram gl $ programId shader
     enableCoordsNormalsBuf gl
     enableColorsBuf gl
     -- setup WebGL
     clearColor gl 0 0 0 0
-    enable gl gl_DEPTH_TEST
     enable gl gl_BLEND
+    enable gl gl_DEPTH_TEST
     blendFunc gl gl_ONE gl_ONE_MINUS_SRC_ALPHA
     depthFunc gl gl_LEQUAL
-    depthMask gl True
-    depthRange gl 0 1
-    -- supply shader with uniform matrix
-    uniformMatrix4fv gl uProjLoc False (getProjM uProjM)
-    uniformMatrix4fv gl uViewLoc False (getViewM uViewM)
-    uniform4f gl (uSunDirLoc viewProgram) (-0.5) (-0.6) (-1) 0 -- sx sy sz
-    uniform1fv gl (uClippingDist viewProgram) (projMToClippingDist uProjM)
     uncurry (viewport gl 0 0) vpSize
 
 setupSelViewPort :: RenderingEngine -> IO ()
@@ -305,11 +290,20 @@ setupSelViewPort RenderingEngine {..} | RenderingProgram {..} <- selProgram = do
 
 
 renderFunction :: AnimationTime -> RenderingEngine -> IO ()
-renderFunction _ re@RenderingEngine {..} | RenderingProgram {..} <- viewProgram = do
+renderFunction _ re@RenderingEngine {..}  = do
     -- TODO probably this is too much of overhead
     setupViewPort re
     -- clear viewport
     clear gl (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
+    -- draw map tiles
+    renderMapTiles' re
+    -- shader for normal objects
+    useProgram gl $ programId (shader viewProgram)
+    -- supply shader with uniform matrix
+    uniformMatrix4fv gl (uProjLoc         viewProgram) False (getProjM uProjM)
+    uniformMatrix4fv gl (uViewLoc         viewProgram) False (getViewM uViewM)
+    uniform4f        gl (uSunDirLoc       viewProgram) (-0.5) (-0.6) (-1) 0 -- sx sy sz
+    uniform1fv       gl (uClippingDistLoc viewProgram) (projMToClippingDist uProjM)
     -- draw objects
     renderCell gl rCell
 
@@ -403,8 +397,8 @@ renderToImage' (width,height) projMat viewMat RenderingEngine {..}
     -- supply shader with uniform matrix
     uniformMatrix4fv gl uProjLoc False (invertedY $ getProjM projMat)
     uniformMatrix4fv gl uViewLoc False (getViewM viewMat)
-    uniform4f gl (uSunDirLoc viewProgram) (-0.5) (-0.6) (-1) 0 -- sx sy sz
-    uniform1fv gl (uClippingDist viewProgram) (projMToClippingDist projMat)
+    uniform4f  gl (uSunDirLoc viewProgram) (-0.5) (-0.6) (-1) 0 -- sx sy sz
+    uniform1fv gl (uClippingDistLoc viewProgram) (projMToClippingDist projMat)
     viewport gl 0 0 width height
 
     -- clear viewport
@@ -449,8 +443,26 @@ foreign import javascript unsafe
                      -> IO JSString -- ^ image url
 
 
+----------------------------------------------------------------------------------------------------
 
+setMapTileOpacity' :: Scf -> RenderingEngine -> IO RenderingEngine
+setMapTileOpacity' op r
+  = return r{renderMapProg = setMapTileOpacity op (renderMapProg r)}
 
+addMapTile' :: (DataFrame Float '[4,4], TexImageSource)
+            -> RenderingEngine -> IO RenderingEngine
+addMapTile' (df, tex) r = do
+  renderMapProg' <- addMapTile (gl r) df tex (renderMapProg r)
+  return r{renderMapProg = renderMapProg'}
+
+clearMapTiles' :: RenderingEngine -> IO RenderingEngine
+clearMapTiles' r = do
+  renderMapProg' <- clearMapTiles (gl r) (renderMapProg r)
+  return r{renderMapProg = renderMapProg'}
+
+renderMapTiles' :: RenderingEngine -> IO ()
+renderMapTiles' RenderingEngine {..}
+  = renderMapTiles  gl uProjM uViewM renderMapProg
 
 
 ----------------------------------------------------------------------------------------------------
@@ -473,11 +485,6 @@ rectangle
     return $ ObjColoredData (CoordsNormals crsnrs') (Colors colors') 0xFFFFFFFF (Indices ixs')
 
 
-
--- | This variable is used to control how smooth is fading near the far clipping plane.
---   such that object fades when squared distance goes from fadeConst - 1 to fadeConst.
-fadeConst :: Double
-fadeConst = 10
 
 fragmentShaderText :: JSString
 fragmentShaderText =
@@ -548,5 +555,4 @@ vertexSelShaderText =
       gl_Position = uProjM * uViewM * aVertexPosition;
     }
   |]
-
 

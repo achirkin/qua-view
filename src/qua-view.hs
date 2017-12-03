@@ -29,6 +29,7 @@ import qualified Workers.LoadGeometry as Workers
 import           Program.Camera
 import           Program.Scenario
 import           Program.Scenario.Object
+import           Program.MapTiles
 
 import qualified QuaTypes
 import Control.Concurrent (forkIO, threadDelay)
@@ -79,6 +80,8 @@ main = mainWidgetInElementById "qua-view-widgets" $ runQuaWidget $ mdo
         $ SmallGL.ViewM . Model.viewMatrix <$> updated cameraD
 
     scenarioB <- createScenario renderingApi
+    -- enable map loading
+    downloadMapTiles scenarioB
 
 
     -- Notify everyone that the program h finished starting up now
