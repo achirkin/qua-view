@@ -28,19 +28,19 @@ import Model.Scenario.Statistics
 
 -- | LoadGeometryWorker messages
 data LGWMessage
-  = LGWResult (Scenario' 'Prepared)
+  = LGWResult !(Scenario' 'Prepared)
     -- ^ Send parsed Scenario
-  | LGWSCStat ScenarioStatistics
+  | LGWSCStat !ScenarioStatistics
     -- ^ Send general info about scenario object
-  | LGWSError JSError
+  | LGWSError !JSError
     -- ^ Something went wrong!
   deriving Generic
 
 -- | Send a request to LoadGeometryWorker
 data LGWRequest
-  = LGWLoadTextContent (Scenario' 'Prepared) LoadedTextContent
+  = LGWLoadTextContent !(Scenario' 'Prepared) !LoadedTextContent
     -- ^ Parse supplied json text content
-  | LGWLoadUrl (Scenario' 'Prepared) JSString
+  | LGWLoadUrl !(Scenario' 'Prepared) !JSString
     -- ^ Call a url and then parse response
   deriving Generic
 
