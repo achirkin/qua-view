@@ -108,9 +108,8 @@ onMessage :: (FromJSVal msg, MonadIO m, MonadLogger m)
 onMessage w msgCallback = do
     f <- askLogger
     liftIO $ JSFFI.on (handle w) JSFFI.message
-        ( ReaderT $ \msg -> runReaderT (JSFFI.getData msg
-                                         >>= liftIO . fromJSValUnchecked
-                                         >>= msgCallback) f
+        ( ReaderT $
+            liftIO . ( JSFFI.getData >=> fromJSValUnchecked >=> flip runReaderT f . msgCallback )
         )
 
 
@@ -129,8 +128,8 @@ execWorkerConduit :: (FromJSVal inMsg, ToJSVal outMsg, MonadIO m, MonadLogger m)
 execWorkerConduit wd pipe = do
     inCh <- liftIO newChan
     w <- getSelf
-    release <- liftIO . JSFFI.on (handle w) JSFFI.message . ReaderT $ \msg ->
-            JSFFI.getData msg >>= liftIO . fromJSValUnchecked >>= liftIO . writeChan inCh
+    release <- liftIO . JSFFI.on (handle w) JSFFI.message . ReaderT $
+            liftIO . (JSFFI.getData >=> fromJSValUnchecked >=> writeChan inCh)
     let msgSource = yieldM (liftIO (readChan inCh)) >> msgSource
         msgSink = await >>= \mmsg -> case mmsg of
             Nothing -> return ()
@@ -198,7 +197,7 @@ runWorkerDyn wdDyn inEvs = do
     return outMsgE
   where
     create' evCbk errCbk wd = do
-      wE <-runExceptT $ create (workerUrl wd) (fromJSValUnchecked >=> evCbk) (\e -> errCbk (wd,e))
+      wE <-runExceptT $ create (workerUrl wd) evCbk (\e -> errCbk (wd,e))
       case wE of
         Left  (JSException jsv msg) -> Nothing <$ logWarn' (workerLS wd) msg jsv
         Right w -> return $ Just w
