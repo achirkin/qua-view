@@ -65,10 +65,12 @@ createScenario renderingApi = do
 
     (updateSSE, updateSScb) <- newTriggerEvent
     registerEvent (ScenarioUpdate ScenarioStateUpdatedOut) updateSSE
+    (askResetCamE, askResetCamcb) <- newTriggerEvent
+    registerEvent (UserAction AskResetCamera) askResetCamE
 
     -- Assemble events into scenario behavior
     accumM (&) def $ leftmost
-          [ loadScenarioPart updateSScb renderingApi <$> scenarioUpdated
+          [ loadScenarioPart updateSScb askResetCamcb renderingApi <$> scenarioUpdated
           , clearScenario resetGLcb <$ scenarioCleared
           , updateObjectGeomInScenario <$> objectLocUpdated
           , updateObjectPropInScenario <$> objectPropUpdated
@@ -77,16 +79,21 @@ createScenario renderingApi = do
 
 
 loadScenarioPart :: MonadIO (PushM t)
-    => (Scenario.ScenarioState -> IO ())
+    => (Scenario.ScenarioState -> IO ()) -- ^ "I have updated scenario" callback
+    -> (() -> IO ()) -- ^ reset camera event callback in case current scenario is empty.
     -> SmallGL.RenderingApi
     -> Scenario' 'Object.Prepared  -- ^ scenario update
     -> Scenario -- ^ previous scenario state
     -> PushM t Scenario
-loadScenarioPart updateSScb renderingApi newSc oldSc  = do
+loadScenarioPart updateSScb askResetCamcb renderingApi newSc oldSc  = do
     sc' <- liftIO $ newSc & Scenario.objects.traverse %%~
                               Object.registerRender (registerRenderFunStub renderingApi)
+    -- merge two scenarios
     let updatedSc = oldSc <> sc'
     liftIO . updateSScb $ updatedSc ^. Scenario.viewState
+    -- if current scenario is empty, reset camera to center on the new scenario
+    -- this callback must go after updateSScb to use latest initial camera state.
+    when (Map.null $ oldSc ^. Scenario.objects) $ liftIO $ askResetCamcb ()
     return updatedSc
 
 clearScenario :: MonadIO (PushM t)
