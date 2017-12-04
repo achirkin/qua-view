@@ -14,11 +14,10 @@ import Commons
 import Numeric.DataFrame
 import Control.Lens
 import JavaScript.WebGL
-import Data.List (sortOn)
 import qualified Data.JSString as JSString
 import Control.Concurrent (forkIO)
 import Reflex
-
+import Unsafe.Coerce (unsafeCoerce)
 
 import SmallGL
 
@@ -71,10 +70,10 @@ downloadTiles :: ((DataFrame Float '[4,4], TexImageSource) -> IO ())
               -> IO ()
 downloadTiles _ Nothing = return ()
 downloadTiles cbk (Just (zoomLvl, _, mUrl, viewDist, (lon,lat,_)) ) =
-    mapM_ (\p -> (,) p <$> createMapTile gmv p)
-      ( sortOn (\(i,j) -> (i - xtile0)*(i - xtile0) + (j - ytile0)*(j - ytile0))
-               [(xtile0+i,ytile0+j) | i <- [- nTiles .. nTiles -1], j <- [- nTiles .. nTiles -1]]
-      )
+    mapM_ (createMapTilesAsync gmv)
+      [[ (xtile0+i,ytile0+j)
+        | i' <- [0 .. nTiles -1], i <- [i', -i'-1]]
+        | j' <- [0 .. nTiles -1], j <- [j', -j'-1]]
   where
     gmv = GroundMapView
       { gmvLonLatCenter = vec2 lon0 lat0
@@ -101,11 +100,17 @@ downloadTiles cbk (Just (zoomLvl, _, mUrl, viewDist, (lon,lat,_)) ) =
     nTiles = min 25 . max 3 . ceiling $ viewDist / tileWidth * 0.8
 
 
+createMapTilesAsync :: GroundMapView
+                    -> [(Int, Int)] -- ^ tile x and y
+                    -> IO ()
+createMapTilesAsync gmv = void . forkIO . mapM_ (createMapTile gmv)
+
+
 createMapTile :: GroundMapView
               -> (Int, Int) -- ^ tile x and y
               -> IO ()
 createMapTile GroundMapView {..} tilexy@(x,y)
-    = void . forkIO $ createTex gmvMapUrl gmvZoomLevel tilexy >>= gmvCallback . (,) df
+    = createTex gmvMapUrl gmvZoomLevel tilexy >>= mapM_ (gmvCallback . (,) df)
   where
     df = groundPoints cellCoord gmvCellWidth
     cellCoord = gmvLocalCenter + vec4 xx yy 0 0
@@ -125,17 +130,25 @@ groundPoints p side
 
 
 foreign import javascript interruptible
-    "var osmImg = new Image(); osmImg.addEventListener('load', function(){$c(osmImg)}); osmImg['crossOrigin'] = 'anonymous'; osmImg['src'] = $1;"
-    js_createTex :: JSString -> IO TexImageSource
+    "var tryDownload = function(attempt) {\
+    \  if(attempt > 0){ \
+    \    var osmImg = new Image(); \
+    \    osmImg.addEventListener('load', function(){$c(osmImg);});\
+    \    osmImg.addEventListener('error', function(){tryDownload(attempt-1);});\
+    \    osmImg['crossOrigin'] = 'anonymous'; \
+    \    osmImg['src'] = $1; \
+    \  } else { $c(null); }\
+    \}; tryDownload(10); "
+    js_createTex :: JSString -> IO (Nullable JSVal)
 
 
-createTex :: JSString -> Int -> (Int,Int) -> IO TexImageSource
+createTex :: JSString -> Int -> (Int,Int) -> IO (Maybe TexImageSource)
 createTex urlPat z (xtile,ytile)
-   = js_createTex
-   $ urlPat
-   & JSString.replace "${z}" (toJSString $ show z)
-   & JSString.replace "${x}" (toJSString $ show xtile)
-   & JSString.replace "${y}" (toJSString $ show ytile)
+    = fmap unsafeCoerce . nullableToMaybe <$> js_createTex url
+  where
+    url = urlPat & JSString.replace "${z}" (toJSString $ show z)
+                 & JSString.replace "${x}" (toJSString $ show xtile)
+                 & JSString.replace "${y}" (toJSString $ show ytile)
 
 
 zoomLonLat2xy :: Int -> (Float, Float) -> (Int, Int)
