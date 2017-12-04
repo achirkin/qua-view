@@ -115,9 +115,12 @@ renderPropVal val = mdo
                                   & textInputConfig_initialValue .~ val
                                   & attributes .~ constDyn ("class" =: "form-control")
                 in  widgetHold (renderV False) (renderV <$> editableE)
-  saveE <- let getEnter (Just t) = tagPromptlyDyn (t^.textInput_value) $ keypress Enter t
-               getEnter Nothing  = never
-           in  switchPromptOnly never $ getEnter <$> updated mTxtInputD
+  let getTxt eFn = let f (Just t) = tagPromptlyDyn (t^.textInput_value) $ eFn t
+                       f Nothing  = never
+                   in  switchPromptOnly never $ f <$> updated mTxtInputD
+  enterE     <- getTxt $ keypress Enter
+  loseFocusE <- getTxt (\t -> () <$ ffilter not (updated $ t^.textInput_hasFocus))
+  let saveE = leftmost [enterE, loseFocusE]
   (editBtn, _) <- elClass' "span" "icon" $ text "edit"
   let editableE = leftmost [
                    True  <$ domEvent Click editBtn
