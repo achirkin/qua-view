@@ -2,6 +2,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RecursiveDo #-}
 
 module Widgets.Tabs.Info
@@ -9,13 +10,14 @@ module Widgets.Tabs.Info
     ) where
 
 import Control.Lens
-import Data.Map (toList)
+import Data.Map (fromList, toList)
 import Data.Maybe (fromMaybe)
 import Data.Text (pack)
 import Data.Text.Read (double)
 import Reflex.Dom
 import JavaScript.JSON.Types.Instances()
 import qualified JavaScript.JSON.Types.Internal as GHCJS
+
 
 import Commons
 import qualified Model.Scenario as Scenario
@@ -57,7 +59,10 @@ renderInfo props = do
     \imgUrl -> elAttr "img" ( "src" =: textFromJSString imgUrl
                             <> "style" =: "width: 100%" ) blank
   -- draw the info table
-  fmap leftmost $ elClass "table" tableClass $ traverse renderProp $ toList props
+  propsE <- fmap leftmost $ elClass "table" tableClass $ traverse renderProp $ toList props
+
+  newPropE <- elClass "div" newPropClass renderAddProp
+  return $ leftmost [propsE, newPropE]
   where
     renderProp (PropName key, pval)
         | Just val <- fromPropValue pval >>= valToMTxt
@@ -66,8 +71,9 @@ renderInfo props = do
                el "td" $ renderPropVal val
              return $ ((,) (PropName key)) <$> updatedE
         | otherwise = return never
-    tableClass = $(do
+    (tableClass, newPropClass) = $(do
         tableCls <- newVar
+        newPropCls <- newVar
         qcss
           [cassius|
             .#{tableCls}
@@ -99,8 +105,21 @@ renderInfo props = do
                 background-color: white
                 ~ .icon
                   display: none
+            .#{newPropCls}
+              margin-left: 50px
+              margin-bottom: 50px
+              >input
+                width: 30%
+                float: left
+                margin-right: 10px
+              .icon
+                font-weight: bold
+                font-size: 20px
+                cursor: pointer
+              .btn ~ .icon
+                display: none
           |]
-        returnVars [tableCls]
+        returnVars [tableCls, newPropCls]
       )
 
 -- | Assume value is constant, because we redraw the whole list on every update anyway.
@@ -127,6 +146,29 @@ renderPropVal val = mdo
                  , False <$ saveE
                  ]
   return $ Just <$> toPropValue . parseValue <$> saveE
+
+renderAddProp :: Reflex t
+              => QuaWidget t x (Event t (PropName, Maybe PropValue))
+renderAddProp = mdo
+  let makeInput placeholder = do
+        input <- textInput $ def & attributes .~ constDyn (fromList
+                   [("class", "form-control"), ("placeholder", placeholder)])
+        return $ current $ input^.textInput_value
+  saveD <- let render False = blank >> return never
+               render True  = do
+                 ktB <- makeInput "Name"
+                 vtB <- makeInput "Value"
+                 saveE <- do
+                   let cls = "btn btn-red waves-attach waves-light waves-effect"
+                   (e, _) <- elClass' "button" cls $ text "Add"
+                   return $ ElementClick <$ domEvent Click e
+                 return $ (,) <$> ktB <*> vtB <@ saveE
+           in  widgetHold (render False) (render <$> editableE)
+  (addBtn, _) <- elClass' "span" "icon" $ text "add"
+  let editableE = True <$ domEvent Click addBtn
+  let toProp (k, v) = (PropName $ textToJSString k, Just $ toPropValue $ parseValue v)
+  return $ toProp <$> switchPromptlyDyn saveD
+
 
 triggerDelayed :: Reflex t => (() -> IO ()) -> Event t a -> QuaWidget t x ()
 triggerDelayed updateCB e = performEvent_ $ liftIO (updateCB ()) <$ e
