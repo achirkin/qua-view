@@ -16,6 +16,7 @@ import qualified Reflex.Dom.Widget.Animation as A
 
 import           Model.Camera
 import qualified Model.Scenario as Scenario
+import           Program.UserAction
 import qualified Program.Scenario as Scenario
 
 
@@ -29,7 +30,7 @@ dynamicCamera :: Reflex t
               -> QuaViewM t (Dynamic t Camera)
 dynamicCamera aHandler camLockedB = mdo
     scStateUpdatedE <- askEvent $ ScenarioUpdate Scenario.ScenarioStateUpdatedOut
-    resetCameraE <- askEvent $ UserRequest AskResetCamera
+    resetCameraE <- askEvent $ UserAction AskResetCamera
     -- derive default camera state and its position from scenario
     initCStateB <- hold initCStateI
       $ lookAtState . view Scenario.cameraPos <$> scStateUpdatedE
