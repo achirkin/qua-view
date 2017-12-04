@@ -135,7 +135,7 @@ foreign import javascript interruptible
     \    var osmImg = new Image(); \
     \    osmImg.addEventListener('load', function(){$c(osmImg);});\
     \    osmImg.addEventListener('error', function(){tryDownload(attempt-1);});\
-    \    osmImg['crossOrigin'] = 'anonymous'; \
+    \    osmImg['crossOrigin'] = 'Anonymous'; \
     \    osmImg['src'] = $1; \
     \  } else { $c(null); }\
     \}; tryDownload(10); "

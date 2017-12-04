@@ -34,7 +34,7 @@ import Workers.LoadGeometry.Parser
 
 loadGeometryConduit :: (MonadIO m, MonadLogger m, MonadState ScenarioStatistics m)
                     => Conduit LGWRequest m (LGWMessage, [Transferable])
-loadGeometryConduit = awaitForever $ \emsg -> do
+loadGeometryConduit = (yield (LGWReady, []) >>) . awaitForever $ \emsg -> do
     errOrVal <- runExceptT $ case emsg of
       LGWLoadUrl _ url -> getUrlSync url >>= ExceptT . parseJSONValue . getTextContent
       LGWLoadTextContent _ content -> ExceptT . parseJSONValue $ getTextContent content
@@ -47,7 +47,6 @@ loadGeometryConduit = awaitForever $ \emsg -> do
               logInfo' @JSString (workerLS loadGeometryDef) "Centres:" centres
               let stat = getScenarioStatistics cs
               put stat
-              yield (LGWSCStat stat, [])
            Error s ->
               logWarn (workerLS loadGeometryDef) $ "Could not parse centres: " <> s
         case parse parseScenarioJSON val of

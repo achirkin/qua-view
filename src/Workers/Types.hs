@@ -24,14 +24,13 @@ import Commons
 #endif
 import Model.Scenario
 import Model.Scenario.Object (ObjectRenderable(..))
-import Model.Scenario.Statistics
 
 -- | LoadGeometryWorker messages
 data LGWMessage
   = LGWResult !(Scenario' 'Prepared)
     -- ^ Send parsed Scenario
-  | LGWSCStat !ScenarioStatistics
-    -- ^ Send general info about scenario object
+  | LGWReady
+    -- ^ Worker is ready!
   | LGWSError !JSError
     -- ^ Something went wrong!
   deriving Generic
