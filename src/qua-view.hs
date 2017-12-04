@@ -32,7 +32,6 @@ import           Program.Scenario.Object
 import           Program.MapTiles
 
 import qualified QuaTypes
-import Control.Concurrent (forkIO, threadDelay)
 
 main :: IO ()
 main = mainWidgetInElementById "qua-view-widgets" $ runQuaWidget $ mdo
@@ -96,10 +95,12 @@ main = mainWidgetInElementById "qua-view-widgets" $ runQuaWidget $ mdo
                 >>= \ms -> case ms of
       Nothing -> return ()
       Just url -> do
-        (ev, trigger) <- newTriggerEvent
+        let f Workers.LGWReady  = Just url
+            f _                 = Nothing
+        workerMsgE <- askEvent (WorkerMessage Workers.LGWMessage) >>= headE
         registerEvent (WorkerMessage Workers.LGWRequest)
-          $ Workers.LGWLoadUrl . Scenario.withoutObjects <$> scenarioB <@> ev
-        liftIO . void . forkIO $ threadDelay 2000000 >> trigger url
+          $ Workers.LGWLoadUrl . Scenario.withoutObjects <$> scenarioB <@> fmapMaybe f workerMsgE
+
 
 
 

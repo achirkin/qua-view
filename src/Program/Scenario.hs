@@ -175,6 +175,10 @@ updateScenarioFromLGW = do
     registerEvent (ScenarioUpdate ScenarioUpdated) $ fmapMaybe id scUpdates
   where
     updateOrComplain (LGWResult sc) = do
+      showUserMessage . SingleMsg
+         $ "Received geometry ("
+         <> toJSString (show . Map.size $ sc^.Scenario.objects)
+         <> " objects)."
       logInfo' @JSString "updateScenarioFromLGW" "Received a scenario update:" sc
       return $ Just sc
     updateOrComplain (LGWSError (JSError err)) = do
@@ -182,7 +186,7 @@ updateScenarioFromLGW = do
         "Loading geometry error. " <> err
       return Nothing
     -- I guess, later we will use this to set up scenario location?..
-    updateOrComplain (LGWSCStat _) = pure Nothing
+    updateOrComplain LGWReady = pure Nothing
 
 
 -- TODO: cope with all data types
