@@ -34,7 +34,6 @@ module SmallGL
     , createRenderingEngine
     ) where
 
-import Control.Monad.Trans.State.Strict
 import Control.Concurrent.MVar
 import Unsafe.Coerce (unsafeCoerce)
 import qualified GHCJS.DOM.JSFFI.Generated.Element as JSFFI
@@ -55,7 +54,6 @@ import Data.JSString hiding (length, map)
 
 import Numeric.DataFrame
 import Numeric.DataFrame.IO
-import qualified Numeric.Matrix as M
 import Numeric.Dimensions
 import Numeric.TypeLits
 
@@ -163,26 +161,7 @@ createRenderingEngine canvasElem = do
     selectorObj <- liftIO $ initSelectorObject gl vpSize
 
     -- create objects (including sending data to device)
-    rCell <- fmap snd . liftIO . (initRenderingCell gl >>=) . runStateT $ do
-       rectData <- liftIO rectangle
-       rId1 <- StateT $ addRenderedObject gl rectData
-       rId2 <- StateT $ addRenderedObject gl rectData
-       rId3 <- StateT $ addRenderedObject gl rectData
-       rId4 <- StateT $ addRenderedObject gl rectData
-       rId5 <- StateT $ addRenderedObject gl rectData
-       rId6 <- StateT $ addRenderedObject gl rectData
-       rId7 <- StateT $ addRenderedObject gl rectData
-       StateT $ \c -> flip (,) c <$> transformRenderedObject gl c rId3 (M.translate3 $ vec3 0 20 0)
-       StateT $ \c -> flip (,) c <$> transformRenderedObject gl c rId2 (M.translate4 $ vec4 0 10 0 0)
-       StateT $ \c -> flip (,) c <$> transformRenderedObject gl c rId4 (M.translate4 $ vec4 0 (-10) 0 0)
-       StateT $ \c -> flip (,) c <$> transformRenderedObject gl c rId5 (M.translate4 $ vec4 0 (-20) 0 0)
-       StateT $ \c -> flip (,) c <$> transformRenderedObject gl c rId6 (M.translate4 $ vec4 0 (-30) 0 0)
-       StateT $ \c -> flip (,) c <$> transformRenderedObject gl c rId7 (M.translate4 $ vec4 0 (-40) 0 0)
-       StateT $ \c -> flip (,) c <$> setRenderedObjectColor gl c rId1 (vec4 255 0 25 255)
-       StateT $ \c -> flip (,) c <$> setRenderedObjectColor gl c rId2 (vec4 0 0 25 127)
-       StateT $ \c -> (,) () <$> deleteRenderedObject gl c rId4
-       StateT $ \c -> (,) () <$> deleteRenderedObject gl c rId7
-       return ()
+    rCell <- liftIO $ initRenderingCell gl
 
     renderMapProg <- liftIO $ initMapTilesProgram gl 0.8
 
@@ -466,25 +445,6 @@ renderMapTiles' RenderingEngine {..}
 
 
 ----------------------------------------------------------------------------------------------------
-
-rectangle :: IO (ObjRenderingData ModeColored)
-rectangle
-  | SomeDataFrame ixs <- fromList [0,1,2,0,2,3::Scalar GLushort]
-  , crsnrs <-   (vec4  5 9  0 1 <::> vec4 0 0 1 0)
-           <::> (vec4 19 9  0 1 <::> vec4 0 0 1 0)
-           <+:> (vec4 19 0  0 1 <::> vec4 0 0 1 0)
-           <+:> (vec4  5 0  0 1 <::> vec4 0 0 1 0)
-  , colors <-   vec4 255 0 0 255
-           <::> vec4 0 255 0 255
-           <+:> vec4 0 0 255 255
-           <+:> vec4 0 127 127 255
-  = do
-    crsnrs' <- thawDataFrame crsnrs
-    colors' <- thawDataFrame colors
-    ixs'    <- thawDataFrame ixs
-    return $ ObjColoredData (CoordsNormals crsnrs') (Colors colors') 0xFFFFFFFF (Indices ixs')
-
-
 
 fragmentShaderText :: JSString
 fragmentShaderText =
