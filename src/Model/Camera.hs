@@ -213,7 +213,9 @@ scroll :: Float -- ^ Scrolling amout in fractions (i.e. `dist := dist*(1+x)`)
        -> CState
 scroll s Camera {
         oldState = ostate@CState { viewDist = ρ }
-    } = ostate { viewDist = max 0.1 (ρ * (1 + min (8 / (1 + ρ)) (max (max (-0.8) (- 8 / (1 + ρ))) s))) }
+    } = ostate { viewDist = max 1 $ ρ * (1 + min x (max (- min 0.8 x) s)) }
+  where
+    x = 8 / (1 + ρ/20)
 
 -- | Rotate, scale, and pan camera with two fingers
 twoFingerControl :: (Vec2f, Vec2f) -- ^ Old screen coordinates

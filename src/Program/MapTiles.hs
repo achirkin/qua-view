@@ -98,7 +98,7 @@ downloadTiles cbk (Just (zoomLvl, _, mUrl, viewDist, (lon,lat,_)) ) =
     pos1 = wgs2metric (vec2 lon1 lat1)
     tileWidth = unScalar $ normL2 (pos1 - pos0) / sqrt 2
 
-    nTiles = min 32 . max 5 . ceiling $ viewDist / tileWidth / 2
+    nTiles = min 25 . max 3 . ceiling $ viewDist / tileWidth * 0.8
 
 
 createMapTile :: GroundMapView
@@ -125,7 +125,7 @@ groundPoints p side
 
 
 foreign import javascript interruptible
-    "var osmImg = new Image(); osmImg.addEventListener('load', function(){$c(osmImg)}); osmImg.crossOrigin = 'anonymous'; osmImg.src = $1;"
+    "var osmImg = new Image(); osmImg.addEventListener('load', function(){$c(osmImg)}); osmImg['crossOrigin'] = 'anonymous'; osmImg['src'] = $1;"
     js_createTex :: JSString -> IO TexImageSource
 
 
