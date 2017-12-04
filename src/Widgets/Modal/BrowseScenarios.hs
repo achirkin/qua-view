@@ -8,8 +8,10 @@ module Widgets.Modal.BrowseScenarios
 import Reflex.Dom
 
 import Commons
+import Program.UserAction
 import Widgets.Commons
 import Widgets.Modal
+
 
 
 -- | Modal window allowing user to select a scenario to load it from luci.

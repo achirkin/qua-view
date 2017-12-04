@@ -98,6 +98,7 @@ executable qua-view
         Program.MapTiles
         Program.Scenario
         Program.Scenario.Object
+        Program.UserAction
         SmallGL
         SmallGL.Helpers
         SmallGL.RenderingCell

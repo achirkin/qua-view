@@ -24,6 +24,7 @@ import Text.Julius (julius)
 import Commons
 import SmallGL (RenderingApi)
 import QuaTypes
+import Program.UserAction
 import Model.Scenario (Scenario)
 import Widgets.Generation
 import Widgets.Modal.DownloadScenario
@@ -205,7 +206,7 @@ resetCameraButton = do
             <span .icon style="margin-left: -24px;font-size: 1em;line-height: 1em;">
               videocam
         |])
-    registerEvent (UserRequest AskResetCamera) (() <$ Dom.domEvent Dom.Click e)
+    registerEvent (UserAction AskResetCamera) (() <$ Dom.domEvent Dom.Click e)
 
 serviceButtons :: Reflex t
                => Dynamic t (ComponentState "LuciConnect")

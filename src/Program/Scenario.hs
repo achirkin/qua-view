@@ -30,6 +30,7 @@ import qualified Model.Scenario.Object.Geometry as Geometry
 import           Model.Scenario.Object (Object, ObjectId)
 import qualified Model.Scenario.Object as Object
 import           Model.Scenario.Properties
+import           Program.UserAction
 import           Workers.LoadGeometry (LGWMessage (..), QEventTag (..))
 
 
@@ -50,7 +51,7 @@ createScenario :: ( Reflex t
 createScenario renderingApi = do
     -- Set up related event streams
     updateScenarioFromLGW
-    askEvent (UserRequest AskClearGeometry) >>= registerEvent (ScenarioUpdate ScenarioCleared)
+    askEvent (UserAction AskClearGeometry) >>= registerEvent (ScenarioUpdate ScenarioCleared)
 
     -- request all necessary events
     scenarioUpdated     <- askEvent $ ScenarioUpdate ScenarioUpdated

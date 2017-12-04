@@ -21,6 +21,7 @@ import qualified GHCJS.DOM.JSFFI.Generated.FileReader as JSFFI
 import qualified GHCJS.DOM.EventM as JSFFI
 
 import Commons
+import Program.UserAction
 import Widgets.Commons
 import Widgets.Generation
 import Widgets.Modal.BrowseScenarios
@@ -45,9 +46,9 @@ panelGeometry = do
     (asksSaveScenarioE, asksSelectScenarioE) <- lift luciScenarioPane
 
     -- register all outgoing events
-    registerEvent (UserRequest AskClearGeometry) clearGeometryClickedE
-    registerEvent (UserRequest AskSaveScenario) asksSaveScenarioE
-    registerEvent (UserRequest AskSelectScenario) asksSelectScenarioE
+    registerEvent (UserAction AskClearGeometry) clearGeometryClickedE
+    registerEvent (UserAction AskSaveScenario) asksSaveScenarioE
+    registerEvent (UserAction AskSelectScenario) asksSelectScenarioE
     registerEvent GeometryLoaded geometryLoadedE
 
 

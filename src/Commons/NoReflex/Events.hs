@@ -7,7 +7,7 @@ module Commons.NoReflex.Events
     ( -- * Tagging events
       QEventType (..), QEventTag
       -- * Event types
-    , UserRequest (..), ScId
+    , UserAction
     , WorkerMessage
     , SmallGLInput
     , ScenarioUpdate
@@ -21,14 +21,14 @@ import Data.GADT.Compare.TH (deriveGEq, deriveGCompare)
 import Language.Haskell.TH.Syntax ( Type (ConT), Name, Q, Dec, reifyInstances )
 
 import Commons.NoReflex.Local (LoadedTextContent)
-import Commons.NoReflex.Import (Text)
 
 
 -- | All possible global events in qua-view
 --    (those, which are passed between components only).
 data QEventType evArg where
     -- | Some type of user action - interaction with UI.
-    UserRequest    :: UserRequest evArg -> QEventType evArg
+    UserAction    :: (GEq (QEventTag UserAction), GCompare (QEventTag UserAction))
+                   => QEventTag UserAction evArg -> QEventType evArg
     -- | When we got geometetry from file.
     --   Note, the geometry is loaded, but not parsed yet.
     --   To load scenario, we need to put this geometry text into an appropriate worker.
@@ -66,29 +66,13 @@ data SmallGLInput
 -- | Tag events of some changes in Scenario.
 data ScenarioUpdate
 
--- | TODO this datatype should be in luci module;
---   represents a scenario id
-newtype ScId = ScId Int
-  deriving (Eq, Show, Ord)
-
--- | Event types fired by user actions
-data UserRequest evArg where
-    -- | User wants to save scenario with this name.
-    AskSaveScenario   :: UserRequest Text
-    -- | User selects a scenario in the scenario list.
-    AskSelectScenario :: UserRequest ScId
-    -- | User wants to clear all geometry.
-    AskClearGeometry  :: UserRequest ()
-    -- | User wants to reset camera to its default position.
-    AskResetCamera    :: UserRequest ()
+-- | Tag events fired by user actions
+data UserAction
 
 ----------------------------------------------------------------------------------------------------
 -- * Template Haskell
 ----------------------------------------------------------------------------------------------------
 
-
-deriveGEq ''UserRequest
-deriveGCompare ''UserRequest
 deriveGEq ''QEventType
 deriveGCompare ''QEventType
 
