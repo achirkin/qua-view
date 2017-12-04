@@ -13,6 +13,7 @@ import Data.Semigroup
 import Data.Maybe (fromMaybe)
 import Data.List (mapAccumL)
 import Data.Sequence
+import Control.Applicative ((<|>))
 import Control.Lens hiding (indices)
 import Control.Monad.Trans.RWS.Strict
 import qualified Data.Map.Strict as Map
@@ -42,10 +43,10 @@ parseScenarioJSON v = flip (withObject "Scenario object") v $ \scObj -> do
         -- basic properties are all optional,
         -- they are parsed only if we are given scenario object (wrapped FeatureCollection)
         _name       <- scObj .:? "name"
-        -- msrid       <- scObj .:? "srid"
         mlon        <- scObj .:? "lon"
         mlat        <- scObj .:? "lat"
         alt         <- scObj .:? "alt" .!= 0
+        _srid       <- scObj .:? "srid"
         _properties <- scObj .:? "properties" .!= def
         let _geoLoc = (,,) <$> mlon <*> mlat <*> Just alt
             _viewState = def
@@ -78,7 +79,7 @@ parseScenarioJSON v = flip (withObject "Scenario object") v $ \scObj -> do
 
 
 
-type PrepScenario = RWST (ScenarioStatistics, Scenario.Scenario' 'Object.NotReady)
+type PrepScenario = RWST (Scenario.Scenario' 'Object.NotReady)
                          (Seq JSError) Scenario.ScenarioState IO
 
 report :: JSError -> PrepScenario ()
@@ -89,45 +90,68 @@ prepareScenario :: ScenarioStatistics
                 -> Scenario.Scenario' 'Object.NotReady
                 -> IO (Scenario.Scenario' 'Object.Prepared, Seq JSError)
 prepareScenario st ss sc = do
-    (newSc, newSs, errs) <- (\m -> runRWST m (st, sc) oldSs)
+    (newSc, newSs, errs) <- (\m -> runRWST m sc oldSs)
       . flip Scenario.objects sc
         . (fmap (Map.mapMaybe id) .)
           . Map.traverseWithKey -- use Map.traverseMapWithKey when 0.5.8 at least is available
-            $ \i -> performGTransform st
+            $ \i -> transGeom
                 >=> performExtrude
                 >=> checkGroupId i
                 >=> checkSpecial i
                 >=> prepareObject i
-    return (newSc & Scenario.viewState .~ newSs, errs)
+    return (newSc & Scenario.viewState .~ newSs
+                  & Scenario.geoLoc %~ (<|> mScLoc) -- infer location if it is not given
+                  & Scenario.srid .~ newSRID
+           , errs)
   where
+    -- updated statistics is a corrected version after transform from lon-lat coordinates
+    (st', mScLoc, newSRID, transGeom) = performGTransform (sc^.Scenario.srid) st
     oldSs = ss -- update clipping distance if it is given in properties
-             & Scenario.clippingDist .~ sc^.Scenario.viewDistance.non (inferViewDistance st)
+             & Scenario.clippingDist .~ sc^.Scenario.viewDistance.non (inferViewDistance st')
                -- set default camera position
-             & Scenario.cameraPos .~ inferCameraLookAt st
+             & Scenario.cameraPos .~ inferCameraLookAt st'
 
 
 -- | extrude geometry if we find it necessary
 performExtrude :: Object.Object' 'Object.NotReady -> PrepScenario (Object.Object' 'Object.NotReady)
 performExtrude o | Object.was2D o = do
-                     sc <- view _2
+                     sc <- ask
                      let h = Scenario.resolvedObjectHeight sc o
                      liftIO $ Object.geometry (Geometry.extrudeSolidGeometry h) o
                  | otherwise      = pure o
 
 
 -- | Transform from WGS'84 if we find it necessary
-performGTransform :: ScenarioStatistics -> Object.Object' 'Object.NotReady
-                  -> PrepScenario (Object.Object' 'Object.NotReady)
-performGTransform st =
-  if guessIsWgs84 st
-    then \obj -> liftIO $ do
-      Geometry.applyGeomCoords (obj^.Object.geometry) (wgs84ToMetric (centerPoint st))
-      return $ obj & Object.center %~ (\v -> let (x,y,z,t) = unpackV4 v
-                                                 v' = wgs84ToMetric (centerPoint st) (vec2 x y)
-                                                 (x',y') = unpackV2 v'
-                                             in  vec4 x' y' z t
-                                      )
-    else return
+performGTransform :: Maybe Int -- ^ forced was WGS'84
+                  -> ScenarioStatistics
+                  -> ( ScenarioStatistics
+                     , Maybe (Double, Double, Double) -- ^ updated loc
+                     , Maybe Int -- ^ updated SRID
+                     , Object.Object' 'Object.NotReady -> PrepScenario (Object.Object' 'Object.NotReady)
+                     )
+performGTransform forcedSRID st
+  = if (forcedSRID == Just 4326) || (guessIsWgs84 st && forcedSRID == Nothing)
+    then ( st'
+         , Just (realToFrac lon, realToFrac lat, 0)
+         , Nothing
+         , \obj -> liftIO $ do
+               Geometry.applyGeomCoords (obj^.Object.geometry) f
+               return $ obj & Object.center %~ f4
+         )
+    else (st, Nothing, forcedSRID, return)
+  where
+    f = wgs84ToMetric (centerPoint st)
+    (lon, lat) = unpackV2 $ centerPoint st
+    st' = st
+      { lowerCorner = f $ lowerCorner st
+      , upperCorner = f $ upperCorner st
+      , centerPoint = 0
+      }
+    f4 v = let (x,y,z,t) = unpackV4 v
+               v' = wgs84ToMetric (centerPoint st) (vec2 x y)
+               (x',y') = unpackV2 v'
+           in  vec4 x' y' z t
+
 
 -- | Add an GroupId-ObjectId pair if there is one to ScenarioState
 checkGroupId :: Object.ObjectId
@@ -142,7 +166,7 @@ checkGroupId objId obj = do
 prepareObject :: Object.ObjectId
               -> Object.Object' 'Object.NotReady
               -> PrepScenario (Maybe (Object.Object' 'Object.Prepared))
-prepareObject (Object.ObjectId objId) obj = (view _2 >>=) $ \sc -> do
+prepareObject (Object.ObjectId objId) obj = (ask >>=) $ \sc -> do
     mindices <- liftIO $ setNormalsAndComputeIndices (obj^.Object.geometry)
     let ocolor = Scenario.resolvedObjectColor sc obj ^. colorVeci
         -- parse property "selectable" to check whether an object can be selected or not.

@@ -8,7 +8,7 @@
 --
 module Model.Scenario
     ( Scenario, Scenario' (..), getTransferables
-    , name, geoLoc, properties, objects, objIdSeq, viewState, withoutObjects
+    , name, geoLoc, srid, properties, objects, objIdSeq, viewState, withoutObjects
     , selectedDynamicColor, selectedStaticColor, selectedGroupColor
     , defaultStaticColor
     , defaultBlockColor, defaultLineColor, defaultPointColor
@@ -44,6 +44,8 @@ data Scenario' s
     -- ^ Friendly name for a scenario
   , _geoLoc     :: !(Maybe (Double, Double, Double))
     -- ^ Longitude, Latitude, and Altitude of scenario reference point
+  , _srid       :: !(Maybe Int)
+    -- ^ We can explicitly specify srid
   , _properties :: !Properties
     -- ^ key-value of arbitrary JSON properties
   , _objects    :: !(Object.Collection' s)
@@ -80,6 +82,11 @@ geoLoc :: Functor f
        -> Scenario' s -> f (Scenario' s)
 geoLoc f s = (\x -> s{_geoLoc = x}) <$> f (_geoLoc s)
 
+srid :: Functor f
+     => (Maybe Int -> f (Maybe Int))
+     -> Scenario' s -> f (Scenario' s)
+srid f s = (\x -> s{_srid = x}) <$> f (_srid s)
+
 
 properties :: Functor f
            => (Properties -> f Properties)
@@ -108,6 +115,8 @@ instance Semigroup (Scenario' s) where
       _name       = _name scNew <|> _name scOld
                     -- keeping GeoLocation from older version
     , _geoLoc     = _geoLoc scOld <|> _geoLoc scNew
+                    -- keeping SRID from older version
+    , _srid       = _srid scOld <|> _srid scNew
                     -- prefer duplicate properties from a new version
     , _properties = _properties scNew <> _properties scOld
                     -- replace older objects with newer ones
@@ -124,6 +133,7 @@ instance Monoid (Scenario' s) where
   mempty = Scenario
     { _name       = Nothing
     , _geoLoc     = Nothing
+    , _srid       = Nothing
     , _properties = mempty
     , _objects    = mempty
     , _objIdSeq   = Object.ObjectId 0
