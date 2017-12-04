@@ -63,6 +63,7 @@ instance ToJSON (Scenario.Scenario' m) where
         ?: ("lon",  sc^?Scenario.geoLoc._Just._1.to doubleValue)
         ?: ("lat",  sc^?Scenario.geoLoc._Just._2.to doubleValue)
         ?: ("alt",  sc^?Scenario.geoLoc._Just._3.to doubleValue)
+        ?: ("srid", sc^?Scenario.srid._Just.to (doubleValue.fromIntegral))
         ?: [ ("properties", toJSON $ sc ^. Scenario.properties )
            , ("geometry"
              , objectValue $ object
