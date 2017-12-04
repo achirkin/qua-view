@@ -86,8 +86,11 @@ renderInfo props = do
               td
                 padding: 3px 5px 3px 5px
                 overflow: hidden
+                word-wrap: break-word
+                word-break: break-word
               td:first-child
                 text-align: right
+                width: 50%
               td>.icon
                 margin-left: 10px
                 cursor: pointer
