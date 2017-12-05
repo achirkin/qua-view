@@ -104,11 +104,13 @@ renderMapTiles :: WebGLRenderingContext
                -> RenderMTilesProgram
                -> IO ()
 renderMapTiles _ _ _ rmtp | null (rmtTiles rmtp) = return ()
-renderMapTiles gl uProjM uViewM RenderMTilesProgram {..} = do
+renderMapTiles gl uProjM uViewM RenderMTilesProgram {..}
+  = do
     useProgram gl . programId $ shader rmtRenderProg
     enableCoordsBuf gl
     enableTexCoordsBuf gl
     activeTexture gl gl_TEXTURE0
+
     -- supply shader with uniforms
     uniformMatrix4fv gl (uProjLoc rmtRenderProg) False (getProjM uProjM)
     uniformMatrix4fv gl (uViewLoc rmtRenderProg) False (getViewM uViewM)
@@ -124,6 +126,8 @@ renderMapTiles gl uProjM uViewM RenderMTilesProgram {..} = do
       drawArrays gl gl_TRIANGLE_STRIP 0 4
     bindTexture gl gl_TEXTURE_2D Nothing
     depthMask gl True
+    disableCoordsBuf gl
+    disableTexCoordsBuf gl
 
 
 

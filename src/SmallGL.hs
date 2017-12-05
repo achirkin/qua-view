@@ -171,14 +171,12 @@ createRenderingEngine canvasElem = do
         geomCache = mempty
         re = RenderingEngine {..}
 
-    liftIO $ do
-        useProgram gl $ programId $ shader viewProgram
-        enableCoordsNormalsBuf gl
-        enableColorsBuf gl
-        setupViewPort re
+
     rre <- liftIO $ newMVar re
     let rApi = RenderingApi
-            { render = withMVar rre . renderFunction
+            { render = \t -> withMVar rre $ \r -> do
+                  setupRenderViewPort r
+                  renderFunction t r
             , addRObject = modifyMVar rre . addRObjectFunction
             , getHoveredSelId = modifyMVar rre . getSelection
             , setObjectColor = withMVar rre . setObjectColor'
@@ -200,7 +198,7 @@ createRenderingEngine canvasElem = do
     viewPortResizeE <- askEvent $ SmallGLInput ViewPortResize
     performEvent_ . ffor viewPortResizeE $ \(ResizeEvent newVPSize) ->
         liftIO . modifyMVar_ rre $ \r ->
-           let r' = r{vpSize = (floor *** floor) newVPSize } in r' <$ setupViewPort r'
+           let r' = r{vpSize = (floor *** floor) newVPSize } in r' <$ setupRenderViewPort r'
 
     askEvent (SmallGLInput TransformObject)
       >>= performEvent_ . fmap (liftIO . transformObject rApi)
@@ -239,45 +237,40 @@ getRenderingContext :: MonadIO m => Element r s t -> m WebGLRenderingContext
 getRenderingContext = liftIO . getWebGLContext . unsafeCoerce . _element_raw
 
 
-setupViewPort :: RenderingEngine -> IO ()
-setupViewPort RenderingEngine {..} | RenderingProgram {..} <- viewProgram = do
-    enableCoordsNormalsBuf gl
-    enableColorsBuf gl
-    -- setup WebGL
+
+setupRenderViewPort :: RenderingEngine -> IO ()
+setupRenderViewPort RenderingEngine {..} | RenderingProgram {..} <- viewProgram = do
+    uncurry (viewport gl 0 0) vpSize
     clearColor gl 0 0 0 0
     enable gl gl_BLEND
     enable gl gl_DEPTH_TEST
     blendFunc gl gl_ONE gl_ONE_MINUS_SRC_ALPHA
     depthFunc gl gl_LEQUAL
-    uncurry (viewport gl 0 0) vpSize
 
-setupSelViewPort :: RenderingEngine -> IO ()
-setupSelViewPort RenderingEngine {..} | RenderingProgram {..} <- selProgram = do
-    useProgram gl $ programId shader
-    enableCoordsBuf gl
-    enableSelIdsBuf gl
-    -- setup WebGL
+
+setupSelectViewPort :: RenderingEngine -> IO ()
+setupSelectViewPort RenderingEngine {..} | RenderingProgram {..} <- selProgram = do
     clearColor gl 1 1 1 1
     enable gl gl_DEPTH_TEST
     disable gl gl_BLEND
     blendFunc gl gl_ONE gl_ZERO
     depthFunc gl gl_LEQUAL
-    -- supply shader with uniform matrix
-    uniformMatrix4fv gl uProjLoc False (getProjM uProjM)
-    uniformMatrix4fv gl uViewLoc False (getViewM uViewM)
-    uncurry (viewport gl 0 0) vpSize
 
 
 renderFunction :: AnimationTime -> RenderingEngine -> IO ()
 renderFunction _ re@RenderingEngine {..}  = do
-    -- TODO probably this is too much of overhead
-    setupViewPort re
     -- clear viewport
     clear gl (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
     -- draw map tiles
     renderMapTiles' re
+    renderCells re
+
+renderCells :: RenderingEngine -> IO ()
+renderCells RenderingEngine {..} = do
     -- shader for normal objects
     useProgram gl $ programId (shader viewProgram)
+    enableCoordsNormalsBuf gl
+    enableColorsBuf gl
     -- supply shader with uniform matrix
     uniformMatrix4fv gl (uProjLoc         viewProgram) False (getProjM uProjM)
     uniformMatrix4fv gl (uViewLoc         viewProgram) False (getViewM uViewM)
@@ -285,8 +278,8 @@ renderFunction _ re@RenderingEngine {..}  = do
     uniform1fv       gl (uClippingDistLoc viewProgram) (projMToClippingDist uProjM)
     -- draw objects
     renderCell gl rCell
-
-
+    disableCoordsNormalsBuf gl
+    disableColorsBuf gl
 
 addRObjectFunction :: ObjRenderingData ModeColored
                    -> RenderingEngine
@@ -322,11 +315,20 @@ getSelection :: (GLint, GLint) -> RenderingEngine -> IO (RenderingEngine, GLuint
 getSelection (x, y) re@RenderingEngine {..} = do
     so@SelectorObject {..} <- updateSelectorSizeIfNeeded gl vpSize selectorObj
     bindFramebuffer gl gl_FRAMEBUFFER $ Just selFrameBuf
-    setupSelViewPort re
+    setupSelectViewPort re
+    useProgram gl . programId $ shader selProgram
+    enableCoordsBuf gl
+    enableSelIdsBuf gl
     -- clear viewport
     clear gl (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
+    -- supply shader with uniform matrix
+    uniformMatrix4fv gl (uProjLoc selProgram) False (getProjM uProjM)
+    uniformMatrix4fv gl (uViewLoc selProgram) False (getViewM uViewM)
     -- draw objects
     renderCellSelectors gl rCell
+    disableCoordsBuf gl
+    disableSelIdsBuf gl
+    -- get selection back
     readPixels gl x (fromIntegral h - y) 1 1 gl_RGBA gl_UNSIGNED_BYTE selUbyteView
     bindFramebuffer gl gl_FRAMEBUFFER Nothing
     (,) re{selectorObj = so} . unScalar <$> unsafeFreezeDataFrame selUintView
@@ -340,8 +342,12 @@ getSelection (x, y) re@RenderingEngine {..} = do
 
 renderToImage' :: (GLsizei, GLsizei) -> ProjMatrix -> ViewMatrix
                -> RenderingEngine -> IO JSString
-renderToImage' (width,height) projMat viewMat RenderingEngine {..}
-      | RenderingProgram {..} <- viewProgram
+renderToImage' (width,height) projMat viewMat re'
+      | re@RenderingEngine {..} <- re'
+          { uProjM = invertedY projMat
+          , uViewM = viewMat
+          , vpSize = (width,height) }
+      , RenderingProgram {..} <- viewProgram
       , Just (SomeIntNat (Proxy :: Proxy width)) <- someIntNatVal $ fromIntegral width
       , Just (SomeIntNat (Proxy :: Proxy height)) <- someIntNatVal $ fromIntegral height
       = do
@@ -360,31 +366,9 @@ renderToImage' (width,height) projMat viewMat RenderingEngine {..}
     framebufferRenderbuffer gl gl_FRAMEBUFFER gl_DEPTH_ATTACHMENT gl_RENDERBUFFER rbd
     bindRenderbuffer gl gl_RENDERBUFFER Nothing
 
-
-    -- setup rendering context
-    useProgram gl $ programId shader
-    enableCoordsNormalsBuf gl
-    enableColorsBuf gl
-    -- setup WebGL
-    clearColor gl 0 0 0 0
-    enable gl gl_DEPTH_TEST
-    enable gl gl_BLEND
-    blendFunc gl gl_ONE gl_ONE_MINUS_SRC_ALPHA
-    depthFunc gl gl_LEQUAL
-    depthMask gl True
-    depthRange gl 0 1
-    -- supply shader with uniform matrix
-    uniformMatrix4fv gl uProjLoc False (invertedY $ getProjM projMat)
-    uniformMatrix4fv gl uViewLoc False (getViewM viewMat)
-    uniform4f  gl (uSunDirLoc viewProgram) (-0.5) (-0.6) (-1) 0 -- sx sy sz
-    uniform1fv gl (uClippingDistLoc viewProgram) (projMToClippingDist projMat)
-    viewport gl 0 0 width height
-
-    -- clear viewport
-    clear gl (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
-
-    -- draw objects
-    renderCell gl rCell
+    -- draw everything with adjusted matrices
+    setupRenderViewPort re
+    renderFunction 0 re
 
     -- get texture content
     imgData <- newDataFrame :: IO (IODataFrame GLubyte '[4,width,height])
@@ -398,9 +382,12 @@ renderToImage' (width,height) projMat viewMat RenderingEngine {..}
     deleteFramebuffer gl fb
     return imgjsval
   where
-    invertedY :: Mat44f -> Mat44f
-    invertedY m = update (2:!2:!Z) (negate $ 2:!2:!Z !. m :: Scf)
-                $ update (2:!4:!Z) (negate $ 2:!4:!Z !. m :: Scf) m
+    invertedY :: ProjMatrix -> ProjMatrix
+    invertedY (ProjM m) = ProjM $ m
+                        & update (2:!1:!Z) (negate $ 2:!1:!Z !. m :: Scf)
+                        & update (2:!2:!Z) (negate $ 2:!2:!Z !. m :: Scf)
+                        & update (2:!3:!Z) (negate $ 2:!3:!Z !. m :: Scf)
+                        & update (2:!4:!Z) (negate $ 2:!4:!Z !. m :: Scf)
 renderToImage' _ _ _ _ = (newDataFrame :: IO (IODataFrame GLubyte '[4,1,1]))
                      >>= js_dfToImageData 1 1
 
