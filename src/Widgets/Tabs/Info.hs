@@ -26,6 +26,7 @@ import qualified Model.Scenario.Object as Object
 import Model.Scenario.Object (ObjectId (..))
 import Model.Scenario.Properties
 import Program.Scenario
+import qualified QuaTypes
 import Widgets.Generation
 
 panelInfo :: Reflex t
@@ -64,6 +65,10 @@ renderInfo :: Reflex t
            -> QuaWidget t x ( Event t (PropName, Maybe PropValue)
                             , Event t PropName )
 renderInfo props = do
+  settingsD <- quaSettings
+  canEdit <- fmap QuaTypes.canEditProperties $ sample $
+                  QuaTypes.permissions <$> current settingsD
+
   -- draw an image above the info table if it is available
   forM_ (props^.previewImgUrl) $
     \imgUrl -> elAttr "img" ( "src" =: textFromJSString imgUrl
@@ -71,18 +76,23 @@ renderInfo props = do
   -- draw the info table
   let leftm (es1, es2) = (leftmost es1, leftmost es2)
   propsE <- fmap (leftm . unzip) $
-              elClass "table" tableClass $ traverse renderProp $ toList props
+              elClass "table" tableClass $
+              traverse (renderProp canEdit) $ toList props
 
-  newPropE <- elClass "div" newPropClass renderAddProp
+  newPropE <- if canEdit
+              then elClass "div" newPropClass renderAddProp
+              else return never
   return $ (leftmost [fst propsE, newPropE], snd propsE)
   where
-    renderProp (pName, pVal)
+    renderProp canEdit (pName, pVal)
         | Just val <- fromPropValue pVal >>= valToMTxt
         = do
             (kEl, updatedE) <- el "tr" $ do
               let PropName key = pName
               (kEl, _) <- el' "td" $ text $ textFromJSString key
-              upE      <- el  "td" $ renderPropVal val
+              upE      <- el  "td" $ if canEdit
+                                     then renderPropVal val
+                                     else text val >> return never
               return (kEl, upE)
             let propUpdatedE = ((,) pName) <$> updatedE
                 propClickE   = pName <$ domEvent Click kEl
