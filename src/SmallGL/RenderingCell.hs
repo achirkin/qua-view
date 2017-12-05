@@ -19,6 +19,7 @@ import Numeric.DataFrame.IO
 import Numeric.Dimensions
 import Numeric.Dimensions.Traverse.IO
 import Numeric.TypeLits
+import Numeric.Semigroup
 import Commons.NoReflex.EasyTensorJSFFI
 
 import           Data.IntMap.Strict (IntMap)
@@ -466,6 +467,42 @@ renderCell gl RenderingCell { rcGPUData = d@WebGLTexturedData {} } = do
     bindBuffer gl gl_ELEMENT_ARRAY_BUFFER (Just $ wglIndicesBuf d)
     drawElements gl gl_TRIANGLES (wglSeqLen d) gl_UNSIGNED_SHORT 0
 
+renderCellObj :: WebGLRenderingContext
+              -> RenderedObjectId -> RenderingCell m -> IO ()
+renderCellObj _  _ rc | wglSeqLen (rcGPUData rc) == 0 = return ()
+renderCellObj gl (RenderedObjectId i)
+    RenderingCell { rcGPUData = d@WebGLPointData {}, rcObjects = rcObjs }
+    | Just RenderedObjRef {..} <- IntMap.lookup i rcObjs = do
+    bindBuffer gl gl_ARRAY_BUFFER (Just $ wglCoordsBuf d) >> setCoordsBuf gl
+    bindBuffer gl gl_ARRAY_BUFFER (Just $ wglColorsBuf d) >> setColorsBuf gl
+    drawArrays gl gl_POINTS (fromIntegral $ roDataIdx-1) $ fromIntegral roDataLength
+renderCellObj gl (RenderedObjectId i)
+    RenderingCell { rcGPUData = d@WebGLLineData {}, rcObjects = rcObjs }
+    | Just RenderedObjRef {..} <- IntMap.lookup i rcObjs = do
+    bindBuffer gl gl_ARRAY_BUFFER (Just $ wglCoordsBuf d) >> setCoordsBuf gl
+    bindBuffer gl gl_ARRAY_BUFFER (Just $ wglColorsBuf d) >> setColorsBuf gl
+    bindBuffer gl gl_ELEMENT_ARRAY_BUFFER (Just $ wglIndicesBuf d)
+    drawElements gl gl_TRIANGLES (fromIntegral roIndexLength)
+                    gl_UNSIGNED_SHORT (fromIntegral $ (roIndexIdx-1)*2)
+renderCellObj gl (RenderedObjectId i)
+    RenderingCell { rcGPUData = d@WebGLColoredData {}, rcObjects = rcObjs }
+    | Just RenderedObjRef {..} <- IntMap.lookup i rcObjs = do
+    bindBuffer gl gl_ARRAY_BUFFER (Just $ wglCoordsNormalsBuf d) >> setCoordsNormalsBuf gl
+    bindBuffer gl gl_ARRAY_BUFFER (Just $ wglColorsBuf d) >> setColorsBuf gl
+    bindBuffer gl gl_ELEMENT_ARRAY_BUFFER (Just $ wglIndicesBuf d)
+    drawElements gl gl_TRIANGLES (fromIntegral roIndexLength)
+                    gl_UNSIGNED_SHORT (fromIntegral $ (roIndexIdx-1)*2)
+renderCellObj gl (RenderedObjectId i)
+    RenderingCell { rcGPUData = d@WebGLTexturedData {}, rcObjects = rcObjs }
+    | Just RenderedObjRef {..} <- IntMap.lookup i rcObjs = do
+    -- TODO need a texture!
+    -- bindTexture gl gl_TEXTURE_2D gmcMapTexture
+    bindBuffer gl gl_ARRAY_BUFFER (Just $ wglCoordsNormalsBuf d) >> setCoordsNormalsBuf gl
+    bindBuffer gl gl_ARRAY_BUFFER (Just $ wglTexCoordsBuf d)     >> setTexCoordsBuf gl
+    bindBuffer gl gl_ELEMENT_ARRAY_BUFFER (Just $ wglIndicesBuf d)
+    drawElements gl gl_TRIANGLES (fromIntegral roIndexLength)
+                    gl_UNSIGNED_SHORT (fromIntegral $ (roIndexIdx-1)*2)
+renderCellObj _ _ _ = return ()
 
 -- | Render ids of objects into a supplied framebuffer.
 --   Then we can use it to find out which object is selected by their ids.
@@ -490,4 +527,40 @@ renderCellSelectors gl RenderingCell { rcGPUData =  d@WebGLTexturedData {}  } = 
     bindBuffer gl gl_ARRAY_BUFFER (Just $ wglSelectorIdsBuf d) >> setSelIdsBuf gl
     bindBuffer gl gl_ELEMENT_ARRAY_BUFFER (Just $ wglIndicesBuf d)
     drawElements gl gl_TRIANGLES (wglSeqLen d) gl_UNSIGNED_SHORT 0
+
+
+probeObjectSize :: RenderingCell m -> RenderedObjectId -> IO (Option (MinMax Vec3f))
+probeObjectSize RenderingCell {..} (RenderedObjectId i)
+    | Just RenderedObjRef {..} <- IntMap.lookup i rcObjects
+    , Just (SomeIntNat (Proxy :: Proxy n)) <- someIntNatVal roDataLength
+    = case rcData of
+        PointData (Coords coords) _ _ -> do
+          objCrsnrs <- unsafeSubArrayFreeze @Float @'[4] @n coords (roDataIdx :! Z)
+          return $ ewfoldMap (toOption . minMax . fromHom) objCrsnrs
+        LineData (Coords coords) _ _ _ -> do
+          objCrsnrs <- unsafeSubArrayFreeze @Float @'[4] @n coords (roDataIdx :! Z)
+          return $ ewfoldMap (toOption . minMax . fromHom) objCrsnrs
+        ColoredData (CoordsNormals rcCrsnrs) _ _ _ -> do
+          objCrsnrs <- unsafeSubArrayFreeze @Float @'[4,2] @n rcCrsnrs (roDataIdx :! Z)
+          return $ ewfoldMap (\x -> toOption . minMax $ fromHom (1:!Z!.x)) objCrsnrs
+        TexturedData (CoordsNormals rcCrsnrs) _ _ _ -> do
+          objCrsnrs <- unsafeSubArrayFreeze @Float @'[4,2] @n rcCrsnrs (roDataIdx :! Z)
+          return $ ewfoldMap (\x -> toOption . minMax $ fromHom (1:!Z!.x)) objCrsnrs
+probeObjectSize _ _ = return mempty
+
+
+probeObjectColor :: RenderingCell m -> RenderedObjectId -> IO (Maybe (Vector GLubyte 4))
+probeObjectColor RenderingCell {..} (RenderedObjectId i)
+    | Just RenderedObjRef {..} <- IntMap.lookup i rcObjects
+    , Just (SomeIntNat (Proxy :: Proxy n)) <- someIntNatVal roDataLength
+    = case rcData of
+        PointData   _ (Colors colors) _ ->
+          fmap Just $ unsafeSubArray @_ @'[] @4 colors (1 :! roDataIdx :! Z) >>= freezeDataFrame
+        LineData    _ (Colors colors) _ _ ->
+          fmap Just $ unsafeSubArray @_ @'[] @4 colors (1 :! roDataIdx :! Z) >>= freezeDataFrame
+        ColoredData _ (Colors colors) _ _ ->
+          fmap Just $ unsafeSubArray @_ @'[] @4 colors (1 :! roDataIdx :! Z) >>= freezeDataFrame
+        TexturedData _ _ _ _ -> return Nothing
+probeObjectColor _ _ = return Nothing
+
 

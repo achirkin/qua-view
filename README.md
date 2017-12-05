@@ -28,10 +28,10 @@ Here is a current example structure of a scenario file:
   - properties: # key-value collection of scenario-wise properties
                 # look at Model.Scenario module for these properties
       - defaultObjectHeight  # [Number] default building height in meters (default: 3.5)
-      - selectedDynamicColor # [#RRGGBB] set visualization colors (default: "#FF9999FF")
-      - selectedGroupColor   # [#RRGGBB] set visualization colors (default: "#CC8888DD")
+      - selectedDynamicColor # [#RRGGBB] set visualization colors (default: "#FF6060FF")
+      - selectedGroupColor   # [#RRGGBB] set visualization colors (default: "#CC8888E0")
       - selectedStaticColor  # [#RRGGBB] set visualization colors (default: "#BB8888FF")
-      - defaultStaticColor   # [#RRGGBB] set visualization colors (default: "#808088FF")
+      - defaultStaticColor   # [#RRGGBB] set visualization colors (default: "#808088E0")
       - defaultBlockColor    # [#RRGGBB] set visualization colors (default: "#C0C082FF")
       - defaultLineColor     # [#RRGGBB] set visualization colors (default: "#CC6666FF")
       - defaultPointColor    # [#RRGGBB] set visualization colors (default: "#006666FF")
