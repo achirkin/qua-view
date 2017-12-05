@@ -10,8 +10,9 @@ module Widgets.Tabs.Info
     ) where
 
 import Control.Lens
-import Data.Map (fromList, toList)
+import Data.Map (fromList, toList, filterWithKey)
 import Data.Maybe (fromMaybe)
+import qualified Data.Set as Set
 import Data.Text (pack)
 import Data.Text.Read (double)
 import Reflex.Dom
@@ -41,7 +42,10 @@ panelInfo scenarioB selectedObjIdD = do
   let propsGivenE = getProps <$> scenarioB
                              <@> leftmost [ current selectedObjIdD <@ delayedE
                                           , updated selectedObjIdD]
-      getProps s mid = fromMaybe (s^.Scenario.properties)
+      getProps s mid = let f (PropName k) _ = Set.notMember k $
+                             Set.fromList (s^.Scenario.hiddenProperties)
+                       -- use withoutKeys when we have containers >= 0.5.8
+                       in  filterWithKey f $ fromMaybe (s^.Scenario.properties)
                      ( mid >>= \i -> s^?Scenario.objects.at i._Just.Object.properties )
 
   propChangeD <- widgetHold (pure (never, never)) (renderInfo <$> propsGivenE)
