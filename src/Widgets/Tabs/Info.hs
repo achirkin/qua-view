@@ -100,6 +100,10 @@ renderInfo props = do
               tr:hover
                 background: #FF5722
                 color: white
+                .icon
+                  visibility: visible
+              .icon
+                visibility: hidden
               td
                 padding: 3px 5px 3px 5px
                 overflow: hidden
