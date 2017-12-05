@@ -40,7 +40,7 @@ controlPanel renderingApi scenarioB selectedObjIdD = mdo
         <- Dom.elAttr "div" ("style" =: "overflow-y: auto; overflow-x: hidden; height: 100%;") $ do
           Dom.elAttr "div" ("style" =: "margin: 0; padding: 0; height: 56px;") Dom.blank
           runTabWidget $ do
-            addTab "Geometry" panelGeometry
+            addTab "Geometry" $ panelGeometry renderingApi scenarioB
             addTab "Info" $ panelInfo scenarioB selectedObjIdD
             addTab "Reviews" panelReviews
             addTab "Services" panelServices

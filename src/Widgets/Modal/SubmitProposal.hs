@@ -25,7 +25,6 @@ import Widgets.Modal
 
 
 
-
 popupSubmitProposal :: Reflex t
                     => RenderingApi
                     -> Behavior t Scenario

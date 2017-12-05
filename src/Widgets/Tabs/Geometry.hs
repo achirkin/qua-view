@@ -12,26 +12,39 @@ module Widgets.Tabs.Geometry
     ( panelGeometry
     ) where
 
+import Commons
 import Reflex.Dom
-import Control.Lens ((%~), (^.))
+import Control.Lens
 import Control.Monad.Trans.Class (lift)
+import           Data.Maybe (isJust)
+import qualified Data.Map.Strict as Map
+import qualified Data.List as List
 import qualified GHCJS.DOM.JSFFI.Generated.HTMLInputElement as JSFFI (setValue)
 import qualified GHCJS.DOM.JSFFI.Generated.File as JSFFI
 import qualified GHCJS.DOM.JSFFI.Generated.FileReader as JSFFI
 import qualified GHCJS.DOM.EventM as JSFFI
 
-import Commons
-import Program.UserAction
+
+
+import qualified Model.Scenario as Scenario
+import qualified Model.Scenario.Object as Object
+import           Model.Scenario.Properties
+import           Program.UserAction
+import           Program.Scenario
+
 import Widgets.Commons
 import Widgets.Generation
 import Widgets.Modal.BrowseScenarios
 import Widgets.Modal.SaveScenario
 
+import qualified SmallGL
 
 
-
-panelGeometry :: Reflex t => QuaWidget t x ()
-panelGeometry = do
+panelGeometry :: Reflex t
+              => SmallGL.RenderingApi
+              -> Behavior t Scenario.Scenario
+              -> QuaWidget t x ()
+panelGeometry renderingApi scenarioB = do
 
     el "div" $ text "Read GeoJSON from file"
     (clearGeometryClickedE, geometryLoadedE) <-
@@ -50,6 +63,24 @@ panelGeometry = do
     registerEvent (UserAction AskSaveScenario) asksSaveScenarioE
     registerEvent (UserAction AskSelectScenario) asksSelectScenarioE
     registerEvent GeometryLoaded geometryLoadedE
+
+    scsUpdateE <- askEvent (ScenarioUpdate ScenarioStateUpdatedOut)
+
+    let imgWidth = 200
+        imgHeight = 200
+    void $ widgetHold blank $ ffor (scenarioB <@ scsUpdateE) $ \scenario -> do
+      let objs = List.groupBy (\((_,x), _) ((_,y), _) -> isJust y && x == y )
+               . List.sortOn (snd . fst)
+               . map (\(i,o) -> ( (i, o^.Object.groupID)
+                                , ( o^.Object.renderingId
+                                  , Scenario.resolvedObjectColorIgnoreVisible scenario o ^. colorVeci)
+                                ))
+               . filter (\(_,o) -> o^.Object.special == Just Object.SpecialTemplate)
+               $ Map.toList (scenario^.Scenario.objects)
+      urls <- liftIO $ mapM (SmallGL.renderObjToImg renderingApi (imgWidth, imgHeight) . map snd) objs
+      forM_ urls $
+        \imgUrl -> elAttr "img" ( "src" =: textFromJSString imgUrl
+                                <> "style" =: "max-width: 100%" ) blank
 
 
 

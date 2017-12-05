@@ -161,14 +161,14 @@ selectedDynamicColor :: Functor f
                      => (HexColor -> f HexColor) -> Scenario' s -> f (Scenario' s)
 selectedDynamicColor f = properties $ property "selectedDynamicColor" g
    where
-     g Nothing  = Just <$> f "#FF9999FF"
+     g Nothing  = Just <$> f "#FF6060FF"
      g (Just c) = Just <$> f c
 
 selectedGroupColor :: Functor f
                    => (HexColor -> f HexColor) -> Scenario' s -> f (Scenario' s)
 selectedGroupColor f = properties $ property "selectedGroupColor" g
    where
-     g Nothing  = Just <$> f "#CC8888DD"
+     g Nothing  = Just <$> f "#CC8888E0"
      g (Just c) = Just <$> f c
 
 selectedStaticColor :: Functor f
@@ -182,7 +182,7 @@ defaultStaticColor :: Functor f
                    => (HexColor -> f HexColor) -> Scenario' s -> f (Scenario' s)
 defaultStaticColor f = properties $ property "defaultStaticColor" g
    where
-     g Nothing  = Just <$> f "#808088FF"
+     g Nothing  = Just <$> f "#808088E0"
      g (Just c) = Just <$> f c
 
 defaultBlockColor :: Functor f

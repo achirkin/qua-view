@@ -29,7 +29,7 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module SmallGL
     ( ProjMatrix (..), ViewMatrix (..)
-    , RenderingApi (addRObject, getHoveredSelId, render, renderToImage)
+    , RenderingApi (addRObject, getHoveredSelId, render, renderToImage, renderObjToImg)
     , QEventTag (..)
     , createRenderingEngine
     ) where
@@ -51,12 +51,14 @@ import qualified Data.IntMap.Strict as IntMap
 
 import Prelude hiding (unlines)
 import Data.JSString hiding (length, map)
+import Data.Maybe (fromMaybe)
 
 import Numeric.DataFrame
 import Numeric.DataFrame.IO
 import Numeric.Dimensions
 import Numeric.TypeLits
-
+import Numeric.Semigroup
+import qualified Numeric.Matrix              as Matrix
 
 import Commons
 import SmallGL.Types
@@ -93,6 +95,8 @@ data RenderingApi = RenderingApi
   , reset           :: IO ()
   , renderToImage   :: (GLsizei, GLsizei) -> ProjMatrix -> ViewMatrix -> IO JSString
     -- ^ Render scene to image of given size
+  , renderObjToImg  :: (GLsizei, GLsizei) -> [(RenderedObjectId, Vector GLubyte 4)] -> IO JSString
+    -- ^ Render an object group in given colors
   }
 
 
@@ -184,6 +188,7 @@ createRenderingEngine canvasElem = do
             , resetGeomCache = modifyMVar_ rre $ \r -> pure r{geomCache = mempty}
             , reset = modifyMVar_ rre (resetCells >=> clearMapTiles')
             , renderToImage = \s p -> withMVar rre . renderToImage' s p
+            , renderObjToImg = \s -> withMVar rre . renderObjToImage' s
             }
 
     -- React on all SmallGL input events
@@ -347,7 +352,6 @@ renderToImage' (width,height) projMat viewMat re'
           { uProjM = invertedY projMat
           , uViewM = viewMat
           , vpSize = (width,height) }
-      , RenderingProgram {..} <- viewProgram
       , Just (SomeIntNat (Proxy :: Proxy width)) <- someIntNatVal $ fromIntegral width
       , Just (SomeIntNat (Proxy :: Proxy height)) <- someIntNatVal $ fromIntegral height
       = do
@@ -391,57 +395,91 @@ renderToImage' (width,height) projMat viewMat re'
 renderToImage' _ _ _ _ = (newDataFrame :: IO (IODataFrame GLubyte '[4,1,1]))
                      >>= js_dfToImageData 1 1
 
---
---renderSingleObjToImage' :: (GLsizei, GLsizei) -> RenderedObjectId
---                        -> RenderingEngine -> IO JSString
---renderSingleObjToImage' (width,height) projMat viewMat re'
---      | re@RenderingEngine {..} <- re'
---          { uProjM = invertedY projMat
---          , uViewM = viewMat
---          , vpSize = (width,height) }
---      , RenderingProgram {..} <- viewProgram
---      , Just (SomeIntNat (Proxy :: Proxy width)) <- someIntNatVal $ fromIntegral width
---      , Just (SomeIntNat (Proxy :: Proxy height)) <- someIntNatVal $ fromIntegral height
---      = do
---    -- create buffer to render stuff into it
---    fb <- createFramebuffer gl
---    bindFramebuffer gl gl_FRAMEBUFFER $ Just fb
---    tex <- createTexture gl
---    bindTexture gl gl_TEXTURE_2D $ Just tex
---    texImage2D gl gl_TEXTURE_2D 0 gl_RGBA width height 0 gl_RGBA gl_UNSIGNED_BYTE Nothing
---    setTexParameters gl
---    framebufferTexture2D gl gl_FRAMEBUFFER gl_COLOR_ATTACHMENT0 gl_TEXTURE_2D tex 0
---    bindTexture gl gl_TEXTURE_2D Nothing
---    rbd <- createRenderbuffer gl
---    bindRenderbuffer gl gl_RENDERBUFFER $ Just rbd
---    renderbufferStorage gl gl_RENDERBUFFER gl_DEPTH_COMPONENT16 width height
---    framebufferRenderbuffer gl gl_FRAMEBUFFER gl_DEPTH_ATTACHMENT gl_RENDERBUFFER rbd
---    bindRenderbuffer gl gl_RENDERBUFFER Nothing
---
---    -- draw everything with adjusted matrices
---    setupRenderViewPort re
---    renderFunction 0 re
---
---    -- get texture content
---    imgData <- newDataFrame :: IO (IODataFrame GLubyte '[4,width,height])
---    readPixels gl 0 0 width height gl_RGBA gl_UNSIGNED_BYTE imgData
---    imgjsval <- js_dfToImageData width height imgData
---
---    -- release all context
---    bindFramebuffer gl gl_FRAMEBUFFER Nothing
---    deleteRenderbuffer gl rbd
---    deleteTexture gl tex
---    deleteFramebuffer gl fb
---    return imgjsval
---  where
---    invertedY :: ProjMatrix -> ProjMatrix
---    invertedY (ProjM m) = ProjM $ m
---                        & update (2:!1:!Z) (negate $ 2:!1:!Z !. m :: Scf)
---                        & update (2:!2:!Z) (negate $ 2:!2:!Z !. m :: Scf)
---                        & update (2:!3:!Z) (negate $ 2:!3:!Z !. m :: Scf)
---                        & update (2:!4:!Z) (negate $ 2:!4:!Z !. m :: Scf)
---renderSingleObjToImage' _ _ _ _ = (newDataFrame :: IO (IODataFrame GLubyte '[4,1,1]))
---                     >>= js_dfToImageData 1 1
+
+renderObjToImage' :: (GLsizei, GLsizei)
+                  -> [(RenderedObjectId, Vector GLubyte 4)]
+                  -> RenderingEngine -> IO JSString
+renderObjToImage' (width,height) objsClrs re'
+      | Just (SomeIntNat (Proxy :: Proxy width)) <- someIntNatVal $ fromIntegral width
+      , Just (SomeIntNat (Proxy :: Proxy height)) <- someIntNatVal $ fromIntegral height
+      = do
+    -- find out projection and view matrices
+    -- get object dimensions and colors
+    (msizes, objsClrs') <- fmap unzip . forM objsClrs $ \(rId, nColor) -> do
+      msize <- probeObjectSize (rCell re') rId
+      moColor <- probeObjectColor (rCell re') rId
+      return (msize, (rId, nColor, fromMaybe nColor moColor))
+    let mmPos = fromOption (MinMax 0 1) $ foldMap id msizes
+        objCenter = mmAvg mmPos
+        objDist = normL2 $ mmDiff mmPos
+        camPos = objCenter + fromScalar objDist * vec3 0.2 (-0.4) 0.9
+        clippingDist = objDist * 2
+        (vw, vh) = let minw = fromIntegral $ min width height
+                       c = 0.85 * unScalar objDist / minw
+                   in (fromIntegral width * c, fromIntegral height * c)
+        re@RenderingEngine {..} = re'
+          { uProjM = invertedY . ProjM $ Matrix.orthogonal 0 (unScalar clippingDist) vw vh
+          , uViewM = ViewM $ Matrix.lookAt (vec3 0 0 1) camPos objCenter
+          , vpSize = (width,height) }
+
+    -- create buffer to render stuff into it
+    fb <- createFramebuffer gl
+    bindFramebuffer gl gl_FRAMEBUFFER $ Just fb
+    tex <- createTexture gl
+    bindTexture gl gl_TEXTURE_2D $ Just tex
+    texImage2D gl gl_TEXTURE_2D 0 gl_RGBA width height 0 gl_RGBA gl_UNSIGNED_BYTE Nothing
+    setTexParameters gl
+    framebufferTexture2D gl gl_FRAMEBUFFER gl_COLOR_ATTACHMENT0 gl_TEXTURE_2D tex 0
+    bindTexture gl gl_TEXTURE_2D Nothing
+    rbd <- createRenderbuffer gl
+    bindRenderbuffer gl gl_RENDERBUFFER $ Just rbd
+    renderbufferStorage gl gl_RENDERBUFFER gl_DEPTH_COMPONENT16 width height
+    framebufferRenderbuffer gl gl_FRAMEBUFFER gl_DEPTH_ATTACHMENT gl_RENDERBUFFER rbd
+    bindRenderbuffer gl gl_RENDERBUFFER Nothing
+
+
+    setupRenderViewPort re
+    -- draw everything with adjusted matrices
+    clear gl (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
+
+    -- shader for normal objects
+    useProgram gl $ programId (shader viewProgram)
+    enableCoordsNormalsBuf gl
+    enableColorsBuf gl
+    -- supply shader with uniform matrix
+    uniformMatrix4fv gl (uProjLoc         viewProgram) False (getProjM uProjM)
+    uniformMatrix4fv gl (uViewLoc         viewProgram) False (getViewM uViewM)
+    uniform4f        gl (uSunDirLoc       viewProgram) (-0.5) (-0.6) (-1) 0 -- sx sy sz
+    uniform1fv       gl (uClippingDistLoc viewProgram) clippingDist
+
+    -- draw object
+    forM_ objsClrs' $ \(rId, newcolor, oldcolor) -> do
+        setRenderedObjectColor gl rCell rId newcolor
+        renderCellObj gl rId rCell
+        setRenderedObjectColor gl rCell rId oldcolor
+    disableCoordsNormalsBuf gl
+    disableColorsBuf gl
+
+    -- get texture content
+    imgData <- newDataFrame :: IO (IODataFrame GLubyte '[4,width,height])
+    readPixels gl 0 0 width height gl_RGBA gl_UNSIGNED_BYTE imgData
+    imgjsval <- js_dfToImageData width height imgData
+
+    -- release all context
+    bindFramebuffer gl gl_FRAMEBUFFER Nothing
+    deleteRenderbuffer gl rbd
+    deleteTexture gl tex
+    deleteFramebuffer gl fb
+    return imgjsval
+  where
+    invertedY :: ProjMatrix -> ProjMatrix
+    invertedY (ProjM m) = ProjM $ m
+                        & update (2:!1:!Z) (negate $ 2:!1:!Z !. m :: Scf)
+                        & update (2:!2:!Z) (negate $ 2:!2:!Z !. m :: Scf)
+                        & update (2:!3:!Z) (negate $ 2:!3:!Z !. m :: Scf)
+                        & update (2:!4:!Z) (negate $ 2:!4:!Z !. m :: Scf)
+renderObjToImage' _ _ _ = (newDataFrame :: IO (IODataFrame GLubyte '[4,1,1]))
+                     >>= js_dfToImageData 1 1
 
 
 
