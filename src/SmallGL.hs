@@ -391,6 +391,59 @@ renderToImage' (width,height) projMat viewMat re'
 renderToImage' _ _ _ _ = (newDataFrame :: IO (IODataFrame GLubyte '[4,1,1]))
                      >>= js_dfToImageData 1 1
 
+--
+--renderSingleObjToImage' :: (GLsizei, GLsizei) -> RenderedObjectId
+--                        -> RenderingEngine -> IO JSString
+--renderSingleObjToImage' (width,height) projMat viewMat re'
+--      | re@RenderingEngine {..} <- re'
+--          { uProjM = invertedY projMat
+--          , uViewM = viewMat
+--          , vpSize = (width,height) }
+--      , RenderingProgram {..} <- viewProgram
+--      , Just (SomeIntNat (Proxy :: Proxy width)) <- someIntNatVal $ fromIntegral width
+--      , Just (SomeIntNat (Proxy :: Proxy height)) <- someIntNatVal $ fromIntegral height
+--      = do
+--    -- create buffer to render stuff into it
+--    fb <- createFramebuffer gl
+--    bindFramebuffer gl gl_FRAMEBUFFER $ Just fb
+--    tex <- createTexture gl
+--    bindTexture gl gl_TEXTURE_2D $ Just tex
+--    texImage2D gl gl_TEXTURE_2D 0 gl_RGBA width height 0 gl_RGBA gl_UNSIGNED_BYTE Nothing
+--    setTexParameters gl
+--    framebufferTexture2D gl gl_FRAMEBUFFER gl_COLOR_ATTACHMENT0 gl_TEXTURE_2D tex 0
+--    bindTexture gl gl_TEXTURE_2D Nothing
+--    rbd <- createRenderbuffer gl
+--    bindRenderbuffer gl gl_RENDERBUFFER $ Just rbd
+--    renderbufferStorage gl gl_RENDERBUFFER gl_DEPTH_COMPONENT16 width height
+--    framebufferRenderbuffer gl gl_FRAMEBUFFER gl_DEPTH_ATTACHMENT gl_RENDERBUFFER rbd
+--    bindRenderbuffer gl gl_RENDERBUFFER Nothing
+--
+--    -- draw everything with adjusted matrices
+--    setupRenderViewPort re
+--    renderFunction 0 re
+--
+--    -- get texture content
+--    imgData <- newDataFrame :: IO (IODataFrame GLubyte '[4,width,height])
+--    readPixels gl 0 0 width height gl_RGBA gl_UNSIGNED_BYTE imgData
+--    imgjsval <- js_dfToImageData width height imgData
+--
+--    -- release all context
+--    bindFramebuffer gl gl_FRAMEBUFFER Nothing
+--    deleteRenderbuffer gl rbd
+--    deleteTexture gl tex
+--    deleteFramebuffer gl fb
+--    return imgjsval
+--  where
+--    invertedY :: ProjMatrix -> ProjMatrix
+--    invertedY (ProjM m) = ProjM $ m
+--                        & update (2:!1:!Z) (negate $ 2:!1:!Z !. m :: Scf)
+--                        & update (2:!2:!Z) (negate $ 2:!2:!Z !. m :: Scf)
+--                        & update (2:!3:!Z) (negate $ 2:!3:!Z !. m :: Scf)
+--                        & update (2:!4:!Z) (negate $ 2:!4:!Z !. m :: Scf)
+--renderSingleObjToImage' _ _ _ _ = (newDataFrame :: IO (IODataFrame GLubyte '[4,1,1]))
+--                     >>= js_dfToImageData 1 1
+
+
 
 
 
@@ -462,7 +515,7 @@ vertexShaderText =
       varying vec3 vDist;
       void main(void) {
         vec4 globalPos = uViewM * aVertexPosition;
-        gl_Position = uProjM * globalPos;
+        gl_Position = aVertexColor.w == 0.0 ? vec4(0,0,-1,1) : uProjM * globalPos;
         vDist = globalPos.xyz/(globalPos.w*uClippingDist*#{x});
         // vertex normal that is always directed to an eye
         vec4 tVertexNormal = aVertexNormal * sign(dot(uViewM * aVertexNormal, - globalPos));
@@ -499,7 +552,7 @@ vertexSelShaderText =
     varying vec4 vSelector;
     void main(void) {
       vSelector = aSelector;
-      gl_Position = uProjM * uViewM * aVertexPosition;
+      gl_Position = aSelector == vec4(1,1,1,1) ? vec4(0,0,-1,1) : uProjM * uViewM * aVertexPosition;
     }
   |]
 

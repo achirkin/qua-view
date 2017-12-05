@@ -17,6 +17,7 @@ module Model.Scenario
     , mapZoomLevel, mapOpacity, useMapLayer, mapUrl
     , hiddenProperties
     , resolvedObjectHeight, resolvedObjectColor
+    , resolvedObjectColorIgnoreVisible
     , ScenarioState (..)
     , cameraPos, cameraLoc, cameraLookAt, objectGroups, clippingDist
     ) where
@@ -258,9 +259,8 @@ evaluationCellSize f = properties $ property "evaluationCellSize" g
 
 -- * Resolved properties
 
--- | Resolve view color of object based on object and scenario properties.
-resolvedObjectColor :: Scenario' s -> Object.Object' t -> HexColor
-resolvedObjectColor s o = o^.Object.viewColor.non sdef
+resolvedObjectColorIgnoreVisible :: Scenario' s -> Object.Object' t -> HexColor
+resolvedObjectColorIgnoreVisible s o = o^.Object.viewColor.non sdef
   where
     sdef = case o^.Object.geometry of
       Geometry.Points _ -> s^.defaultPointColor
@@ -268,6 +268,13 @@ resolvedObjectColor s o = o^.Object.viewColor.non sdef
       Geometry.Polygons  _ -> case o^.Object.objectBehavior of
         Object.Static  -> s^.defaultStaticColor
         Object.Dynamic -> s^.defaultBlockColor
+
+-- | Resolve view color of object based on object and scenario properties.
+resolvedObjectColor :: Scenario' s -> Object.Object' t -> HexColor
+resolvedObjectColor s o
+    = if o^.Object.selectable
+      then resolvedObjectColorIgnoreVisible s o
+      else "#00000000"
 
 -- | Resolve object height to extrude it if necessary
 resolvedObjectHeight :: Scenario' s -> Object.Object' t -> Double
