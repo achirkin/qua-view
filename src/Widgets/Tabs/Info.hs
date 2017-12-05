@@ -44,33 +44,46 @@ panelInfo scenarioB selectedObjIdD = do
       getProps s mid = fromMaybe (s^.Scenario.properties)
                      ( mid >>= \i -> s^?Scenario.objects.at i._Just.Object.properties )
 
-  propUpdatedED <- widgetHold (pure never) (renderInfo <$> propsGivenE)
-  let propUpdatedE = switchPromptlyDyn propUpdatedED
+  propChangeD <- widgetHold (pure (never, never)) (renderInfo <$> propsGivenE)
+  let propUpdatedE = switchPromptlyDyn $ fst <$> propChangeD
+      propClickE   = switchPromptlyDyn $ snd <$> propChangeD
       (updateScE, updateObjE) = fanEither $ f <$> current selectedObjIdD <@> propUpdatedE
       f Nothing prop              = Left prop
       f (Just oId) (propN, propV) = Right (oId, propN, propV)
   registerEvent (ScenarioUpdate ObjectPropertyUpdated)   updateObjE
   registerEvent (ScenarioUpdate ScenarioPropertyUpdated) updateScE
+  registerEvent (UserAction PropertyClicked) propClickE
 
-renderInfo :: Reflex t => Properties -> QuaWidget t x (Event t (PropName, Maybe PropValue))
+-- | Returns tuple (property-updated-event, property-selected-event)
+renderInfo :: Reflex t
+           => Properties
+           -> QuaWidget t x ( Event t (PropName, Maybe PropValue)
+                            , Event t PropName )
 renderInfo props = do
   -- draw an image above the info table if it is available
   forM_ (props^.previewImgUrl) $
     \imgUrl -> elAttr "img" ( "src" =: textFromJSString imgUrl
                             <> "style" =: "width: 100%" ) blank
   -- draw the info table
-  propsE <- fmap leftmost $ elClass "table" tableClass $ traverse renderProp $ toList props
+  let leftm (es1, es2) = (leftmost es1, leftmost es2)
+  propsE <- fmap (leftm . unzip) $
+              elClass "table" tableClass $ traverse renderProp $ toList props
 
   newPropE <- elClass "div" newPropClass renderAddProp
-  return $ leftmost [propsE, newPropE]
+  return $ (leftmost [fst propsE, newPropE], snd propsE)
   where
-    renderProp (PropName key, pval)
-        | Just val <- fromPropValue pval >>= valToMTxt
-        = do updatedE <- el "tr" $ do
-               el "td" $ text $ textFromJSString key
-               el "td" $ renderPropVal val
-             return $ ((,) (PropName key)) <$> updatedE
-        | otherwise = return never
+    renderProp (pName, pVal)
+        | Just val <- fromPropValue pVal >>= valToMTxt
+        = do
+            (kEl, updatedE) <- el "tr" $ do
+              let PropName key = pName
+              (kEl, _) <- el' "td" $ text $ textFromJSString key
+              upE      <- el  "td" $ renderPropVal val
+              return (kEl, upE)
+            let propUpdatedE = ((,) pName) <$> updatedE
+                propClickE   = pName <$ domEvent Click kEl
+            return (propUpdatedE, propClickE)
+        | otherwise = return (never, never)
     (tableClass, newPropClass) = $(do
         tableCls <- newVar
         newPropCls <- newVar
@@ -80,8 +93,6 @@ renderInfo props = do
               width: 100%
               font-size: 10pt
               line-height: 15pt
-              tr:
-                width: 100%
               tr:nth-child(even)
                 background: white
               tr:nth-child(odd)
@@ -96,7 +107,8 @@ renderInfo props = do
                 word-break: break-word
               td:first-child
                 text-align: right
-                width: 50%
+                width: 40%
+                cursor: pointer
               td>.icon
                 margin-left: 10px
                 cursor: pointer
