@@ -35,9 +35,10 @@ import           Model.Scenario.Object (ObjectId (..))
 import qualified Model.Scenario.Object as Object
 import           Model.Scenario.Properties
 
+import           Program.UserAction
 import           Program.Camera
 import           Program.Scenario
-import           Program.UserAction
+
 
 import qualified SmallGL
 --import qualified SmallGL.Types as SmallGL
