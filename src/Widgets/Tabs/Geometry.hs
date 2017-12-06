@@ -7,9 +7,12 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE RecursiveDo #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module Widgets.Tabs.Geometry
     ( panelGeometry
+      -- TODO: I have put it here just to keep a warning away. Should be inside the panel.
+    , luciScenarioPane
     ) where
 
 import Commons
@@ -43,27 +46,45 @@ import qualified SmallGL
 panelGeometry :: Reflex t
               => SmallGL.RenderingApi
               -> Behavior t Scenario.Scenario
+              -> Dynamic t (Maybe Object.ObjectId)
               -> QuaWidget t x ()
-panelGeometry renderingApi scenarioB = do
+panelGeometry renderingApi scenarioB selectedObjD = do
+    ucPaneSD <- uploadNclearPane
+    whenActive ucPaneSD hr
 
-    el "div" $ text "Read GeoJSON from file"
-    (clearGeometryClickedE, geometryLoadedE) <-
-      el "div" $ do
-        -- clear geometry button
-        cgClicked <- buttonRed @"ClearGeometry" "Clear" def
-        -- File upload button and its dynamic label
-        rezE <- fileUpload cgClicked
+    doPaneSD <- deleteObjectPane selectedObjD
+    whenActive doPaneSD hr
 
-        return ( () <$ cgClicked, rezE)
+    cloneObjectPane renderingApi scenarioB
 
-    (asksSaveScenarioE, asksSelectScenarioE) <- lift luciScenarioPane
 
-    -- register all outgoing events
-    registerEvent (UserAction AskClearGeometry) clearGeometryClickedE
-    registerEvent (UserAction AskSaveScenario) asksSaveScenarioE
-    registerEvent (UserAction AskSelectScenario) asksSelectScenarioE
-    registerEvent GeometryLoaded geometryLoadedE
 
+----------------------------------------------------------------------------------------------------
+-- * Modify geometry
+----------------------------------------------------------------------------------------------------
+
+
+deleteObjectPane :: Reflex t
+                 => Dynamic t (Maybe Object.ObjectId)
+                 -> QuaWidget t x (Dynamic t (ComponentState "deleteObjectPane"))
+deleteObjectPane selectedObjD = do
+    selectedObjI <- sample $ current selectedObjD
+    clicksDE <- widgetHold (deleteWidget selectedObjI) (deleteWidget <$> updated selectedObjD)
+    registerEvent (ScenarioUpdate ObjectDeleted) (switchPromptlyDyn clicksDE)
+    return cstateD
+  where
+    cstateD = cstateF <$> selectedObjD
+    cstateF (Just _) = Active
+    cstateF Nothing  = Inactive
+    deleteWidget (Just i) = (i <$) <$> buttonRed "Delete selected object" def
+    deleteWidget Nothing  = return never
+
+
+cloneObjectPane :: Reflex t
+                 => SmallGL.RenderingApi
+                 -> Behavior t Scenario.Scenario
+                 -> QuaWidget t x ()
+cloneObjectPane renderingApi scenarioB = do
     scsUpdateE <- askEvent (ScenarioUpdate ScenarioStateUpdatedOut)
 
     let imgWidth = 200
@@ -83,11 +104,25 @@ panelGeometry renderingApi scenarioB = do
                                 <> "style" =: "max-width: 100%" ) blank
 
 
+----------------------------------------------------------------------------------------------------
+-- | Clear whole geometry or upload geometry from file
+----------------------------------------------------------------------------------------------------
 
 
+uploadNclearPane :: Reflex t => QuaWidget t x (Dynamic t (ComponentState "uploadNclearPane"))
+uploadNclearPane = do
+    el "div" $ text "Read GeoJSON from file"
+    (clearGeometryClickedE, geometryLoadedE) <-
+      el "div" $ do
+        -- clear geometry button
+        cgClicked <- buttonRed @"ClearGeometry" "Clear" def
+        -- File upload button and its dynamic label
+        rezE <- fileUpload cgClicked
 
-
-
+        return ( () <$ cgClicked, rezE)
+    registerEvent (UserAction AskClearGeometry) clearGeometryClickedE
+    registerEvent GeometryLoaded geometryLoadedE
+    return $ constDyn Active
 
 
 
@@ -143,26 +178,28 @@ fileUpload clearGeomEv = mdo
 
 
 
+----------------------------------------------------------------------------------------------------
+-- | Luci Scenario
+----------------------------------------------------------------------------------------------------
+
+-- TODO: this is only a stub at the moment
+luciScenarioPane :: Reflex t => QuaWidget t x ()
+luciScenarioPane = do
+    el "div" $ text "Remote (Luci scenarios)"
+    el "div" $ do
+      buttonBrowseScenarios >>= registerEvent (UserAction AskSelectScenario)
+      buttonSaveScenario >>= registerEvent (UserAction AskSaveScenario)
+
+
 -- | User indicates that they want to save scanerio with a specified name (via pop-up)
-buttonSaveScenario :: Reflex t => Widget x (Event t Text)
-buttonSaveScenario = buttonRed "Save" def >>= popupSaveScenario
+buttonSaveScenario :: Reflex t => QuaWidget t x (Event t Text)
+buttonSaveScenario = buttonRed "Save" def >>= lift . popupSaveScenario
 
 -- | User selects
-buttonBrowseScenarios :: Reflex t => Widget x (Event t ScId)
-buttonBrowseScenarios = buttonRed "Scenarios" def >>= popupBrowseScenarios
+buttonBrowseScenarios :: Reflex t => QuaWidget t x (Event t ScId)
+buttonBrowseScenarios = buttonRed "Scenarios" def >>= lift . popupBrowseScenarios
 
 
-luciScenarioPane :: Reflex t
-                 => Widget x ( Event t Text
-                             , Event t ScId )
-luciScenarioPane = do
-  el "div" $ text "Remote (Luci scenarios)"
-  el "div" $ do
-    userSelectedScenarioE    <- buttonBrowseScenarios
-    userWantsToSaveScenarioE <- buttonSaveScenario
-    performEvent_ $ (liftIO . print) <$> userWantsToSaveScenarioE
-    -- TODO: fileNameIndicator $ constDyn "placeholder" -- current scenario name
-    return (userWantsToSaveScenarioE, userSelectedScenarioE)
 
 
 

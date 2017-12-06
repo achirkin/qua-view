@@ -11,6 +11,7 @@ module Program.UserAction
 
 import Commons.NoReflex
 import Model.Scenario.Properties (PropName)
+import Model.Scenario.Object (ObjectId)
 
 -- | Represents a scenario id.
 --   TODO: this datatype should be in luci module;
@@ -29,6 +30,10 @@ data instance QEventTag UserAction evArg where
     AskResetCamera    :: QEventTag UserAction ()
     -- | User selected a property so that we can colorize all objects according to prop value
     PropertyClicked   :: QEventTag UserAction PropName
+    -- | Programmatically select or unselect an object.
+    --   This event does not fire when a user click on an object!
+    --   If you want to listen to object seletion events, use global dynamic `selectedObjectIdD`.
+    AskSelectObject   :: QEventTag UserAction (Maybe ObjectId)
 
 
 

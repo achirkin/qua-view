@@ -8,8 +8,11 @@ module Widgets.Commons
     ( -- * Buttons
       buttonFlat, buttonFlatDyn
     , buttonRed
+    , hr
       -- * Common classes to use
     , smallMarginClass
+      -- * Helpers
+    , whenActive
     ) where
 
 import Reflex.Dom
@@ -61,6 +64,10 @@ buttonRed name moreAttrs = do
   where
     attrs = "class" =: ("btn btn-red waves-attach waves-light waves-effect " <> smallMarginClass) <> moreAttrs
 
+-- | Horizontal line with not so much spacing around
+hr :: (Reflex t, DomBuilder t m) => m ()
+hr = elAttr "hr" ("style" =: "margin: 2px") (pure ())
+
 
 -- | add this class to make a small margin between buttons
 smallMarginClass :: Text
@@ -72,3 +79,15 @@ smallMarginClass = $(do
          |]
     returnVars [c]
   )
+
+whenActive :: (Reflex t, MonadSample t m, DomBuilder t m, MonadHold t m)
+           => Dynamic t (ComponentState s) -> m () -> m ()
+whenActive cstateD w = do
+    cstateI <- sample $ current cstateD
+    void $ widgetHold (whenActiveF cstateI) (whenActiveF <$> updated cstateD)
+  where
+    whenActiveF Active   = w
+    whenActiveF Inactive = blank
+
+
+

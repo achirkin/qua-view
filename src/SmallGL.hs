@@ -29,11 +29,12 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module SmallGL
     ( ProjMatrix (..), ViewMatrix (..)
-    , RenderingApi (addRObject, getHoveredSelId, render, renderToImage, renderObjToImg)
+    , RenderingApi (addRObject, getHoveredSelId, render, renderToImage, renderObjToImg, cloneObject)
     , QEventTag (..)
     , createRenderingEngine
     ) where
 
+import Control.Monad (foldM)
 import Control.Concurrent.MVar
 import Unsafe.Coerce (unsafeCoerce)
 import qualified GHCJS.DOM.JSFFI.Generated.Element as JSFFI
@@ -97,6 +98,10 @@ data RenderingApi = RenderingApi
     -- ^ Render scene to image of given size
   , renderObjToImg  :: (GLsizei, GLsizei) -> [(RenderedObjectId, Vector GLubyte 4)] -> IO JSString
     -- ^ Render an object group in given colors
+  , deleteObject    :: [RenderedObjectId] -> IO ()
+    -- ^ delete an object from rendering engine
+  , cloneObject     :: (RenderedObjectId, Mat44f, Vector GLubyte 4) -> IO RenderedObjectId
+    -- ^ clone object with translating it and setting a given color
   }
 
 
@@ -120,6 +125,8 @@ data instance QEventTag SmallGLInput a where
     AddMapTileToRendering :: QEventTag SmallGLInput (DataFrame Float '[4,4], TexImageSource)
     -- | Clean up all viewed geometry, empty all buffers, release resource
     ResetGL               :: QEventTag SmallGLInput ()
+    -- | Delete several objects
+    DeleteObject          :: QEventTag SmallGLInput [RenderedObjectId]
 
 
 deriveEvent ''SmallGLInput
@@ -189,6 +196,8 @@ createRenderingEngine canvasElem = do
             , reset = modifyMVar_ rre (resetCells >=> clearMapTiles')
             , renderToImage = \s p -> withMVar rre . renderToImage' s p
             , renderObjToImg = \s -> withMVar rre . renderObjToImage' s
+            , deleteObject = modifyMVar_ rre . deleteObject'
+            , cloneObject  = modifyMVar rre . cloneObject'
             }
 
     -- React on all SmallGL input events
@@ -216,6 +225,10 @@ createRenderingEngine canvasElem = do
                                          transformObject rApi xs
                                          resetGeomCache rApi
                                )
+
+    askEvent (SmallGLInput DeleteObject)
+      >>= performEvent_ . fmap (liftIO . deleteObject rApi)
+
 
     askEvent (SmallGLInput SetMapTileOpacity)
       >>= performEvent_ . fmap (liftIO . modifyMVar_ rre . setMapTileOpacity')
@@ -316,6 +329,16 @@ transformObject' ((roId@(RenderedObjectId i), m):xs) re@RenderingEngine {..}
 transformObject' [] re = pure re
 
 
+deleteObject' :: [RenderedObjectId] -> RenderingEngine -> IO RenderingEngine
+deleteObject' rIds re@RenderingEngine {..} = do
+    rCell' <- foldM (deleteRenderedObject gl) rCell rIds
+    return re { rCell = rCell', geomCache = mempty  }
+
+cloneObject' :: (RenderedObjectId, Mat44f, Vector GLubyte 4)
+             -> RenderingEngine -> IO (RenderingEngine, RenderedObjectId)
+cloneObject' (rId, m, c) re = undefined
+
+
 getSelection :: (GLint, GLint) -> RenderingEngine -> IO (RenderingEngine, GLuint)
 getSelection (x, y) re@RenderingEngine {..} = do
     so@SelectorObject {..} <- updateSelectorSizeIfNeeded gl vpSize selectorObj
@@ -342,7 +365,7 @@ getSelection (x, y) re@RenderingEngine {..} = do
 
 
 
-
+---------------------------------------------------------------------------------------------------
 
 
 renderToImage' :: (GLsizei, GLsizei) -> ProjMatrix -> ViewMatrix
