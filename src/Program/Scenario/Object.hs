@@ -37,6 +37,7 @@ import           Model.Scenario.Properties
 
 import           Program.Camera
 import           Program.Scenario
+import           Program.UserAction
 
 import qualified SmallGL
 --import qualified SmallGL.Types as SmallGL
@@ -47,22 +48,17 @@ import qualified SmallGL
 --   They happen when user clicks on a canvas;
 --   Either some object is selected, or nothing (clicked on empty or non-selectable space).
 --   The dynamic returned is guaranteed to change on every update.
-objectSelectionsDyn :: ( Reflex t, MonadIO (Performable m)
-                       , PerformEvent t m
-                       , MonadHold t m
-                       , MonadLogger m
-                       , MonadFix m
-                       )
+objectSelectionsDyn :: Reflex t
                     => AnimationHandler t
                     -> SmallGL.RenderingApi
-                    -> m (Dynamic t (Maybe ObjectId))
+                    -> QuaWidget t x (Dynamic t (Maybe ObjectId))
 objectSelectionsDyn aHandler renderingApi = do
-    selectorClicks <- performEvent $ getClicked renderingApi
+    autoSelectE <- askEvent $ UserAction AskSelectObject
+    selectorClickE <- performEvent $ getClicked renderingApi
                                   <$> Animation.downPointersB aHandler
                                   <@ select (Animation.pointerEvents aHandler) PClickEvent
-    rec selIdD <- holdDyn Nothing selIdE
-        let selIdE = fmapMaybe (\(i,j) -> if i == j then Nothing else Just j)
-                               $ (,) <$> current selIdD <@> selectorClicks
+    selIdD <- accumMaybe (\i j -> if i == j then Nothing else Just j)
+                         Nothing $ leftmost [ selectorClickE, autoSelectE ]
     logDebugEvents' @JSString "Program.Scenario.Object" $ (,) "selectedObjId" . Just <$> updated selIdD
     return selIdD
 

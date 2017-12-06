@@ -20,7 +20,7 @@ import qualified Data.Map.Strict as Map
 import           Data.Maybe (mapMaybe)
 import           Reflex
 import           Control.Lens
-import           Numeric.DataFrame (Mat44f, (%*))
+import           Numeric.DataFrame (Mat44f, Vec3f, (%*))
 import           Control.Monad (foldM)
 import           Commons
 
@@ -59,14 +59,23 @@ createScenario renderingApi = do
     scenarioPropUpdated <- askEvent $ ScenarioUpdate ScenarioPropertyUpdated
     objectPropUpdated   <- askEvent $ ScenarioUpdate ObjectPropertyUpdated
     objectLocUpdated    <- askEvent $ ScenarioUpdate ObjectLocationUpdated
+    objectDeleted       <- askEvent $ ScenarioUpdate ObjectDeleted
 
     (resetGLE, resetGLcb) <- newTriggerEvent
     registerEvent (SmallGLInput SmallGL.ResetGL) resetGLE
+    (delGLObjE, delGLObjcb) <- newTriggerEvent
+    registerEvent (SmallGLInput SmallGL.DeleteObject) delGLObjE
 
     (updateSSE, updateSScb) <- newTriggerEvent
     registerEvent (ScenarioUpdate ScenarioStateUpdatedOut) updateSSE
     (askResetCamE, askResetCamcb) <- newTriggerEvent
     registerEvent (UserAction AskResetCamera) askResetCamE
+
+    -- unselect objects on all scenario-disturbing events
+    registerEvent (UserAction AskSelectObject)
+      $ leftmost [ Nothing <$ resetGLE
+                 , Nothing <$ delGLObjE
+                 ]
 
     -- Assemble events into scenario behavior
     accumM (&) def $ leftmost
@@ -75,7 +84,22 @@ createScenario renderingApi = do
           , updateObjectGeomInScenario <$> objectLocUpdated
           , updateObjectPropInScenario <$> objectPropUpdated
           , updateScenarioProp <$> scenarioPropUpdated
+          , deleteObject delGLObjcb <$> objectDeleted
           ]
+
+
+deleteObject :: MonadIO (PushM t)
+    => ([SmallGL.RenderedObjectId] -> IO ())
+    -> ObjectId
+    -> Scenario
+    -> PushM t Scenario
+deleteObject delObjcb objId sc = do
+    liftIO $ mapM_ (delObjcb . (:[]) . view Object.renderingId) mobj
+    -- TODO: also need to delete object from objectGroups and from templates
+    return sc'
+  where
+    (mobj, sc') = sc & Scenario.objects %%~ Map.updateLookupWithKey (\_ _ -> Nothing) objId
+
 
 
 loadScenarioPart :: MonadIO (PushM t)
@@ -214,6 +238,10 @@ data instance QEventTag ScenarioUpdate evArg where
     ObjectLocationUpdated   :: QEventTag ScenarioUpdate ([ObjectId], Mat44f)
     -- | OUTGOING EVENT: scenario has updated its viewState.
     ScenarioStateUpdatedOut :: QEventTag ScenarioUpdate Scenario.ScenarioState
+    -- | Delete object from scenario
+    ObjectDeleted           :: QEventTag ScenarioUpdate ObjectId
+    -- | Clone object by its id and a desired position of a center
+    ObjectCloned            :: QEventTag ScenarioUpdate (ObjectId, Vec3f)
 
 
 

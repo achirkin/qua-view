@@ -34,7 +34,7 @@ import           Program.MapTiles
 import qualified QuaTypes
 
 main :: IO ()
-main = mainWidgetInElementById "qua-view-widgets" $ runQuaWidget $ mdo
+main = mainWidgetInElementById "qua-view-widgets" $ runQuaWidget $ do
     -- Change the state of the program
     (isProgramBusy, setIsProgramBusy) <- newTriggerEvent
 
@@ -44,31 +44,24 @@ main = mainWidgetInElementById "qua-view-widgets" $ runQuaWidget $ mdo
     -- register canvas element
     canvas <- Widgets.getWebGLCanvas
 
-    -- add the control panel to the page
-    _panelStateD <- Widgets.controlPanel renderingApi scenarioB selectedObjIdD
-
-    -- get an event of loaded geometry text, combine it with current state of scenario,
-    -- and make a new event to be consumed by the LoadGeometryWorker
-    do
-      geomLoadedE <- askEvent GeometryLoaded
-      registerEvent (WorkerMessage Workers.LGWRequest)
-        $ Workers.LGWLoadTextContent . Scenario.withoutObjects <$> scenarioB <@> geomLoadedE
-
     -- initialize web workers
     Workers.runLoadGeometryWorker
 
     renderingApi <- SmallGL.createRenderingEngine canvas
+    scenarioB <- createScenario renderingApi
+    -- enable map loading
+    downloadMapTiles scenarioB
+
     -- initialize animation handler (and all pointer events).
     aHandler <- Widgets.registerAnimationHandler canvas (SmallGL.render renderingApi)
     -- selected object id events
     selectedObjIdD <- objectSelectionsDyn aHandler renderingApi
     inQuaWidget $ colorObjectsOnSelection scenarioB selectedObjIdD
     -- move objects events
-    camLockedB <- inQuaWidget
-      $ moveSelectedObjects aHandler renderingApi (current cameraD) scenarioB selectedObjIdD
-
     -- supply animation events to camera
-    cameraD <- inQuaWidget $ dynamicCamera aHandler camLockedB
+    rec camLockedB <- inQuaWidget
+          $ moveSelectedObjects aHandler renderingApi (current cameraD) scenarioB selectedObjIdD
+        cameraD <- inQuaWidget $ dynamicCamera aHandler camLockedB
 
     -- initialize WebGL rendering context
     registerEvent (SmallGLInput SmallGL.ViewPortResize)
@@ -78,9 +71,13 @@ main = mainWidgetInElementById "qua-view-widgets" $ runQuaWidget $ mdo
     registerEvent (SmallGLInput SmallGL.ViewTransformChange)
         $ SmallGL.ViewM . Model.viewMatrix <$> updated cameraD
 
-    scenarioB <- createScenario renderingApi
-    -- enable map loading
-    downloadMapTiles scenarioB
+
+    -- get an event of loaded geometry text, combine it with current state of scenario,
+    -- and make a new event to be consumed by the LoadGeometryWorker
+    do
+      geomLoadedE <- askEvent GeometryLoaded
+      registerEvent (WorkerMessage Workers.LGWRequest)
+        $ Workers.LGWLoadTextContent . Scenario.withoutObjects <$> scenarioB <@> geomLoadedE
 
 
     -- Notify everyone that the program h finished starting up now
@@ -88,6 +85,9 @@ main = mainWidgetInElementById "qua-view-widgets" $ runQuaWidget $ mdo
     performEvent_ . flip fmap mainBuilt . const $ do
         liftIO (setIsProgramBusy Idle)
         Widgets.play aHandler
+
+    -- add the control panel to the page
+    _panelStateD <- Widgets.controlPanel renderingApi scenarioB selectedObjIdD
 
     -- other init things
     -- load geometry from url if it is supplied

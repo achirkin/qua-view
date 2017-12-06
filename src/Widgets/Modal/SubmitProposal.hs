@@ -19,6 +19,7 @@ import SmallGL.Types (ProjMatrix (..), ViewMatrix (..))
 import Model.Camera (initCamera, lookAtState, projMatrix, viewMatrix)
 import Model.Scenario
 import Model.GeoJSON.Scenario () -- toJSON instance for Scenario
+import Program.UserAction
 import Widgets.Commons
 import Widgets.Generation
 import Widgets.Modal
@@ -41,6 +42,9 @@ saveScenarioContent :: Reflex t
                     -> Event t JSString -- ^  where to submit url
                     -> QuaWidget t x (Event t (ElementClick "cancel submit proposal"))
 saveScenarioContent renderingApi scenarioB submitPopupUrlE = do
+    -- unselet an active object to avoid red blocks on a screenshot
+    -- TODO: what is earlier -- renderToImage or unselect??
+    registerEvent (UserAction AskSelectObject) $ Nothing <$ submitPopupUrlE
     -- prepare scenario preview url
     imgurlE <- performEvent . ffor (scenarioB <@ submitPopupUrlE) $ \scenario ->
       let imgWidth = 800
