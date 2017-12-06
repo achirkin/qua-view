@@ -2,6 +2,7 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE Strict       #-}
 -- | Keep all global events to be registered in qua-view
 module Commons.NoReflex.Events
     ( -- * Tagging events

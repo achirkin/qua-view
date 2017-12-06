@@ -1,13 +1,14 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE KindSignatures             #-}
+{-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE TypeOperators              #-}
+{-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE TypeApplications           #-}
+{-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE Strict                     #-}
 {-# OPTIONS_GHC -fno-warn-orphans       #-}
 module Commons.NoReflex.EasyTensorJSFFI
     ( dataFrameToTransferable

@@ -14,7 +14,6 @@ import Reflex.Dom.Widget.Animation -- (resizeEvents)
 
 import Commons
 
-
 import qualified Model.Camera               as Model
 import qualified Model.Scenario             as Scenario
 

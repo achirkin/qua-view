@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE Strict          #-}
 -- | Transform geometrical coordinates to and from WGS84 (EPSG 4326).
 --   https://www.linz.govt.nz/data/geodetic-services/coordinate-conversion/projection-conversions/transverse-mercator-transformation-formulae
 module Model.GeoJSON.Coordinates.Wgs84

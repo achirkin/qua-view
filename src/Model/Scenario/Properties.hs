@@ -1,9 +1,10 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE JavaScriptFFI #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeSynonymInstances       #-}
+{-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE JavaScriptFFI              #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE Strict                     #-}
 module Model.Scenario.Properties
     ( Properties, PropName (..), PropValue ()
     , toPropValue, fromPropValue, propValue

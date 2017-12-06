@@ -35,7 +35,7 @@ executable qua-view
         ghc-options: -O0
     else
         cpp-options: -DLOGLEVEL=2
-        ghc-options: -O2 -dedupe
+        ghc-options: -O2 -dedupe -funfolding-use-threshold=16 -funbox-strict-fields
     main-is: qua-view.hs
     build-depends:
         base >=4.8 && <5,
@@ -138,7 +138,7 @@ executable qua-worker-loadgeometry
         ghc-options: -O0
     else
         cpp-options: -DLOGLEVEL=2
-        ghc-options: -O2 -dedupe
+        ghc-options: -O2 -dedupe -funfolding-use-threshold=16 -funbox-strict-fields
     main-is: qua-worker-loadgeometry.hs
     build-depends:
         base >=4.8 && <5,

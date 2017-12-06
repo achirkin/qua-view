@@ -1,9 +1,9 @@
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE RecordWildCards      #-}
+{-# LANGUAGE OverloadedStrings    #-}
+{-# LANGUAGE FlexibleInstances    #-}
+{-# LANGUAGE DataKinds            #-}
+{-# LANGUAGE ScopedTypeVariables  #-}
+{-# LANGUAGE Strict               #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 -- | FromJSON and ToJSON instances for `Model.Scenario`.
 --

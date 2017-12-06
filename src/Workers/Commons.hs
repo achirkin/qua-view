@@ -1,6 +1,7 @@
-{-# LANGUAGE JavaScriptFFI #-}
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE JavaScriptFFI     #-}
+{-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE Strict            #-}
 -- | Common definitions used only in worker executables.
 --   Do not import it in qua-view!
 module Workers.Commons

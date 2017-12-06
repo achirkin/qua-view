@@ -1,11 +1,12 @@
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE CPP                  #-}
+{-# LANGUAGE DeriveGeneric        #-}
+{-# LANGUAGE DataKinds            #-}
+{-# LANGUAGE Strict               #-}
 #ifndef ISWORKER
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE GADTs #-}
+{-# LANGUAGE TemplateHaskell      #-}
+{-# LANGUAGE FlexibleInstances    #-}
+{-# LANGUAGE TypeFamilies         #-}
+{-# LANGUAGE GADTs                #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 #endif
 module Workers.Types

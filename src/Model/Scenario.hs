@@ -1,7 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveGeneric     #-}
+{-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE Strict            #-}
 -- | Geometry Scenario
 --
 --   The main structure in qua-view!

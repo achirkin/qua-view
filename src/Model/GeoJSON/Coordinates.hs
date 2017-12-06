@@ -1,10 +1,11 @@
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE FlexibleInstances    #-}
+{-# LANGUAGE OverloadedStrings    #-}
+{-# LANGUAGE DataKinds            #-}
+{-# LANGUAGE ScopedTypeVariables  #-}
+{-# LANGUAGE TypeOperators        #-}
+{-# LANGUAGE TypeApplications     #-}
+{-# LANGUAGE TypeFamilies         #-}
+{-# LANGUAGE Strict               #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 -- | Coordinate representation
 --
@@ -57,8 +58,7 @@ newtype PaddedZeros = PaddedZeros Bool
 ----------------------------------------------------------------------------------------------------
 
 
-setNormalsAndComputeIndices :: Geometry
-                            -> IO (Maybe (SomeIODataFrame Word16 '[XN 0]))
+setNormalsAndComputeIndices :: Geometry -> IO (Maybe (SomeIODataFrame Word16 '[XN 0]))
 setNormalsAndComputeIndices (Points _) = pure Nothing
 setNormalsAndComputeIndices (Lines xs) = pure $ case fromList $ map scalar iss of
       SomeDataFrame (df :: DataFrame Word16 ns) ->
@@ -84,8 +84,7 @@ setNormalsAndComputeIndices (Polygons ns) = do
               (unsafeCoerce df :: IODataFrame Word16 '[n])
 
 
-triangulateAndSetNormal :: (SomeIODataFrame Float '[N 4, N 2, XN 3], [Int])
-                        -> IO JSVal
+triangulateAndSetNormal :: (SomeIODataFrame Float '[N 4, N 2, XN 3], [Int]) -> IO JSVal
 triangulateAndSetNormal (SomeIODataFrame (sdf :: IODataFrame Float ns), holes)
     = case unsafeCoerce (Evidence :: Evidence (ns ~ ns, 2 <= 3)) of
         (Evidence :: Evidence ('[4,2,n] ~ ns, 2 <= n)) -> do

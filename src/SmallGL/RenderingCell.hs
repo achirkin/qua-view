@@ -8,6 +8,7 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE Strict #-}
 module SmallGL.RenderingCell where
 
 

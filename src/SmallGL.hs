@@ -26,6 +26,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE Strict #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module SmallGL
     ( ProjMatrix (..), ViewMatrix (..)
@@ -154,7 +155,7 @@ createRenderingEngine canvasElem = do
             uViewLoc = unifLoc shader "uViewM"
             uCustomLoc3 = unifLoc shader "uSunDir"
             uCustomLoc4 = unifLoc shader "uClippingDist"
-            uCustomLoc5 = unifLoc shader "Selector shader does not have fifth uniform location."
+            ~uCustomLoc5 = error "View shader does not have fifth uniform location."
         return RenderingProgram {..}
     selProgram <- liftIO $ do
         shader <- initShaders gl [(gl_VERTEX_SHADER, vertexSelShaderText)
@@ -165,9 +166,9 @@ createRenderingEngine canvasElem = do
                                  ]
         let uProjLoc = unifLoc shader "uProjM"
             uViewLoc = unifLoc shader "uViewM"
-            uCustomLoc3 = error "Selector shader does not have third uniform location."
-            uCustomLoc4 = error "Selector shader does not have fourth uniform location."
-            uCustomLoc5 = unifLoc shader "Selector shader does not have fifth uniform location."
+            ~uCustomLoc3 = error "Selector shader does not have third uniform location."
+            ~uCustomLoc4 = error "Selector shader does not have fourth uniform location."
+            ~uCustomLoc5 = error "Selector shader does not have fifth uniform location."
         return RenderingProgram {..}
     selectorObj <- liftIO $ initSelectorObject gl vpSize
 
