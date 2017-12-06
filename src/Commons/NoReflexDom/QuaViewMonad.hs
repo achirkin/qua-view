@@ -189,20 +189,16 @@ replaceUserPanicCallback cb = fmap quaViewPanicMsgHandler askContext
 --
 guessQuaSettings :: IO QuaTypes.Settings
 guessQuaSettings = do
-    viewUrl <- js_getViewUrl
-    jsRootUrl <- fromMaybeT viewUrl $ do
+    viewUrl' <- js_getViewUrl
+    jsRootUrl' <- fromMaybeT viewUrl' $ do
         doc <- MaybeT currentDocument
         settingsEl  <- MaybeT $ querySelector doc ("script[src*='qua-view.js']" :: JSString)
         qvSrc <- MaybeT $ getAttribute settingsEl ("src" :: JSString)
         return $ js_splitFst qvSrc "qua-view.js"
-    return QuaTypes.Settings {..}
-  where
-    loggingUrl = Nothing
-    luciUrl = Nothing
-    getSubmissionGeometryUrl = Nothing
-    putSubmissionUrl = Nothing
-    reviewSettingsUrl = Nothing
-    permissions = QuaTypes.permissions mempty
+    return mempty
+      { QuaTypes.viewUrl = viewUrl'
+      , QuaTypes.jsRootUrl = jsRootUrl'
+      }
 
 foreign import javascript unsafe
     "window['location']['href']['split']('?')[0]['split']('#')[0]"

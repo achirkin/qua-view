@@ -336,7 +336,7 @@ deleteObject' rIds re@RenderingEngine {..} = do
 
 cloneObject' :: (RenderedObjectId, Mat44f, Vector GLubyte 4)
              -> RenderingEngine -> IO (RenderingEngine, RenderedObjectId)
-cloneObject' (rId, m, c) re = undefined
+cloneObject' (_rId, _m, _c) _re = undefined
 
 
 getSelection :: (GLint, GLint) -> RenderingEngine -> IO (RenderingEngine, GLuint)
