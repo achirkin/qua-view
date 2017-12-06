@@ -1,10 +1,11 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE TypeApplications    #-}
+{-# LANGUAGE TypeOperators       #-}
+{-# LANGUAGE TypeFamilies        #-}
+{-# LANGUAGE BangPatterns        #-}
+{-# LANGUAGE Strict              #-}
 module Model.Scenario.Object.Geometry
     ( Geometry (..), getTransferable, allData
     , applyTransform, applyGeomCoords

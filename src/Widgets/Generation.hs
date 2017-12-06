@@ -1,7 +1,8 @@
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE CPP             #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE JavaScriptFFI #-}
+{-# LANGUAGE TypeFamilies    #-}
+{-# LANGUAGE JavaScriptFFI   #-}
+{-# LANGUAGE Strict          #-}
 module Widgets.Generation
     ( setInnerHTML, getElementById, makeElementFromHtml
     , qhtml, qcss, qjs

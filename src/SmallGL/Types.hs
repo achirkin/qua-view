@@ -12,6 +12,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE Strict #-}
 module SmallGL.Types where
 
 import Numeric.DataFrame
@@ -44,9 +45,9 @@ data RenderingProgram = RenderingProgram
   { shader      :: !ShaderProgram
   , uProjLoc    :: !WebGLUniformLocation
   , uViewLoc    :: !WebGLUniformLocation
-  , uCustomLoc3 :: WebGLUniformLocation
-  , uCustomLoc4 :: WebGLUniformLocation
-  , uCustomLoc5 :: WebGLUniformLocation
+  , uCustomLoc3 :: ~WebGLUniformLocation
+  , uCustomLoc4 :: ~WebGLUniformLocation
+  , uCustomLoc5 :: ~WebGLUniformLocation
   }
 
 uSunDirLoc :: RenderingProgram -> WebGLUniformLocation

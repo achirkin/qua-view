@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ViewPatterns          #-}
+{-# LANGUAGE Strict                #-}
 module Model.Camera
     ( Camera (..)
     , viewMatrix

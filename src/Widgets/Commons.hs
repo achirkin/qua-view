@@ -66,7 +66,7 @@ buttonRed name moreAttrs = do
 
 -- | Horizontal line with not so much spacing around
 hr :: (Reflex t, DomBuilder t m) => m ()
-hr = elAttr "hr" ("style" =: "margin: 2px") (pure ())
+hr = elAttr "hr" ("style" =: "margin: 5px 0px 5px 0px") (pure ())
 
 
 -- | add this class to make a small margin between buttons

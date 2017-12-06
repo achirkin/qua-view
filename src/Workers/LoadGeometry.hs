@@ -1,11 +1,12 @@
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE CPP               #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE DataKinds         #-}
+{-# LANGUAGE FlexibleContexts  #-}
+{-# LANGUAGE Strict            #-}
 #ifdef ISWORKER
-{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeApplications  #-}
 #else
-{-# LANGUAGE GADTs #-}
+{-# LANGUAGE GADTs             #-}
 #endif
 module Workers.LoadGeometry
     ( loadGeometryDef, LGWMessage (..), LGWRequest (..)

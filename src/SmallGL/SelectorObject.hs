@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE Strict #-}
 module SmallGL.SelectorObject
     ( SelectorObject (..)
     , initSelectorObject

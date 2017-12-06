@@ -1,11 +1,12 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE KindSignatures             #-}
+{-# LANGUAGE GADTs                      #-}
+{-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE Rank2Types                 #-}
+{-# LANGUAGE Strict                     #-}
 -- | All sorts of objects in the scene.
 --   Meant to be imported qualified
 --
