@@ -202,6 +202,7 @@ guessQuaSettings = do
     getSubmissionGeometryUrl = Nothing
     putSubmissionUrl = Nothing
     reviewSettingsUrl = Nothing
+    permissions = QuaTypes.permissions mempty
 
 foreign import javascript unsafe
     "window['location']['href']['split']('?')[0]['split']('#')[0]"
