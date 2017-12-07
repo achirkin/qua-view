@@ -39,6 +39,8 @@ import Control.Monad (foldM)
 import Control.Concurrent.MVar
 import Unsafe.Coerce (unsafeCoerce)
 import qualified GHCJS.DOM.JSFFI.Generated.Element as JSFFI
+import GHCJS.Concurrent
+import System.Mem (performGC)
 
 import Reflex.Class
 import Reflex.Dom
@@ -186,7 +188,7 @@ createRenderingEngine canvasElem = do
 
     rre <- liftIO $ newMVar re
     let rApi = RenderingApi
-            { render = \t -> withMVar rre $ \r -> do
+            { render = \t -> withMVar rre $ \r -> withoutPreemption $ do
                   setupRenderViewPort r
                   renderFunction t r
             , addRObject = modifyMVar rre . addRObjectFunction
@@ -222,9 +224,10 @@ createRenderingEngine canvasElem = do
       >>= performEvent_ . fmap (liftIO . setObjectColor rApi)
 
     askEvent (SmallGLInput PersistGeomTransforms)
-      >>= performEvent_ . fmap (\xs -> liftIO $ do
+      >>= performEvent_ . fmap (\xs -> liftIO $ withoutPreemption $ do
                                          transformObject rApi xs
                                          resetGeomCache rApi
+                                         performGC
                                )
 
     askEvent (SmallGLInput DeleteObject)
@@ -312,7 +315,7 @@ addRObjectFunction cd re = do
 
 setObjectColor' :: [(RenderedObjectId, Vector GLubyte 4)] -> RenderingEngine -> IO ()
 setObjectColor' ((roId, c):xs) re@RenderingEngine {..}
-  = setRenderedObjectColor gl rCell roId c >> setObjectColor' xs re
+  = withoutPreemption $ setRenderedObjectColor gl rCell roId c >> setObjectColor' xs re
 setObjectColor' [] _ = pure ()
 
 -- | Update object geometry and put previous version of geometry into cache if necessary.
@@ -378,7 +381,7 @@ renderToImage' (width,height) projMat viewMat re'
           , vpSize = (width,height) }
       , Just (SomeIntNat (Proxy :: Proxy width)) <- someIntNatVal $ fromIntegral width
       , Just (SomeIntNat (Proxy :: Proxy height)) <- someIntNatVal $ fromIntegral height
-      = do
+      = withoutPreemption $ do
     -- create buffer to render stuff into it
     fb <- createFramebuffer gl
     bindFramebuffer gl gl_FRAMEBUFFER $ Just fb
@@ -408,6 +411,7 @@ renderToImage' (width,height) projMat viewMat re'
     deleteRenderbuffer gl rbd
     deleteTexture gl tex
     deleteFramebuffer gl fb
+    performGC
     return imgjsval
   where
     invertedY :: ProjMatrix -> ProjMatrix
@@ -426,7 +430,7 @@ renderObjToImage' :: (GLsizei, GLsizei)
 renderObjToImage' (width,height) objsClrs re'
       | Just (SomeIntNat (Proxy :: Proxy width)) <- someIntNatVal $ fromIntegral width
       , Just (SomeIntNat (Proxy :: Proxy height)) <- someIntNatVal $ fromIntegral height
-      = do
+      = withoutPreemption $ do
     -- find out projection and view matrices
     -- get object dimensions and colors
     (msizes, objsClrs') <- fmap unzip . forM objsClrs $ \(rId, nColor) -> do
@@ -494,6 +498,7 @@ renderObjToImage' (width,height) objsClrs re'
     deleteRenderbuffer gl rbd
     deleteTexture gl tex
     deleteFramebuffer gl fb
+    performGC
     return imgjsval
   where
     invertedY :: ProjMatrix -> ProjMatrix
