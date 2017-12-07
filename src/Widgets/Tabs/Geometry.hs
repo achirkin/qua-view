@@ -19,9 +19,7 @@ import Commons
 import Reflex.Dom
 import Control.Lens
 import Control.Monad.Trans.Class (lift)
-import           Data.Maybe (isJust)
-import qualified Data.Map.Strict as Map
-import qualified Data.List as List
+import qualified Data.Set as Set
 import qualified GHCJS.DOM.JSFFI.Generated.HTMLInputElement as JSFFI (setValue)
 import qualified GHCJS.DOM.JSFFI.Generated.File as JSFFI
 import qualified GHCJS.DOM.JSFFI.Generated.FileReader as JSFFI
@@ -93,17 +91,31 @@ cloneObjectPane renderingApi scenarioB cameraD = do
         imgWidth = 160
         imgHeight = 160
     cloneDE <- widgetHold (pure never) $ ffor (scenarioB <@ scsUpdateE) $ \scenario -> do
-      let objs = List.groupBy (\((_,x), _) ((_,y), _) -> isJust y && x == y )
-               . List.sortOn (snd . fst)
-               . map (\(i,o) -> ( ((i, o^.Object.properties.property "name"), o^.Object.groupID)
-                                , ( o^.Object.renderingId
-                                  , Scenario.resolvedObjectColorIgnoreVisible scenario o ^. colorVeci)
-                                ))
-               . filter (\(_,o) -> o^.Object.special == Just Object.SpecialTemplate)
-               $ Map.toList (scenario^.Scenario.objects)
-      urlsIds <- liftIO $ forM objs $ \objsData -> do
+      let getTemplateObjIds (Left objId) = [objId]
+          getTemplateObjIds (Right gId)  = scenario^..Scenario.viewState
+                                                     .Scenario.objectGroups
+                                                     .at gId._Just.traverse
+          objIds :: [[Object.ObjectId]]
+          objIds = scenario^..Scenario.viewState
+                             .Scenario.templates
+                             .to Set.toList
+                             .traverse
+                             .to getTemplateObjIds
+          objs = flip map objIds $ \oids ->
+              oids >>= \i -> (,) i <$> (scenario^..Scenario.objects.at i._Just)
+
+          objsDatas = flip map objs . map $ \(i,o) ->
+              ( (i, o^.Object.properties.property "name")
+              , ( o^.Object.renderingId
+                , Scenario.resolvedObjectColorIgnoreVisible scenario o ^. colorVeci)
+              )
+
+      -- render previews
+      urlsIds <- liftIO $ forM objsDatas $ \objsData -> do
         url <- SmallGL.renderObjToImg renderingApi (imgWidth, imgHeight) $ map snd objsData
-        return (url, map (fst . fst) objsData)
+        return (url, map fst objsData)
+
+      -- show widget
       unless (null urlsIds) $
         el "div" $ text "Add objects from a palette"
       cloneEs <- forM urlsIds $ \(imgUrl, obs) -> do
