@@ -38,11 +38,13 @@ data GroundMapView = GroundMapView
 
 
 downloadMapTiles :: ( Reflex t, MonadIO m, TriggerEvent t m
-                    , PerformEvent t m, MonadIO (Performable m))
+                    , PerformEvent t m, MonadIO (Performable m)
+                    , MonadHold t m)
                  => Behavior t Scenario
                  -> QuaViewT Writing t m ()
 downloadMapTiles scenarioB = do
-    mapUpdatesE <- (mapUpdate <$> scenarioB <@>) <$> askEvent (ScenarioUpdate ScenarioStateUpdatedOut)
+    mapUpdatesE' <- (mapUpdate <$> scenarioB <@>) <$> askEvent (ScenarioUpdate ScenarioStateUpdatedOut)
+    mapUpdatesE  <- updated . fromUniqDynamic . uniqDynamic <$> holdDyn Nothing mapUpdatesE'
 
     -- set new opacity levels if needed
     registerEvent (SmallGLInput SetMapTileOpacity) $ fmapMaybe getOpacity  mapUpdatesE
@@ -51,6 +53,7 @@ downloadMapTiles scenarioB = do
 
     performEvent_ $ liftIO . downloadTiles addMapTileCbk <$> mapUpdatesE
 
+    registerEvent (SmallGLInput ResetMapTiles) $ () <$ mapUpdatesE
     registerEvent (SmallGLInput AddMapTileToRendering) addMapTileE
   where
     mapUpdate scenario viewS

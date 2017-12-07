@@ -124,6 +124,8 @@ data instance QEventTag SmallGLInput a where
     PersistGeomTransforms :: QEventTag SmallGLInput [(RenderedObjectId, Mat44f)]
     -- | Set map rendering parameters
     SetMapTileOpacity     :: QEventTag SmallGLInput Scf
+    -- | Cleanup map
+    ResetMapTiles         :: QEventTag SmallGLInput ()
     -- | Add a new map cell to rendering
     AddMapTileToRendering :: QEventTag SmallGLInput (DataFrame Float '[4,4], TexImageSource)
     -- | Clean up all viewed geometry, empty all buffers, release resource
@@ -240,6 +242,8 @@ createRenderingEngine canvasElem = do
     askEvent (SmallGLInput AddMapTileToRendering)
       >>= performEvent_ . fmap (liftIO . modifyMVar_ rre . addMapTile')
 
+    askEvent (SmallGLInput ResetMapTiles)
+      >>= performEvent_ . (liftIO (modifyMVar_ rre $ clearMapTiles') <$)
 
     askEvent (SmallGLInput ResetGL)
       >>= performEvent_ . (liftIO (reset rApi) <$)

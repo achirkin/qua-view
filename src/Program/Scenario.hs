@@ -18,9 +18,11 @@ module Program.Scenario
 
 import           Data.Foldable (foldl')
 import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
 import           Data.Maybe (mapMaybe, maybeToList)
 import           Reflex
 import           Control.Lens
+import           Control.Monad.State.Strict
 import           Numeric.DataFrame (Mat44f, Vec3f, (%*), fromHom, fromScalar)
 import qualified Numeric.Matrix as M
 import           Control.Monad (foldM, join)
@@ -78,7 +80,7 @@ createScenario renderingApi = do
     (selectedObjE, selectedObjcb) <- newTriggerEvent
     registerEvent (UserAction AskSelectObject)
       $ leftmost [ Nothing <$ resetGLE
-                 , Nothing <$ delGLObjE
+                 , Nothing <$ objectDeleted
                  , selectedObjE
                  ]
 
@@ -89,49 +91,70 @@ createScenario renderingApi = do
           , updateObjectGeomInScenario <$> objectLocUpdated
           , updateObjectPropInScenario <$> objectPropUpdated
           , updateScenarioProp <$> scenarioPropUpdated
-          , deleteObject delGLObjcb <$> objectDeleted
-          , cloneObject selectedObjcb renderingApi <$> objectCloned
+          , deleteObject updateSScb delGLObjcb <$> objectDeleted
+          , cloneObject updateSScb selectedObjcb renderingApi <$> objectCloned
           ]
 
 
 
 
 deleteObject :: MonadIO (PushM t)
-    => ([SmallGL.RenderedObjectId] -> IO ())
+    => (Scenario.ScenarioState -> IO ()) -- ^ "I have updated scenario" callback
+    -> ([SmallGL.RenderedObjectId] -> IO ()) -- ^ "Objects to delete" callback
     -> ObjectId
     -> Scenario
     -> PushM t Scenario
-deleteObject delObjcb objId sc = do
-    liftIO $ mapM_ (delObjcb . (:[]) . view Object.renderingId) mobj
-    -- TODO: also need to delete object from objectGroups and from templates
-    return sc'
+deleteObject updateSScb delObjcb objId sc = liftIO $ do
+    mapM_ (delObjcb . (:[]) . view Object.renderingId) mobj
+    updateSScb (sc''^.Scenario.viewState)
+    return sc''
   where
     (mobj, sc') = sc & Scenario.objects %%~ Map.updateLookupWithKey (\_ _ -> Nothing) objId
+    mGId = mobj ^? _Just . Object.groupID . _Just
+    sc'' = sc' & Scenario.viewState %~ execState updateScState
+    updateScState = do
+      -- remove forcedArea if necessary
+      Scenario.forcedAreaObjId %= \moid -> if moid == Just objId then Nothing else moid
+      case mGId of
+        Nothing -> -- remove from templates if necessary
+          Scenario.templates %= Set.delete (Left objId)
+        Just gId -> do
+          -- remove from groups
+          Scenario.objectGroups %= Map.update (\xs -> case filter (/=objId) xs of
+                                                       [] -> Nothing
+                                                       ys -> Just ys
+                                              ) gId
+          -- update templates if necessary
+          stillIsGroup <- use $ Scenario.objectGroups.to (Map.member gId)
+          unless stillIsGroup $
+            Scenario.templates %= Set.delete (Right gId)
 
 
 
 -- | Clone several objects and put them into a single group.
 cloneObject :: MonadIO (PushM t)
-    => (Maybe ObjectId -> IO ())
+    => (Scenario.ScenarioState -> IO ()) -- ^ "I have updated scenario" callback
+    -> (Maybe ObjectId -> IO ()) -- ^ "Object to select" callback
     -> SmallGL.RenderingApi
     -> ([ObjectId], Vec3f)
     -> Scenario
     -> PushM t Scenario
-cloneObject _ _ ([], _) oldSc = pure oldSc
-cloneObject selObjcb renderingApi (objIds, loc) oldSc = liftIO $ do
-    newSc <- foldM f oldSc objs
+cloneObject _ _ _ ([], _) oldSc = pure oldSc
+cloneObject updateSScb selObjcb renderingApi (objIds, loc) oldSc = liftIO $ do
+    newSc <- foldM f oldSc' objs
     selObjcb . Just $ newSc ^. Scenario.objIdSeq
+    updateSScb $ newSc ^. Scenario.viewState
     return newSc
   where
-    ogroups = Scenario.viewState . Scenario.objectGroups
-    newGId = if length objs <= 1
-             then Nothing
-             else Just $ if Map.null (oldSc ^. ogroups)
-                         then 1
-                         else 1 + fst (Map.findMax $  oldSc ^. ogroups )
-    updateOGroups oid = case newGId of
-      Nothing -> id
-      Just i  -> Map.alter (Just . (oid:) . join . maybeToList) i
+    (mNewGId, oldSc') =
+      if length objs <= 1
+      then (Nothing, oldSc)
+      else first Just $ oldSc & Scenario.viewState.Scenario.groupIdSeq <+~ 1
+
+    updateOGroups = case mNewGId of
+      Nothing -> const id
+      Just gId -> \oId -> Map.alter (Just . (oId:) . join . maybeToList) gId
+
     objs = objIds >>= (\i -> oldSc ^.. Scenario.objects . at i . _Just)
     centerPos = (\cs -> foldl' (+) 0 cs / fromScalar (max 1 . fromIntegral $ length cs))
                $ map (fromHom . view Object.center) objs
@@ -148,7 +171,7 @@ cloneObject selObjcb renderingApi (objIds, loc) oldSc = liftIO $ do
                & Object.center %~ (transM %*)
                & Object.geometry .~ newGeometry
                & Object.geomID .~ Just newOId
-               & Object.groupID .~ newGId
+               & Object.groupID .~ mNewGId
                & Object.properties %~
                  (\p -> p & property "special"    .~ (Nothing :: Maybe PropValue)
                           & property "selectable" .~ (Nothing :: Maybe PropValue)

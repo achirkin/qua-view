@@ -18,6 +18,7 @@ import Control.Applicative ((<|>))
 import Control.Lens hiding (indices)
 import Control.Monad.Trans.RWS.Strict
 import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
 import JavaScript.JSON.Types.Instances hiding ((.=))
 import JavaScript.JSON.Types.Internal
 import Numeric.DataFrame
@@ -159,7 +160,9 @@ checkGroupId :: Object.ObjectId
              -> Object.Object' s -> PrepScenario (Object.Object' s)
 checkGroupId objId obj = do
   forM_ (obj^.Object.groupID)
-    $ \gId -> Scenario.objectGroups . at gId . non [] %= (objId:)
+    $ \gId -> do
+        Scenario.objectGroups . at gId . non [] %= (objId:)
+        Scenario.groupIdSeq %= max gId
   return obj
 
 
@@ -217,14 +220,23 @@ prepareObject (Object.ObjectId objId) obj = (ask >>=) $ \sc -> do
 -- | Check property "special" and act accordingly
 checkSpecial :: Object.ObjectId
              -> Object.Object' s -> PrepScenario (Object.Object' s)
-checkSpecial _objId obj = case obj ^. Object.special of
+checkSpecial objId obj = case obj ^. Object.special of
   Nothing -> return obj
   Just Object.SpecialForcedArea ->
-    obj <$ report "special:forcedArea encountered, but not parsed."
+    obj <$ prepareSpecialForcedArea objId
   Just Object.SpecialTemplate   ->
-    obj <$ report "special:template encountered, but not parsed."
+    obj <$ prepareSpecialTemplate objId obj
   Just Object.SpecialCamera     ->
     obj <$ prepareSpecialCamera obj
+
+
+prepareSpecialForcedArea :: Object.ObjectId -> PrepScenario ()
+prepareSpecialForcedArea objId
+  = Scenario.forcedAreaObjId .= Just objId
+
+prepareSpecialTemplate :: Object.ObjectId -> Object.Object' s -> PrepScenario ()
+prepareSpecialTemplate objId obj
+  = Scenario.templates %= Set.insert (obj^.Object.groupID.to (fmap Right).non (Left objId))
 
 
 prepareSpecialCamera :: Object.Object' s -> PrepScenario ()

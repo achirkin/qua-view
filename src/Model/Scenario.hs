@@ -1,8 +1,9 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE DeriveGeneric     #-}
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE Strict            #-}
+{-# LANGUAGE OverloadedStrings    #-}
+{-# LANGUAGE DeriveGeneric        #-}
+{-# LANGUAGE DataKinds            #-}
+{-# LANGUAGE FlexibleInstances    #-}
+{-# LANGUAGE Strict               #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 -- | Geometry Scenario
 --
 --   The main structure in qua-view!
@@ -21,10 +22,12 @@ module Model.Scenario
     , resolvedObjectColorIgnoreVisible
     , ScenarioState (..)
     , cameraPos, cameraLoc, cameraLookAt, objectGroups, clippingDist
+    , templates, forcedAreaObjId, groupIdSeq
     ) where
 
 
 import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
 import Control.Lens (set,(^.),non, _1, _2)
 import Control.Applicative ((<|>))
 import Numeric.DataFrame hiding (toList)
@@ -288,21 +291,34 @@ resolvedObjectHeight s o = o^.Object.height.non (s^.defaultObjectHeight)
 -- | Parsed settings for qua-view
 data ScenarioState
   = ScenarioState
-  { _cameraPos    :: !(Vec3f, Vec3f)
-  , _objectGroups :: !(Map.Map GroupId [ObjectId])
-  , _clippingDist :: !Float
+  { _cameraPos       :: !(Vec3f, Vec3f)
+  , _objectGroups    :: !(Map.Map GroupId [ObjectId])
+  , _clippingDist    :: !Float
+  , _templates       :: !(Set.Set (Either ObjectId GroupId))
+  , _forcedAreaObjId :: !(Maybe ObjectId)
+  , _groupIdSeq      :: !GroupId
   } deriving Generic
 
 instance FromJSVal ScenarioState
 instance ToJSVal   ScenarioState
+instance FromJSVal (Either ObjectId GroupId)
+instance ToJSVal   (Either ObjectId GroupId)
+instance FromJSVal (Set.Set (Either ObjectId GroupId)) where
+  fromJSVal = fmap (fmap Set.fromDistinctAscList) . fromJSVal
+instance ToJSVal   (Set.Set (Either ObjectId GroupId)) where
+  toJSVal = toJSVal . Set.toAscList
 
 
 instance Default ScenarioState where
   def = ScenarioState
-    { _cameraPos    = (vec3 100 150 500, 0)
-    , _objectGroups = mempty
-    , _clippingDist = 2000
+    { _cameraPos       = (vec3 100 150 500, 0)
+    , _objectGroups    = mempty
+    , _clippingDist    = 2000
+    , _templates       = mempty
+    , _forcedAreaObjId = Nothing
+    , _groupIdSeq      = 0
     }
+
 
 
 cameraPos :: Functor f
@@ -330,4 +346,19 @@ clippingDist :: Functor f
              -> ScenarioState -> f ScenarioState
 clippingDist f s = (\x -> s{_clippingDist = x}) <$> f (_clippingDist s)
 
+templates :: Functor f
+          => (Set.Set (Either ObjectId GroupId) -> f (Set.Set (Either ObjectId GroupId) ))
+          -> ScenarioState -> f ScenarioState
+templates f s = (\x -> s{_templates = x}) <$> f (_templates s)
+
+forcedAreaObjId :: Functor f
+                => (Maybe ObjectId -> f (Maybe ObjectId))
+                -> ScenarioState -> f ScenarioState
+forcedAreaObjId f s = (\x -> s{_forcedAreaObjId = x}) <$> f (_forcedAreaObjId s)
+
+
+groupIdSeq :: Functor f
+           => (GroupId -> f GroupId)
+           -> ScenarioState -> f ScenarioState
+groupIdSeq f s = (\x -> s{_groupIdSeq = x}) <$> f (_groupIdSeq s)
 

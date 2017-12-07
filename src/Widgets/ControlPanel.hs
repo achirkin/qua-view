@@ -23,7 +23,7 @@ import Widgets.Tabs
 import Widgets.Tabs.Geometry
 import Widgets.Tabs.Info
 import Widgets.Tabs.Reviews
-import Widgets.Tabs.Services
+--import Widgets.Tabs.Services -- TODO: wait when luci services are implemented
 import Model.Scenario.Object (ObjectId (..))
 
 
@@ -48,7 +48,7 @@ controlPanel renderingApi scenarioB selectedObjIdD cameraD = mdo
             addTab "Geometry" $ panelGeometry renderingApi scenarioB selectedObjIdD cameraD
             addTab "Info" $ panelInfo scenarioB selectedObjIdD
             addTab "Reviews" panelReviews
-            addTab "Services" panelServices
+            -- addTab "Services" panelServices
 
 
       -- GUI control buttons
