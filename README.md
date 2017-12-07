@@ -68,6 +68,7 @@ Special object properties:
       - visible        # [Bool] if object is renderable at all
                        # (default: true)
                        # (visible = false implies selectable = false and static = true)
+      - name           # [String] Literal name of an object; e.g. appears in the geometry palette.
       - special        # [String] :: [SpecialObjectType] defines this object as a special control object
  ```
 Special object types are used to control `qua-view` behavior. We use `special :: String` property of object to define a special object. Below is the list of possible values of `special` property and their meaning.
