@@ -23,7 +23,8 @@ import           Data.Maybe (mapMaybe, maybeToList)
 import           Reflex
 import           Control.Lens
 import           Control.Monad.State.Strict
-import           Numeric.DataFrame (Mat44f, Vec3f, (%*), fromHom, fromScalar)
+import           Numeric.DataFrame (Mat44f, Vec3f, Scf, (%*), fromHom, fromScalar, update)
+import           Numeric.Dimensions (Idx (..))
 import qualified Numeric.Matrix as M
 import           Control.Monad (foldM, join)
 import           Commons
@@ -158,7 +159,7 @@ cloneObject updateSScb selObjcb renderingApi (objIds, loc) oldSc = liftIO $ do
     objs = objIds >>= (\i -> oldSc ^.. Scenario.objects . at i . _Just)
     centerPos = (\cs -> foldl' (+) 0 cs / fromScalar (max 1 . fromIntegral $ length cs))
                $ map (fromHom . view Object.center) objs
-    transM = M.translate3 (loc - centerPos)
+    transM = M.translate3 (update (3:!Z) (0 :: Scf) $ loc - centerPos)
     f sc obj = do
       let (newOId@(Object.ObjectId oid), sc') = sc & Scenario.objIdSeq <+~ 1
       newRId <- SmallGL.cloneObject renderingApi
