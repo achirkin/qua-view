@@ -41,11 +41,11 @@ import qualified Model.Scenario.Object.Geometry as Geometry
 --   It corresponds to @properties.geomID@ value of every feature in luci scenario
 --
 newtype ObjectId = ObjectId { _unObjectId :: GLuint }
-  deriving (PToJSVal, ToJSVal, ToJSON, PFromJSVal, FromJSVal, FromJSON, Eq, Ord, Show)
+  deriving (PToJSVal, ToJSVal, ToJSON, PFromJSVal, FromJSVal, FromJSON, Eq, Ord, Show, Num)
 
 
 newtype GroupId = GroupId { _unGroupId :: GLuint }
-  deriving (PToJSVal, ToJSVal, ToJSON, PFromJSVal, FromJSVal, FromJSON, Eq, Ord, Show)
+  deriving (PToJSVal, ToJSVal, ToJSON, PFromJSVal, FromJSVal, FromJSON, Eq, Ord, Show, Num)
 
 instance FromJSONOrString ObjectId where
     parseJSONOrString = fmap (ObjectId . (fromIntegral :: Word -> GLuint)). parseJSONOrString

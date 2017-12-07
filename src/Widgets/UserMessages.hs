@@ -100,7 +100,6 @@ userMessageWidget = do
         qcss
           [cassius|
             ##{consolediv}
-                z-index: 3
                 width: 100%
                 text-align: justify
                 line-height: 100%
@@ -113,14 +112,12 @@ userMessageWidget = do
                 margin: 0
 
             ##{consoledivcontent}
-                z-index: 3
                 height: 100%
                 overflow: hidden
                 padding: 0
                 margin: 0 5px 3px 32px
 
             ##{consoledivcontent} div
-                z-index: 4
                 padding: 0
                 margin: 0 0 5px 0
           |]

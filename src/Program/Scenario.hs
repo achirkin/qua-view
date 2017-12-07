@@ -16,12 +16,14 @@ module Program.Scenario
     ) where
 
 
+import           Data.Foldable (foldl')
 import qualified Data.Map.Strict as Map
-import           Data.Maybe (mapMaybe)
+import           Data.Maybe (mapMaybe, maybeToList)
 import           Reflex
 import           Control.Lens
-import           Numeric.DataFrame (Mat44f, Vec3f, (%*))
-import           Control.Monad (foldM)
+import           Numeric.DataFrame (Mat44f, Vec3f, (%*), fromHom, fromScalar)
+import qualified Numeric.Matrix as M
+import           Control.Monad (foldM, join)
 import           Commons
 
 import           Model.Scenario (Scenario, Scenario')
@@ -60,6 +62,7 @@ createScenario renderingApi = do
     objectPropUpdated   <- askEvent $ ScenarioUpdate ObjectPropertyUpdated
     objectLocUpdated    <- askEvent $ ScenarioUpdate ObjectLocationUpdated
     objectDeleted       <- askEvent $ ScenarioUpdate ObjectDeleted
+    objectCloned        <- askEvent $ ScenarioUpdate ObjectCloned
 
     (resetGLE, resetGLcb) <- newTriggerEvent
     registerEvent (SmallGLInput SmallGL.ResetGL) resetGLE
@@ -72,9 +75,11 @@ createScenario renderingApi = do
     registerEvent (UserAction AskResetCamera) askResetCamE
 
     -- unselect objects on all scenario-disturbing events
+    (selectedObjE, selectedObjcb) <- newTriggerEvent
     registerEvent (UserAction AskSelectObject)
       $ leftmost [ Nothing <$ resetGLE
                  , Nothing <$ delGLObjE
+                 , selectedObjE
                  ]
 
     -- Assemble events into scenario behavior
@@ -85,7 +90,10 @@ createScenario renderingApi = do
           , updateObjectPropInScenario <$> objectPropUpdated
           , updateScenarioProp <$> scenarioPropUpdated
           , deleteObject delGLObjcb <$> objectDeleted
+          , cloneObject selectedObjcb renderingApi <$> objectCloned
           ]
+
+
 
 
 deleteObject :: MonadIO (PushM t)
@@ -100,6 +108,54 @@ deleteObject delObjcb objId sc = do
   where
     (mobj, sc') = sc & Scenario.objects %%~ Map.updateLookupWithKey (\_ _ -> Nothing) objId
 
+
+
+-- | Clone several objects and put them into a single group.
+cloneObject :: MonadIO (PushM t)
+    => (Maybe ObjectId -> IO ())
+    -> SmallGL.RenderingApi
+    -> ([ObjectId], Vec3f)
+    -> Scenario
+    -> PushM t Scenario
+cloneObject _ _ ([], _) oldSc = pure oldSc
+cloneObject selObjcb renderingApi (objIds, loc) oldSc = liftIO $ do
+    newSc <- foldM f oldSc objs
+    selObjcb . Just $ newSc ^. Scenario.objIdSeq
+    return newSc
+  where
+    ogroups = Scenario.viewState . Scenario.objectGroups
+    newGId = if length objs <= 1
+             then Nothing
+             else Just $ if Map.null (oldSc ^. ogroups)
+                         then 1
+                         else 1 + fst (Map.findMax $  oldSc ^. ogroups )
+    updateOGroups oid = case newGId of
+      Nothing -> id
+      Just i  -> Map.alter (Just . (oid:) . join . maybeToList) i
+    objs = objIds >>= (\i -> oldSc ^.. Scenario.objects . at i . _Just)
+    centerPos = (\cs -> foldl' (+) 0 cs / fromScalar (max 1 . fromIntegral $ length cs))
+               $ map (fromHom . view Object.center) objs
+    transM = M.translate3 (loc - centerPos)
+    f sc obj = do
+      let (newOId@(Object.ObjectId oid), sc') = sc & Scenario.objIdSeq <+~ 1
+      newRId <- SmallGL.cloneObject renderingApi
+        (obj^.Object.renderingId, transM, sc^.Scenario.selectedDynamicColor.colorVeci, oid)
+      newGeometry <- Geometry.concatGeometry (obj^.Object.geometry)
+      Geometry.applyTransform newGeometry transM
+      return $ sc' & Scenario.viewState.Scenario.objectGroups %~ updateOGroups newOId
+                   & Scenario.objects %~ Map.insert newOId
+         ( obj & Object.renderingId .~ newRId
+               & Object.center %~ (transM %*)
+               & Object.geometry .~ newGeometry
+               & Object.geomID .~ Just newOId
+               & Object.groupID .~ newGId
+               & Object.properties %~
+                 (\p -> p & property "special"    .~ (Nothing :: Maybe PropValue)
+                          & property "selectable" .~ (Nothing :: Maybe PropValue)
+                          & property "visible"    .~ (Nothing :: Maybe PropValue)
+                          & property "static"     .~ (Nothing :: Maybe PropValue)
+                 )
+         )
 
 
 loadScenarioPart :: MonadIO (PushM t)
@@ -241,7 +297,7 @@ data instance QEventTag ScenarioUpdate evArg where
     -- | Delete object from scenario
     ObjectDeleted           :: QEventTag ScenarioUpdate ObjectId
     -- | Clone object by its id and a desired position of a center
-    ObjectCloned            :: QEventTag ScenarioUpdate (ObjectId, Vec3f)
+    ObjectCloned            :: QEventTag ScenarioUpdate ([ObjectId], Vec3f)
 
 
 

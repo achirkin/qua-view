@@ -13,6 +13,7 @@ module Widgets.ControlPanel
 import qualified Reflex.Dom as Dom
 
 import Commons
+import Model.Camera (Camera)
 import Model.Scenario (Scenario)
 import SmallGL (RenderingApi)
 import Widgets.Generation
@@ -31,22 +32,24 @@ controlPanel :: Reflex t
              => RenderingApi
              -> Behavior t Scenario
              -> Dynamic t (Maybe ObjectId)
+             -> Dynamic t Camera
              -> QuaWidget t x (Dynamic t (ComponentState "ControlPanel"))
-controlPanel renderingApi scenarioB selectedObjIdD = mdo
+controlPanel renderingApi scenarioB selectedObjIdD cameraD = mdo
     stateD <- Dom.elDynClass "div" (toClass <$> stateD) $ mdo
+
+      -- view user message widget and register its handlers in qua-view monad
+      userMessageWidget >>= replaceUserMessageCallback
 
       -- tab pane
       (_selTabD, ())
         <- Dom.elAttr "div" ("style" =: "overflow-y: auto; overflow-x: hidden; height: 100%;") $ do
           Dom.elAttr "div" ("style" =: "margin: 0; padding: 0; height: 56px;") Dom.blank
           runTabWidget $ do
-            addTab "Geometry" $ panelGeometry renderingApi scenarioB selectedObjIdD
+            addTab "Geometry" $ panelGeometry renderingApi scenarioB selectedObjIdD cameraD
             addTab "Info" $ panelInfo scenarioB selectedObjIdD
             addTab "Reviews" panelReviews
             addTab "Services" panelServices
 
-      -- view user message widget and register its handlers in qua-view monad
-      userMessageWidget >>= replaceUserMessageCallback
 
       -- GUI control buttons
       controlButtonGroup renderingApi scenarioB

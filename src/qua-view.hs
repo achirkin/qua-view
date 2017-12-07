@@ -86,7 +86,7 @@ main = mainWidgetInElementById "qua-view-widgets" $ runQuaWidget $ do
         Widgets.play aHandler
 
     -- add the control panel to the page
-    _panelStateD <- Widgets.controlPanel renderingApi scenarioB selectedObjIdD
+    _panelStateD <- Widgets.controlPanel renderingApi scenarioB selectedObjIdD cameraD
 
     -- other init things
     -- load geometry from url if it is supplied

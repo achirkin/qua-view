@@ -136,8 +136,10 @@ vertexNumbers (Polygons pls) = flip fmap pls $
 
 -- | Restore the geometry invariant:
 --   make sure all polygons are stored contiguous in a single TypedArray.
+--   Also, copy geometry.
 concatGeometry :: Geometry -> IO Geometry
-concatGeometry x@Points{} = pure x
+concatGeometry (Points (SomeIODataFrame sd))
+  = fmap (Points . SomeIODataFrame) $ unsafeFreezeDataFrame sd >>= thawDataFrame
 concatGeometry x@(Lines lns)
   | n <- vertexNumber x
   , starts <- NonEmpty.scanl (+) 1 $ vertexNumbers x

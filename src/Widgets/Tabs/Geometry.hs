@@ -32,6 +32,7 @@ import qualified GHCJS.DOM.EventM as JSFFI
 import qualified Model.Scenario as Scenario
 import qualified Model.Scenario.Object as Object
 import           Model.Scenario.Properties
+import           Model.Camera
 import           Program.UserAction
 import           Program.Scenario
 
@@ -47,15 +48,16 @@ panelGeometry :: Reflex t
               => SmallGL.RenderingApi
               -> Behavior t Scenario.Scenario
               -> Dynamic t (Maybe Object.ObjectId)
+              -> Dynamic t Camera
               -> QuaWidget t x ()
-panelGeometry renderingApi scenarioB selectedObjD = do
+panelGeometry renderingApi scenarioB selectedObjD cameraD = do
     ucPaneSD <- uploadNclearPane
     whenActive ucPaneSD hr
 
     doPaneSD <- deleteObjectPane selectedObjD
     whenActive doPaneSD hr
 
-    cloneObjectPane renderingApi scenarioB
+    cloneObjectPane renderingApi scenarioB cameraD
 
 
 
@@ -83,25 +85,69 @@ deleteObjectPane selectedObjD = do
 cloneObjectPane :: Reflex t
                  => SmallGL.RenderingApi
                  -> Behavior t Scenario.Scenario
+                 -> Dynamic t Camera
                  -> QuaWidget t x ()
-cloneObjectPane renderingApi scenarioB = do
+cloneObjectPane renderingApi scenarioB cameraD = do
     scsUpdateE <- askEvent (ScenarioUpdate ScenarioStateUpdatedOut)
-
-    let imgWidth = 200
-        imgHeight = 200
-    void $ widgetHold blank $ ffor (scenarioB <@ scsUpdateE) $ \scenario -> do
+    let camCenterB = viewPoint . newState <$> current cameraD
+        imgWidth = 160
+        imgHeight = 160
+    cloneDE <- widgetHold (pure never) $ ffor (scenarioB <@ scsUpdateE) $ \scenario -> do
       let objs = List.groupBy (\((_,x), _) ((_,y), _) -> isJust y && x == y )
                . List.sortOn (snd . fst)
-               . map (\(i,o) -> ( (i, o^.Object.groupID)
+               . map (\(i,o) -> ( ((i, o^.Object.properties.property "name"), o^.Object.groupID)
                                 , ( o^.Object.renderingId
                                   , Scenario.resolvedObjectColorIgnoreVisible scenario o ^. colorVeci)
                                 ))
                . filter (\(_,o) -> o^.Object.special == Just Object.SpecialTemplate)
                $ Map.toList (scenario^.Scenario.objects)
-      urls <- liftIO $ mapM (SmallGL.renderObjToImg renderingApi (imgWidth, imgHeight) . map snd) objs
-      forM_ urls $
-        \imgUrl -> elAttr "img" ( "src" =: textFromJSString imgUrl
-                                <> "style" =: "max-width: 100%" ) blank
+      urlsIds <- liftIO $ forM objs $ \objsData -> do
+        url <- SmallGL.renderObjToImg renderingApi (imgWidth, imgHeight) $ map snd objsData
+        return (url, map (fst . fst) objsData)
+      unless (null urlsIds) $
+        el "div" $ text "Add objects from a palette"
+      cloneEs <- forM urlsIds $ \(imgUrl, obs) -> do
+        (e, ()) <- elClass' "div" cloneObjectDivClass $ do
+          elAttr "img" ("src" =: textFromJSString imgUrl) blank
+          el "span" $ text $ (obs^?traverse._2._Just)^.non "Unnamed object"
+        return $ (,) (map fst obs) <$> camCenterB <@ domEvent Click e
+      return $ leftmost cloneEs
+
+    registerEvent (ScenarioUpdate ObjectCloned) $ switchPromptlyDyn cloneDE
+
+cloneObjectDivClass :: Text
+cloneObjectDivClass = $(do
+    cloneDiv <- newVar
+    qcss
+      [cassius|
+        .#{cloneDiv}
+          margin: 5px auto 5px auto
+          padding: 0px 20px 0px 20px
+          box-shadow: 0 -1px 0 #e5e5e5, 0 0 2px rgba(0,0,0,.12), 0 2px 4px rgba(0,0,0,.24)
+          border-radius: 2px
+          box-sizing: border-box
+          overflow: hidden
+          cursor: pointer
+        .#{cloneDiv}:hover
+          background: #FF5722
+        .#{cloneDiv} span
+          margin: 10px
+          color: #ff6f00
+          vertical-align: middle
+          display: inline-block
+          text-transform: uppercase
+          user-select: none
+          font-size: 16px
+        .#{cloneDiv}:hover span
+          color: white
+        .#{cloneDiv} img
+          width: 80px
+          display: inline-block
+          vertical-align: middle
+          margin: -5px 0 -5px 0;
+      |]
+    returnVars [cloneDiv]
+  )
 
 
 ----------------------------------------------------------------------------------------------------

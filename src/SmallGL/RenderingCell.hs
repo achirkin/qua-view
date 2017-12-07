@@ -126,6 +126,12 @@ class RenderingCells m where
                          -> RenderedObjectId
                          -> IO (RenderingCell m)
 
+    -- | Get a view of object in rendering cell data. Only indices are copied and updated
+    --   to start with 0.
+    getRenderedObjectData :: RenderedObjectId
+                          -> RenderingCell m
+                          -> IO (Maybe (ObjRenderingData m))
+
 
 -- | Build default empty rendering cell with some arrays pre-allocated
 initRenderingCell :: RenderingCells m => WebGLRenderingContext -> IO (RenderingCell m)
@@ -429,6 +435,28 @@ instance RenderingCells 'ModeColored where
                         }
     deleteRenderedObject _ rc _ = return rc
 
+
+    getRenderedObjectData (RenderedObjectId i) rc
+      | Just RenderedObjRef {..} <- IntMap.lookup i $ rcObjects rc
+      , Just (SomeIntNat (Proxy :: Proxy n)) <- someIntNatVal roDataLength
+      , Just (SomeIntNat (Proxy :: Proxy m)) <- someIntNatVal roIndexLength
+      , ColoredData (CoordsNormals rcCrsnrs)
+                    (Colors rcColors)
+                    (SelectIds rcSelectIds)
+                    (Indices rcIndices) <- rcData rc
+        = do
+      objCrsnrs <- unsafeSubArray @Float @'[4,2] @n rcCrsnrs (roDataIdx :! Z)
+      objColors <- unsafeSubArray @GLubyte @'[4] @n rcColors (roDataIdx :! Z)
+      objIndices' <- ewmap @GLushort @'[] (\x -> x + 1 - fromIntegral roDataIdx)
+                  <$> unsafeSubArrayFreeze @GLushort @'[] @m rcIndices (roIndexIdx :! Z)
+      objIndices <- unsafeArrayThaw objIndices'
+      sel <- readDataFrame rcSelectIds (roDataIdx :! Z)
+      return . Just $ ObjColoredData
+        (CoordsNormals objCrsnrs)
+        (Colors objColors)
+        (unScalar sel)
+        (Indices objIndices)
+    getRenderedObjectData _ _ = return Nothing
 
 deleteRenderingCell :: WebGLRenderingContext -> RenderingCell m -> IO ()
 deleteRenderingCell gl RenderingCell{ rcGPUData = WebGLPointData _ a b c }

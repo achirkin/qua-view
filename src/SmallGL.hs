@@ -103,8 +103,8 @@ data RenderingApi = RenderingApi
     -- ^ Render an object group in given colors
   , deleteObject    :: [RenderedObjectId] -> IO ()
     -- ^ delete an object from rendering engine
-  , cloneObject     :: (RenderedObjectId, Mat44f, Vector GLubyte 4) -> IO RenderedObjectId
-    -- ^ clone object with translating it and setting a given color
+  , cloneObject     :: (RenderedObjectId, Mat44f, Vector GLubyte 4, GLuint) -> IO RenderedObjectId
+    -- ^ clone object with translating it and setting a given color and selector id
   }
 
 
@@ -248,11 +248,12 @@ createRenderingEngine canvasElem = do
 
 
 resetCells :: RenderingEngine -> IO RenderingEngine
-resetCells  re@RenderingEngine {..} = do
-  deleteRenderingCell gl rCell
-  rCell' <- initRenderingCell gl
-  clearMapTiles' re { rCell = rCell', geomCache = mempty }
-
+resetCells  re@RenderingEngine {..} = withoutPreemption $ do
+    deleteRenderingCell gl rCell
+    rCell' <- initRenderingCell gl
+    rez <- clearMapTiles' re { rCell = rCell', geomCache = mempty }
+    seq rez performGC
+    return rez
 
 -- | Create a WebGL rendering context for a canvas
 getRenderingContext :: MonadIO m => Element r s t -> m WebGLRenderingContext
@@ -338,9 +339,18 @@ deleteObject' rIds re@RenderingEngine {..} = do
     rCell' <- foldM (deleteRenderedObject gl) rCell rIds
     return re { rCell = rCell', geomCache = mempty  }
 
-cloneObject' :: (RenderedObjectId, Mat44f, Vector GLubyte 4)
+cloneObject' :: (RenderedObjectId, Mat44f, Vector GLubyte 4, GLuint)
              -> RenderingEngine -> IO (RenderingEngine, RenderedObjectId)
-cloneObject' (_rId, _m, _c) _re = undefined
+cloneObject' (rId@(RenderedObjectId i), m, c, selId) re = do
+    mobj <- getRenderedObjectData rId (rCell re)
+    case mobj of
+      Nothing -> error $ "fatal: could not get RenderedObjectData for a SmallGL object " ++ show i
+      Just (ObjColoredData crsnrs colors _ indices) -> do
+        (newRId, rCell') <- addRenderedObject
+          (gl re) (ObjColoredData crsnrs colors selId indices) (rCell re)
+        transformRenderedObject (gl re) rCell' newRId m
+        setRenderedObjectColor (gl re) rCell' newRId c
+        return (re {rCell = rCell'}, newRId)
 
 
 getSelection :: (GLint, GLint) -> RenderingEngine -> IO (RenderingEngine, GLuint)
