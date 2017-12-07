@@ -40,16 +40,21 @@ panelInfo scenarioB selectedObjIdD = do
   askEvent (ScenarioUpdate ScenarioUpdated)         >>= triggerDelayed updateCB
   askEvent (ScenarioUpdate ScenarioCleared)         >>= triggerDelayed updateCB
 
-  let propsGivenE = getProps <$> scenarioB
+  settingsD <- quaSettings
+  let showHiddenB = QuaTypes.showHiddenProperties . QuaTypes.permissions <$> current settingsD
+      canEditB    = QuaTypes.canEditProperties . QuaTypes.permissions <$> current settingsD
+      propsGivenE = getProps <$> showHiddenB <*> scenarioB
                              <@> leftmost [ current selectedObjIdD <@ delayedE
                                           , updated selectedObjIdD]
-      getProps s mid = let f (PropName k) _ = Set.notMember k $
-                             Set.fromList (s^.Scenario.hiddenProperties)
-                       -- use withoutKeys when we have containers >= 0.5.8
-                       in  filterWithKey f $ fromMaybe (s^.Scenario.properties)
+      getProps shoHidden s mid
+        = let f (PropName k) _ = Set.notMember k $ Set.fromList (s^.Scenario.hiddenProperties)
+                                  -- use withoutKeys when we have containers >= 0.5.8
+              g True = id
+              g False = filterWithKey f
+          in  g shoHidden $ fromMaybe (s^.Scenario.properties)
                      ( mid >>= \i -> s^?Scenario.objects.at i._Just.Object.properties )
 
-  propChangeD <- widgetHold (pure (never, never)) (renderInfo <$> propsGivenE)
+  propChangeD <- widgetHold (pure (never, never)) (renderInfo <$> canEditB <@> propsGivenE)
   let propUpdatedE = switchPromptlyDyn $ fst <$> propChangeD
       propClickE   = switchPromptlyDyn $ snd <$> propChangeD
       (updateScE, updateObjE) = fanEither $ f <$> current selectedObjIdD <@> propUpdatedE
@@ -61,13 +66,11 @@ panelInfo scenarioB selectedObjIdD = do
 
 -- | Returns tuple (property-updated-event, property-selected-event)
 renderInfo :: Reflex t
-           => Properties
+           => Bool -- ^ Can edit properties
+           -> Properties
            -> QuaWidget t x ( Event t (PropName, Maybe PropValue)
                             , Event t PropName )
-renderInfo props = do
-  settingsD <- quaSettings
-  canEdit <- fmap QuaTypes.canEditProperties $ sample $
-                  QuaTypes.permissions <$> current settingsD
+renderInfo canEdit props = do
 
   -- draw an image above the info table if it is available
   forM_ (props^.previewImgUrl) $
@@ -77,14 +80,14 @@ renderInfo props = do
   let leftm (es1, es2) = (leftmost es1, leftmost es2)
   propsE <- fmap (leftm . unzip) $
               elClass "table" tableClass $
-              traverse (renderProp canEdit) $ toList props
+              traverse renderProp $ toList props
 
   newPropE <- if canEdit
               then elClass "div" newPropClass renderAddProp
               else return never
   return $ (leftmost [fst propsE, newPropE], snd propsE)
   where
-    renderProp canEdit (pName, pVal)
+    renderProp (pName, pVal)
         | Just val <- fromPropValue pVal >>= valToMTxt
         = do
             (kEl, updatedE) <- el "tr" $ do
@@ -175,7 +178,7 @@ renderPropVal val = mdo
                    True  <$ domEvent Click editBtn
                  , False <$ saveE
                  ]
-  return $ Just <$> toPropValue . parseValue <$> saveE
+  return $ fmap toPropValue . parseValue <$> saveE
 
 renderAddProp :: Reflex t
               => QuaWidget t x (Event t (PropName, Maybe PropValue))
@@ -196,19 +199,20 @@ renderAddProp = mdo
            in  widgetHold (render False) (render <$> editableE)
   (addBtn, _) <- elClass' "span" "icon" $ text "add"
   let editableE = True <$ domEvent Click addBtn
-  let toProp (k, v) = (PropName $ textToJSString k, Just $ toPropValue $ parseValue v)
+  let toProp (k, v) = (PropName $ textToJSString k, toPropValue <$> parseValue v)
   return $ toProp <$> switchPromptlyDyn saveD
 
 
 triggerDelayed :: Reflex t => (() -> IO ()) -> Event t a -> QuaWidget t x ()
 triggerDelayed updateCB e = performEvent_ $ liftIO (updateCB ()) <$ e
 
-parseValue :: Text -> GHCJS.Value'
+parseValue :: Text -> Maybe (GHCJS.Value')
+parseValue "" = Nothing
 parseValue v
-    | v `elem` ["True", "true"]   = GHCJS.Bool True
-    | v `elem` ["False", "false"] = GHCJS.Bool False
-    | Right n <- double v         = GHCJS.Number $ fst n
-    | otherwise                   = GHCJS.String $ textToJSString v
+    | v `elem` ["True", "true"]   = Just $ GHCJS.Bool True
+    | v `elem` ["False", "false"] = Just $ GHCJS.Bool False
+    | Right n <- double v         = Just $ GHCJS.Number $ fst n
+    | otherwise                   = Just $ GHCJS.String $ textToJSString v
 
 valToMTxt :: GHCJS.Value' -> Maybe Text
 valToMTxt (GHCJS.String "") = Nothing

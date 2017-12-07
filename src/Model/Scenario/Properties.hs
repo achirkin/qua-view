@@ -65,7 +65,7 @@ property :: (Functor f, FromJSON a, ToJSON a)
          -> Properties -> f Properties
 property pName f m = g <$> f (Map.lookup pName m >>= fromPropValue)
     where
-      g Nothing  = m
+      g Nothing  = Map.delete pName m
       g (Just v) = Map.insert pName (toPropValue v) m
 
 propertyWithParsing :: (Functor f, FromJSONOrString a, ToJSON a)
@@ -74,7 +74,7 @@ propertyWithParsing :: (Functor f, FromJSONOrString a, ToJSON a)
                     -> Properties -> f Properties
 propertyWithParsing pName f m = g <$> f (Map.lookup pName m >>= parseJSONOrString . coerce)
     where
-      g Nothing  = m
+      g Nothing  = Map.delete pName m
       g (Just v) = Map.insert pName (toPropValue v) m
 
 class FromJSONOrString a where
