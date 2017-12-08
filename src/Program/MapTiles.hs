@@ -27,12 +27,9 @@ import Program.Scenario
 
 
 data GroundMapView = GroundMapView
-    { gmvLonLatCenter :: !Vec2f
-    , gmvLocalCenter  :: !Vec4f
-    , gmvTileCenter   :: !(Int,Int)
-    , gmvCellWidth    :: !GLfloat
-    , gmvZoomLevel    :: !Int
+    { gmvZoomLevel    :: !Int
     , gmvMapUrl       :: !JSString
+    , tileToMetric    :: !((Int, Int) -> Vec4f)
     , gmvCallback     :: !((DataFrame Float '[4,4], TexImageSource) -> IO ())
     }
 
@@ -79,12 +76,9 @@ downloadTiles cbk (Just (zoomLvl, _, mUrl, viewDist, (lon,lat,_)) ) =
         | j' <- [0 .. nTiles -1], j <- [j', -j'-1]]
   where
     gmv = GroundMapView
-      { gmvLonLatCenter = vec2 lon0 lat0
-      , gmvLocalCenter  = pos0 <:> vec2 0 1
-      , gmvTileCenter   = (xtile0,ytile0)
-      , gmvCellWidth    = tileWidth
-      , gmvZoomLevel    = zoomLvl
+      { gmvZoomLevel    = zoomLvl
       , gmvMapUrl       = mUrl
+      , tileToMetric    = xytile2metric
       , gmvCallback     = cbk
       }
     -- set up the center point to real center of the tile
@@ -94,6 +88,9 @@ downloadTiles cbk (Just (zoomLvl, _, mUrl, viewDist, (lon,lat,_)) ) =
 
     -- a transform from WGS'84 to our local coordinates
     wgs2metric = wgs84ToMetric (vec2 (realToFrac lon) (realToFrac lat))
+    xytile2metric (x,y) = (<:> vec2 0 1)
+                      . wgs2metric
+                      . uncurry vec2 $ zoomXY2LonLat zoomLvl (x, y)
 
     -- get center positions in local metric system
     pos0 = wgs2metric (vec2 lon0 lat0)
@@ -113,22 +110,12 @@ createMapTile :: GroundMapView
               -> (Int, Int) -- ^ tile x and y
               -> IO ()
 createMapTile GroundMapView {..} tilexy@(x,y)
-    = createTex gmvMapUrl gmvZoomLevel tilexy >>= mapM_ (gmvCallback . (,) df)
+    = print df >> createTex gmvMapUrl gmvZoomLevel tilexy >>= mapM_ (gmvCallback . (,) df)
   where
-    df = groundPoints cellCoord gmvCellWidth
-    cellCoord = gmvLocalCenter + vec4 xx yy 0 0
-    xx = (gmvCellWidth *) . fromIntegral $ x - fst gmvTileCenter
-    yy = (gmvCellWidth *) . fromIntegral $ snd gmvTileCenter - y
-
-
-
-groundPoints :: Vec4f -> GLfloat -> DataFrame GLfloat '[4,4]
-groundPoints p side
-  =    (p + vec4 0 (-side) 0 0)
-  <::> (p + vec4 side (-side) 0 0)
-  <+:> (p + vec4 0 0 0 0)
-  <+:> (p + vec4 side 0 0 0)
-
+    df =  tileToMetric (x, y+1)
+     <::> tileToMetric (x+1, y+1)
+     <+:> tileToMetric (x, y)
+     <+:> tileToMetric (x+1, y)
 
 
 
