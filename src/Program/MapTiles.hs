@@ -110,7 +110,7 @@ createMapTile :: GroundMapView
               -> (Int, Int) -- ^ tile x and y
               -> IO ()
 createMapTile GroundMapView {..} tilexy@(x,y)
-    = print df >> createTex gmvMapUrl gmvZoomLevel tilexy >>= mapM_ (gmvCallback . (,) df)
+    = createTex gmvMapUrl gmvZoomLevel tilexy >>= mapM_ (gmvCallback . (,) df)
   where
     df =  tileToMetric (x, y+1)
      <::> tileToMetric (x+1, y+1)
