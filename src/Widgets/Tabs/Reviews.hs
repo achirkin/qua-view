@@ -95,8 +95,11 @@ renderReview :: Reflex t
              => [Criterion] -> Review -> QuaWidget t x ()
 renderReview crits r = elClass "div" ("card " <> reviewClass) $
   el "div" $ do
-    renderCrit $ reviewCriterionId r
-    elClass "span" "icon" $ text $ showThumb $ reviewThumb r
+    case reviewRating r of
+      UserRating critId thumb -> do
+        renderCrit critId
+        elClass "span" "icon" $ text $ showThumb thumb
+      ExpertRating grade -> renderStars grade
     text $ pack $ ' ' : formatTime defaultTimeLocale "%F, %R - " (reviewTimestamp r)
     text $ textFromJSString $ reviewUserName r <> ": "
     el "p" $ text $ textFromJSString $ reviewComment r
@@ -105,6 +108,11 @@ renderReview crits r = elClass "div" ("card " <> reviewClass) $
       void $ for [ c | c <- crits, critId == criterionId c] $ \c -> do
         (spanEl, ()) <- elClass' "span" critClass $ return ()
         setInnerHTML spanEl $ criterionIcon c
+    renderStars grade =
+      let star t = elClass "span" "icon icon-lg" $ text t
+      in sequence_ $
+        (Prelude.replicate grade $ star "star") ++
+         Prelude.replicate (5 - grade) (star "star_border")
     (reviewClass, critClass) = $(do
         reviewCls <- newVar
         critCls   <- newVar
