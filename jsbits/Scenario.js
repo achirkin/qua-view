@@ -597,7 +597,7 @@ function gm$createWGS84toUTMTransform(lon0, lat0) {
       , w8 = w4*w4;
     return [ k * v * w * cosy * ( 1
                                 + w2 / 6 * cosy * cosy * (psi - t*t)
-                                + w4 / 120 * Math.pow(cosy, 4) * ( 4*psi*psi*psi + ( 1 - 6*t*t ) + psi*psi*(1+8*t*t) - psi*2*t*t + Math.pow(t,4) )
+                                + w4 / 120 * Math.pow(cosy, 4) * ( 4*psi*psi*psi * ( 1 - 6*t*t ) + psi*psi*(1+8*t*t) - psi*2*t*t + Math.pow(t,4) )
                                 + w6 / 5040 * Math.pow(cosy,6) * ( 61 - 479*t*t + 179 * Math.pow(t,4) - Math.pow(t,6) )
                                 )
            , k * ( fm(yr) - m0
