@@ -13,7 +13,12 @@ import Commons.NoReflexDom.Import
 import Commons.NoReflexDom.Local
 import Commons.NoReflexDom.Logger
 import Commons.NoReflexDom.QuaViewMonad ( QuaViewTrans (..), QuaViewM, Writing, NoWriting
-                                        , IsWritingEvents (..), showUserMessage, showUserPanic
+                                        , IsWritingEvents (..)
+                                        , showUserMessage
+                                        , showUserPopup
+                                        , showUserPanic
                                         , registerEvent, askEvent
-                                        , replaceUserMessageCallback, replaceUserPanicCallback
+                                        , replaceUserMessageCallback
+                                        , replaceUserPopupCallback
+                                        , replaceUserPanicCallback
                                         )

@@ -67,6 +67,8 @@ controlPanel renderingApi scenarioB selectedObjIdD cameraD = mdo
       -- view user message widget and register its handlers in qua-view monad
       userMessageWidget >>= replaceUserMessageCallback
 
+      userPopupWidget   >>= replaceUserPopupCallback
+
       -- GUI control buttons
       controlButtonGroup renderingApi scenarioB
 

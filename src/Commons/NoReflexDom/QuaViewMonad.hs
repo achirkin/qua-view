@@ -13,9 +13,9 @@ module Commons.NoReflexDom.QuaViewMonad
     ( QuaViewTrans (..), QuaViewT (..), QuaViewContext (..), QuaViewM
     , Writing, NoWriting, IsWritingEvents (..)
     , quaSettings, guessQuaSettings, runWithCtx
-    , showUserMessage, showUserPanic
+    , showUserMessage, showUserPopup, showUserPanic
     , registerEvent, askEvent
-    , replaceUserMessageCallback, replaceUserPanicCallback
+    , replaceUserMessageCallback, replaceUserPopupCallback, replaceUserPanicCallback
     ) where
 
 
@@ -101,10 +101,10 @@ instance QuaViewTrans NoWriting where
 -- | Alias to QuaView transformer monad on top of IO and basic Reflex
 type QuaViewM t = QuaViewT Writing t (PerformEventT t (SpiderHost Global))
 
-
 data QuaViewContext t = QuaViewContext
   { quaViewLoggerFunc          :: LoggerFunc
   , quaViewUserMessageHandlers :: IORef UserMessageCallback
+  , quaViewUserPopupHandlers   :: IORef UserSingleMsgCallback
   , quaViewPanicMsgHandler     :: IORef (JSString -> IO ())
   , quaViewSettings            :: Dynamic t QuaTypes.Settings
   , quaViewEvents              :: QuaViewEvents t
@@ -119,7 +119,8 @@ quaSettings = quaViewSettings <$> askContext
 
 
 
--- | Display a message for a user
+-- | Display a message for a user,
+--   currently displayed on the bottom right of the screen
 showUserMessage :: forall msgRetType isWriting t m
                  . ( QuaViewTrans isWriting
                    , MonadIO (QuaViewT isWriting t m)
@@ -127,6 +128,14 @@ showUserMessage :: forall msgRetType isWriting t m
                 => UserMessage msgRetType -> QuaViewT isWriting t m msgRetType
 showUserMessage msg = fmap quaViewUserMessageHandlers askContext
                    >>= liftIO . (readIORef >=> ($ msg) . getUMsgCallback)
+
+showUserPopup :: forall isWriting t m
+               . ( QuaViewTrans isWriting
+                 , MonadIO (QuaViewT isWriting t m)
+                 , Applicative m)
+              => UserMessage () -> QuaViewT isWriting t m ()
+showUserPopup msg = fmap quaViewUserPopupHandlers askContext
+                 >>= liftIO . (readIORef >=> ($ msg) . getUSingleMsgCallback)
 
 -- | Display a fatal error explanation to a user.
 --   The program is not supposed to work after this message is shown.
@@ -171,6 +180,13 @@ replaceUserMessageCallback :: ( QuaViewTrans isWriting
 replaceUserMessageCallback cb = fmap quaViewUserMessageHandlers askContext
                               >>= liftIO . flip writeIORef cb
 
+-- | Normally, we should call this function only once: to set up user popup widget
+replaceUserPopupCallback :: ( QuaViewTrans isWriting
+                            , MonadIO (QuaViewT isWriting t m)
+                            , Applicative m)
+                         => UserSingleMsgCallback -> QuaViewT isWriting t m ()
+replaceUserPopupCallback cb = fmap quaViewUserPopupHandlers askContext
+                            >>= liftIO . flip writeIORef cb
 
 -- | Normally, we should call this function only once: to set up a crash alert
 replaceUserPanicCallback :: ( QuaViewTrans isWriting

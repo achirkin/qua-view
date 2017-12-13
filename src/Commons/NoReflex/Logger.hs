@@ -9,7 +9,10 @@
 module Commons.NoReflex.Logger
     ( -- * User-level logging
       --   Show some messages to a client.
-      UserProgressCallback (..), UserMessage (..), UserMessageCallback (..)
+      UserProgressCallback (..)
+    , UserMessage (..)
+    , UserMessageCallback (..)
+    , UserSingleMsgCallback (..)
       -- * Application-level logging
     , LogLevel(LevelError,LevelWarn,LevelInfo,LevelDebug)
     , LogSource (..), LoggerFunc
@@ -29,6 +32,10 @@ import Commons.NoReflex.Import
 
 newtype UserMessageCallback
   = UserMessageCallback { getUMsgCallback :: forall t . UserMessage t -> IO t }
+
+newtype UserSingleMsgCallback
+  = UserSingleMsgCallback { getUSingleMsgCallback :: UserMessage () -> IO () }
+
 
 -- | Show some message to a user in a form of a log.
 --   It appears in the lower left corner of qua-view, at the bottom of the control panel.
@@ -231,4 +238,3 @@ foreign import javascript unsafe
                          -> JSVal    -- ^ Attached object
                          -> IO ()
 #endif
-

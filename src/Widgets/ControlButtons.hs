@@ -291,6 +291,9 @@ submitProposalButton rApi scenarioB = do
 
 downloadScenarioButton :: Reflex t => Behavior t Scenario -> QuaWidget t x ()
 downloadScenarioButton scB = do
+  settingsD <- quaSettings
+  canDl <- Dom.sample $ current $ (canDownloadGeometry . permissions) <$> settingsD
+  when canDl $ do
     e <- makeElementFromHtml def $(qhtml
           [hamlet|
             <a .fbtn .waves-attach .waves-circle .waves-effect>
@@ -300,5 +303,3 @@ downloadScenarioButton scB = do
                 file_download
           |])
     popupDownloadScenario scB (ElementClick <$ Dom.domEvent Dom.Click e)
-
-

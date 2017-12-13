@@ -91,11 +91,11 @@ saveScenarioContent renderingApi scenarioB submitPopupUrlE = do
                $ makePut <$> submitUrlB <*> imgurlB <*> scContentB <@> submitWithDescrE
 
     performEvent_ . ffor responseE $ \eresponse -> case eresponse of
-      Left (JSError err) -> showUserMessage . SingleMsg $
+      Left (JSError err) -> showUserPopup . SingleMsg $
               "An error happened when submitting the design.\n"
            <> "Please, save your design to your computer and contact administrators.\n"
            <> "Error: " <> err
-      Right _  -> showUserMessage $ SingleMsg $
+      Right _  -> showUserPopup $ SingleMsg $
               "Your design is submitted succesfully!\n"
            <> "You can continue working on it and submit a new version, or just close the window."
            <> "You can update the submission later via \"Work on a design link\"."

@@ -57,6 +57,8 @@ createModal outsideStateE defaultState contentWidget size = fmap resultOrError .
                      ) $
          elClass "div" "modal-content" contentWidget
     performEvent_ $ changeState <$> stateEvs
+    when (defaultState == Active) $
+      liftIO $ js_showModal (_element_raw backpane)
     return (backpane, (modalActive, contentReturn))
   where
     resultOrError Nothing = error "Could not add modal to qua-view page!"

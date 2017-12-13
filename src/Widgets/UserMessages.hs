@@ -5,7 +5,7 @@
 {-# LANGUAGE GADTs #-}
 
 module Widgets.UserMessages
-    ( userMessageWidget
+    ( userMessageWidget, userPopupWidget
     , UserProgressCallback (..), UserMessage (..)
     ) where
 
@@ -24,6 +24,7 @@ import qualified GHCJS.DOM.JSFFI.Generated.Element as JSFFI
 
 import Commons
 import Widgets.Generation
+import Widgets.Modal
 
 
 
@@ -114,6 +115,19 @@ userMessageWidget = do
 
         returnVars [consolediv, consoledivcontent]
       )
+
+userPopupWidget :: Reflex t => QuaWidget t x UserSingleMsgCallback
+userPopupWidget = do
+    (msgE, msgCb) <- newTriggerEvent
+    void $ widgetHold blank (renderMsg <$> msgE)
+    return $ UserSingleMsgCallback msgCb
+  where
+    renderMsg :: Reflex t => UserMessage () -> QuaWidget t x ()
+    renderMsg (SingleMsg msg) = do
+      void $ createModalWithClicks' never Active $ do
+        text $ textFromJSString msg
+        return never
+      return ()
 
 whenRef :: IORef Bool -> IO () -> IO ()
 whenRef r a = readIORef r >>= \b -> when b a

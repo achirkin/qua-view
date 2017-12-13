@@ -10,7 +10,7 @@ module Commons.QuaViewMonad
     ( QuaViewTrans (..), QuaWidget, QuaViewM
     , Writing, NoWriting, IsWritingEvents (..)
     , runQuaWidget, quaSettings
-    , showUserMessage, showUserPanic
+    , showUserMessage, showUserPopup, showUserPanic
     , registerEvent, askEvent
     , replaceUserMessageCallback, replaceUserPanicCallback
     , inQuaWidget
@@ -109,6 +109,7 @@ initQuaViewContext quaViewEvents = do
       $ liftIO . initLogInfo "Updated settings"
 
     quaViewUserMessageHandlers <- liftIO . newIORef $ UserMessageCallback defaultMsgFun
+    quaViewUserPopupHandlers   <- liftIO . newIORef $ UserSingleMsgCallback defaultSingleMsgFun
     quaViewPanicMsgHandler     <- liftIO . newIORef $ defaultMsgFun . SingleMsg
 
     return QuaViewContext {..}
@@ -129,6 +130,11 @@ defaultMsgFun (ProgressMsg msg) = do
                                 Nothing
            in UserProgressCallback (f " [progress] ") (f " [finish] ")
 
+defaultSingleMsgFun :: UserMessage () -> IO ()
+defaultSingleMsgFun (SingleMsg msg) = stdOutLogger
+    LevelWarn "initQuaViewContext"
+    ("Got this message before initialized single msg widget: " <> msg)
+    Nothing
 
 
 
