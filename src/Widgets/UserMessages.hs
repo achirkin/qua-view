@@ -100,25 +100,15 @@ userMessageWidget = do
         qcss
           [cassius|
             ##{consolediv}
-                width: 100%
-                text-align: justify
-                line-height: 100%
                 font-size: 9pt
-                position: absolute
-                bottom: 0
-                left: 0
-                overflow: hidden
-                padding: 0
-                margin: 0
+                line-height: 1
+                box-shadow: 0 -3px 5px #e5e5e5
+                z-index: 0
 
             ##{consoledivcontent}
-                height: 100%
-                overflow: hidden
-                padding: 0
-                margin: 0 5px 3px 32px
+                margin: 5px 5px 5px 32px
 
             ##{consoledivcontent} div
-                padding: 0
                 margin: 0 0 5px 0
           |]
 
@@ -127,4 +117,3 @@ userMessageWidget = do
 
 whenRef :: IORef Bool -> IO () -> IO ()
 whenRef r a = readIORef r >>= \b -> when b a
-
