@@ -37,6 +37,7 @@ module SmallGL
 
 import Control.Monad (foldM)
 import Control.Concurrent.MVar
+import Control.Exception.Base (evaluate)
 import Unsafe.Coerce (unsafeCoerce)
 import qualified GHCJS.DOM.JSFFI.Generated.Element as JSFFI
 import GHCJS.Concurrent
@@ -190,33 +191,33 @@ createRenderingEngine canvasElem = do
 
     rre <- liftIO $ newMVar re
     let rApi = RenderingApi
-            { render = \t -> withMVar rre $ \r -> withoutPreemption $ do
+            { render = \t -> unsafeWithMVar rre $ \r -> do
                   setupRenderViewPort r
                   renderFunction t r
-            , addRObject = modifyMVar rre . addRObjectFunction
-            , getHoveredSelId = modifyMVar rre . getSelection
-            , setObjectColor = withMVar rre . setObjectColor'
-            , transformObject = modifyMVar_ rre . transformObject'
-            , resetGeomCache = modifyMVar_ rre $ \r -> pure r{geomCache = mempty}
-            , reset = modifyMVar_ rre (resetCells >=> clearMapTiles')
-            , renderToImage = \s p -> withMVar rre . renderToImage' s p
-            , renderObjToImg = \s -> withMVar rre . renderObjToImage' s
-            , deleteObject = modifyMVar_ rre . deleteObject'
-            , cloneObject  = modifyMVar rre . cloneObject'
+            , addRObject = unsafeModifyMVar rre . addRObjectFunction
+            , getHoveredSelId = unsafeModifyMVar rre . getSelection
+            , setObjectColor = unsafeWithMVar rre . setObjectColor'
+            , transformObject = unsafeModifyMVar_ rre . transformObject'
+            , resetGeomCache = unsafeModifyMVar_ rre $ \r -> pure r{geomCache = mempty}
+            , reset = unsafeModifyMVar_ rre (resetCells >=> clearMapTiles')
+            , renderToImage = \s p -> unsafeWithMVar rre . renderToImage' s p
+            , renderObjToImg = \s -> unsafeWithMVar rre . renderObjToImage' s
+            , deleteObject = unsafeModifyMVar_ rre . deleteObject'
+            , cloneObject  = unsafeModifyMVar rre . cloneObject'
             }
 
     -- React on all SmallGL input events
     projTransformChangeE <- askEvent $ SmallGLInput ProjTransformChange
     performEvent_ . ffor projTransformChangeE $ \m -> liftIO $
-        modifyMVar_ rre (\r -> return r{uProjM = m})
+        unsafeModifyMVar_ rre (\r -> return r{uProjM = m})
 
     viewTransformChangeE <- askEvent $ SmallGLInput ViewTransformChange
     performEvent_ . ffor viewTransformChangeE $ \m -> liftIO $
-        modifyMVar_ rre (\r -> return r{uViewM = m})
+        unsafeModifyMVar_ rre (\r -> return r{uViewM = m})
 
     viewPortResizeE <- askEvent $ SmallGLInput ViewPortResize
     performEvent_ . ffor viewPortResizeE $ \(ResizeEvent newVPSize) ->
-        liftIO . modifyMVar_ rre $ \r ->
+        liftIO . unsafeModifyMVar_ rre $ \r ->
            let r' = r{vpSize = (floor *** floor) newVPSize } in r' <$ setupRenderViewPort r'
 
     askEvent (SmallGLInput TransformObject)
@@ -226,7 +227,7 @@ createRenderingEngine canvasElem = do
       >>= performEvent_ . fmap (liftIO . setObjectColor rApi)
 
     askEvent (SmallGLInput PersistGeomTransforms)
-      >>= performEvent_ . fmap (\xs -> liftIO $ withoutPreemption $ do
+      >>= performEvent_ . fmap (\xs -> liftIO $ do
                                          transformObject rApi xs
                                          resetGeomCache rApi
                                          performGC
@@ -237,13 +238,13 @@ createRenderingEngine canvasElem = do
 
 
     askEvent (SmallGLInput SetMapTileOpacity)
-      >>= performEvent_ . fmap (liftIO . modifyMVar_ rre . setMapTileOpacity')
+      >>= performEvent_ . fmap (liftIO . unsafeModifyMVar_ rre . setMapTileOpacity')
 
     askEvent (SmallGLInput AddMapTileToRendering)
-      >>= performEvent_ . fmap (liftIO . modifyMVar_ rre . addMapTile')
+      >>= performEvent_ . fmap (liftIO . unsafeModifyMVar_ rre . addMapTile')
 
     askEvent (SmallGLInput ResetMapTiles)
-      >>= performEvent_ . (liftIO (modifyMVar_ rre $ clearMapTiles') <$)
+      >>= performEvent_ . (liftIO (unsafeModifyMVar_ rre $ clearMapTiles') <$)
 
     askEvent (SmallGLInput ResetGL)
       >>= performEvent_ . (liftIO (reset rApi) <$)
@@ -252,7 +253,7 @@ createRenderingEngine canvasElem = do
 
 
 resetCells :: RenderingEngine -> IO RenderingEngine
-resetCells  re@RenderingEngine {..} = withoutPreemption $ do
+resetCells  re@RenderingEngine {..} = do
     deleteRenderingCell gl rCell
     rCell' <- initRenderingCell gl
     rez <- clearMapTiles' re { rCell = rCell', geomCache = mempty }
@@ -320,7 +321,7 @@ addRObjectFunction cd re = do
 
 setObjectColor' :: [(RenderedObjectId, Vector GLubyte 4)] -> RenderingEngine -> IO ()
 setObjectColor' ((roId, c):xs) re@RenderingEngine {..}
-  = withoutPreemption $ setRenderedObjectColor gl rCell roId c >> setObjectColor' xs re
+  = setRenderedObjectColor gl rCell roId c >> setObjectColor' xs re
 setObjectColor' [] _ = pure ()
 
 -- | Update object geometry and put previous version of geometry into cache if necessary.
@@ -395,7 +396,7 @@ renderToImage' (width,height) projMat viewMat re'
           , vpSize = (width,height) }
       , Just (SomeIntNat (Proxy :: Proxy width)) <- someIntNatVal $ fromIntegral width
       , Just (SomeIntNat (Proxy :: Proxy height)) <- someIntNatVal $ fromIntegral height
-      = withoutPreemption $ do
+      = do
     -- create buffer to render stuff into it
     fb <- createFramebuffer gl
     bindFramebuffer gl gl_FRAMEBUFFER $ Just fb
@@ -444,7 +445,7 @@ renderObjToImage' :: (GLsizei, GLsizei)
 renderObjToImage' (width,height) objsClrs re'
       | Just (SomeIntNat (Proxy :: Proxy width)) <- someIntNatVal $ fromIntegral width
       , Just (SomeIntNat (Proxy :: Proxy height)) <- someIntNatVal $ fromIntegral height
-      = withoutPreemption $ do
+      = do
     -- find out projection and view matrices
     -- get object dimensions and colors
     (msizes, objsClrs') <- fmap unzip . forM objsClrs $ \(rId, nColor) -> do
@@ -637,3 +638,25 @@ vertexSelShaderText =
     }
   |]
 
+
+unsafeWithMVar :: MVar a -> (a -> IO b) -> IO b
+unsafeWithMVar m io = do
+    a <- takeMVar m
+    b <- withoutPreemption (io a)
+    putMVar m a
+    return b
+
+{-# INLINE unsafeModifyMVar_ #-}
+unsafeModifyMVar_ :: MVar a -> (a -> IO a) -> IO ()
+unsafeModifyMVar_ m io = do
+    a  <- takeMVar m
+    a' <- withoutPreemption (io a)
+    putMVar m a'
+
+{-# INLINE unsafeModifyMVar #-}
+unsafeModifyMVar :: MVar a -> (a -> IO (a,b)) -> IO b
+unsafeModifyMVar m io = do
+    a      <- takeMVar m
+    (a',b) <- withoutPreemption (io a >>= evaluate)
+    putMVar m a'
+    return b

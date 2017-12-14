@@ -32,10 +32,10 @@ executable qua-view
 
     if flag(dev)
         cpp-options: -DDEVELOPMENT -DLOGLEVEL=4
-        ghc-options: -O0
+        ghc-options: -O0 -rtsopts -with-rtsopts=-A64m -with-rtsopts=-H512m -with-rtsopts=-K64m -with-rtsopts=-G4
     else
         cpp-options: -DLOGLEVEL=2
-        ghc-options: -O2 -dedupe -funfolding-use-threshold=16 -funbox-strict-fields
+        ghc-options: -O2 -dedupe -funfolding-use-threshold=16 -funbox-strict-fields -rtsopts -with-rtsopts=-A64m -with-rtsopts=-H512m -with-rtsopts=-K64m -with-rtsopts=-G4
     main-is: qua-view.hs
     build-depends:
         base >=4.8 && <5,
