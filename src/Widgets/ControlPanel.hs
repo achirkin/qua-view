@@ -37,9 +37,6 @@ controlPanel :: Reflex t
 controlPanel renderingApi scenarioB selectedObjIdD cameraD = mdo
     stateD <- Dom.elDynClass "div" (toClass <$> stateD) $ mdo
 
-      -- view user message widget and register its handlers in qua-view monad
-      userMessageWidget >>= replaceUserMessageCallback
-
       -- tab pane
       (_selTabD, ())
         <- Dom.elAttr "div" ("style" =: "overflow-y: auto; overflow-x: hidden; height: 100%;") $ do
@@ -50,6 +47,8 @@ controlPanel renderingApi scenarioB selectedObjIdD cameraD = mdo
             addTab "Reviews" panelReviews
             -- addTab "Services" panelServices
 
+      -- view user message widget and register its handlers in qua-view monad
+      userMessageWidget >>= replaceUserMessageCallback
 
       -- GUI control buttons
       controlButtonGroup renderingApi scenarioB
@@ -67,6 +66,10 @@ controlPanel renderingApi scenarioB selectedObjIdD cameraD = mdo
         qcss
           [cassius|
             .#{baseclass}
+                display: -webkit-flex;
+                display: flex
+                -webkit-flex-direction: column;
+                flex-direction: column
                 position: fixed
                 opacity: 0.95
                 top: 0

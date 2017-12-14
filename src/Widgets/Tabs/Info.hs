@@ -16,6 +16,7 @@ import qualified Data.Set as Set
 import Data.Text (pack)
 import Data.Text.Read (double)
 import Reflex.Dom
+import GHCJS.DOM.JSFFI.Generated.HTMLElement (focus)
 import JavaScript.JSON.Types.Instances()
 import qualified JavaScript.JSON.Types.Internal as GHCJS
 
@@ -161,11 +162,14 @@ renderPropVal :: Reflex t
               -> QuaWidget t x (Event t (Maybe PropValue))
 renderPropVal val = mdo
   mTxtInputD <- let renderV False = text val >> return Nothing
-                    renderV True
-                      = fmap Just
-                      . textInput $ def
+                    renderV True  = do
+                      t <- textInput $ def
                                   & textInputConfig_initialValue .~ val
                                   & attributes .~ constDyn ("class" =: "form-control")
+                      builtE  <- getPostBuild
+                      builtE' <- delay 0.1 builtE
+                      performEvent_ $ (liftIO . focus $ _textInput_element t) <$ builtE'
+                      return $ Just t
                 in  widgetHold (renderV False) (renderV <$> editableE)
   let getTxt eFn = let f (Just t) = tagPromptlyDyn (t^.textInput_value) $ eFn t
                        f Nothing  = never
@@ -174,8 +178,10 @@ renderPropVal val = mdo
   loseFocusE <- getTxt (\t -> () <$ ffilter not (updated $ t^.textInput_hasFocus))
   let saveE = leftmost [enterE, loseFocusE]
   (editBtn, _) <- elClass' "span" "icon" $ text "edit"
+  let editBtnClickE = domEvent Click editBtn
+
   let editableE = leftmost [
-                   True  <$ domEvent Click editBtn
+                   True  <$ editBtnClickE
                  , False <$ saveE
                  ]
   return $ fmap toPropValue . parseValue <$> saveE
@@ -186,15 +192,18 @@ renderAddProp = mdo
   let makeInput placeholder = do
         input <- textInput $ def & attributes .~ constDyn (fromList
                    [("class", "form-control"), ("placeholder", placeholder)])
-        return $ current $ input^.textInput_value
+        return (current $ input^.textInput_value, input)
   saveD <- let render False = blank >> return never
                render True  = do
-                 ktB <- makeInput "Name"
-                 vtB <- makeInput "Value"
-                 saveE <- do
+                 (ktB, kt) <- makeInput "Name"
+                 (vtB, vt) <- makeInput "Value"
+                 performEvent_ $ (liftIO $ focus $ _textInput_element vt) <$
+                   keypress Enter kt
+                 btnE <- do
                    let cls = "btn btn-red waves-attach waves-light waves-effect"
                    (e, _) <- elClass' "button" cls $ text "Add"
-                   return $ ElementClick <$ domEvent Click e
+                   return $ () <$ domEvent Click e
+                 let saveE = leftmost [btnE, keypress Enter vt]
                  return $ (,) <$> ktB <*> vtB <@ saveE
            in  widgetHold (render False) (render <$> editableE)
   (addBtn, _) <- elClass' "span" "icon" $ text "add"
