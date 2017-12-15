@@ -16,7 +16,7 @@
 
 module Data.Geometry.Structure.LineString
     ( LineString (), lineString
-    , MultiLineString (), multiLineString
+    , MultiLineString (), multiLineString, js_isEmptyMultiLineString
     ) where
 
 
@@ -77,6 +77,10 @@ lineString x y zs = fromJSArray . fromList $ x:y:zs
 {-# INLINE multiLineString #-}
 multiLineString :: [LineString n x] -> MultiLineString n x
 multiLineString = fromJSArray . fromList
+
+{-# INLINE js_isEmptyMultiLineString #-}
+foreign import javascript unsafe "$r = $1['coordinates'].length === 0; console.log($1);"
+    js_isEmptyMultiLineString ::  MultiLineString n x -> Bool
 
 ----------------------------------------------------------------------------------------------------
 -- LineString as PointSet
