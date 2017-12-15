@@ -39,9 +39,13 @@ function gm$smartNormalizeValues(sourceArray, nullSub) {
  * @param nullSub
  * @returns {Array}
  */
-function gm$normalizeValues(sourceArray, nullSub) {
-    var bs = Array.prototype.reduce.call(sourceArray, function(a,x) {
-                return x != null ? [Math.min(a[0],x),Math.max(a[1],x)] : a;
+function gm$normalizeValues(sourceArray, nullSub, stencilArray) {
+    var stencil = function(x){ return x != null;};
+    if(typeof stencilArray !== "undefined") {
+        stencil = function(x,i){ return x != null && stencilArray[i];};
+    }
+    var bs = Array.prototype.reduce.call(sourceArray, function(a,x,i) {
+                return stencil(x,i) ? [Math.min(a[0],x),Math.max(a[1],x)] : a;
             }, [Infinity,-Infinity]),
         xspan = Math.max(bs[1] - bs[0], 0.000001),
         f = function(e) {return e != null ? Math.min(1,Math.max(0,(e - bs[0]) / xspan)) : null;},
@@ -55,6 +59,34 @@ function gm$normalizeValues(sourceArray, nullSub) {
             }
         });
 }
+
+/**
+ * Check every point if it is in the polygon.
+ */
+function gm$groundStencil(groundHull2d,grid3d) {
+  var stencil = new Uint8Array(grid3d.length);
+  for(var i = 0; i < stencil.length; i++) {
+    stencil[i] = gm$isInsidePoly(groundHull2d,grid3d[i]);
+  }
+  return stencil;
+}
+
+function gm$isInsidePoly(poly,point) {
+  var x = point[0], y = point[1];
+
+  var inside = false;
+  for (var i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    var xi = poly[i][0], yi = poly[i][1];
+    var xj = poly[j][0], yj = poly[j][1];
+    var intersect = ((yi > y) != (yj > y))
+        && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+    if (intersect) inside = !inside;
+  }
+
+  return inside ? 1 : 0;
+}
+
+
 
 /**
  *

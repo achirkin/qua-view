@@ -466,9 +466,11 @@ data ColorPalette = LinearPalette  !(Vector4 GLubyte) !(Vector4 GLubyte)
 
 -- | Generate list of colors
 makeColors :: ColorPalette
+           -> Maybe (JSTA.TypedArray GLubyte) -- ^ stencil -- whether to use point or not.
            -> JSTA.TypedArray GLfloat
            -> PS.PointArray 4 GLubyte -- ^ set of values in RGBA form [0..255]
-makeColors pal sf = applyPalette pal Nothing $ normalized sf
+makeColors pal Nothing sf = applyPalette pal Nothing $ normalized' sf
+makeColors pal (Just s) sf = applyPalette pal Nothing $ normalized s sf
 
 
 -- | Generate list of colors
@@ -513,9 +515,12 @@ vvv :: Vector4 GLubyte -> Vector4 GLfloat
 vvv = coerce
 
 
-foreign import javascript safe "gm$normalizeValues($1,0)" normalized :: JSTA.TypedArray GLfloat -> PS.PointArray 4 GLfloat
+foreign import javascript safe "gm$normalizeValues($2,0,$1)"
+  normalized :: JSTA.TypedArray GLubyte -> JSTA.TypedArray GLfloat -> PS.PointArray 4 GLfloat
 
 
+foreign import javascript safe "gm$normalizeValues($1,0)"
+  normalized' :: JSTA.TypedArray GLfloat -> PS.PointArray 4 GLfloat
 
 
 

@@ -216,7 +216,7 @@ groundViewEvents :: Behavior Program
 groundViewEvents programB pviewB vsResultE = mapEventIO groundViewUpdateF $ (,,) <$> programB <*> pviewB <@> vsResultE
   where
    groundViewUpdateF
-      ( Program { city = City {ground = gr, csettings = set}}
+      ( Program { city = City {ground = gr, csettings = set }}
       , PView
           { context      = ViewContext {glctx = gl}
           , cityView     = CityView { groundView = grv}
@@ -230,7 +230,7 @@ groundViewEvents programB pviewB vsResultE = mapEventIO groundViewUpdateF $ (,,)
                                  gr
                                  (Just (Right (texbuf, texsize)))
                                  grv
-        where colors =  makeColors palette values
+        where colors =  makeColors palette (Just $ groundStencil gr (evalCellSize set)) values
    groundViewUpdateF (_,PView { cityView     = CityView { groundView = grv} }, VisualServiceResultUnknown _ err) =
       logText' ("Failed to render a service result: " <> err) >> return grv
    groundViewUpdateF (_,PView { cityView     = CityView { groundView = grv} },_) = return grv

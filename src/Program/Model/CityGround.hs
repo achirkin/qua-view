@@ -21,6 +21,7 @@ module Program.Model.CityGround
     , groundGridToTexArray
     , isEmptyGround
     , fromJSArrayToTypedArray
+    , groundStencil
     ) where
 
 import Unsafe.Coerce (unsafeCoerce)
@@ -43,11 +44,12 @@ import Program.Model.CityObject
 
 
 data CityGround = CityGround
-    { groundPoints :: !PointData
-    , groundCorner :: !(Vector3 GLfloat)
-    , groundX      :: !(Vector3 GLfloat)
-    , groundY      :: !(Vector3 GLfloat)
-    , groundForced :: !Bool
+    { groundPoints  :: !PointData
+    , groundCorner  :: !(Vector3 GLfloat)
+    , groundX       :: !(Vector3 GLfloat)
+    , groundY       :: !(Vector3 GLfloat)
+    , groundHull    :: !(PS.PointArray 2 GLfloat)
+    , groundForced  :: !Bool
     }
 
 -- TODO: reduce duplication
@@ -62,6 +64,7 @@ buildGround _ (Just ring) _ = CityGround
     , groundX      = resizeVector $ dirX * 2
     , groundY      = resizeVector $ dirY * 2
     , groundForced = True
+    , groundHull   = hull
     }
     where hull = PS.toPointArray ring
           (center, dirX, dirY) = PS.boundingRectangle2D hull
@@ -82,6 +85,7 @@ buildGround dilateConstant Nothing s = CityGround
     , groundX      = resizeVector $ dirX * 2
     , groundY      = resizeVector $ dirY * 2
     , groundForced = False
+    , groundHull   = hull
     }
     where points = fromJSArray . JS.join $ JS.map (toJSArray . transform . fmap (PS.toPointArray . objPolygons)) s :: PS.PointArray 3 GLfloat
           hull' = resizeConvexHull2D dilateConstant $ convexPolygonHull2D points :: LinearRing 2 GLfloat
@@ -102,11 +106,12 @@ buildGround dilateConstant Nothing s = CityGround
 
 emptyGround :: CityGround
 emptyGround = CityGround
-    { groundPoints = emptyPointData
-    , groundCorner = 0
-    , groundX      = vector3 1 0 0
-    , groundY      = vector3 0 1 0
-    , groundForced = False
+    { groundPoints  = emptyPointData
+    , groundCorner  = 0
+    , groundX       = vector3 1 0 0
+    , groundY       = vector3 0 1 0
+    , groundForced  = False
+    , groundHull    = PS.pointArray []
     }
 
 isEmptyGround :: CityGround -> Bool
@@ -218,6 +223,27 @@ groundGridToTexArray CityGround{..} cellSize colors =
           ny = max 1 . round $ normL2 groundY / cellSize
           nn = fromIntegral (nx*ny)
           n' = fromIntegral $ JS.length colors
+
+
+groundStencil :: CityGround
+              -> GLfloat  -- ^ desired cell size
+              -> TypedArray GLubyte
+groundStencil cg cellSize = js_groundStencil (groundHull cg) gr
+  where
+    gr = fromJSArray . JS.map f $ js_groundEvalGrid nx ny
+    nx = max 1 . round $ normL2 (groundX cg) / cellSize :: Int
+    ny = max 1 . round $ normL2 (groundY cg) / cellSize :: Int
+    dx = groundX cg / broadcastVector (fromIntegral nx)
+    dy = groundY cg / broadcastVector (fromIntegral ny)
+    corn = groundCorner cg
+    f ij = case unpackV2 ij of
+             (i,j) -> corn + broadcastVector i * dx
+                           + broadcastVector j * dy
+
+
+foreign import javascript unsafe "gm$groundStencil($1,$2)"
+    js_groundStencil :: PS.PointArray 2 GLfloat -> PS.PointArray 3 GLfloat -> TypedArray GLubyte
+
 
 fromJSArrayToTypedArray :: (TypedArrayOperations a) => JS.Array a -> TypedArray a
 fromJSArrayToTypedArray = fromArray . unsafeFromJSArrayCoerce
