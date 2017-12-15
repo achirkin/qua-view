@@ -533,11 +533,14 @@ storeCityAsIs City
     , clutter = (mline, _)
     , cityTransform = (scale, shift)
     } = JS.fromJSArray . JS.fromList $
-       (feature . PS.mapSet (\x -> x*scale3 + shift3) . GeoMultiLineString $ mline)
-        : JS.toList (JS.map (storeCityObject scale shift PlainFeature) buildings)
+          if LS.js_isEmptyMultiLineString mline
+          then buildingFeatures
+          else lineFeature : buildingFeatures
   where
     shift3 = resizeVector shift
     scale3 = broadcastVector (1/scale)
+    lineFeature = (feature . PS.mapSet (\x -> x*scale3 + shift3) . GeoMultiLineString $ mline)
+    buildingFeatures = JS.toList (JS.map (storeCityObject scale shift PlainFeature) buildings)
 
 storeObjectsAsIs :: [GeomId] -> City -> FeatureCollection
 -- TODO: Proper change in the logic?
