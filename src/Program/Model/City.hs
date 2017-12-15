@@ -533,7 +533,7 @@ storeCityAsIs City
     , clutter = (mline, _)
     , cityTransform = (scale, shift)
     } = JS.fromJSArray . JS.fromList $
-          if LS.js_isEmptyMultiLineString mline
+          if JS.length mline == 0
           then buildingFeatures
           else lineFeature : buildingFeatures
   where
