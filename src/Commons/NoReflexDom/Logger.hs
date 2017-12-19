@@ -1,11 +1,13 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE OverloadedStrings          #-}
 
 module Commons.NoReflexDom.Logger
     ( module Commons.NoReflex.Logger
     , logMsgEvents', logMsgEvents
     , logDebugEvents  , logInfoEvents  , logWarnEvents  , logErrorEvents
     , logDebugEvents' , logInfoEvents' , logWarnEvents' , logErrorEvents'
+    , logDebugEventsSimple
     ) where
 
 
@@ -58,6 +60,15 @@ logDebugEvents _ _ = pure ()
 logDebugEvents = logMsgEvents LevelDebug
 #endif
 {-# INLINE logDebugEvents #-}
+
+logDebugEventsSimple :: ( MonadLogger m, PerformEvent t m, MonadIO (Performable m))
+                     => Event t JSString -> m ()
+#if LOGLEVEL <= 3
+logDebugEventsSimple _ = pure ()
+#else
+logDebugEventsSimple = logMsgEvents LevelDebug "Simple"
+#endif
+{-# INLINE logDebugEventsSimple #-}
 
 logInfoEvents' :: ( ToJSString msg, ToJSVal attachment, MonadLogger m, PerformEvent t m
                   , MonadIO (Performable m))
@@ -118,4 +129,3 @@ logErrorEvents _ _ = pure ()
 logErrorEvents = logMsgEvents LevelError
 #endif
 {-# INLINE logErrorEvents #-}
-
