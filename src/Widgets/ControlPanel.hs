@@ -44,15 +44,18 @@ controlPanel renderingApi scenarioB selectedObjIdD cameraD = mdo
 
     stateD <- Dom.elDynClass "div" (toClass <$> stateD) $ mdo
       -- tab pane
-      (_selTabD, ())
-        <- Dom.elAttr "div" ("style" =: "overflow-y: auto; overflow-x: hidden; height: 100%;") $ do
+      void $ Dom.elAttr "div" ("style" =: "overflow-y: auto; overflow-x: hidden; height: 100%;") $ do
           Dom.elAttr "div" ("style" =: "margin: 0; padding: 0; height: 56px;") Dom.blank
-          runTabWidget $ do
-            addTab "Geometry" $ panelGeometry showUcD showAdD
-              renderingApi scenarioB selectedObjIdD cameraD
-            addTab "Info" $ panelInfo scenarioB selectedObjIdD
-            addTab "Reviews" panelReviews
-            -- addTab "Services" panelServices
+          let renderTabs showGeo = runTabWidget $ sequence $
+                  geoTab ++ (addTab "Info" $ panelInfo scenarioB selectedObjIdD) : revTab
+                where
+                  geoTab = if showGeo
+                           then [ addTab "Geometry" $ panelGeometry showUcD showAdD
+                                    renderingApi scenarioB selectedObjIdD cameraD ]
+                           else []
+                  revTab = [addTab "Reviews" panelReviews]
+                  -- addTab "Services" panelServices
+          Dom.dyn $ renderTabs <$> showGeoD
 
       -- view user message widget and register its handlers in qua-view monad
       userMessageWidget >>= replaceUserMessageCallback
