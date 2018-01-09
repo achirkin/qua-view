@@ -107,7 +107,7 @@ Special object types are used to control `qua-view` behavior. We use `special ::
       ```json
       { "type": "Feature"
       , "geometry":
-        { "type": "MultiPoint"
+        { "type": "Polygon"
         , "coordinates": [[[...]]]
         }
       , "properties": { "special": "forcedArea"}
