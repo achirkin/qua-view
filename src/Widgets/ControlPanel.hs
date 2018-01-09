@@ -11,6 +11,7 @@ module Widgets.ControlPanel
     ) where
 
 import qualified Reflex.Dom as Dom
+import qualified QuaTypes
 
 import Commons
 import Model.Camera (Camera)
@@ -35,14 +36,20 @@ controlPanel :: Reflex t
              -> Dynamic t Camera
              -> QuaWidget t x (Dynamic t (ComponentState "ControlPanel"))
 controlPanel renderingApi scenarioB selectedObjIdD cameraD = mdo
-    stateD <- Dom.elDynClass "div" (toClass <$> stateD) $ mdo
+    settingsD <- quaSettings
+    let permsD   = QuaTypes.permissions <$> settingsD
+        showUcD  = QuaTypes.canEditProperties    <$> permsD
+        showAdD  = QuaTypes.canAddDeleteGeometry <$> permsD
+        showGeoD = (&&) <$> showUcD <*> showAdD
 
+    stateD <- Dom.elDynClass "div" (toClass <$> stateD) $ mdo
       -- tab pane
       (_selTabD, ())
         <- Dom.elAttr "div" ("style" =: "overflow-y: auto; overflow-x: hidden; height: 100%;") $ do
           Dom.elAttr "div" ("style" =: "margin: 0; padding: 0; height: 56px;") Dom.blank
           runTabWidget $ do
-            addTab "Geometry" $ panelGeometry renderingApi scenarioB selectedObjIdD cameraD
+            addTab "Geometry" $ panelGeometry showUcD showAdD
+              renderingApi scenarioB selectedObjIdD cameraD
             addTab "Info" $ panelInfo scenarioB selectedObjIdD
             addTab "Reviews" panelReviews
             -- addTab "Services" panelServices
