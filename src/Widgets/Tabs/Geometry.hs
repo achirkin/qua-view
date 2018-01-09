@@ -43,19 +43,28 @@ import qualified SmallGL
 
 
 panelGeometry :: Reflex t
-              => SmallGL.RenderingApi
+              => Dynamic t Bool
+              -> Dynamic t Bool
+              -> SmallGL.RenderingApi
               -> Behavior t Scenario.Scenario
               -> Dynamic t (Maybe Object.ObjectId)
               -> Dynamic t Camera
               -> QuaWidget t x ()
-panelGeometry renderingApi scenarioB selectedObjD cameraD = do
-    ucPaneSD <- uploadNclearPane
-    whenActive ucPaneSD hr
+panelGeometry showUcD showAdD renderingApi scenarioB selectedObjD cameraD = do
+    let renderUc False = return ()
+        renderUc True  = do
+          ucPaneSD <- uploadNclearPane
+          whenActive ucPaneSD hr
+          return ()
+    void $ dyn $ renderUc <$> showUcD
 
-    doPaneSD <- deleteObjectPane selectedObjD
-    whenActive doPaneSD hr
-
-    cloneObjectPane renderingApi scenarioB cameraD
+    let renderAd False = return ()
+        renderAd True  = do
+          doPaneSD <- deleteObjectPane selectedObjD
+          whenActive doPaneSD hr
+          cloneObjectPane renderingApi scenarioB cameraD
+          return ()
+    void $ dyn $ renderAd <$> showAdD
 
 
 
@@ -256,8 +265,3 @@ buttonSaveScenario = buttonRed "Save" def >>= lift . popupSaveScenario
 -- | User selects
 buttonBrowseScenarios :: Reflex t => QuaWidget t x (Event t ScId)
 buttonBrowseScenarios = buttonRed "Scenarios" def >>= lift . popupBrowseScenarios
-
-
-
-
-
