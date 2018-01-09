@@ -131,6 +131,12 @@ $(do
         overflow: visible
         width: 0
         height: 0
+      .modal-body
+        padding: 15px
+      .modal-header
+        padding: 15px
+        h5
+          margin-top: 0
     |]
   return []
  )

@@ -23,6 +23,7 @@ import Program.UserAction
 import Widgets.Commons
 import Widgets.Generation
 import Widgets.Modal
+import Widgets.Modal.DownloadScenario
 
 
 
@@ -91,10 +92,25 @@ saveScenarioContent renderingApi scenarioB submitPopupUrlE = do
                $ makePut <$> submitUrlB <*> imgurlB <*> scContentB <@> submitWithDescrE
 
     performEvent_ . ffor responseE $ \eresponse -> case eresponse of
-      Left (JSError err) -> showUserPopup . SingleMsg $
-              "An error happened when submitting the design.\n"
-           <> "Please, save your design to your computer and contact administrators.\n"
-           <> "Error: " <> err
+      Left (JSError err) -> do
+        sc <- sample scenarioB
+        prepareDownloadScenarioContent sc
+        showUserPopup . SingleMsg $
+              "<div>"
+           <>   "<div class=\"modal-header\">"
+           <>     "<h5>An error happened when submitting the design.</h5>"
+           <>   "</div"
+           <>   "<div class=\"modal-body\">"
+           <>     "Please, save your design to your computer and contact administrators.<br>"
+           <>     "Error: " <> err <> "<br>"
+           <>     $(qhtml
+                    [hamlet|
+                      <p>
+                        <a onclick="#{downloadScenario}" href="#">
+                          Download scenario
+                    |])
+           <>   "</div>"
+           <> "</div>"
       Right _  -> showUserPopup $ SingleMsg $
               "Your design is submitted succesfully!\n"
            <> "You can continue working on it and submit a new version, or just close the window."

@@ -125,7 +125,7 @@ userPopupWidget = do
     renderMsg :: Reflex t => UserMessage () -> QuaWidget t x ()
     renderMsg (SingleMsg msg) = do
       void $ createModalWithClicks' never Active $ do
-        text $ textFromJSString msg
+        void $ makeElementFromHtml def msg
         return never
       return ()
 
