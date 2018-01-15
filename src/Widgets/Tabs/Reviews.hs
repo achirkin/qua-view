@@ -16,26 +16,21 @@ import Commons
 import Data.JSString.Text (textFromJSString, textToJSString)
 import Data.Text
 import Data.Time.Format
-import QuaTypes
 import QuaTypes.Review
 import Reflex.Dom
 import Widgets.Commons
 import Widgets.Generation
 
 
-panelReviews :: Reflex t => QuaWidget t x ()
-panelReviews = do
-  settingsD <- quaSettings
-  eitherReviewSettingsE <- httpGetNowOrOnUpdate $ reviewSettingsUrl
-                                               <$> settingsD
-  reviewSettingsE <- renderError eitherReviewSettingsE
-  reviewSettingsD <- holdDyn Nothing $ Just <$> reviewSettingsE
+panelReviews :: Reflex t
+             => Dynamic t (Either JSError ReviewSettings) -> QuaWidget t x ()
+panelReviews reviewSettingsD = do
   void $ dyn $ renderPanelReviews <$> reviewSettingsD
 
 renderPanelReviews :: Reflex t
-                   => Maybe ReviewSettings -> QuaWidget t x ()
-renderPanelReviews Nothing = blank
-renderPanelReviews (Just reviewSettings) = do
+                   => Either JSError ReviewSettings -> QuaWidget t x ()
+renderPanelReviews (Left _) = blank
+renderPanelReviews (Right reviewSettings) = do
     responseE <- renderWriteReview reviewSettings
     reviewsD  <- accum accumRevs (reviews reviewSettings) responseE
     let crits = criterions reviewSettings

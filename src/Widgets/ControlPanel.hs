@@ -12,6 +12,7 @@ module Widgets.ControlPanel
 
 import qualified Reflex.Dom as Dom
 import qualified QuaTypes
+import qualified QuaTypes.Review as QtR
 
 import Commons
 import Model.Camera (Camera)
@@ -27,6 +28,7 @@ import Widgets.Tabs.Reviews
 --import Widgets.Tabs.Services -- TODO: wait when luci services are implemented
 import Model.Scenario.Object (ObjectId (..))
 
+import Data.Maybe (isJust)
 
 -- | Control panel widget is a place for all controls in qua-view!
 controlPanel :: Reflex t
@@ -37,25 +39,32 @@ controlPanel :: Reflex t
              -> QuaWidget t x (Dynamic t (ComponentState "ControlPanel"))
 controlPanel renderingApi scenarioB selectedObjIdD cameraD = mdo
     settingsD <- quaSettings
+    eitherReviewSettingsE <- httpGetNowOrOnUpdate $ QuaTypes.reviewSettingsUrl <$> settingsD
+    reviewSettingsD <- Dom.holdDyn (Left "not loaded yet") eitherReviewSettingsE
     let permsD   = QuaTypes.permissions <$> settingsD
         showUcD  = QuaTypes.canEditProperties    <$> permsD
         showAdD  = QuaTypes.canAddDeleteGeometry <$> permsD
         showGeoD = (&&) <$> showUcD <*> showAdD
-
+        handleRs (Left _)   = False
+        handleRs (Right rs) = isJust (QtR.reviewsUrl rs) || (not $ null $ QtR.reviews rs)
+        showRevD = handleRs <$> reviewSettingsD
     stateD <- Dom.elDynClass "div" (toClass <$> stateD) $ mdo
       -- tab pane
       void $ Dom.elAttr "div" ("style" =: "overflow-y: auto; overflow-x: hidden; height: 100%;") $ do
           Dom.elAttr "div" ("style" =: "margin: 0; padding: 0; height: 56px;") Dom.blank
-          let renderTabs showGeo = runTabWidget $ sequence $
-                  geoTab ++ (addTab "Info" $ panelInfo scenarioB selectedObjIdD) : revTab
+          let renderTabs showGeo showRev = runTabWidget $ sequence $
+                    geoTab ++ (addTab "Info" $ panelInfo scenarioB selectedObjIdD)
+                    : revTab
                 where
                   geoTab = if showGeo
                            then [ addTab "Geometry" $ panelGeometry showUcD showAdD
                                     renderingApi scenarioB selectedObjIdD cameraD ]
                            else []
-                  revTab = [addTab "Reviews" panelReviews]
+                  revTab = if showRev
+                           then [addTab "Reviews" $ panelReviews reviewSettingsD]
+                           else []
                   -- addTab "Services" panelServices
-          Dom.dyn $ renderTabs <$> showGeoD
+          Dom.dyn $ renderTabs <$> showGeoD <*> showRevD
 
       -- view user message widget and register its handlers in qua-view monad
       userMessageWidget >>= replaceUserMessageCallback
