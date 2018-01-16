@@ -7,7 +7,7 @@ module Widgets.Generation
     ( setInnerHTML, getElementById, makeElementFromHtml
     , qhtml, qcss, qjs
     , newVar, returnVars
-    , hamlet, cassius, julius
+    , hamlet, shamlet, cassius, julius
     , appendElementToAnotherById
     ) where
 
@@ -20,7 +20,7 @@ import Language.Haskell.TH
 import Language.Haskell.TH.Syntax (qAddTopDecls)
 import GHCJS.DOM.Node (appendChild_)
 
-import Text.Hamlet (HtmlUrl,hamlet)
+import Text.Hamlet (HtmlUrl,hamlet,shamlet)
 import Text.Blaze.Html.Renderer.String (renderHtml)
 import Text.Julius (JavascriptUrl, renderJavascriptUrl, julius)
 import Text.Cassius (cassius)
@@ -292,6 +292,3 @@ foreign import javascript unsafe "$r = document.getElementById($1);"
     js_getElementById :: JSString -> IO (Nullable Element.Element)
 foreign import javascript unsafe "var d = document.createElement('div');d.innerHTML = $1;$r = d.firstChild;"
     js_createElement :: JSString -> IO (Nullable Element.Element)
-
-
-
