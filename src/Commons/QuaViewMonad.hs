@@ -109,7 +109,7 @@ initQuaViewContext quaViewEvents = do
       $ liftIO . initLogInfo "Updated settings"
 
     quaViewUserMessageHandlers <- liftIO . newIORef $ UserMessageCallback defaultMsgFun
-    quaViewUserPopupHandlers   <- liftIO . newIORef $ UserSingleMsgCallback defaultSingleMsgFun
+    quaViewUserPopupHandlers   <- liftIO . newIORef $ UserSingleMsgCallback defaultMsgFun
     quaViewPanicMsgHandler     <- liftIO . newIORef $ defaultMsgFun . SingleMsg
 
     return QuaViewContext {..}
@@ -129,13 +129,6 @@ defaultMsgFun (ProgressMsg msg) = do
                                 ("Got this message before initialized msg widget:" <> pref <> m)
                                 Nothing
            in UserProgressCallback (f " [progress] ") (f " [finish] ")
-
-defaultSingleMsgFun :: UserMessage () -> IO ()
-defaultSingleMsgFun (SingleMsg msg) = stdOutLogger
-    LevelWarn "initQuaViewContext"
-    ("Got this message before initialized single msg widget: " <> msg)
-    Nothing
-
 
 
 instance DomBuilder t m => DomBuilder t (QuaViewT NoWriting t m) where
