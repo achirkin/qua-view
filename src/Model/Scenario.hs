@@ -276,7 +276,7 @@ resolvedObjectColorIgnoreVisible s o = o^.Object.viewColor.non sdef
 -- | Resolve view color of object based on object and scenario properties.
 resolvedObjectColor :: Scenario' s -> Object.Object' t -> HexColor
 resolvedObjectColor s o
-    = if o^.Object.selectable
+    = if o^.Object.visible
       then resolvedObjectColorIgnoreVisible s o
       else "#00000000"
 
