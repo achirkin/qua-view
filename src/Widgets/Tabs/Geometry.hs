@@ -41,10 +41,10 @@ import Widgets.Modal.SaveScenario
 
 import qualified SmallGL
 
-
+-- | Load or clear scenario, add or delete individual objects
 panelGeometry :: Reflex t
-              => Dynamic t Bool
-              -> Dynamic t Bool
+              => Dynamic t Bool -- ^ Whether to show Upload & Clear Geometry buttons
+              -> Dynamic t Bool -- ^ Whether to show Template  Object Palette and Delete button
               -> SmallGL.RenderingApi
               -> Behavior t Scenario.Scenario
               -> Dynamic t (Maybe Object.ObjectId)
