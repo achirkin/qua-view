@@ -9,8 +9,10 @@ module Widgets.Modal.SubmitProposal
     ) where
 
 import Control.Lens
+import Data.Text.Lazy (toStrict)
 import Reflex.Dom
 import JavaScript.JSON.Types.Instances (toJSON)
+import Text.Blaze.Html.Renderer.Text (renderHtml)
 import QuaTypes.Submission
 
 import Commons
@@ -24,7 +26,6 @@ import Widgets.Commons
 import Widgets.Generation
 import Widgets.Modal
 import Widgets.Modal.DownloadScenario
-
 
 
 popupSubmitProposal :: Reflex t
@@ -95,22 +96,18 @@ saveScenarioContent renderingApi scenarioB submitPopupUrlE = do
       Left (JSError err) -> do
         sc <- sample scenarioB
         prepareDownloadScenarioContent sc
-        showUserPopup . SingleMsg $
-              "<div>"
-           <>   "<div class=\"modal-header\">"
-           <>     "<h5>An error happened when submitting the design.</h5>"
-           <>   "</div"
-           <>   "<div class=\"modal-body\">"
-           <>     "Please, save your design to your computer and contact administrators.<br>"
-           <>     "Error: " <> err <> "<br>"
-           <>     $(qhtml
-                    [hamlet|
-                      <p>
-                        <a onclick="#{downloadScenario}" href="#">
-                          Download scenario
-                    |])
-           <>   "</div>"
-           <> "</div>"
+        showUserPopup $ SingleMsg $ textToJSString $ toStrict $ renderHtml
+          [shamlet|
+            <div>
+              <div .modal-header>
+                <h5>An error happened when submitting the design.</h5>
+              <div .modal-body>
+                Please, save your design to your computer and contact administrators.<br>
+                Error: #{ textFromJSString err }<br>
+                <p>
+                  <a onclick="#{downloadScenario}" href="#">
+                    Download scenario
+          |]
       Right _  -> showUserPopup $ SingleMsg $
               "Your design is submitted succesfully!\n"
            <> "You can continue working on it and submit a new version, or just close the window."
