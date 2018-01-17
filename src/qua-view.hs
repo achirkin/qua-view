@@ -81,9 +81,13 @@ main = mainWidgetInElementById "qua-view-widgets" $ runQuaWidget $ do
 
     -- Notify everyone that the program h finished starting up now
     mainBuilt <- getPostBuild
-    performEvent_ . flip fmap mainBuilt . const $ do
+    performEvent_ . flip fmap mainBuilt . const $
         liftIO (setIsProgramBusy Idle)
-        Widgets.play aHandler
+    --    Widgets.play aHandler
+    glUpdates <- SmallGL.askAllGLEvents
+    glUpdatesAfterBuilt <- switchPromptOnly never (glUpdates <$ mainBuilt)
+    performEvent_ $ step aHandler <$ glUpdatesAfterBuilt
+
 
     -- add the control panel to the page
     _panelStateD <- Widgets.controlPanel renderingApi scenarioB selectedObjIdD cameraD
