@@ -27,7 +27,7 @@ packages:
   # pointer events and animation frames for reflex
   - location:
       git: https://github.com/achirkin/reflex-animated.git
-      commit: 8ba3ba06a5f0cec32842fbb1b46e0fbfb8153715
+      commit: fd43f31bfb9614818e6791fa67a0ef3e8d3e4145
     extra-dep: true
   # DOM components for reflex platform
   - location:

@@ -31,7 +31,7 @@
 module SmallGL
     ( ProjMatrix (..), ViewMatrix (..)
     , RenderingApi (addRObject, getHoveredSelId, render, renderToImage, renderObjToImg, cloneObject)
-    , QEventTag (..)
+    , QEventTag (..), askAllGLEvents
     , createRenderingEngine
     ) where
 
@@ -135,6 +135,27 @@ data instance QEventTag SmallGLInput a where
 
 
 deriveEvent ''SmallGLInput
+
+
+-- | Return an event that fires when anything on a screen can update.
+--   NB: add here every new constructor of SmallGLInput.
+askAllGLEvents :: ( Reflex t, QuaViewTrans isWriting
+                  , Applicative m
+                  , Monad (QuaViewT isWriting t m))
+               => QuaViewT isWriting t m (Event t ())
+askAllGLEvents = leftmost <$> sequence
+  [(() <$) <$> askEvent (SmallGLInput ViewPortResize)
+  ,(() <$) <$> askEvent (SmallGLInput ProjTransformChange)
+  ,(() <$) <$> askEvent (SmallGLInput ViewTransformChange)
+  ,(() <$) <$> askEvent (SmallGLInput TransformObject)
+  ,(() <$) <$> askEvent (SmallGLInput SetObjectColor)
+  ,(() <$) <$> askEvent (SmallGLInput PersistGeomTransforms)
+  ,(() <$) <$> askEvent (SmallGLInput SetMapTileOpacity)
+  ,(() <$) <$> askEvent (SmallGLInput ResetMapTiles)
+  ,(() <$) <$> askEvent (SmallGLInput AddMapTileToRendering)
+  ,(() <$) <$> askEvent (SmallGLInput ResetGL)
+  ,(() <$) <$> askEvent (SmallGLInput DeleteObject)
+  ]
 
 createRenderingEngine :: (MonadIO m, Reflex t, MonadIO (Performable m), PerformEvent t m)
                       => Element EventResult GhcjsDomSpace t
@@ -243,7 +264,7 @@ createRenderingEngine canvasElem = do
       >>= performEvent_ . fmap (liftIO . modifyMVar_ rre . addMapTile')
 
     askEvent (SmallGLInput ResetMapTiles)
-      >>= performEvent_ . (liftIO (modifyMVar_ rre $ clearMapTiles') <$)
+      >>= performEvent_ . (liftIO (modifyMVar_ rre clearMapTiles') <$)
 
     askEvent (SmallGLInput ResetGL)
       >>= performEvent_ . (liftIO (reset rApi) <$)
@@ -291,6 +312,7 @@ renderFunction _ re@RenderingEngine {..}  = do
     -- draw map tiles
     renderMapTiles' re
     renderCells re
+
 
 renderCells :: RenderingEngine -> IO ()
 renderCells RenderingEngine {..} = do

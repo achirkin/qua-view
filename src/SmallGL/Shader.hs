@@ -140,8 +140,6 @@ initShaders gl shtexts explicitLocs = do
         checkGLError gl $ "GetActiveUniform gl for getting shader uniform " ++ show i
         uPos <- getUniformLocation gl shaderProgram (aiName activeInfo)
         return (aiName activeInfo, js_unifProps uPos (aiType activeInfo) (aiSize activeInfo))
---    sequence_ . map (putStrLn . show) . Map.toList $ shaderAttribs
---    sequence_ . map (putStrLn . show) . Map.toList $ shaderUniforms
     return ShaderProgram {
             programId = shaderProgram,
             attributesOf = shaderAttribs,
