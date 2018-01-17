@@ -120,6 +120,26 @@ Special object types are used to control `qua-view` behavior. We use `special ::
       which are reset to their defaults (removed from the property list).
       This allows to hide a template object in a scene if necessary.
     * If a template object is a part of a group, the whole group is considered to be a template.
+  * `"special": "creationPoint"` means a pre-defined position of an object to be added from a template.
+    If it is not set, objects appear at current camera view point.
+    * Must be at most one for a scenario.
+    * Geometry type must be a valid `"Point"`.
+    * Default property values:
+       ```yaml
+       - static: true
+       - selectable: false
+       - visible: false
+       ```
+    * Example:
+      ```json
+      { "type": "Feature"
+      , "geometry":
+        { "type": "Point"
+        , "coordinates": [x,y,z]
+        }
+      , "properties": { "special": "creationPoint"}
+      }
+      ```
 
 
 ## Development

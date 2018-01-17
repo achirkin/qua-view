@@ -191,24 +191,28 @@ data SpecialObject
   = SpecialCamera
   | SpecialForcedArea
   | SpecialTemplate
+  | SpecialCreationPoint
   deriving Eq
 
 instance Show SpecialObject where
-  show SpecialCamera     = "camera"
-  show SpecialForcedArea = "forcedArea"
-  show SpecialTemplate   = "template"
+  show SpecialCamera        = "camera"
+  show SpecialForcedArea    = "forcedArea"
+  show SpecialTemplate      = "template"
+  show SpecialCreationPoint = "creationPoint"
 
 instance FromJSON SpecialObject where
   parseJSON v = parseJSON v >>= \s -> case (s :: JSString) of
-    "camera"     -> return SpecialCamera
-    "forcedArea" -> return SpecialForcedArea
-    "template"   -> return SpecialTemplate
-    _            -> fail $ "Unknown special object: " ++ show s
+    "camera"        -> return SpecialCamera
+    "forcedArea"    -> return SpecialForcedArea
+    "template"      -> return SpecialTemplate
+    "creationPoint" -> return SpecialCreationPoint
+    _               -> fail $ "Unknown special object: " ++ show s
 
 instance ToJSON SpecialObject where
-  toJSON SpecialCamera     = toJSON ("camera" :: JSString)
-  toJSON SpecialForcedArea = toJSON ("forcedArea" :: JSString)
-  toJSON SpecialTemplate   = toJSON ("template" :: JSString)
+  toJSON SpecialCamera        = toJSON ("camera" :: JSString)
+  toJSON SpecialForcedArea    = toJSON ("forcedArea" :: JSString)
+  toJSON SpecialTemplate      = toJSON ("template" :: JSString)
+  toJSON SpecialCreationPoint = toJSON ("creationPoint" :: JSString)
 
 geomID :: Functor f => (Maybe ObjectId -> f (Maybe ObjectId)) -> Object' s -> f (Object' s)
 geomID = properties . propertyWithParsing "geomID"
@@ -226,10 +230,11 @@ viewColor f o = properties (property "viewColor" g) o
     g (Just c) = f (Just c)
     g Nothing  = f dueSpecial
     dueSpecial = case o ^. special of
-      Just SpecialCamera     -> Nothing
-      Just SpecialForcedArea -> Just "#FFFFFF99"
-      Just SpecialTemplate   -> Nothing
-      Nothing                -> Nothing
+      Just SpecialCamera          -> Nothing
+      Just SpecialForcedArea      -> Just "#FFFFFF99"
+      Just SpecialTemplate        -> Nothing
+      Just SpecialCreationPoint   -> Nothing
+      Nothing                     -> Nothing
 
 objectBehavior :: Functor f
                => (ObjectBehavior -> f ObjectBehavior) -> Object' s -> f (Object' s)
@@ -248,10 +253,11 @@ selectable f o = properties (propertyWithParsing "selectable" g) o
      g (Just x) = Just <$> f x
      g Nothing  = Just <$> f (dueSpecial && o ^. visible)
      dueSpecial = case o^. special of
-       Just SpecialCamera     -> False
-       Just SpecialForcedArea -> False
-       Just SpecialTemplate   -> True
-       Nothing                -> True
+       Just SpecialCamera          -> False
+       Just SpecialForcedArea      -> False
+       Just SpecialTemplate        -> True
+       Just SpecialCreationPoint   -> False
+       Nothing                     -> True
 
 visible :: Functor f
         => (Bool -> f Bool) -> Object' s -> f (Object' s)
@@ -260,10 +266,11 @@ visible f o = properties (propertyWithParsing "visible" g) o
     g (Just x)  = Just <$> f x
     g Nothing   = Just <$> f dueSpecial
     dueSpecial = case o ^. special of
-      Just SpecialCamera     -> False
-      Just SpecialForcedArea -> True
-      Just SpecialTemplate   -> True
-      Nothing                -> True
+      Just SpecialCamera        -> False
+      Just SpecialForcedArea    -> True
+      Just SpecialTemplate      -> True
+      Just SpecialCreationPoint -> False
+      Nothing                   -> True
 
 special :: Functor f
         => (Maybe SpecialObject -> f (Maybe SpecialObject))
