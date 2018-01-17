@@ -19,6 +19,7 @@ import Commons
 import Reflex.Dom
 import Control.Lens
 import Control.Monad.Trans.Class (lift)
+import Data.Maybe (fromMaybe)
 import qualified Data.Set as Set
 import qualified GHCJS.DOM.JSFFI.Generated.HTMLInputElement as JSFFI (setValue)
 import qualified GHCJS.DOM.JSFFI.Generated.File as JSFFI
@@ -60,7 +61,7 @@ panelGeometry showUcD showAdD renderingApi scenarioB selectedObjD cameraD = do
 
     let renderAd False = return ()
         renderAd True  = do
-          doPaneSD <- deleteObjectPane selectedObjD
+          doPaneSD <- deleteObjectPane scenarioB selectedObjD
           whenActive doPaneSD hr
           cloneObjectPane renderingApi scenarioB cameraD
           return ()
@@ -74,20 +75,25 @@ panelGeometry showUcD showAdD renderingApi scenarioB selectedObjD cameraD = do
 
 
 deleteObjectPane :: Reflex t
-                 => Dynamic t (Maybe Object.ObjectId)
+                 => Behavior t Scenario.Scenario
+                 -> Dynamic t (Maybe Object.ObjectId)
                  -> QuaWidget t x (Dynamic t (ComponentState "deleteObjectPane"))
-deleteObjectPane selectedObjD = do
+deleteObjectPane scenarioB selectedObjD = do
     selectedObjI <- sample $ current selectedObjD
-    clicksDE <- widgetHold (deleteWidget selectedObjI) (deleteWidget <$> updated selectedObjD)
+    scenarioI <- sample scenarioB
+    clicksDE <- widgetHold (deleteWidget scenarioI selectedObjI)
+                           (deleteWidget <$> scenarioB <@> updated selectedObjD)
     registerEvent (ScenarioUpdate ObjectDeleted) (switchPromptlyDyn clicksDE)
     return cstateD
   where
     cstateD = cstateF <$> selectedObjD
     cstateF (Just _) = Active
     cstateF Nothing  = Inactive
-    deleteWidget (Just i) = (i <$) <$> buttonRed "Delete selected object" def
-    deleteWidget Nothing  = return never
-
+    deleteWidget sc (Just i) = (objGroup sc i <$) <$> buttonRed "Delete selected object" def
+    deleteWidget _ Nothing  = return never
+    objGroup sc objId = case sc^?Scenario.objects.at objId._Just.Object.groupID._Just of
+      Nothing -> [objId]
+      Just gId -> sc^.Scenario.viewState.Scenario.objectGroups.at gId.non [objId]
 
 cloneObjectPane :: Reflex t
                  => SmallGL.RenderingApi
@@ -96,7 +102,9 @@ cloneObjectPane :: Reflex t
                  -> QuaWidget t x ()
 cloneObjectPane renderingApi scenarioB cameraD = do
     scsUpdateE <- askEvent (ScenarioUpdate ScenarioStateUpdatedOut)
-    let camCenterB = viewPoint . newState <$> current cameraD
+    let objectPosB = fromMaybe -- take pre-defined creation point or the camera view point
+                  <$> (viewPoint . newState <$> current cameraD)
+                  <*> (view (Scenario.viewState . Scenario.creationPoint) <$> scenarioB)
         imgWidth = 160
         imgHeight = 160
     cloneDE <- widgetHold (pure never) $ ffor (scenarioB <@ scsUpdateE) $ \scenario -> do
@@ -131,7 +139,7 @@ cloneObjectPane renderingApi scenarioB cameraD = do
         (e, ()) <- elClass' "div" cloneObjectDivClass $ do
           elAttr "img" ("src" =: textFromJSString imgUrl) blank
           el "span" $ text $ (obs^?traverse._2._Just)^.non "Unnamed object"
-        return $ (,) (map fst obs) <$> camCenterB <@ domEvent Click e
+        return $ (,) (map fst obs) <$> objectPosB <@ domEvent Click e
       return $ leftmost cloneEs
 
     registerEvent (ScenarioUpdate ObjectCloned) $ switchPromptlyDyn cloneDE

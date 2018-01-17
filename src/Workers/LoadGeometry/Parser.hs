@@ -11,7 +11,7 @@ module Workers.LoadGeometry.Parser
     ) where
 
 import Data.Semigroup
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, isNothing)
 import Data.List (mapAccumL)
 import Data.Sequence
 import Control.Applicative ((<|>))
@@ -132,7 +132,7 @@ performGTransform :: Maybe Int -- ^ forced was WGS'84
                      , Object.Object' 'Object.NotReady -> PrepScenario (Object.Object' 'Object.NotReady)
                      )
 performGTransform forcedSRID st
-  = if (forcedSRID == Just 4326) || (guessIsWgs84 st && forcedSRID == Nothing)
+  = if (forcedSRID == Just 4326) || (guessIsWgs84 st && isNothing forcedSRID)
     then ( st'
          , Just (realToFrac lon, realToFrac lat, 0)
          , Nothing
@@ -222,12 +222,14 @@ checkSpecial :: Object.ObjectId
              -> Object.Object' s -> PrepScenario (Object.Object' s)
 checkSpecial objId obj = case obj ^. Object.special of
   Nothing -> return obj
-  Just Object.SpecialForcedArea ->
+  Just Object.SpecialForcedArea    ->
     obj <$ prepareSpecialForcedArea objId
-  Just Object.SpecialTemplate   ->
+  Just Object.SpecialTemplate      ->
     obj <$ prepareSpecialTemplate objId obj
-  Just Object.SpecialCamera     ->
+  Just Object.SpecialCamera        ->
     obj <$ prepareSpecialCamera obj
+  Just Object.SpecialCreationPoint ->
+    obj <$ prepareSpecialCreationPoint obj
 
 
 prepareSpecialForcedArea :: Object.ObjectId -> PrepScenario ()
@@ -253,4 +255,18 @@ prepareSpecialCamera obj = do
       lookAtP <- unsafeSubArrayFreeze @Float @'[] @3 df (1:!2:!Z)
       return $ Just (camP, lookAtP)
     getTwoPoints _ = Nothing <$ report "special:camera must be a MultiPoint with exactly two points!"
+
+
+
+prepareSpecialCreationPoint :: Object.Object' s -> PrepScenario ()
+prepareSpecialCreationPoint obj = do
+    cp <- getPoint $ obj ^. Object.geometry
+    assign Scenario.creationPoint cp
+  where
+    getPoint :: Geometry.Geometry -> PrepScenario (Maybe Vec3f)
+    getPoint (Geometry.Points (SomeIODataFrame (df :: IODataFrame Float ns)))
+      | (Evidence :: Evidence ([4,n] ~ ns)) <- unsafeCoerce (Evidence @(ns ~ ns))
+      , dimVal' @n == 1
+      = liftIO $ Just <$> unsafeSubArrayFreeze @Float @'[] @3 df (1:!1:!Z)
+    getPoint _ = Nothing <$ report "special:creationPoint must be a single Point type!"
 

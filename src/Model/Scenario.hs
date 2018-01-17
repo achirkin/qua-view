@@ -22,7 +22,7 @@ module Model.Scenario
     , resolvedObjectColorIgnoreVisible
     , ScenarioState (..)
     , cameraPos, cameraLoc, cameraLookAt, objectGroups, clippingDist
-    , templates, forcedAreaObjId, groupIdSeq
+    , templates, forcedAreaObjId, groupIdSeq, creationPoint
     ) where
 
 
@@ -297,6 +297,7 @@ data ScenarioState
   , _templates       :: !(Set.Set (Either ObjectId GroupId))
   , _forcedAreaObjId :: !(Maybe ObjectId)
   , _groupIdSeq      :: !GroupId
+  , _creationPoint   :: !(Maybe Vec3f)
   } deriving Generic
 
 instance FromJSVal ScenarioState
@@ -317,6 +318,7 @@ instance Default ScenarioState where
     , _templates       = mempty
     , _forcedAreaObjId = Nothing
     , _groupIdSeq      = 0
+    , _creationPoint   = Nothing
     }
 
 
@@ -362,3 +364,8 @@ groupIdSeq :: Functor f
            -> ScenarioState -> f ScenarioState
 groupIdSeq f s = (\x -> s{_groupIdSeq = x}) <$> f (_groupIdSeq s)
 
+
+creationPoint :: Functor f
+              => (Maybe Vec3f -> f (Maybe Vec3f))
+              -> ScenarioState -> f ScenarioState
+creationPoint f s = (\x -> s{_creationPoint = x}) <$> f (_creationPoint s)

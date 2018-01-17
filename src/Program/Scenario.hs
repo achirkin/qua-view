@@ -92,23 +92,34 @@ createScenario renderingApi = do
           , updateObjectGeomInScenario <$> objectLocUpdated
           , updateObjectPropInScenario <$> objectPropUpdated
           , updateScenarioProp <$> scenarioPropUpdated
-          , deleteObject updateSScb delGLObjcb <$> objectDeleted
+          , deleteObjects updateSScb delGLObjcb <$> objectDeleted
           , cloneObject updateSScb selectedObjcb renderingApi <$> objectCloned
           ]
 
 
 
-
-deleteObject :: MonadIO (PushM t)
+deleteObjects :: MonadIO (PushM t)
     => (Scenario.ScenarioState -> IO ()) -- ^ "I have updated scenario" callback
     -> ([SmallGL.RenderedObjectId] -> IO ()) -- ^ "Objects to delete" callback
-    -> ObjectId
+    -> [ObjectId]
     -> Scenario
     -> PushM t Scenario
-deleteObject updateSScb delObjcb objId sc = liftIO $ do
-    mapM_ (delObjcb . (:[]) . view Object.renderingId) mobj
-    updateSScb (sc''^.Scenario.viewState)
-    return sc''
+deleteObjects updateSScb delObjcb objIds sc = liftIO $ do
+    delObjcb objRIds
+    updateSScb (sc'^.Scenario.viewState)
+    return sc'
+  where
+    (sc', objRIds) = go sc objIds
+    go sc0 (oi:ois) = let (sc1, mo) = deleteObject oi sc0
+                      in case mo of
+                          Nothing -> go sc1 ois
+                          Just o  -> second (o^.Object.renderingId:) $ go sc1 ois
+    go r [] = (r, [])
+
+
+
+deleteObject :: ObjectId -> Scenario -> (Scenario, Maybe Object)
+deleteObject objId sc = (sc'', mobj)
   where
     (mobj, sc') = sc & Scenario.objects %%~ Map.updateLookupWithKey (\_ _ -> Nothing) objId
     mGId = mobj ^? _Just . Object.groupID . _Just
@@ -319,7 +330,7 @@ data instance QEventTag ScenarioUpdate evArg where
     -- | OUTGOING EVENT: scenario has updated its viewState.
     ScenarioStateUpdatedOut :: QEventTag ScenarioUpdate Scenario.ScenarioState
     -- | Delete object from scenario
-    ObjectDeleted           :: QEventTag ScenarioUpdate ObjectId
+    ObjectDeleted           :: QEventTag ScenarioUpdate [ObjectId]
     -- | Clone object by its id and a desired position of a center
     ObjectCloned            :: QEventTag ScenarioUpdate ([ObjectId], Vec3f)
 
