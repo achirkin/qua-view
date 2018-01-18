@@ -104,9 +104,9 @@ function h$geojson_parseMultiPolygon(arr) {
 function h$geojson_getObjectCentres(x) {
   "use strict"
   if (Array.isArray(x)) {
-    // if this is a coordinate, just return it (the only place where result is not wrapped)
+    // if this is a coordinate, just return it
     if (typeof x[0] === "number" && typeof x[1] === "number") {
-      return [x[0], x[1]];
+      return [[x[0], x[1]]];
     } else if (Array.isArray(x[0])) {
       // flatten one layer of multi-layered array
       if (Array.isArray(x[0][0])) {
@@ -115,7 +115,7 @@ function h$geojson_getObjectCentres(x) {
       // compute avgs and wrap them into one more layer of a list
       var sum = x.reduce(
                 function(a,e) {
-                  var r = h$geojson_getObjectCentres(e);
+                  var r = h$geojson_getObjectCentres(e)[0];
                   if(a == null) {
                     return r;
                   } else {
