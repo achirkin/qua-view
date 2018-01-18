@@ -116,7 +116,7 @@ createSmallModalWithClicks :: ( Reflex t
                               )
                            => Event t (ElementClick linkToActivate) -- ^ event from a link opening the modal
                            -> ComponentState modalName              -- ^ initial state
-                           -> m(Event t (ElementClick linkToDeactivate), a) -- ^ Content with an event to close the modal.
+                           -> m (Event t (ElementClick linkToDeactivate), a) -- ^ Content with an event to close the modal.
                            -> m (Dynamic t (ComponentState modalName), a)
 createSmallModalWithClicks openClickE defaultState contentWidget = mdo
     (stateD, (closeClickE, r)) <- createModal (leftmost [Inactive <$ closeClickE, Active <$ openClickE])

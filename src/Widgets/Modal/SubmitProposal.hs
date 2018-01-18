@@ -70,8 +70,8 @@ saveScenarioContent renderingApi scenarioB submitPopupUrlE = do
     -- widget body: image and description
     propDescrEl <-
       elClass "div" "modal-inner" $ do
-        el "div" $ do
-          void . widgetHold blank . ffor imgurlE $ \url -> do
+        el "div" $
+          void . widgetHold blank . ffor imgurlE $ \url ->
             void $ makeElementFromHtml def
               [jsstring|<img src="#{url}" style="width: 100%"></img>|]
         elClass "div" "form-group form-group-label" $ do
@@ -87,18 +87,16 @@ saveScenarioContent renderingApi scenarioB submitPopupUrlE = do
           return (ce, textToJSString <$> current (value propDescrEl) <@ se)
 
     -- submit proposal
-    responseE <- httpPut @_ @_ @JSVal
+    responseE <- httpPut
                $ makePut <$> submitUrlB <*> imgurlB <*> scContentB <@> submitWithDescrE
 
-    performEvent_ . ffor responseE $ \eresponse -> case eresponse of
-      Left (JSError err) -> showUserMessage . SingleMsg $
+    msgE <- performEvent . ffor responseE $ \eresponse -> case eresponse of
+      Left (JSError err) -> (Nothing <$) . showUserMessage . SingleMsg $
               "An error happened when submitting the design.\n"
            <> "Please, save your design to your computer and contact administrators.\n"
            <> "Error: " <> err
-      Right _  -> showUserMessage $ SingleMsg $
-              "Your design is submitted succesfully!\n"
-           <> "You can continue working on it and submit a new version, or just close the window."
-           <> "You can update the submission later via \"Work on a design link\"."
+      Right (SubmitResponse msg) -> return $ Just msg
+    popupOnSubmit $ fmapMaybe id msgE
 
     return $ leftmost [cancelE, ElementClick <$ submitWithDescrE]
   where
@@ -111,3 +109,25 @@ saveScenarioContent renderingApi scenarioB submitPopupUrlE = do
           , subPostPreviewImage = imgurl
           }
         )
+
+
+
+
+popupOnSubmit :: Reflex t
+              => Event t JSString -- ^ html message to show to a user
+              -> QuaWidget t x ()
+popupOnSubmit submittedE
+  = void $ createSmallModalWithClicks' (ElementClick <$ submittedE) Inactive $ popupOnSubmitContent submittedE
+
+
+popupOnSubmitContent :: Reflex t
+                     => Event t JSString -- ^ msg
+                     -> QuaWidget t x (Event t (ElementClick "close onsubmit popup"))
+popupOnSubmitContent msg = do
+    elClass "div" "modal-heading" $
+      elClass "p" "modal-title" $ text "Submission complete"
+    (e, ()) <- elClass' "div" "modal-inner" blank
+    performEvent_ $ setInnerHTML e <$> msg
+    elClass "div" "modal-footer" $
+      elClass "p" "text-right" $
+        buttonFlat "Ok" def
