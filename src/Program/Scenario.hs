@@ -185,10 +185,11 @@ cloneObject updateSScb selObjcb renderingApi (objIds, loc) oldSc = liftIO $ do
                & Object.geomID .~ Just newOId
                & Object.groupID .~ mNewGId
                & Object.properties %~
-                 (\p -> p & property "special"    .~ (Nothing :: Maybe PropValue)
-                          & property "selectable" .~ (Nothing :: Maybe PropValue)
-                          & property "visible"    .~ (Nothing :: Maybe PropValue)
-                          & property "static"     .~ (Nothing :: Maybe PropValue)
+                 (\p -> p & property "special"      .~ (Nothing :: Maybe PropValue)
+                          & property "selectable"   .~ (Nothing :: Maybe PropValue)
+                          & property "visible"      .~ (Nothing :: Maybe PropValue)
+                          & property "static"       .~ (Nothing :: Maybe PropValue)
+                          & property "nondeletable" .~ (Nothing :: Maybe PropValue)
                  )
          )
 

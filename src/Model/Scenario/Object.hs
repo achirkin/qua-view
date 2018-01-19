@@ -21,7 +21,7 @@ module Model.Scenario.Object
     , renderingData, renderingId, center, geometry, properties
     , height, viewColor, objectBehavior
     , geomID, groupID
-    , selectable, visible, special
+    , selectable, visible, nondeletable, special
     ) where
 
 import Control.Lens
@@ -271,6 +271,23 @@ visible f o = properties (propertyWithParsing "visible" g) o
       Just SpecialTemplate      -> True
       Just SpecialCreationPoint -> False
       Nothing                   -> True
+
+
+nondeletable :: Functor f
+             => (Bool -> f Bool) -> Object' s -> f (Object' s)
+nondeletable f o = properties (propertyWithParsing "nondeletable" g) o
+  where
+    g (Just x)  = Just <$> f x
+    g Nothing   = Just <$> f dueStaticOrSpecial
+    dueStaticOrSpecial = case o ^. objectBehavior of
+      Dynamic -> dueSpecial
+      Static  -> True
+    dueSpecial = case o ^. special of
+      Just SpecialCamera        -> True
+      Just SpecialForcedArea    -> True
+      Just SpecialTemplate      -> True
+      Just SpecialCreationPoint -> True
+      Nothing                   -> False
 
 special :: Functor f
         => (Maybe SpecialObject -> f (Maybe SpecialObject))
