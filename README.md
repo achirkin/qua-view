@@ -61,7 +61,13 @@ Special object properties:
       - height         # [Number] height of a building to be extruded if it is given in 2D
       - previewImgUrl  # [String] url to show an image above the info panel
       - viewColor      # [#RRGGBB] set the color of an object explicitly
+      - nondeletable   # [Bool] cannot delete object if true (default: false)
+                       # This property makes sense only if user is allowed to add/delete objects;
+                       # use it to protect essential objects from deletion.
+                       # Note: the property does not propagate to a group, so if at least one object in a group
+                       #       is deletable, then the whole group can be delete via that object.
       - static         # [Bool] cannot move object if true (default: false)
+                       # (static = true implies nondeletable = true)
       - selectable     # [Bool] if we can click on object to select it
                        # (default: true)
                        # (selectable = false implies static = true)
@@ -116,10 +122,11 @@ Special object types are used to control `qua-view` behavior. We use `special ::
   * `"special": "template"` states that an object can be used as a template to create new objects.
     It appears on the geometry pane and allows to drag-&-drop it to a scene to create a copy.
     * There may be any number of template objects
-    * A new (cloned) object retains all the properties of the template except `static`, `selectable`,`template`, and `visible`,
+    * A new (cloned) object retains all the properties of the template except `static`, `selectable`,`template`, `nondeletable`, and `visible`,
       which are reset to their defaults (removed from the property list).
       This allows to hide a template object in a scene if necessary.
     * If a template object is a part of a group, the whole group is considered to be a template.
+    * `special: "template"` implies `nondeletable: true`.
   * `"special": "creationPoint"` means a pre-defined position of an object to be added from a template.
     If it is not set, objects appear at current camera view point.
     * Must be at most one for a scenario.

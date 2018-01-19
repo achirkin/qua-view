@@ -84,13 +84,16 @@ deleteObjectPane scenarioB selectedObjD = do
     clicksDE <- widgetHold (deleteWidget scenarioI selectedObjI)
                            (deleteWidget <$> scenarioB <@> updated selectedObjD)
     registerEvent (ScenarioUpdate ObjectDeleted) (switchPromptlyDyn clicksDE)
-    return cstateD
+    holdDyn (cstateF scenarioI selectedObjI) cstateE
   where
-    cstateD = cstateF <$> selectedObjD
-    cstateF (Just _) = Active
-    cstateF Nothing  = Inactive
-    deleteWidget sc (Just i) = (objGroup sc i <$) <$> buttonRed "Delete selected object" def
-    deleteWidget _ Nothing  = return never
+    cstateE = cstateF <$> scenarioB <@> updated selectedObjD
+    cstateF sc (Just i)
+        | isDeletable sc i = Active
+    cstateF _   _          = Inactive
+    deleteWidget sc (Just i)
+        | isDeletable sc i = (objGroup sc i <$) <$> buttonRed "Delete selected object" def
+    deleteWidget _   _ = return never
+    isDeletable sc objId = (Just True /=) $ sc^?Scenario.objects.at objId._Just.Object.nondeletable
     objGroup sc objId = case sc^?Scenario.objects.at objId._Just.Object.groupID._Just of
       Nothing -> [objId]
       Just gId -> sc^.Scenario.viewState.Scenario.objectGroups.at gId.non [objId]
