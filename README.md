@@ -61,11 +61,12 @@ Special object properties:
       - height         # [Number] height of a building to be extruded if it is given in 2D
       - previewImgUrl  # [String] url to show an image above the info panel
       - viewColor      # [#RRGGBB] set the color of an object explicitly
-      - nondeletable   # [Bool] cannot delete object if true (default: false)
-                       # This property makes sense only if user is allowed to add/delete objects;
+      - nondeletable   # [Bool] cannot delete an object if true (default: false)
+                       # This property makes sense only if a user is allowed to add/delete objects;
                        # use it to protect essential objects from deletion.
-                       # Note: the property does not propagate to a group, so if at least one object in a group
-                       #       is deletable, then the whole group can be delete via that object.
+                       # Note: the property does not propagate to a group, so if at least one object
+                       #       in a group is deletable, then the whole group can be deleted
+                       #       via that object.
       - static         # [Bool] cannot move object if true (default: false)
                        # (static = true implies nondeletable = true)
       - selectable     # [Bool] if we can click on object to select it
