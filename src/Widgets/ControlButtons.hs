@@ -121,7 +121,7 @@ controlPanelButton = do
             <span .fbtn-text .fbtn-text-left>Control panel
             <span .icon .icon-lg>settings
         |])
-    Reflex.accum flipPanel Inactive $ Dom.domEvent Dom.Click e
+    Reflex.accum flipPanel Active $ Dom.domEvent Dom.Click e
   where
     flipPanel Active   = const Inactive
     flipPanel Inactive = const Active
