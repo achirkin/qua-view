@@ -25,42 +25,41 @@ import Commons.NoReflex
 import Numeric.DataFrame
 import Model.GeoJSON.Coordinates
 import Model.Scenario
-import Model.Scenario.Statistics
-import Control.Monad.State.Strict
 import Control.Monad.Trans.Except
 import JavaScript.JSON.Types.Internal
 import JavaScript.JSON.Types.Instances
 
 import Workers.LoadGeometry.Parser
 
-loadGeometryConduit :: (MonadIO m, MonadLogger m, MonadState ScenarioStatistics m)
+loadGeometryConduit :: (MonadIO m, MonadLogger m)
                     => Conduit LGWRequest m (LGWMessage, [Transferable])
-loadGeometryConduit = (yield (LGWReady, []) >>) . awaitForever $ \emsg -> do
-    errOrVal <- runExceptT $ case emsg of
+loadGeometryConduit = (yield (LGWReady, []) >>) . awaitForever $ \emsg -> runExceptAndLog $ do
+    val@(SomeValue jsv) <- case emsg of
       LGWLoadUrl _ url -> getUrlSync url >>= ExceptT . parseJSONValue . getTextContent
       LGWLoadTextContent _ content -> ExceptT . parseJSONValue $ getTextContent content
-    case errOrVal of
-      Left err -> logError (workerLS loadGeometryDef) err
-      Right val@(SomeValue jsv) -> do
-        logInfo' @JSString (workerLS loadGeometryDef) "Got a message!" jsv
-        case fromJSON val of
-           Success cs@(ObjectCentres (SomeDataFrame centres)) -> do
-              logInfo' @JSString (workerLS loadGeometryDef) "Centres:" centres
-              let stat = getScenarioStatistics cs
-              put stat
-           Error s ->
-              logWarn (workerLS loadGeometryDef) $ "Could not parse centres: " <> s
-        case parse parseScenarioJSON val of
-           Success sc' -> do
-              stat <- get
-              (sc, errs) <- liftIO $ prepareScenario stat def sc'
-              trs <- liftIO $ getTransferables sc
-              forM_ errs $ \e -> yield (LGWSError e, [])
-              yield (LGWResult sc, trs)
-           Error s -> do
-              logWarn (workerLS loadGeometryDef) $ "Could not parse scenario: " <> s
-              yield (LGWSError . JSError $ toJSString s, [])
+    lift $ logInfo' @JSString (workerLS loadGeometryDef) "Got a message!" jsv
 
+    cs@(ObjectCentres (SomeDataFrame centres))
+      <- resultToErrorT "Could not parse centres: " $ fromJSON val
+    lift $ logInfo' @JSString (workerLS loadGeometryDef) "Centres:" centres
+    let stat = getScenarioStatistics cs
+
+    sc' <- resultToErrorT "Could not parse scenario: " $ parse parseScenarioJSON val
+    (sc, errs) <- liftIO $ prepareScenario stat def sc'
+    trs <- liftIO $ getTransferables sc
+    lift $ do
+      forM_ errs $ \e -> yield (LGWSError e, [])
+      yield (LGWResult sc, trs)
+  where
+    runExceptAndLog m = do
+      r <- runExceptT m
+      case r of
+        Right a -> pure a
+        Left  e@(JSError err) -> do
+          logWarn (workerLS loadGeometryDef) err
+          yield (LGWSError e, [])
+    resultToErrorT _    (Success a) = ExceptT . pure $ Right a
+    resultToErrorT msgpre (Error s) = ExceptT . pure . Left . JSError $ msgpre <> toJSString s
 
 #else
 import Commons
