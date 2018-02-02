@@ -44,16 +44,25 @@ panelInfo scenarioB selectedObjIdD = do
   settingsD <- quaSettings
   let showHiddenB = QuaTypes.showHiddenProperties . QuaTypes.permissions <$> current settingsD
       canEditB    = QuaTypes.canEditProperties . QuaTypes.permissions <$> current settingsD
-      propsGivenE = getProps <$> showHiddenB <*> scenarioB
-                             <@> leftmost [ current selectedObjIdD <@ delayedE
-                                          , updated selectedObjIdD]
-      getProps shoHidden s mid
-        = let f (PropName k) _ = Set.notMember k $ Set.fromList (s^.Scenario.hiddenProperties)
-                                  -- use withoutKeys when we have containers >= 0.5.8
-              g True = id
-              g False = filterWithKey f
-          in  g shoHidden $ fromMaybe (s^.Scenario.properties)
-                     ( mid >>= \i -> s^?Scenario.objects.at i._Just.Object.properties )
+      propsGivenE = getVisibleProps <$> showHiddenB <*> scenarioB <@> propsAllE
+      propsAllE = getAllProps <$> scenarioB
+                              <@> leftmost [ current selectedObjIdD <@ delayedE
+                                           , updated selectedObjIdD]
+      getVisibleProps True _ = id
+      getVisibleProps False s = filterWithKey f
+        where
+          f (PropName k) _ = Set.notMember k $ Set.fromList (s^.Scenario.hiddenProperties)
+                             -- use withoutKeys when we have containers >= 0.5.8
+      getAllProps s mid = fromMaybe (s^.Scenario.properties)
+                           ( mid >>= \i -> s^?Scenario.objects.at i._Just.Object.properties )
+
+
+  -- draw an image above the info table if it is available
+  _ <- widgetHold blank $ ffor propsAllE $ \props ->
+    forM_ (props^.previewImgUrl) $
+        \imgUrl -> elAttr "img" ( "src" =: textFromJSString imgUrl
+                                <> "style" =: "width: 100%" ) blank
+
 
   propChangeD <- widgetHold (pure (never, never)) (renderInfo <$> canEditB <@> propsGivenE)
   let propUpdatedE = switchPromptlyDyn $ fst <$> propChangeD
@@ -73,10 +82,6 @@ renderInfo :: Reflex t
                             , Event t PropName )
 renderInfo canEdit props = do
 
-  -- draw an image above the info table if it is available
-  forM_ (props^.previewImgUrl) $
-    \imgUrl -> elAttr "img" ( "src" =: textFromJSString imgUrl
-                            <> "style" =: "width: 100%" ) blank
   -- draw the info table
   let leftm (es1, es2) = (leftmost es1, leftmost es2)
   propsE <- fmap (leftm . unzip) $
