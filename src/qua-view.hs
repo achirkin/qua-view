@@ -29,6 +29,7 @@ import           Program.Camera
 import           Program.Scenario
 import           Program.Scenario.Object
 import           Program.MapTiles
+import qualified Program.WebLogging as WebLogging
 
 import qualified QuaTypes
 
@@ -91,6 +92,10 @@ main = mainWidgetInElementById "qua-view-widgets" $ runQuaWidget $ do
 
     -- add the control panel to the page
     _panelStateD <- Widgets.controlPanel renderingApi scenarioB selectedObjIdD cameraD
+
+
+    -- enable websockets logging
+    inQuaWidget $ WebLogging.logActions cameraD
 
     -- other init things
     -- load geometry from url if it is supplied
