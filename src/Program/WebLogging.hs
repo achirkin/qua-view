@@ -47,7 +47,7 @@ data WebLogging
     { _geomId :: ObjectId,  _propName :: PropName, _propValue :: Maybe PropValue }
     -- ^ Add, modify, or delete object property
   | WlObjectLocationUpdated
-    { _geomIds :: [ObjectId], _tranformMatrix :: Mat44f }
+    { _geomIds :: [ObjectId], _transformMatrix :: Mat44f }
     -- ^ Update object location using transformation matrix
   | WlObjectDeleted { _geomIds :: [ObjectId] }
     -- ^ Delete object from scenario
