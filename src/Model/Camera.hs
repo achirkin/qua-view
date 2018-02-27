@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ViewPatterns          #-}
+{-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE Strict                #-}
 module Model.Camera
     ( Camera (..)
@@ -14,6 +15,10 @@ module Model.Camera
     ) where
 
 import           Data.Fixed                  (mod')
+import           JavaScript.JSON.Types.Instances
+import           JavaScript.JSON.Types.Generic ()
+import           GHC.Generics
+import           Commons.NoReflex.EasyTensorJSFFI ()
 
 import           Numeric.DataFrame
 import           Numeric.Dimensions
@@ -47,7 +52,9 @@ data CState = CState {
         viewPoint     :: !Vec3f,
         viewAngles    :: !(Float, Float),
         viewDist      :: !Float
-    } deriving Show
+    } deriving (Eq, Show, Generic)
+instance FromJSON CState
+instance ToJSON CState
 
 
 -- | Calculate the state base on the camera position and lookAt position

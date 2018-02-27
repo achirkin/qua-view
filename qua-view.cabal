@@ -99,6 +99,7 @@ executable qua-view
         Program.Scenario
         Program.Scenario.Object
         Program.UserAction
+        Program.WebLogging
         SmallGL
         SmallGL.Helpers
         SmallGL.RenderingCell

@@ -110,10 +110,14 @@ instance FromJSVal t => FromJSVal (DataFrame t ('[] :: [Nat])) where
 
 instance ToJSON (Vector t n) where
     toJSON = js_vecToJSArray . pToJSVal
+instance ToJSON (Matrix t n m) where
+    toJSON = js_vecToJSArray . pToJSVal
 foreign import javascript unsafe "Array.prototype.slice.call($1)"
     js_vecToJSArray :: JSVal -> Value
 
 instance FromJSON (Vector t n) where
+    parseJSON = withArray "JS number array" (pure . pFromJSVal . js_wrapFloat32Array)
+instance FromJSON (Matrix t n m) where
     parseJSON = withArray "JS number array" (pure . pFromJSVal . js_wrapFloat32Array)
 foreign import javascript unsafe "new Float32Array($1)"
     js_wrapFloat32Array :: JSArray -> JSVal
