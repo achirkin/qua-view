@@ -26,11 +26,11 @@ import qualified Reflex.Dom.Widget.Animation as Animation
 import           Control.Lens
 import           Control.Applicative ((<|>))
 import           Numeric.DataFrame (fromHom, eye, fromScalar) -- Mat44f, (%*))
+import qualified QuaTypes
 
 import           Model.Camera (Camera)
 import           Model.Scenario (Scenario)
 import qualified Model.Scenario as Scenario
---import qualified Model.Scenario.Object.Geometry as Geometry
 import           Model.Scenario.Object (ObjectId (..))
 import qualified Model.Scenario.Object as Object
 import           Model.Scenario.Properties
@@ -132,12 +132,15 @@ moveSelectedObjects :: Reflex t
                     -> Dynamic t (Maybe ObjectId)
                     -> QuaViewM t (Behavior t Bool)
 moveSelectedObjects aHandler renderingApi cameraB scenarioB selObjIdD = do
+    canMove <- fmap (not . QuaTypes.isViewerOnly . QuaTypes.permissions) <$> quaSettings
+
     -- if the object is pointerDown'ed
-    downsE <- performEvent $ getClicked renderingApi
-                          <$> Animation.curPointersB aHandler
-                          <@ gate -- track pointer-downs only when an object is selected and dynamic
-                            ((\mo -> mo ^? _Just . Object.objectBehavior == Just Object.Dynamic) <$> selectedObjB)
-                            (select (Animation.pointerEvents aHandler) PDownEvent)
+    let downsE = gate (current canMove)
+               $ push (fmap Just . getClicked renderingApi)
+               $ Animation.curPointersB aHandler
+              <@ gate -- track pointer-downs only when an object is selected and dynamic
+                ((\mo -> mo ^? _Just . Object.objectBehavior == Just Object.Dynamic) <$> selectedObjB)
+                (select (Animation.pointerEvents aHandler) PDownEvent)
 
     -- We lock camera movemement and activate object transform when a pointer is down on a selected
     -- object. If there are more than one pointer, we reset object motion every up or down event
