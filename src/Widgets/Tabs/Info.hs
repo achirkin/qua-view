@@ -15,11 +15,14 @@ import Data.Maybe (fromMaybe)
 import qualified Data.Set as Set
 import Data.Text (pack)
 import Data.Text.Read (double)
+import Data.Time.Calendar
+import Data.Time.Clock
 import Reflex.Dom
 import GHCJS.DOM.JSFFI.Generated.HTMLElement (focus)
 import JavaScript.JSON.Types.Instances()
 import qualified JavaScript.JSON.Types.Internal as GHCJS
-
+import qualified QuaTypes
+import QuaTypes.Submission
 
 import Commons
 import qualified Model.Scenario as Scenario
@@ -27,7 +30,6 @@ import qualified Model.Scenario.Object as Object
 import Model.Scenario.Object (ObjectId (..))
 import Model.Scenario.Properties
 import Program.Scenario
-import qualified QuaTypes
 import Widgets.Generation
 
 panelInfo :: Reflex t
@@ -35,6 +37,10 @@ panelInfo :: Reflex t
           -> Dynamic t (Maybe ObjectId)
           -> QuaWidget t x ()
 panelInfo scenarioB selectedObjIdD = do
+
+  -- Show user-provided description of their submission
+  renderSubmissionDescription
+
   (delayedE, updateCB) <- newTriggerEvent
   askEvent (ScenarioUpdate ObjectPropertyUpdated)   >>= triggerDelayed updateCB
   askEvent (ScenarioUpdate ScenarioPropertyUpdated) >>= triggerDelayed updateCB
@@ -236,3 +242,31 @@ valToMTxt (GHCJS.Number v) | i <- round v :: Int
                            | otherwise           = Just $ pack $ show v
 valToMTxt (GHCJS.Bool v)    = Just $ pack $ show v
 valToMTxt _                 = Nothing
+
+
+-- | Show the scenario description provided by a user (student).
+--   Contains a text that students enter on "Share your ideas" question when they submit their work.
+renderSubmissionDescription :: Reflex t => QuaWidget t x ()
+renderSubmissionDescription = do
+    qsets <- quaSettings
+    let infoUrl = QuaTypes.getSubmissionInfoUrl <$> qsets
+    info <- httpGetNowOrOnUpdate infoUrl
+    void $ widgetHold (pure ()) $ runWidget <$> info
+  where
+    runWidget (Left err) = logWarn "Sub-Description widget" err
+    runWidget (Right si)
+      = elAttr "div" ( "class" =: "card" <> "style" =: "padding: 0;" )
+        $ elAttr "div" ( "class" =: "card-main" <> "style" =: "padding: 0; margin: 0;" )
+          $ elAttr "div" ( "class" =: "card-inner"
+                        <> "style" =: "padding: 2px; margin: 0; min-height: 40px;" )
+            $ do
+              elAttr "p" ( "style" =: "margin: 6px; color: #b71c1c; float: left;" )
+                $ text $ textFromJSString $ subInfoUserName si
+              elAttr "p" ( "style" =: "margin: 6px; color: #b71c1c; float: right;" )
+                $ text $ pack . showGregorian . utctDay $ subInfoTime si
+              (e, ()) <- elAttr' "p" ( "style" =: "margin: 8px;" ) blank
+              setInnerHTML e "&nbsp;"
+              elAttr "p" ( "style" =: "white-space: pre-line; margin: 2px;" )
+                $ text $ textFromJSString $ subInfoDescription si
+
+
