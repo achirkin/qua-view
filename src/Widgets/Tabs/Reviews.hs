@@ -13,7 +13,7 @@ module Widgets.Tabs.Reviews
     ) where
 
 import Commons
-import Data.JSString.Text (textFromJSString, textToJSString)
+import Data.Maybe (isJust)
 import Data.Text
 import Data.Time.Format
 import QuaTypes.Review
@@ -31,8 +31,12 @@ renderPanelReviews :: Reflex t
                    => Either JSError ReviewSettings -> QuaWidget t x ()
 renderPanelReviews (Left _) = blank
 renderPanelReviews (Right reviewSettings) = do
-    responseE <- renderWriteReview reviewSettings
-    reviewsD  <- accum accumRevs (reviews reviewSettings) responseE
+    expertRespE <- if isJust $ expertReviewsUrl reviewSettings
+                   then renderWriteExpertReview reviewSettings
+                   else return never
+    respE <- renderWriteReview reviewSettings
+    reviewsD  <- accum accumRevs (reviews reviewSettings) $
+                   leftmost [respE, expertRespE]
     let crits = criterions reviewSettings
     void . dyn $ mapM_ (renderReview crits) <$> reviewsD
   where
@@ -44,7 +48,7 @@ renderPanelReviews (Right reviewSettings) = do
 renderWriteReview :: Reflex t
                   => ReviewSettings
                   -> QuaWidget t x (Event t (Either JSError Review))
-renderWriteReview (ReviewSettings crits _ (Just revsUrl)) =
+renderWriteReview (ReviewSettings crits _ (Just revsUrl) _) =
   elClass "div" ("card " <> writeReviewClass) $
     elClass "div" "form-group form-group-label" $ mdo
       textD  <- renderTextArea resetTextE "Write a review"
@@ -124,6 +128,31 @@ renderReview crits r = elClass "div" ("card " <> reviewClass) $
         returnVars [reviewCls, critCls]
       )
 
+-- draws the write-expert-review-text-entry component
+-- if ReviewSettings contains `Just expertReviewsUrl`.
+-- Returns event of posted review, or error on unsuccessful post.
+renderWriteExpertReview :: Reflex t
+                        => ReviewSettings
+                        -> QuaWidget t x (Event t (Either JSError Review))
+renderWriteExpertReview (ReviewSettings _ _ _ (Just revsUrl)) =
+  elClass "div" "card " $
+    elClass "div" "form-group form-group-label" $ mdo
+      textD  <- renderTextArea resetTextE "Write an expert review"
+      gradeD <- renderGrade 0
+      clickE <- buttonFlatDyn (hideZeroState <$> gradeD) "Grade" mempty
+
+      let postDataOnClickE = (\txt grade -> ExpertReviewPost grade txt)
+                               <$> current textD
+                               <@> ffilter (> 0) (current gradeD <@ clickE)
+      responseE <- httpPost $ (,) revsUrl <$> postDataOnClickE
+      let reset (Right _) = Just ""
+          reset _         = Nothing
+      let resetTextE = fmapMaybe reset responseE
+
+      _ <- renderError responseE
+      return responseE
+renderWriteExpertReview _ = return never
+
 -- either renders the `JSError` or fires the returned event which contains `a`
 renderError :: Reflex t
             => Event t (Either JSError a)
@@ -179,6 +208,20 @@ renderCriterions crits = elClass "span" critsClass $ mdo
         returnVars [critsCls]
       )
 
+-- render grading stars and return dynamic of their state (0 is unselected)
+renderGrade :: Reflex t => Int -> QuaWidget t x (Dynamic t Int)
+renderGrade nrStartStars = mdo
+    nrStarsD  <- holdDyn nrStartStars nrStarsE
+    nrStarsEE <- dyn (renderStars <$> nrStarsD)
+    nrStarsE  <- switchPromptly never nrStarsEE
+    return nrStarsD
+  where
+    renderStars nr = do
+      els <- sequence $ (Prelude.replicate nr       $ renderStar "star") ++
+                        (Prelude.replicate (5 - nr) $ renderStar "star_border")
+      return $ leftmost $ (\(i, elm) -> i <$ domEvent Click elm) <$> Prelude.zip [1..] els
+    renderStar t = fmap fst $ elClass' "span" "icon icon-lg" $ text t
+
 -- render thumb-up and -down buttons and return dynamic of their state
 renderThumbs :: Reflex t => QuaWidget t x (Dynamic t ThumbState)
 renderThumbs = elClass "span" thumbsClass $ mdo
@@ -221,6 +264,10 @@ hideState :: Maybe a -> ThumbState -> ComponentState s
 hideState (Just _) ThumbUp   = Active
 hideState (Just _) ThumbDown = Active
 hideState _        _         = Inactive
+
+hideZeroState :: Int -> ComponentState s
+hideZeroState 0 = Inactive
+hideZeroState _ = Active
 
 inactiveStyle :: Map Text Text
 inactiveStyle = "style" =: "opacity: 0.3"
