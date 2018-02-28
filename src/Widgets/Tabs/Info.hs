@@ -27,7 +27,7 @@ import QuaTypes.Submission
 import Commons
 import qualified Model.Scenario as Scenario
 import qualified Model.Scenario.Object as Object
-import Model.Scenario.Object (ObjectId (..))
+import Model.Scenario.Object (ObjectId (..), ObjectBehavior (..))
 import Model.Scenario.Properties
 import Program.Scenario
 import Widgets.Generation
@@ -48,8 +48,17 @@ panelInfo scenarioB selectedObjIdD = do
   askEvent (ScenarioUpdate ScenarioCleared)         >>= triggerDelayed updateCB
 
   settingsD <- quaSettings
-  let showHiddenB = QuaTypes.showHiddenProperties . QuaTypes.permissions <$> current settingsD
-      canEditB    = QuaTypes.canEditProperties . QuaTypes.permissions <$> current settingsD
+  let permsB = QuaTypes.permissions <$> current settingsD
+      showHiddenB = QuaTypes.showHiddenProperties <$> permsB
+      canEditB    = canEditF <$>  scenarioB <*> current selectedObjIdD <*> permsB
+      canEditF _   Nothing   perms = canEditBasicF perms
+      canEditF sc (Just oid) perms = canEditBasicF perms && canEditObjF sc oid perms
+      canEditBasicF p = QuaTypes.canEditProperties p && not (QuaTypes.isViewerOnly p)
+      canEditObjF s oid perms = case beh of
+          Static -> QuaTypes.canModifyStaticObjects perms
+          Dynamic -> True
+        where
+          beh = fromMaybe Dynamic $ s^?Scenario.objects.at oid._Just.Object.objectBehavior
       propsGivenE = getVisibleProps <$> showHiddenB <*> scenarioB <@> propsAllE
       propsAllE = getAllProps <$> scenarioB
                               <@> leftmost [ current selectedObjIdD <@ delayedE
