@@ -7,15 +7,14 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE RecursiveDo #-}
-
+{-# LANGUAGE RecordWildCards #-}
 module Widgets.Tabs.Reviews
     ( panelReviews
     ) where
 
 import Commons
-import Data.Either (isLeft)
-import Data.Maybe (isJust)
-import Data.Text
+import qualified Data.Text as T
+import Data.List (sortOn)
 import Data.Time.Format
 import QuaTypes.Review
 import Reflex.Dom
@@ -32,14 +31,9 @@ renderPanelReviews :: Reflex t
                    => Either JSError ReviewSettings -> QuaWidget t x ()
 renderPanelReviews (Left _) = blank
 renderPanelReviews (Right reviewSettings) = do
-    rec let renderExp = renderWriteExpertReview reviewSettings
-            showExpE = isLeft <$> expertRespE
-        expertRespE <- if isJust $ expertReviewsUrl reviewSettings
-                       then switchPromptlyDyn <$>
-                         widgetHold (renderExp True) (renderExp <$> showExpE)
-                       else return never
+    expertRespE <- renderWriteExpertReview reviewSettings
     respE <- renderWriteReview reviewSettings
-    reviewsD <- accum accumRevs (reviews reviewSettings) $
+    reviewsD <- accum accumRevs (reverse . sortOn reviewTimestamp $ reviews reviewSettings) $
                   leftmost [respE, expertRespE]
     let crits = criterions reviewSettings
     void . dyn $ mapM_ (renderReview crits) <$> reviewsD
@@ -52,107 +46,140 @@ renderPanelReviews (Right reviewSettings) = do
 renderWriteReview :: Reflex t
                   => ReviewSettings
                   -> QuaWidget t x (Event t (Either JSError Review))
-renderWriteReview (ReviewSettings crits _ (Just revsUrl) _) =
-  elClass "div" ("card " <> writeReviewClass) $
-    elClass "div" "form-group form-group-label" $ mdo
-      textD  <- renderTextArea resetTextE "Write a review"
-      critD  <- renderCriterions crits
-      thumbD <- renderThumbs
+renderWriteReview (ReviewSettings crits _ (Just revsUrl) _)
+  = elAttr "div" (  "class" =: "card"
+                 <> "style" =: "padding: 0px; margin: 10px 0px 10px 0px"
+                 )
+    $ elClass "div" (T.unwords ["card-main", spaces2px, writeReviewClass])
+      $ mdo
+        textD <- elClass "div" (T.unwords ["card-inner", spaces2px])
+          $ elClass "div" "form-group form-group-label"
+            $ renderTextArea resetTextE "Write a review"
 
-      let hideStateD = hideState <$> critD <*> thumbD
-      clickE <- buttonFlatDyn hideStateD "Send" mempty
+        (critD, thumbD, clickE)
+          <- elClass "div" (T.unwords ["card-action", spaces2px])
+            $ do
+              cD <- renderCriterions crits
+              tD <- renderThumbs
+              cE <- buttonFlatDyn (hideState <$> critD <*> thumbD) "Send" mempty
+              return (cD, tD, cE)
 
-      let postDataOnClickE = (\th te c -> ReviewPost c th te)
-                                         <$> current thumbD
-                                         <*> current textD
-                                         <@> fmapMaybe id (current critD <@ clickE)
-      responseE <- httpPost $ (,) revsUrl <$> postDataOnClickE
-      let reset (Right _) = Just ""
-          reset _         = Nothing
-      let resetTextE = fmapMaybe reset responseE
-
-      _ <- renderError responseE
-      return responseE
+        let postDataOnClickE = (\th te c -> ReviewPost c th te)
+                                           <$> current thumbD
+                                           <*> current textD
+                                           <@> fmapMaybe id (current critD <@ clickE)
+        responseE <- httpPost $ (,) revsUrl <$> postDataOnClickE
+        let reset (Right _) = Just ""
+            reset _         = Nothing
+        let resetTextE = fmapMaybe reset responseE
+        _ <- renderError responseE
+        return responseE
   where
-    writeReviewClass = $(do
-        reviewCls <- newVar
-        qcss
-          [cassius|
-            .#{reviewCls}
-                padding: 10px
-                margin: 0 10px 10px 10px
-              .form-group
-                  margin: 8px 0 0 0
-                  width: 100%
-              textarea
-                  resize: vertical
-              .btn-flat
-                  padding: 0
-                  line-height: 14px
-          |]
-        returnVars [reviewCls]
-      )
+    WidgetCSSClasses {..} = widgetCSS
 renderWriteReview _ = return never
 
 renderReview :: Reflex t
              => [Criterion] -> Review -> QuaWidget t x ()
-renderReview crits r = elClass "div" ("card " <> reviewClass) $
-  el "div" $ do
-    case reviewRating r of
-      UserRating critId thumb -> do
-        renderCrit critId
-        elClass "span" "icon" $ text $ showThumb thumb
-      ExpertRating grade -> renderStars grade
-    text $ pack $ ' ' : formatTime defaultTimeLocale "%F, %R - " (reviewTimestamp r)
-    text $ textFromJSString $ reviewUserName r <> ": "
-    el "p" $ text $ textFromJSString $ reviewComment r
+renderReview crits r
+  = elClass "div" (T.unwords ["card", spaces0px])
+    $ do
+      case reviewRating r of
+        ExpertRating _ -> pure ()
+        UserRating critId thumb ->
+          elAttr "aside" (  "class" =: "card-side pull-left"
+                         <> "style" =:
+                               "background-color: #ffffff; width: 24px; margin: 2px; padding: 0px"
+                         )
+            $ do
+              elClass "span" (T.unwords ["icon", icon24px, "text-brand-accent"])
+                $ text $ showThumb thumb
+              renderCrit critId
+
+      elClass "div" (T.unwords ["card-main", spaces0px])
+        $ elClass "div" (T.unwords ["card-inner", spaces2px])
+          $ do
+            elClass "p" (T.unwords ["text-brand-accent", smallP])
+              $ do
+                text $ T.pack $ ' ' : formatTime defaultTimeLocale "%F, %R - " (reviewTimestamp r)
+                text $ textFromJSString $ reviewUserName r
+
+            case reviewRating r of
+              ExpertRating grade -> renderStars grade
+              UserRating _ _ -> pure ()
+
+            elClass "p" smallP
+              $ text $ textFromJSString $ reviewComment r
   where
+    WidgetCSSClasses {..} = widgetCSS
     renderCrit critId =
       void $ for [ c | c <- crits, critId == criterionId c] $ \c -> do
-        (spanEl, ()) <- elClass' "span" critClass $ return ()
+        (spanEl, ()) <- elAttr' "span" ("style" =: "position: relative; top: 5px;") blank
         setInnerHTML spanEl $ criterionIcon c
     renderStars grade =
       let star t = elClass "span" "icon icon-lg" $ text t
       in sequence_ $
         (Prelude.replicate grade $ star "star") ++
          Prelude.replicate (5 - grade) (star "star_border")
-    (reviewClass, critClass) = $(do
-        reviewCls <- newVar
-        critCls   <- newVar
-        qcss
-          [cassius|
-            .#{reviewCls}
-                padding: 10px
-                margin-right: 10px
-                margin-left:  10px
-              .#{critCls}
-                  position: relative
-                  top: 5px
-          |]
-        returnVars [reviewCls, critCls]
-      )
+
 
 -- draws the write-expert-review-text-entry component
 -- if ReviewSettings contains `Just expertReviewsUrl`.
 -- Returns event of posted review, or error on unsuccessful post.
 renderWriteExpertReview :: Reflex t
                         => ReviewSettings
-                        -> Bool -- ^ draw panel
                         -> QuaWidget t x (Event t (Either JSError Review))
-renderWriteExpertReview (ReviewSettings _ _ _ (Just revsUrl)) True =
-  elClass "div" "card " $
-    elClass "div" "form-group form-group-label" $ mdo
-      textD  <- renderTextArea never "Write an expert review"
-      gradeD <- renderGrade 0
-      clickE <- buttonFlatDyn (hideZeroState <$> gradeD) "Grade" mempty
+renderWriteExpertReview (ReviewSettings _ _ _ (Just revsUrl))
+  = elAttr "div" (  "class" =: "card"
+                 <> "style" =: "padding: 0px; margin: 10px 0px 10px 0px"
+                 )
+    $ elClass "div" (T.unwords ["card-main", spaces2px, writeReviewClass])
+      $ mdo
+        textD <- elClass "div" (T.unwords ["card-inner", spaces2px])
+          $ elClass "div" "form-group form-group-label"
+            $ renderTextArea resetTextE "Write an expert review"
 
-      let postDataOnClickE = (\txt grade -> ExpertReviewPost grade txt)
-                               <$> current textD
-                               <@> ffilter (> 0) (current gradeD <@ clickE)
-      responseE <- httpPost $ (,) revsUrl <$> postDataOnClickE
-      _ <- renderError responseE
-      return responseE
-renderWriteExpertReview _ _ = return never
+        (gradeD, clickE)
+          <- elClass "div" (T.unwords ["card-action", spaces2px])
+            $ do
+              gD <- renderGrade 0
+              cE <- buttonFlatDyn (hideZeroState <$> gradeD) "Grade" mempty
+              return (gD, cE)
+
+        let postDataOnClickE = (\txt grade -> ExpertReviewPost grade txt)
+                                 <$> current textD
+                                 <@> ffilter (> 0) (current gradeD <@ clickE)
+
+        responseE <- httpPost $ (,) revsUrl <$> postDataOnClickE
+        let reset (Right _) = Just ""
+            reset _         = Nothing
+        let resetTextE = fmapMaybe reset responseE
+        _ <- renderError responseE
+        return responseE
+  where
+    WidgetCSSClasses {..} = widgetCSS
+renderWriteExpertReview _ = return never
+
+writeReviewClass :: Text
+writeReviewClass = $(do
+    reviewCls <- newVar
+    qcss
+      [cassius|
+        .#{reviewCls}
+          .card-inner
+            .form-group
+              margin: 8px 0 0 0
+              width: 100%
+            textarea
+              resize: vertical
+          .card-action
+            min-height: 32px
+            .btn-flat
+              padding: 0
+              line-height: 14px
+      |]
+    returnVars [reviewCls]
+  )
+
 
 -- either renders the `JSError` or fires the returned event which contains `a`
 renderError :: Reflex t
@@ -160,6 +187,7 @@ renderError :: Reflex t
             -> QuaWidget t x (Event t a)
 renderError event = do
   let (errE, resultE) = fanEither event
+  performEvent_ $ liftIO . print <$> errE
   holdDyn Nothing (Just <$> errE) >>= void . dyn . fmap renderErr
   return resultE
   where
@@ -221,7 +249,19 @@ renderGrade nrStartStars = mdo
       els <- sequence $ (Prelude.replicate nr       $ renderStar "star") ++
                         (Prelude.replicate (5 - nr) $ renderStar "star_border")
       return $ leftmost $ (\(i, elm) -> i <$ domEvent Click elm) <$> Prelude.zip [1..] els
-    renderStar t = fmap fst $ elClass' "span" "icon icon-lg" $ text t
+    renderStar t = fmap fst $ elClass' "span" (T.unwords ["icon","icon-lg", starsClass])
+                 $ text t
+    starsClass = $(do
+          starsCls <- newVar
+          qcss
+            [cassius|
+              .#{starsCls}
+                cursor: pointer
+                &:hover
+                    color: #ff6f00
+            |]
+          returnVars [starsCls]
+        )
 
 -- render thumb-up and -down buttons and return dynamic of their state
 renderThumbs :: Reflex t => QuaWidget t x (Dynamic t ThumbState)
@@ -275,3 +315,4 @@ inactiveStyle = "style" =: "opacity: 0.3"
 
 activeStyle :: Map Text Text
 activeStyle   = "style" =: "opacity: 1"
+

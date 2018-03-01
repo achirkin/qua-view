@@ -13,6 +13,8 @@ module Widgets.Commons
     , smallMarginClass
       -- * Helpers
     , whenActive
+      -- * Common CSS
+    , WidgetCSSClasses (..), widgetCSS
     ) where
 
 import Reflex.Dom
@@ -89,5 +91,49 @@ whenActive cstateD w = do
     whenActiveF Active   = w
     whenActiveF Inactive = blank
 
+-- | Overwrite bootstrap css a bit
+data WidgetCSSClasses
+  = WidgetCSSClasses
+  { spaces0px     :: Text -- ^ set both padding and margin to 0 px
+  , spaces2px     :: Text -- ^ set both padding and margin to 2 px
+  , icon24px      :: Text -- ^ material icon that is 24 px size
+  , smallP        :: Text -- ^ compact paragraphs
+  }
 
+
+widgetCSS :: WidgetCSSClasses
+widgetCSS = $(do
+    spaces0pxCls     <- newVar
+    spaces2pxCls     <- newVar
+    icon24pxCls      <- newVar
+    smallPCls        <- newVar
+    qcss
+      [cassius|
+        .#{spaces0pxCls}
+          padding: 0
+          margin: 0
+
+        .#{spaces2pxCls}
+          padding: 2px
+          margin: 2px
+
+        .#{icon24pxCls}
+          height: 24px
+          width: 24px
+          font-size: 16px
+          padding: 4px
+
+        .#{smallPCls}
+          margin: 2px
+          padding: 0px
+          line-height: 24px
+      |]
+    [| WidgetCSSClasses
+          { spaces0px     = $(returnVars [spaces0pxCls])
+          , spaces2px     = $(returnVars [spaces2pxCls])
+          , icon24px      = $(returnVars [icon24pxCls])
+          , smallP        = $(returnVars [smallPCls])
+          }
+     |]
+  )
 
