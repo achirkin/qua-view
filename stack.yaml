@@ -49,7 +49,7 @@ packages:
   #  extra-dep: true
   - location:
        git: https://github.com/achirkin/qua-kit.git
-       commit: d4b986a6ed1ed626e005021cd7e5a07be4cf05b1
+       commit: 110014d6abb44e3f9d50ca4a7feb642ac25f1d92
     subdirs:
        - libs/hs/qua-types
     extra-dep: true
