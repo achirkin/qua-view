@@ -61,10 +61,12 @@ renderWriteReview (ReviewSettings crits _ (Just revsUrl) _)
             $ do
               cD <- renderCriterions crits
               tD <- renderThumbs
-              cE <- buttonFlatDyn (hideState <$> critD <*> thumbD) "Send" mempty
+              cE <- el "p" $ do
+                void $ dyn $ renderTxt <$> tD <*> cD
+                buttonFlatDyn (hideState <$> critD <*> thumbD) "Send" mempty
               return (cD, tD, cE)
 
-        let postDataOnClickE = (\th te c -> ReviewPost c th te)
+        let postDataOnClickE = (\th te c -> ReviewPost (criterionId c) th te)
                                            <$> current thumbD
                                            <*> current textD
                                            <@> fmapMaybe id (current critD <@ clickE)
@@ -76,6 +78,14 @@ renderWriteReview (ReviewSettings crits _ (Just revsUrl) _)
         return responseE
   where
     WidgetCSSClasses {..} = widgetCSS
+    renderTxt _ Nothing = blank
+    renderTxt None _    = blank
+    renderTxt thumb (Just crit) =
+      text $ toTxt thumb <> (textFromJSString $ criterionName crit) <> " "
+      where
+        toTxt ThumbUp   = "Upvote "
+        toTxt ThumbDown = "Downvote "
+        toTxt None      = ""
 renderWriteReview _ = return never
 
 renderReview :: Reflex t
@@ -207,18 +217,20 @@ renderTextArea setValE label = do
 
 -- | Render supplied criterios and return dynamic with criterionId of selected one
 renderCriterions :: Reflex t
-                 => [Criterion] -> QuaWidget t x (Dynamic t (Maybe Int))
+                 => [Criterion] -> QuaWidget t x (Dynamic t (Maybe Criterion))
 renderCriterions crits = elClass "span" critsClass $ mdo
     let critE = leftmost critEs
     critEs <- for crits $ \c -> do
-      let critId        = criterionId c
-          chooseStyle mi _
-            | Just i <- mi, i == critId = activeStyle
-            | otherwise                 = inactiveStyle
-      critAttrD <- foldDyn chooseStyle inactiveStyle critE
+      let cTitle         = "title" =: textFromJSString (criterionName c)
+          activeStyle'   = activeStyle   <> cTitle
+          inactiveStyle' = inactiveStyle <> cTitle
+          chooseStyle mc _
+            | Just c' <- mc, criterionId c' == criterionId c = activeStyle'
+            | otherwise                 = inactiveStyle'
+      critAttrD <- foldDyn chooseStyle inactiveStyle' critE
       (spanEl, ()) <- elDynAttr' "span" critAttrD $ return ()
       setInnerHTML spanEl $ criterionIcon c
-      return $ Just critId <$ domEvent Click spanEl
+      return $ Just c <$ domEvent Click spanEl
     holdDyn Nothing critE
   where
     critsClass = $(do
@@ -315,4 +327,3 @@ inactiveStyle = "style" =: "opacity: 0.3"
 
 activeStyle :: Map Text Text
 activeStyle   = "style" =: "opacity: 1"
-
