@@ -12,6 +12,7 @@ module Widgets.Tabs.Reviews
     ( panelReviews
     ) where
 
+import Control.Monad (join)
 import Commons
 import qualified Data.Text as T
 import Data.List (sortOn)
@@ -138,7 +139,7 @@ renderReview crits r
 renderWriteExpertReview :: Reflex t
                         => ReviewSettings
                         -> QuaWidget t x (Event t (Either JSError Review))
-renderWriteExpertReview (ReviewSettings _ _ _ (Just revsUrl))
+renderWriteExpertReview (ReviewSettings _ revs _ (Just revsUrl))
   = elAttr "div" (  "class" =: "card"
                  <> "style" =: "padding: 0px; margin: 10px 0px 10px 0px"
                  )
@@ -146,7 +147,9 @@ renderWriteExpertReview (ReviewSettings _ _ _ (Just revsUrl))
       $ mdo
         textD <- elClass "div" (T.unwords ["card-inner", spaces2px])
           $ elClass "div" "form-group form-group-label"
-            $ renderTextArea resetTextE "Write an expert review"
+            $ join <$> widgetHold
+                (renderTextArea resetTextE initLabel)
+                (renderTextArea resetTextE <$> (updateReviewTxt <$ resetTextE))
 
         (gradeD, clickE)
           <- elClass "div" (T.unwords ["card-action", spaces2px])
@@ -166,6 +169,13 @@ renderWriteExpertReview (ReviewSettings _ _ _ (Just revsUrl))
         _ <- renderError responseE
         return responseE
   where
+    updateReviewTxt = "Update your expert review"
+    writeReviewTxt  = "Write an expert review"
+    initLabel = if any (isExpertRating . reviewRating) revs
+                then updateReviewTxt
+                else writeReviewTxt
+    isExpertRating (ExpertRating _) = True
+    isExpertRating _ = False
     WidgetCSSClasses {..} = widgetCSS
 renderWriteExpertReview _ = return never
 
