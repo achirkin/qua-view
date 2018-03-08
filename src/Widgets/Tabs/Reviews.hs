@@ -78,7 +78,7 @@ renderWriteReview (ReviewSettings crits _ (Just revsUrl) _)
         let reset (Right _) = Just ""
             reset _         = Nothing
         let resetTextE = fmapMaybe reset responseE
-        _ <- renderError responseE
+        renderError responseE
         return responseE
   where
     WidgetCSSClasses {..} = widgetCSS
@@ -169,7 +169,7 @@ renderWriteExpertReview (ReviewSettings _ revs _ (Just revsUrl))
         let reset (Right _) = Just ""
             reset _         = Nothing
         let resetTextE = fmapMaybe reset responseE
-        _ <- renderError responseE
+        renderError responseE
         return responseE
   where
     updateReviewTxt = "Update your expert review"
@@ -202,18 +202,16 @@ writeReviewClass = $(do
   )
 
 
--- either renders the `JSError` or fires the returned event which contains `a`
+-- renders the `JSError` or blank
 renderError :: Reflex t
             => Event t (Either JSError a)
-            -> QuaWidget t x (Event t a)
+            -> QuaWidget t x ()
 renderError event = do
-  let (errE, resultE) = fanEither event
-  performEvent_ $ liftIO . print <$> errE
-  holdDyn Nothing (Just <$> errE) >>= void . dyn . fmap renderErr
-  return resultE
+  performEvent_ $ liftIO . print <$> (fst $ fanEither event)
+  void $ widgetHold blank (renderErr <$> event)
   where
-    renderErr (Just err) = el "div" $ text $ textFromJSString $ getJSError err
-    renderErr Nothing    = blank
+    renderErr (Left err) = el "div" $ text $ textFromJSString $ getJSError err
+    renderErr (Right _)  = blank
 
 -- render bootstrapified textarea and return dynamic of text it contains
 renderTextArea :: Reflex t
