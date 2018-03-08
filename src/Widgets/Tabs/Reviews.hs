@@ -34,13 +34,16 @@ renderPanelReviews (Left _) = blank
 renderPanelReviews (Right reviewSettings) = do
     expertRespE <- renderWriteExpertReview reviewSettings
     respE <- renderWriteReview reviewSettings
-    reviewsD <- accum accumRevs (reverse . sortOn reviewTimestamp $ reviews reviewSettings) $
-                  leftmost [respE, expertRespE]
-    let crits = criterions reviewSettings
-    void . dyn $ mapM_ (renderReview crits) <$> reviewsD
+    let revs = reverse . sortOn reviewTimestamp $ reviews reviewSettings
+    reviewsE <- accum (flip ($)) revs $ leftmost [accumRevs <$> respE, onlyOneExpRev <$> expertRespE]
+    let renderRevs = mapM_ $ renderReview $ criterions reviewSettings
+    void $ widgetHold (renderRevs revs) (renderRevs <$> reviewsE)
   where
-    accumRevs revs (Right newRev) = newRev:revs
-    accumRevs revs (Left _)       = revs
+    accumRevs (Right newRev) revs = newRev:revs
+    accumRevs (Left _)       revs = revs
+    onlyOneExpRev :: Either JSError Review -> [Review] -> [Review]
+    onlyOneExpRev (Right newRev) revs = newRev : (filter (not . isMyExpertReview) revs)
+    onlyOneExpRev (Left _) revs = revs
 
 -- draws the write-review-text-entry component if ReviewSettings contains `Just reviewsUrl`.
 -- Returns event of posted review, or error on unsuccessful post.
@@ -171,11 +174,9 @@ renderWriteExpertReview (ReviewSettings _ revs _ (Just revsUrl))
   where
     updateReviewTxt = "Update your expert review"
     writeReviewTxt  = "Write an expert review"
-    initLabel = if any (isExpertRating . reviewRating) revs
+    initLabel = if any isMyExpertReview revs
                 then updateReviewTxt
                 else writeReviewTxt
-    isExpertRating (ExpertRating _) = True
-    isExpertRating _ = False
     WidgetCSSClasses {..} = widgetCSS
 renderWriteExpertReview _ = return never
 
@@ -337,3 +338,9 @@ inactiveStyle = "style" =: "opacity: 0.3"
 
 activeStyle :: Map Text Text
 activeStyle   = "style" =: "opacity: 1"
+
+isMyExpertReview :: Review -> Bool
+isMyExpertReview rev = reviewIsMine rev && isExpertRating (reviewRating rev)
+  where
+    isExpertRating (ExpertRating _) = True
+    isExpertRating _ = False
