@@ -58,16 +58,17 @@ renderWriteReview (ReviewSettings crits _ (Just revsUrl) _)
       $ mdo
         textD <- elClass "div" (T.unwords ["card-inner", spaces2px])
           $ elClass "div" "form-group form-group-label"
-            $ renderTextArea resetTextE "Write a review"
+            $ do
+              tD <- renderTextArea resetTextE "Write a review"
+              void $ dyn $ renderTxt <$> thumbD <*> critD
+              return tD
 
         (critD, thumbD, clickE)
           <- elClass "div" (T.unwords ["card-action", spaces2px])
             $ do
               cD <- renderCriterions crits
               tD <- renderThumbs
-              cE <- el "p" $ do
-                void $ dyn $ renderTxt <$> tD <*> cD
-                buttonFlatDyn (hideState <$> critD <*> thumbD) "Send" mempty
+              cE <- buttonFlatDyn (hideState <$> critD <*> thumbD) "Send" mempty
               return (cD, tD, cE)
 
         let postDataOnClickE = (\th te c -> ReviewPost (criterionId c) th te)
