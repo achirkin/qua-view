@@ -54,6 +54,9 @@ main = mainWidgetInElementById "qua-view-widgets" $ runQuaWidget $ do
 
     -- initialize animation handler (and all pointer events).
     aHandler <- Widgets.registerAnimationHandler canvas (SmallGL.render renderingApi)
+    -- make GHCJS think we performed GC on pointer down event,
+    --  such that first 5 seconds of pointer movement there are no more GCs.
+    performEvent_ $ liftIO performPhantomGC <$ select (pointerEvents aHandler) PDownEvent
     -- selected object id events
     selectedObjIdD <- objectSelectionsDyn aHandler renderingApi
     inQuaWidget $ colorObjectsOnSelection scenarioB selectedObjIdD

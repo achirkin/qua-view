@@ -596,8 +596,7 @@ fragmentShaderText =
       varying vec4 vColor;
       varying vec3 vDist;
       void main(void) {
-        mediump float fade = clamp(#{x} - dot(vDist,vDist), 0.0, 1.0);
-        gl_FragColor = vColor * fade;
+        gl_FragColor = vColor * clamp(#{x} - dot(vDist,vDist), 0.0, 1.0);
       }
     |]
   where
@@ -606,7 +605,7 @@ fragmentShaderText =
 vertexShaderText :: JSString
 vertexShaderText =
     [jsstring|
-      precision mediump float;
+      precision highp float;
       attribute vec4 aVertexPosition;
       attribute vec4 aVertexNormal;
       attribute vec4 aVertexColor;
@@ -647,7 +646,7 @@ fragmentSelShaderText =
 vertexSelShaderText :: JSString
 vertexSelShaderText =
   [jsstring|
-    precision mediump float;
+    precision highp float;
     attribute vec4 aVertexPosition;
     attribute vec4 aSelector;
     uniform mat4 uViewM;
