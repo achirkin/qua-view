@@ -3,9 +3,11 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeApplications  #-}
+{-# LANGUAGE TemplateHaskell   #-}
+{-# LANGUAGE QuasiQuotes       #-}
 #ifndef ISWORKER
-{-# LANGUAGE RecursiveDo #-}
+{-# LANGUAGE RecursiveDo     #-}
 #endif
 module Workers
    ( JSFFI.DedicatedWorkerGlobalScope
@@ -20,9 +22,8 @@ module Workers
    ) where
 
 
-#ifdef DEVELOPMENT
 import Data.Time.Clock.POSIX
-#endif
+import Data.Char (isAlphaNum)
 import Data.JSString as JSString
 import Control.Exception.Base (catch)
 import Control.Monad ((>=>))
@@ -33,6 +34,7 @@ import qualified GHCJS.DOM.Types as JSFFI
 import qualified GHCJS.DOM.EventM as JSFFI (on)
 import qualified GHCJS.DOM.JSFFI.Generated.DedicatedWorkerGlobalScope as JSFFI
 import qualified GHCJS.DOM.JSFFI.Generated.MessageEvent as JSFFI
+import Language.Haskell.TH
 #ifdef ISWORKER
 import Commons.NoReflex
 import Workers.Commons
@@ -80,16 +82,19 @@ create name onmsg onerr= ExceptT . liftIO $ do
       Left err -> Left err <$ releaseCbks
       Right w -> pure . Right . WebWorker w $ releaseCbks >> js_terminate w
   where
-#ifdef DEVELOPMENT
-    create' mc ec = do
-      t <- getCurrentTime
-      js_create
-            (name `JSString.append` "?"
-                  `JSString.append` JSString.pack (show $ utcTimeToPOSIXSeconds t)
-            ) mc ec
-#else
-    create' = js_create name
-#endif
+    create' = js_create $ $(do
+      t <- round . utcTimeToPOSIXSeconds <$> runIO getCurrentTime :: Q Int
+      let ts = pure . LitE . StringL $ '?' : toB64 (show t)
+          toB64 [] = []
+          toB64 [c]  = [c]
+          toB64 (a:b:cs) = toB (read [a,b] :: Int) ++ toB64 cs
+          toB n | isAlphaNum c = [c]
+                | otherwise = show n
+            where
+              c = toEnum $ 48 + mod n 74
+      [e| flip JSString.append $(ts) |]
+      ) name
+
 
 -- | Send a message without attachments
 postMessage :: (ToJSVal msg, MonadIO m) => WebWorker -> msg -> m ()

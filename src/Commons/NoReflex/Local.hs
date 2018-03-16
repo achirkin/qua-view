@@ -19,6 +19,7 @@ module Commons.NoReflex.Local
       -- * Local functions
     , jsstring
     , castToJSString, parseJSONValue, jsonStringify
+    , performPhantomGC
     ) where
 
 
@@ -206,3 +207,8 @@ instance ToJSON Value' where
   toJSON (Number v) = doubleValue v
   toJSON (Bool v)   = boolValue v
   toJSON Null       = nullValue
+
+
+-- | Make GHCJS think that it has just performed garbage collection.
+foreign import javascript unsafe "h$lastGc = Date.now();"
+  performPhantomGC :: IO ()
