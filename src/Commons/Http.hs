@@ -129,7 +129,9 @@ doHttp reqConfig cb = void $ newXMLHttpRequestWithError reqConfig cb'
       handleErr (Left XhrException_Aborted) = pure $ Left "XHR Aborted"
 
 getReqConfig :: JSString -> XhrRequest ()
-getReqConfig url = XhrRequest "GET" (textFromJSString url) def
+getReqConfig url = XhrRequest "GET" (textFromJSString url) $ def {
+                       _xhrRequestConfig_headers  = acceptJSON
+                     }
 
 -- | Create a "POST" request from an URL and thing with a JSON representation
 --   based on Reflex.Dom.Xhr (postJson)
@@ -140,7 +142,7 @@ postJsonReqConfig url payload =
                       , _xhrRequestConfig_sendData = body
                       }
   where headerUrlEnc = "Content-type" =: "application/json"
-                    <> "Accept" =: "application/json, text/plain;q=0.9, */*;q=0.8"
+                    <> acceptJSON
         body = encode $ toJSON payload
 
 
@@ -153,6 +155,8 @@ putJsonReqConfig url payload =
                       , _xhrRequestConfig_sendData = body
                       }
   where headerUrlEnc = "Content-type" =: "application/json"
-                    <> "Accept" =: "application/json, text/plain;q=0.9, */*;q=0.8"
+                    <> acceptJSON
         body = encode $ toJSON payload
 
+acceptJSON :: Map Text Text
+acceptJSON = "Accept" =: "application/json,text/plain;q=0.9"

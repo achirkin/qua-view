@@ -59,5 +59,6 @@ foreign import javascript interruptible
     \ xh.addEventListener(\"error\", function(){$c(null, xh['statusText'], xh['readyState'], xh['status']);}); \
     \ xh.addEventListener(\"abort\", function(){$c(null, xh['statusText'], xh['readyState'], xh['status']);}); \
     \ xh.open( 'GET', $1, true ); \
+    \ xh.setRequestHeader(\"Accept\", \"application/json,text/plain;q=0.9\"); \
     \ xh.send( ); "
     js_getUrlSync :: JSString -> IO (Nullable LoadedTextContent, Nullable JSError, Int, Int)
