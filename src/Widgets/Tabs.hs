@@ -30,9 +30,7 @@ tabWidget tabWidgets = mdo
     void $ widgetHold (renderTabNames initNames) (renderTabNames <$> namesE)
     (containerEl, ws) <- elClass' "div" tabContentClass $
                            for tabWidgets $ \(name, w) ->
-                             elAttr' "div" ("id" =: (toId name)) $ do
-                               el "h4" $ text name
-                               w
+                             elAttr' "div" ("id" =: (toId name)) w
     scrollE <- elementScroll $ _element_raw containerEl
 
     -- logMsgEvents LevelWarn (LogSource "scrollE") $ (show) <$> scrollE
@@ -52,10 +50,7 @@ tabWidget tabWidgets = mdo
             padding-bottom: calc(100vh - 300px)
             margin-left: 32px
             > div
-              border-bottom: 1px solid rgba(0,0,0,.12)
-              padding-bottom: 30px
-            h4
-              margin-top: 20px
+              padding-bottom: 60px
           .tab-nav
             margin-left: 32px
             box-shadow: 2px 2px 4px rgba(0,0,0,.24)
