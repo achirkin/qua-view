@@ -59,6 +59,8 @@ tabWidget tabWidgets = mdo
           .tab-nav
             margin-left: 32px
             box-shadow: 2px 2px 4px rgba(0,0,0,.24)
+            li
+              display: inline-block
         |]
       returnVars [tabContent]
       )
