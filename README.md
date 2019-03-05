@@ -36,6 +36,8 @@ Here is a current example structure of a scenario file:
       - defaultLineColor     # [#RRGGBB] set visualization colors (default: "#CC6666FF")
       - defaultPointColor    # [#RRGGBB] set visualization colors (default: "#006666FF")
       - viewDistance         # [Number] distance in meters where objects fade in white (default: 2000)
+      - maxCameraDistance    # [Number] maximum zoom-out in meters (default: 2/3 of viewDistance)
+      - minCameraDistance    # [Number] maximum zoom-in  in meters (default: 1)
       - mapZoomLevel         # [Int] tile server zoom level, typically something like 13-17 (default: 15)
       - useMapLayer          # [Bool] whether to use map or not (default: false)
       - mapOpacity           # [Number] make a map semi-transparent (default: 0.8)

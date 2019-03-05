@@ -16,12 +16,13 @@ module Model.Scenario
     , defaultBlockColor, defaultLineColor, defaultPointColor
     , defaultObjectHeight
     , viewDistance, evaluationCellSize
+    , maxCameraDistance, minCameraDistance
     , mapZoomLevel, mapOpacity, useMapLayer, mapUrl
     , hiddenProperties
     , resolvedObjectHeight, resolvedObjectColor
     , resolvedObjectColorIgnoreVisible
     , ScenarioState (..)
-    , cameraPos, cameraLoc, cameraLookAt, objectGroups, clippingDist
+    , cameraPos, cameraLoc, cameraLookAt, objectGroups, clippingDist, zoomLimits
     , templates, forcedAreaObjId, groupIdSeq, creationPoint
     ) where
 
@@ -214,6 +215,14 @@ viewDistance :: Functor f
              => (Maybe Float -> f (Maybe Float)) -> Scenario' s -> f (Scenario' s)
 viewDistance = properties . property "viewDistance"
 
+maxCameraDistance :: Functor f
+                  => (Maybe Float -> f (Maybe Float)) -> Scenario' s -> f (Scenario' s)
+maxCameraDistance = properties . property "maxCameraDistance"
+
+minCameraDistance :: Functor f
+                  => (Maybe Float -> f (Maybe Float)) -> Scenario' s -> f (Scenario' s)
+minCameraDistance = properties . property "minCameraDistance"
+
 mapZoomLevel :: Functor f
              => (Int -> f Int) -> Scenario' s -> f (Scenario' s)
 mapZoomLevel f = properties $ property "mapZoomLevel" g
@@ -294,6 +303,7 @@ data ScenarioState
   { _cameraPos       :: !(Vec3f, Vec3f)
   , _objectGroups    :: !(Map.Map GroupId [ObjectId])
   , _clippingDist    :: !Float
+  , _zoomLimits      :: !(Float, Float)
   , _templates       :: !(Set.Set (Either ObjectId GroupId))
   , _forcedAreaObjId :: !(Maybe ObjectId)
   , _groupIdSeq      :: !GroupId
@@ -315,6 +325,7 @@ instance Default ScenarioState where
     { _cameraPos       = (vec3 100 150 500, 0)
     , _objectGroups    = mempty
     , _clippingDist    = 2000
+    , _zoomLimits      = (1, 1334)
     , _templates       = mempty
     , _forcedAreaObjId = Nothing
     , _groupIdSeq      = 0
@@ -347,6 +358,11 @@ clippingDist :: Functor f
              => (Float -> f Float)
              -> ScenarioState -> f ScenarioState
 clippingDist f s = (\x -> s{_clippingDist = x}) <$> f (_clippingDist s)
+
+zoomLimits :: Functor f
+             => ((Float, Float) -> f (Float, Float))
+             -> ScenarioState -> f ScenarioState
+zoomLimits f s = (\x -> s{_zoomLimits = x}) <$> f (_zoomLimits s)
 
 templates :: Functor f
           => (Set.Set (Either ObjectId GroupId) -> f (Set.Set (Either ObjectId GroupId) ))

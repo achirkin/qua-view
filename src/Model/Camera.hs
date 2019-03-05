@@ -33,6 +33,7 @@ import qualified Numeric.Quaternion          as Q
 data Camera = Camera
     { viewportSize :: !(Float, Float)
     , clippingDist :: !Float
+    , zoomLimits   :: !(Float, Float)
     , projMatrix   :: !Mat44f
     , oldState     :: !CState
       -- ^ This state changes at the end of user action, e.g. PointerUp or MouseWheel.
@@ -80,12 +81,14 @@ lookAtState (camP, lookAtP)
 -- | Create camera
 initCamera :: Float  -- ^ width of the viewport
            -> Float  -- ^ height of the viewport
+           -> (Float, Float)  -- ^ minimum and maximum zoom distances
            -> Float  -- ^ clipping distance
            -> CState -- ^ look position and direction
            -> Camera
-initCamera width height clippingD state = Camera
+initCamera width height zl clippingD state = Camera
     { viewportSize = (width,height)
     , clippingDist = clippingD
+    , zoomLimits   = zl
     , projMatrix   = makeProjM clippingD (width,height)
     , oldState     = state
     , newState     = state
@@ -219,9 +222,10 @@ rotateCentered (unpackV2 -> (ox,oy) ) (unpackV2 -> (x,y)) Camera {
 scroll :: Float -- ^ Scrolling amout in fractions (i.e. `dist := dist*(1+x)`)
        -> Camera -- ^ Modify the camera state
        -> CState
-scroll s Camera {
-        oldState = ostate@CState { viewDist = ρ }
-    } = ostate { viewDist = max 1 $ ρ * (1 + min x (max (- min 0.8 x) s)) }
+scroll s Camera
+  { oldState = ostate@CState { viewDist = ρ }
+  , zoomLimits = (zn, zf)
+  } = ostate { viewDist = min zf . max zn $ ρ * (1 + min x (max (- min 0.8 x) s)) }
   where
     x = 8 / (1 + ρ/20)
 
@@ -237,11 +241,12 @@ twoFingerControl (op1,op2)
                         viewPoint  = ovp@((! 3) -> h),
                         viewAngles = (φ, theta),
                         viewDist   = ρ
-                    }
+                    },
+                    zoomLimits = (zn, zf)
     } = ostate {
             viewPoint  = nvp,
             viewAngles = (φ', theta),
-            viewDist   = max 0.1 (ρ * dlen)
+            viewDist   = min zf $ max zn (ρ * dlen)
         }
   where
     proj = screenToWorld cam h
@@ -368,4 +373,3 @@ unit v | n == 0 = 0
        | otherwise = ewmap (/n) v
     where
      n = normL2 v
-

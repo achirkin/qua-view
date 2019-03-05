@@ -54,6 +54,8 @@ data WebLogging
   | WlObjectCloned
     { _geomIds :: [ObjectId], _newObjCenter :: Vec3f }
     -- ^ Clone object by its id and a desired position of a center
+  | WlObjectSelected { _selGeomId :: Maybe ObjectId }
+    -- ^ An object was selected or deselected
   deriving Generic
 
 instance ToJSON WebLogging
@@ -62,8 +64,9 @@ instance FromJSON WebLogging
 
 logActions :: Reflex t
            => Dynamic t Camera -- ^ updates of the camera (check Model.Camera for description)
+           -> Dynamic t (Maybe ObjectId)
            -> QuaViewM t ()
-logActions camUpdatedD = do
+logActions camUpdatedD selectedObjIdD = do
 
   settingsD <- quaSettings
   settingsI <- sample $ current settingsD
@@ -87,6 +90,7 @@ logActions camUpdatedD = do
         , uncurry WlObjectLocationUpdated <$> objectLocUpdated
         , WlObjectDeleted <$> objectDeleted
         , uncurry WlObjectCloned <$> objectCloned
+        , fmap WlObjectSelected . updated . fromUniqDynamic . uniqDynamic $ selectedObjIdD
         ]
       wlMsgE = push (fmap Just . liftIO . jsonStringify . toJSON) webLoggingE
 

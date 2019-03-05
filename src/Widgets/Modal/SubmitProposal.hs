@@ -51,6 +51,7 @@ saveScenarioContent renderingApi scenarioB submitPopupUrlE = do
           imgHeight = 800
           defCam = initCamera (fromIntegral imgWidth)
                               (fromIntegral imgHeight)
+                              (scenario^.viewState.zoomLimits)
                               (scenario^.viewState.clippingDist)
                               (lookAtState $ scenario^.viewState.cameraPos)
           projMat = ProjM $ projMatrix defCam

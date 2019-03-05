@@ -27,7 +27,9 @@ tabWidget :: Reflex t
 tabWidget tabWidgets = mdo
     let offsetsAndScrollE = pushAlways getOffsets $ (,) ws <$> scrollE
         namesE = zip names <$> tabStates <$> offsetsAndScrollE
-    void $ widgetHold (renderTabNames initNames) (renderTabNames <$> namesE)
+    void $ widgetHold
+             (renderTabNames tabNavClass initNames)
+             (renderTabNames tabNavClass <$> namesE)
     (containerEl, ws) <- elClass' "div" tabContentClass $
                            for tabWidgets $ \(name, w) ->
                              elAttr' "div" ("id" =: (toId name)) w
@@ -39,8 +41,9 @@ tabWidget tabWidgets = mdo
   where
     names = fst $ unzip tabWidgets
     initNames = zip names $ Active:(repeat Inactive)
-    (tabContentClass) = $(do
-      tabContent   <- newVar
+    (tabContentClass, tabNavClass) = $(do
+      tabContent <- newVar
+      tabNav     <- newVar
       qcss
         [cassius|
           .#{tabContent}
@@ -48,22 +51,23 @@ tabWidget tabWidgets = mdo
             overflow-x: hidden
             height: 100%
             padding-bottom: calc(100vh - 300px)
-            margin-left: 32px
+            padding-left: 32px
             > div
               padding-bottom: 60px
-          .tab-nav
-            margin-left: 32px
+          .#{tabNav}
             box-shadow: 2px 2px 4px rgba(0,0,0,.24)
+            margin: 32px 0 0 0
             li
               display: inline-block
         |]
-      returnVars [tabContent]
+      returnVars [tabContent, tabNav]
       )
 
 renderTabNames :: Reflex t
-               => [(Text, ComponentState s)] -> QuaWidget t x ()
-renderTabNames names =
-  elClass "nav" "tab-nav" $
+               => Text
+               -> [(Text, ComponentState s)] -> QuaWidget t x ()
+renderTabNames tabNavClass names =
+  elClass "nav" (T.unwords [tabNavClass, "tab-nav"]) $
     elClass "ul" "nav" $ mapM_ renderName names
   where
     lnk name = elAttr "a" ("href" =: ("#" <> toId name)) $ text name

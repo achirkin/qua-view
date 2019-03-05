@@ -98,7 +98,7 @@ main = mainWidgetInElementById "qua-view-widgets" $ runQuaWidget $ do
 
 
     -- enable websockets logging
-    inQuaWidget $ WebLogging.logActions cameraD
+    inQuaWidget $ WebLogging.logActions cameraD selectedObjIdD
 
     -- other init things
     -- load geometry from url if it is supplied

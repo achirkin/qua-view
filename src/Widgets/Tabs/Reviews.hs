@@ -96,7 +96,7 @@ renderWriteReview _ = return never
 renderReview :: Reflex t
              => [Criterion] -> Review -> QuaWidget t x ()
 renderReview crits r
-  = elClass "div" (T.unwords ["card", spaces0px])
+  = elClass "div" (T.unwords ["card", cardSpaces])
     $ do
       case reviewRating r of
         ExpertRating _ -> pure ()

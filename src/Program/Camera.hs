@@ -36,6 +36,8 @@ dynamicCamera aHandler camLockedB = mdo
       $ lookAtState . view Scenario.cameraPos <$> scStateUpdatedE
     clippingDistD <- holdDyn clippingDistI
       $ view Scenario.clippingDist <$> scStateUpdatedE
+    zoomLimitsD <- holdDyn zoomLimitsI
+      $ view Scenario.zoomLimits <$> scStateUpdatedE
 
     -- all changes of the viewport size come from AResizeEvent
     viewportSizeD <- holdDyn (viewportSize camI) $ resizeE
@@ -67,6 +69,7 @@ dynamicCamera aHandler camLockedB = mdo
 
     let camD = Camera <$> viewportSizeD
                       <*> clippingDistD
+                      <*> zoomLimitsD
                       <*> projMatrixD
                       <*> oldStateD
                       <*> newStateD
@@ -76,9 +79,10 @@ dynamicCamera aHandler camLockedB = mdo
   where
     initCStateI = lookAtState $ def ^. Scenario.cameraPos
     clippingDistI = def ^. Scenario.clippingDist
+    zoomLimitsI = def ^. Scenario.zoomLimits
     camI = initCamera (realToFrac . fst $ A.viewPortSizeI aHandler)
                       (realToFrac . snd $ A.viewPortSizeI aHandler)
-                      clippingDistI initCStateI
+                      zoomLimitsI clippingDistI initCStateI
     -- resize events in local format
     resizeE = (\(A.ResizeEvent s) -> realToFrac *** realToFrac $ s)
               <$> select (A.animationEvents aHandler) AResizeEvent

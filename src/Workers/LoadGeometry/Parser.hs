@@ -108,8 +108,14 @@ prepareScenario st ss sc = do
   where
     -- updated statistics is a corrected version after transform from lon-lat coordinates
     (st', mScLoc, newSRID, transGeom) = performGTransform (sc^.Scenario.srid) st
+    foundVD = sc^.Scenario.viewDistance.non (inferViewDistance st')
     oldSs = ss -- update clipping distance if it is given in properties
-             & Scenario.clippingDist .~ sc^.Scenario.viewDistance.non (inferViewDistance st')
+             & Scenario.clippingDist .~ foundVD
+               -- update zoom levels if it is given in properties
+             & Scenario.zoomLimits   .~
+                 ( sc^.Scenario.minCameraDistance.non (fst $ ss^.Scenario.zoomLimits)
+                 , sc^.Scenario.maxCameraDistance.non (foundVD * 0.6667)
+                 )
                -- set default camera position
              & Scenario.cameraPos .~ inferCameraLookAt st'
 
@@ -269,4 +275,3 @@ prepareSpecialCreationPoint obj = do
       , dimVal' @n == 1
       = liftIO $ Just <$> unsafeSubArrayFreeze @Float @'[] @3 df (1:!1:!Z)
     getPoint _ = Nothing <$ report "special:creationPoint must be a single Point type!"
-

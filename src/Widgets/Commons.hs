@@ -98,6 +98,7 @@ data WidgetCSSClasses
   , spaces2px     :: Text -- ^ set both padding and margin to 2 px
   , icon24px      :: Text -- ^ material icon that is 24 px size
   , smallP        :: Text -- ^ compact paragraphs
+  , cardSpaces    :: Text -- ^ spaces between generic cards on the panel
   }
 
 
@@ -107,6 +108,7 @@ widgetCSS = $(do
     spaces2pxCls     <- newVar
     icon24pxCls      <- newVar
     smallPCls        <- newVar
+    cardSpacesCls    <- newVar
     qcss
       [cassius|
         .#{spaces0pxCls}
@@ -127,13 +129,17 @@ widgetCSS = $(do
           margin: 2px
           padding: 0px
           line-height: 24px
+
+        .#{cardSpacesCls}
+          margin: 5px 0 5px auto
+          padding: 0px
       |]
     [| WidgetCSSClasses
           { spaces0px     = $(returnVars [spaces0pxCls])
           , spaces2px     = $(returnVars [spaces2pxCls])
           , icon24px      = $(returnVars [icon24pxCls])
           , smallP        = $(returnVars [smallPCls])
+          , cardSpaces    = $(returnVars [cardSpacesCls])
           }
      |]
   )
-
