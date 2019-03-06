@@ -16,6 +16,7 @@ module Model.Scenario
     , defaultBlockColor, defaultLineColor, defaultPointColor
     , defaultObjectHeight
     , viewDistance, evaluationCellSize
+    , servicePluginsProp
     , maxCameraDistance, minCameraDistance
     , mapZoomLevel, mapOpacity, useMapLayer, mapUrl
     , hiddenProperties
@@ -23,7 +24,7 @@ module Model.Scenario
     , resolvedObjectColorIgnoreVisible
     , ScenarioState (..)
     , cameraPos, cameraLoc, cameraLookAt, objectGroups, clippingDist, zoomLimits
-    , templates, forcedAreaObjId, groupIdSeq, creationPoint
+    , templates, forcedAreaObjId, groupIdSeq, creationPoint, servicePlugins
     ) where
 
 
@@ -37,10 +38,10 @@ import Data.Semigroup (stimesIdempotentMonoid)
 import GHC.Generics
 import Commons.NoReflex
 import Model.Scenario.Properties
+import Model.Scenario.ServicePlugin
 import           Model.Scenario.Object ( GroupId, ObjectId)
 import qualified Model.Scenario.Object as Object
 import qualified Model.Scenario.Object.Geometry as Geometry
-
 
 type Scenario = Scenario' 'Object.Renderable
 
@@ -268,6 +269,15 @@ evaluationCellSize f = properties $ property "evaluationCellSize" g
      g Nothing  = Just <$> f 5.0
      g (Just c) = Just <$> f c
 
+servicePluginsProp :: Functor f
+                   => ([ServicePlugin] -> f [ServicePlugin])
+                   -> Scenario' s -> f (Scenario' s)
+servicePluginsProp f = properties $ property "servicePlugins" g
+   where
+     g Nothing  = nonEmpty <$> f []
+     g (Just c) = nonEmpty <$> f c
+     nonEmpty [] = Nothing
+     nonEmpty xs = Just xs
 
 
 -- * Resolved properties
@@ -308,6 +318,7 @@ data ScenarioState
   , _forcedAreaObjId :: !(Maybe ObjectId)
   , _groupIdSeq      :: !GroupId
   , _creationPoint   :: !(Maybe Vec3f)
+  , _servicePlugins  :: ![ServicePlugin]
   } deriving Generic
 
 instance FromJSVal ScenarioState
@@ -330,6 +341,7 @@ instance Default ScenarioState where
     , _forcedAreaObjId = Nothing
     , _groupIdSeq      = 0
     , _creationPoint   = Nothing
+    , _servicePlugins  = []
     }
 
 
@@ -385,3 +397,8 @@ creationPoint :: Functor f
               => (Maybe Vec3f -> f (Maybe Vec3f))
               -> ScenarioState -> f ScenarioState
 creationPoint f s = (\x -> s{_creationPoint = x}) <$> f (_creationPoint s)
+
+servicePlugins :: Functor f
+               => ([ServicePlugin] -> f [ServicePlugin])
+               -> ScenarioState -> f ScenarioState
+servicePlugins f s = (\x -> s{_servicePlugins = x}) <$> f (_servicePlugins s)

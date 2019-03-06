@@ -93,6 +93,7 @@ executable qua-view
         Model.Scenario.Object
         Model.Scenario.Object.Geometry
         Model.Scenario.Properties
+        Model.Scenario.ServicePlugin
         Model.Scenario.Statistics
         Program.Camera
         Program.MapTiles
@@ -183,6 +184,7 @@ executable qua-worker-loadgeometry
         Model.Scenario.Object
         Model.Scenario.Object.Geometry
         Model.Scenario.Properties
+        Model.Scenario.ServicePlugin
         Model.Scenario.Statistics
         SmallGL.Helpers
         SmallGL.Shader

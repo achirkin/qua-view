@@ -118,6 +118,8 @@ prepareScenario st ss sc = do
                  )
                -- set default camera position
              & Scenario.cameraPos .~ inferCameraLookAt st'
+               -- parse service plugins
+             & Scenario.servicePlugins .~ sc^.Scenario.servicePluginsProp
 
 
 -- | extrude geometry if we find it necessary

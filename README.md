@@ -48,6 +48,7 @@ Here is a current example structure of a scenario file:
       - hiddenProperties     # [[String]] list of object property names to not show in the viewer
       - evaluationCellSize   # [Number] used for rendering service result - resolution of heatmaps
       - previewImgUrl        # [String] url to show an image above the info panel
+      - servicePlugins       # [[ServicePlugin]] a list of analysis plugins; see *ServicePlugins* section
 ```
 Special object properties:
 ```yaml
@@ -151,6 +152,63 @@ Special object types are used to control `qua-view` behavior. We use `special ::
       }
       ```
 
+### ServicePlugins
+
+Service plugins is a simple system for adding custom analysis services for a scenario.
+A service plugin is a third-party http service that processes a GET or POST request and returns
+a result in a form of an html page.
+In qua-view, the plugin appears as a round button on the control panel.
+By clicking on that button, a user opens a new browser tab or a modal window
+with a GET or POST request to the service.
+Qua-view fills-in the request parameters for a user.
+You can set up as many plugins as needed by specifying them in a list called `"servicePlugins"`
+in the scenario `"properties"`.
+Here is how a single `ServicePlugin` looks like:
+```yaml
+[ServicePlugin]
+  - name        # [String] name of the plugin; appears as a hint for a service run button (required)
+  - url         # [String] A base URL to a service page (may contain get parameters as well) (required)
+  - icon        # [String] An svg code of a button icon (required)
+  - iconBgColor # [#RRGGBB] A background color of a button  (default: "#FFFFFFFF")
+  - view        # [String] :: one of "newtab", "modal", "auto" (default: "auto")
+```
+Thus, a scenario with one definition of a service plugin looks as follows:
+```json
+{ "geometry": [...]
+, "properties":
+  { "servicePlugins":
+    [ { "name": "HTTPbin"
+      , "url" : "https://httpbin.org/post"
+      , "icon": "<svg width=\"60\" height=\"60\" version=\"1.1\" xmlns=\"http://www.w3.org/2000/svg\"><polyline points=\"10 10 15 20 20 15 25 30 30 25 35 40 40 35 45 50 50 45\" stroke=\"orange\" fill=\"transparent\" stroke-width=\"5\"/></svg>"
+      , "iconBgColor": "#000000"
+      }
+    ]
+  }
+}
+```
+
+#### ServicePlugin request parameters
+
+If a user is in the editing mode, they likely do not have a saved version of the scenario on the server.
+In this case, qua-view sends a POST request to the service with a parameter `geometry`
+that contains the json with the current state of the scenario.
+If a user is in the viewing mode, qua-view sends a GET request with a parameter `url`
+that contains a link to the json file with the scenario on the server.
+
+In any case, qua-view sends three more parameters (if they are available):
+
+  * `userId` -- id of a current user (if they are logged in)
+  * `authorId` -- id of a submission author if it is available (e.g. it is not a template scenario)
+  * `exerciseId` -- id of an exercise, if the scenario belongs to one.
+
+#### ServicePlugin viewing modes
+
+ServicePlugin can be rendered in a new tab or in a modal window in the qua-view tab.
+This can be specified:
+
+  * `"view": "auto"` -- in a new tab if the user is in the viewing mode, in a modal otherwise
+  * `"view": "newtab"` -- always open in a new tab
+  * `"view": "modal"` -- always open in a modal window
 
 ## Development
 

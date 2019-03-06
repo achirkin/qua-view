@@ -14,18 +14,23 @@ module Widgets.ControlButtons
     , serviceRunButton
     ) where
 
+import Control.Lens
 import Control.Monad (join)
 import qualified Reflex.Class as Reflex
 import qualified Reflex.Dom as Dom
 import Reflex.Dynamic
 import Reflex (ffor)
 import Text.Julius (julius)
+import qualified Data.JSString as JSString
+import JavaScript.JSON.Types.Instances (toJSON)
 
 import Commons
 import SmallGL (RenderingApi)
 import QuaTypes
+import Program.Scenario
 import Program.UserAction
-import Model.Scenario (Scenario)
+import Model.Scenario (Scenario, servicePlugins)
+import Model.Scenario.ServicePlugin
 import Widgets.Generation
 import Widgets.Modal.DownloadScenario
 import Widgets.Modal.Help
@@ -46,6 +51,12 @@ controlButtonGroup rApi scenarioB = mdo
             toggleGroupD'  <- expandCtrlGroupButton
             -- show all buttons
             groupContents <- Dom.elClass "div" "fbtn-dropup" $ do
+                -- service plugin buttons
+                scenarioStateUpdated <- askEvent $ ScenarioUpdate ScenarioStateUpdatedOut
+                let showSPBtns =
+                      mapM_ (flip servicePluginButton scenarioB) . view servicePlugins
+                _ <- Dom.widgetHold (showSPBtns def) (showSPBtns <$> scenarioStateUpdated)
+
                 downloadScenarioButton scenarioB
                 shareButton
                 resetCameraButton
@@ -302,3 +313,32 @@ downloadScenarioButton scB = do
     popupDownloadScenario scB (ElementClick <$ Dom.domEvent Dom.Click e)
 
 
+servicePluginButton :: Reflex t
+                    => ServicePlugin
+                    -> Behavior t Scenario
+                    -> QuaWidget t x ()
+servicePluginButton sPlugin scB = do
+    (e, ()) <- Dom.elAttr' "a"
+          ( "class" =: "fbtn waves-attach waves-circle waves-effect fbtn-green"
+         <> "style" =: ("background-color: " <> bgColor)
+           ) $ do
+      Dom.elClass "span" "fbtn-text fbtn-text-left" $ Dom.text name
+      (ie, ()) <- Dom.elClass' "span" "icon icon-lg" Dom.blank
+      setInnerHTML ie $
+          "<img style=\"width: 1em; height=1em\" src=\"data:image/svg+xml,"
+        <> JSString.map toNiceUri (sPlugin ^. spIcon)
+        <> "\"></img>"
+    -- (ElementClick <$ Dom.domEvent Dom.Click e)
+    -- What to do every time users click the button
+    Dom.performEvent_
+        $ ffor (scB Dom.<@ Dom.domEvent Dom.Click e)
+        $ \scenario -> do
+      geom <- liftIO . jsonStringify $ toJSON scenario
+      logWarn' "servicePluginButton" ("click! " <> url) geom
+
+  where
+    bgColor = textFromJSString $ toJSString $ sPlugin ^. spIconBgColor
+    url     = sPlugin ^. spURL
+    name    = textFromJSString $ sPlugin ^. spName
+    toNiceUri '"' = '\''
+    toNiceUri c = c
