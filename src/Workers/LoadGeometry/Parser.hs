@@ -135,8 +135,8 @@ performExtrude o | Object.was2D o = do
 performGTransform :: Maybe Int -- ^ forced was WGS'84
                   -> ScenarioStatistics
                   -> ( ScenarioStatistics
-                     , Maybe (Double, Double, Double) -- ^ updated loc
-                     , Maybe Int -- ^ updated SRID
+                     , Maybe (Double, Double, Double) --  updated loc
+                     , Maybe Int --  updated SRID
                      , Object.Object' 'Object.NotReady -> PrepScenario (Object.Object' 'Object.NotReady)
                      )
 performGTransform forcedSRID st

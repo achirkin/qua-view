@@ -34,6 +34,7 @@ import Model.Scenario.ServicePlugin
 import Widgets.Generation
 import Widgets.Modal.DownloadScenario
 import Widgets.Modal.Help
+import Widgets.Modal.ServicePlugin
 import Widgets.Modal.Share
 import Widgets.Modal.SubmitProposal
 
@@ -317,7 +318,7 @@ servicePluginButton :: Reflex t
                     => ServicePlugin
                     -> Behavior t Scenario
                     -> QuaWidget t x ()
-servicePluginButton sPlugin scB = do
+servicePluginButton sPlugin scenarioB = do
     (e, ()) <- Dom.elAttr' "a"
           ( "class" =: "fbtn waves-attach waves-circle waves-effect fbtn-green"
          <> "style" =: ("background-color: " <> bgColor)
@@ -325,17 +326,11 @@ servicePluginButton sPlugin scB = do
       Dom.elClass "span" "fbtn-text fbtn-text-left" $ Dom.text name
       (ie, ()) <- Dom.elClass' "span" "icon icon-lg" Dom.blank
       setInnerHTML ie $
-          "<img style=\"width: 1em; height=1em\" src=\"data:image/svg+xml,"
+          "<img style=\"width:1em;height:1em;vertical-align:top\" src=\"data:image/svg+xml,"
         <> JSString.map toNiceUri (sPlugin ^. spIcon)
         <> "\"></img>"
-    -- (ElementClick <$ Dom.domEvent Dom.Click e)
-    -- What to do every time users click the button
-    Dom.performEvent_
-        $ ffor (scB Dom.<@ Dom.domEvent Dom.Click e)
-        $ \scenario -> do
-      geom <- liftIO . jsonStringify $ toJSON scenario
-      logWarn' "servicePluginButton" ("click! " <> url) geom
-
+    
+    popupServicePlugin sPlugin scenarioB (ElementClick <$ Dom.domEvent Dom.Click e)
   where
     bgColor = textFromJSString $ toJSString $ sPlugin ^. spIconBgColor
     url     = sPlugin ^. spURL

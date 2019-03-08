@@ -1,5 +1,5 @@
 name: qua-view
-version: 0.5
+version: 0.5.1
 cabal-version: >=1.22
 build-type: Custom
 license: MIT
@@ -120,6 +120,7 @@ executable qua-view
         Widgets.Modal.EdxGuide
         Widgets.Modal.Help
         Widgets.Modal.SaveScenario
+        Widgets.Modal.ServicePlugin
         Widgets.Modal.Share
         Widgets.Modal.SubmitProposal
         Widgets.Tabs

@@ -195,11 +195,9 @@ that contains the json with the current state of the scenario.
 If a user is in the viewing mode, qua-view sends a GET request with a parameter `url`
 that contains a link to the json file with the scenario on the server.
 
-In any case, qua-view sends three more parameters (if they are available):
+In any case, qua-view sends one more parameter `view`, which can have value `"newtab"` or `"modal"`.
+It says how the service was invoked (in a new tab or in an iframe).
 
-  * `userId` -- id of a current user (if they are logged in)
-  * `authorId` -- id of a submission author if it is available (e.g. it is not a template scenario)
-  * `exerciseId` -- id of an exercise, if the scenario belongs to one.
 
 #### ServicePlugin viewing modes
 
