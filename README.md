@@ -15,7 +15,7 @@ We gradually add new functionality to qua-kit visualization.
 As a consequence, some of the features are not representable via standard GeoJSON. To overcome this problem, we have extended the format we use to import GeoJSON objects.
 Though, the changes do not affect normal GeoJSON files.
 The extended format adds one more layer of JSON to GeoJSON feature collections.
-Here is a current example structure of a scenario file:
+The following is a structure of a scenario file:
 ```yaml
 [root]
   - name # [String] name of the scenario
@@ -186,6 +186,13 @@ Thus, a scenario with one definition of a service plugin looks as follows:
   }
 }
 ```
+How to create an `icon`:
+
+  * The content of the `icon` field is a text - a vector (.svg) drawing.
+  * In qua-view, the icon is square and has size 1em (approximately 20px with standard zoom level).
+  * Try to keep the drawing as simple as possible.
+  * If you have to use double quotes (`"`), do not forget to escape them in the JSON file (`\"`), or better just replace them with single quotes (`'`).
+  * Do not nest double and single quotes and do not use special or non-ascii symbols to decrease the chance of breaking the parser.
 
 #### ServicePlugin request parameters
 
@@ -204,9 +211,9 @@ It says how the service was invoked (in a new tab or in an iframe).
 ServicePlugin can be rendered in a new tab or in a modal window in the qua-view tab.
 This can be specified:
 
-  * `"view": "auto"` -- in a new tab if the user is in the viewing mode, in a modal otherwise
-  * `"view": "newtab"` -- always open in a new tab
-  * `"view": "modal"` -- always open in a modal window
+  * `"view": "auto"` - in a new tab if the user is in the viewing mode, in a modal otherwise
+  * `"view": "newtab"` - always open in a new tab
+  * `"view": "modal"` - always open in a modal window
 
 ## Development
 
