@@ -15,7 +15,7 @@ We gradually add new functionality to qua-kit visualization.
 As a consequence, some of the features are not representable via standard GeoJSON. To overcome this problem, we have extended the format we use to import GeoJSON objects.
 Though, the changes do not affect normal GeoJSON files.
 The extended format adds one more layer of JSON to GeoJSON feature collections.
-The following is a structure of a scenario file:
+The following is the structure of a scenario file:
 ```yaml
 [root]
   - name # [String] name of the scenario
