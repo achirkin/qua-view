@@ -52,20 +52,22 @@ controlButtonGroup rApi scenarioB = mdo
             toggleGroupD'  <- expandCtrlGroupButton
             -- show all buttons
             groupContents <- Dom.elClass "div" "fbtn-dropup" $ do
+
+                _ <- submitProposalButton rApi scenarioB
+                
                 -- service plugin buttons
                 scenarioStateUpdated <- askEvent $ ScenarioUpdate ScenarioStateUpdatedOut
                 let showSPBtns =
                       mapM_ (flip servicePluginButton scenarioB) . view servicePlugins
                 _ <- Dom.widgetHold (showSPBtns def) (showSPBtns <$> scenarioStateUpdated)
 
-                downloadScenarioButton scenarioB
-                shareButton
+                -- downloadScenarioButton scenarioB
+                -- shareButton
                 resetCameraButton
                 helpButton
                 toggleFullScreenButton
                 groupContents' <- controlPanelButton
-                _serviceStateD <- serviceButtons $ constDyn Inactive -- TODO: For running service
-                _ <- submitProposalButton rApi scenarioB
+                -- _serviceStateD <- serviceButtons $ constDyn Inactive -- TODO: For running service
                 return groupContents'
             return (toggleGroupD', groupContents)
     return cpStateD
@@ -98,6 +100,12 @@ controlButtonGroup rApi scenarioB = mdo
 
             .#{cstate}
                 left: -64px
+
+            a.fbtn > span.fbtn-text
+                display: none !important
+
+            a.fbtn > span.fbtn-text.left
+                display: none !important
 
           |]
         -- Combine two classes: {.base .base-open} and {.base .base-closed}
@@ -292,11 +300,11 @@ submitProposalButton rApi scenarioB = do
       Just submissionUrl -> do
         e <- makeElementFromHtml def $(qhtml
               [hamlet|
-                <a .fbtn .waves-attach .waves-circle .waves-effect .fbtn-brand>
+                <a .fbtn .fbtn-lg .waves-attach .waves-circle .waves-effect .fbtn-brand>
                   <span .fbtn-text .fbtn-text-left>
                     Submit proposal
                   <span .icon .icon-lg>
-                    save
+                    cloud_upload
               |])
         popupSubmitProposal rApi scenarioB (submissionUrl <$ Dom.domEvent Dom.Click e)
 
